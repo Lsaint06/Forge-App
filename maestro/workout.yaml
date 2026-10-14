@@ -1,0 +1,24 @@
+# Run only on an isolated installed development/test build; this clears app data.
+appId: com.lsaint06.forge
+---
+- launchApp:
+    clearState: true
+- tapOn: 'Skip optional setup · use guest defaults'
+- tapOn: 'Start a workout'
+- tapOn: 'Add exercise'
+- tapOn: 'Search exercises'
+- inputText: 'Barbell Bench Press'
+- tapOn: 'Add Barbell Bench Press'
+- tapOn: 'Load (kg; added load for bodyweight)'
+- eraseText
+- inputText: '40'
+- tapOn: 'Reps'
+- eraseText
+- inputText: '8'
+- hideKeyboard
+- tapOn: 'Complete'
+- scrollUntilVisible:
+    element: 'Finish workout'
+- tapOn: 'Finish workout'
+- tapOn: 'Confirm'
+- assertVisible: 'Your weekly commitment'

@@ -1,1 +1,23 @@
-{"expo":{"name":"FORGE","slug":"forge-fitness","scheme":"forge","version":"1.0.0","orientation":"portrait","userInterfaceStyle":"automatic","ios":{"supportsTablet":true,"bundleIdentifier":"com.lsaint06.forge","infoPlist":{"ITSAppUsesNonExemptEncryption":false}},"android":{"package":"com.lsaint06.forge"},"plugins":["expo-router","expo-sqlite","expo-secure-store","expo-notifications"],"experiments":{"typedRoutes":false}}}
+{
+  "expo": {
+    "name": "FORGE",
+    "slug": "forge-fitness",
+    "scheme": "forge",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lsaint06.forge",
+      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+    },
+    "android": { "package": "com.lsaint06.forge" },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-notifications"
+    ],
+    "experiments": { "typedRoutes": false }
+  }
+}

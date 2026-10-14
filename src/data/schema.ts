@@ -1,4 +1,4 @@
-export const schema=`
+export const schema = `
 PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS migrations(version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS profile(id TEXT PRIMARY KEY CHECK(id='local'), data TEXT NOT NULL);

@@ -1,0 +1,190 @@
+import React, { useState } from "react";
+import { Alert } from "react-native";
+import { router } from "expo-router";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import * as DocumentPicker from "expo-document-picker";
+import * as Notifications from "expo-notifications";
+import {
+  Screen,
+  Card,
+  Label,
+  Button,
+  Sheet,
+  Row,
+} from "../../src/components/ui";
+import { ProfileForm } from "../../src/components/ProfileForm";
+import { useRepo, confirm } from "../../src/state";
+export default function Profile() {
+  const r = useRepo();
+  const p = r.profile();
+  const [edit, setEdit] = useState(false);
+  async function exportData() {
+    try {
+      const file = new FileSystem.File(
+        FileSystem.Paths.cache,
+        `forge-backup-${Date.now()}.json`,
+      );
+      file.create();
+      file.write(JSON.stringify(r.exportBackup(), null, 2));
+      if (await Sharing.isAvailableAsync())
+        await Sharing.shareAsync(file.uri, {
+          mimeType: "application/json",
+          dialogTitle: "Save your FORGE backup",
+        });
+      else
+        Alert.alert(
+          "Sharing unavailable",
+          "This device does not support the native share sheet.",
+        );
+    } catch (e) {
+      Alert.alert("Export failed", String(e));
+    }
+  }
+  async function importData() {
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: ["application/json", "text/plain"],
+        copyToCacheDirectory: true,
+      });
+      if (picked.canceled) return;
+      const asset = picked.assets[0];
+      if (!asset) return;
+      const file = new FileSystem.File(asset.uri);
+      if (file.size > 50_000_000) throw new Error("Backup exceeds 50 MB");
+      const text = await file.text();
+      confirm(
+        "Replace local data from backup?",
+        "All current records will be replaced atomically if the backup is valid. Export first. If cloud sync is enabled, this resets the local sync identity and may cause conflicts on your next sync.",
+        () => r.importBackup(text),
+      );
+    } catch (e) {
+      Alert.alert("Import failed", e instanceof Error ? e.message : String(e));
+    }
+  }
+  return (
+    <Screen title={p.name} eyebrow="YOUR SPACE / PROFILE">
+      <Card>
+        <Label size={24} bold>
+          {p.goal}
+        </Label>
+        <Label muted>
+          {p.experience} · {p.frequency} sessions / week ·{" "}
+          {p.units.toUpperCase()}
+        </Label>
+        <Button
+          title="Edit profile & preferences"
+          secondary
+          onPress={() => setEdit(true)}
+        />
+        <Button
+          title="Account & cloud sync"
+          secondary
+          onPress={() => router.push("/account")}
+        />
+      </Card>
+      <Row>
+        <Button
+          title="Body measurements"
+          secondary
+          onPress={() =>
+            router.push({
+              pathname: "/journal",
+              params: { kind: "measurement" },
+            })
+          }
+        />
+        <Button
+          title="Nutrition"
+          secondary
+          onPress={() =>
+            router.push({ pathname: "/journal", params: { kind: "nutrition" } })
+          }
+        />
+        <Button
+          title="Recovery"
+          secondary
+          onPress={() =>
+            router.push({ pathname: "/journal", params: { kind: "recovery" } })
+          }
+        />
+        <Button
+          title="Goals"
+          secondary
+          onPress={() =>
+            router.push({ pathname: "/journal", params: { kind: "goal" } })
+          }
+        />
+      </Row>
+      <Card>
+        <Label bold size={21}>
+          Own your data
+        </Label>
+        <Label muted>
+          Backups contain your profile, workouts and sets, custom exercises,
+          favorites, templates, schedules and journals. They do not contain
+          passwords or authentication tokens. Keep exported health data private.
+        </Label>
+        <Button
+          title="Export JSON backup"
+          secondary
+          onPress={() => void exportData()}
+        />
+        <Button
+          title="Import JSON backup"
+          secondary
+          onPress={() => void importData()}
+        />
+        <Button
+          title="Delete all local data"
+          danger
+          onPress={() =>
+            confirm(
+              "Delete all local data?",
+              "This removes every local workout, template, preference and journal entry. Cloud records and your account are not deleted. Export first. A later sync can restore cloud records.",
+              () => {
+                r.clearData();
+                void Notifications.cancelAllScheduledNotificationsAsync().catch(
+                  (e) => Alert.alert("Reminder cleanup failed", String(e)),
+                );
+                router.replace("/onboarding");
+              },
+            )
+          }
+        />
+      </Card>
+      <Card>
+        <Label bold>Privacy & training guidance</Label>
+        <Label muted>
+          Guest logs stay in the application SQLite database. This database is
+          not encrypted by FORGE; use your device lock. Cloud sync is opt-in and
+          uses the backend you configure. Other apps can read files you share.
+          No advertising or analytics SDK is installed.
+        </Label>
+        <Label muted>
+          Volume counts external load × reps for completed non-warmup sets.
+          Subjective recovery and progression suggestions are transparent
+          heuristics. They are not medical guidance. Exercise instructions are
+          general coaching notes; consult a qualified coach for advanced
+          movements.
+        </Label>
+        <Label muted size={12}>
+          FORGE 1.0.0 · Local schema v1 · {r.outbox().length} pending sync
+          records
+        </Label>
+      </Card>
+      <Sheet
+        visible={edit}
+        onClose={() => setEdit(false)}
+        title="Your preferences"
+      >
+        <ProfileForm
+          onDone={() => {
+            setEdit(false);
+            Alert.alert("Saved", "Your preferences have been updated.");
+          }}
+        />
+      </Sheet>
+    </Screen>
+  );
+}
