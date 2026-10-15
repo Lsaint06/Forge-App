@@ -16,7 +16,12 @@ import {
   type PathDay,
   type PathDraft,
 } from "./legacyGenerator";
-import { sessionSetCap, exerciseSetCap, isPriorityTarget } from "./volume";
+import {
+  sessionSetCap,
+  exerciseSetCap,
+  isPriorityTarget,
+  weeklyMuscleCap,
+} from "./volume";
 export {
   compatibleMovements,
   estimatedMinutes,
@@ -490,60 +495,82 @@ export function generatePath(
         day.exercises = before;
     }
   }
-  // Duration-aware filling: approach the requested session length by adding
-  // working sets, but never past the goal's volume cap or the session target,
-  // so time is never padded with junk sets. Beginner and start-strong plans
-  // stay at their deliberate, manageable templates. Strength is filled too, but
-  // channelled into heavy main-lift practice first (see fillToTarget), not into
-  // a hypertrophy accessory block. If the productive session is shorter, it
-  // stays shorter and the honest estimate is reported.
+  // Duration-aware filling at the program level: approach each session's
+  // requested length by adding working sets, but never past the session time
+  // target, the goal's per-session volume cap, a per-exercise cap, or a muscle's
+  // weekly direct-set ceiling. Filling all days together with a running weekly
+  // tally keeps high-frequency weeks from overloading a single muscle. Beginner
+  // and start-strong plans keep their deliberate, manageable templates; strength
+  // is filled into the main lifts first. Shorter productive sessions stay
+  // shorter and report the honest estimate.
   const fillable = !novice && p.experience !== "Beginner";
-  if (fillable)
-    for (const day of days) fillToTarget(day, p, catalog, strength);
+  if (fillable) fillProgram(days, p, catalog, strength);
   return validateDraft({ engineVersion: 4, preferences: p, days }, catalog);
 }
 
-// Distributes extra working sets across a session to approach its duration
-// target. Strength channels fill into the main lifts first; other goals fill
-// priority slots first, then the rest evenly. Capped by goal volume,
-// per-exercise limits and the time target. Pure and deterministic.
-function fillToTarget(
-  day: PathDay,
+function sessionSets(day: PathDay): number {
+  return day.exercises.reduce((n, e) => n + e.sets, 0);
+}
+
+// Distributes extra working sets across the whole week to approach each
+// session's duration target. Strength channels fill into the main lifts first;
+// other goals fill priority slots first, then evenly. Bounded by the time
+// target, goal session/exercise caps and weekly per-muscle ceilings. Pure and
+// deterministic.
+function fillProgram(
+  days: PathDay[],
   p: PathPreferences,
   catalog: Exercise[],
   strength: boolean,
 ) {
-  const cap = sessionSetCap(p);
-  const isPrimaryStrength = (i: number) => {
+  const weekly: Record<string, number> = {};
+  const directOf = (id: string) => exerciseStimulus(id).direct;
+  for (const day of days)
+    for (const pr of day.exercises)
+      for (const muscle of directOf(pr.exerciseId))
+        weekly[muscle] = (weekly[muscle] ?? 0) + pr.sets;
+
+  const isPrimaryStrength = (day: PathDay, i: number) => {
     const ex = catalog.find((e) => e.id === day.exercises[i]!.exerciseId);
     return strength && i < 2 && !(ex && exerciseStimulus(ex.id).isolation);
   };
-  const rank = (i: number) =>
-    (isPrimaryStrength(i) ? 2 : 0) +
-    (isPriorityTarget(
-      p,
-      day.roles[i]!,
-      catalog.find((e) => e.id === day.exercises[i]!.exerciseId),
-    )
-      ? 1
-      : 0);
-  const order = day.exercises
-    .map((_, i) => i)
-    .sort((a, b) => rank(b) - rank(a));
+  const orderFor = (day: PathDay) => {
+    const rank = (i: number) =>
+      (isPrimaryStrength(day, i) ? 2 : 0) +
+      (isPriorityTarget(
+        p,
+        day.roles[i]!,
+        catalog.find((e) => e.id === day.exercises[i]!.exerciseId),
+      )
+        ? 1
+        : 0);
+    return day.exercises.map((_, i) => i).sort((a, b) => rank(b) - rank(a));
+  };
+
+  const cap = sessionSetCap(p);
   let added = true;
   while (added) {
     added = false;
-    for (const i of order) {
-      if (day.exercises.reduce((n, e) => n + e.sets, 0) >= cap) return;
-      const ex = catalog.find((e) => e.id === day.exercises[i]!.exerciseId);
-      if (day.exercises[i]!.sets >= exerciseSetCap(p, ex, isPrimaryStrength(i)))
-        continue;
-      day.exercises[i]!.sets++;
-      if (estimatedMinutes(day.exercises, catalog) > p.duration) {
-        day.exercises[i]!.sets--;
-        continue;
+    for (const day of days) {
+      for (const i of orderFor(day)) {
+        if (sessionSets(day) >= cap) break;
+        const ex = catalog.find((e) => e.id === day.exercises[i]!.exerciseId);
+        if (
+          day.exercises[i]!.sets >=
+          exerciseSetCap(p, ex, isPrimaryStrength(day, i))
+        )
+          continue;
+        const directs = directOf(day.exercises[i]!.exerciseId);
+        if (directs.some((m) => (weekly[m] ?? 0) >= weeklyMuscleCap(p, m)))
+          continue;
+        day.exercises[i]!.sets++;
+        if (estimatedMinutes(day.exercises, catalog) > p.duration) {
+          day.exercises[i]!.sets--;
+          continue;
+        }
+        for (const m of directs) weekly[m] = (weekly[m] ?? 0) + 1;
+        added = true;
       }
-      added = true;
     }
   }
 }

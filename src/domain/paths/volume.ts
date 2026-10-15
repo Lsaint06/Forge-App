@@ -38,6 +38,32 @@ export function exerciseSetCap(
   return isolation ? 4 : 5;
 }
 
+// Upper bound on direct weekly working sets for a single muscle, used so that
+// duration-aware filling across a high-frequency week does not pile excessive
+// volume onto one muscle. These are practical ceilings where returns clearly
+// diminish for most lifters, not claimed per-person optima. Smaller muscles and
+// accessories get a lower ceiling than the large prime movers.
+const smallMuscles = new Set([
+  "Side delts",
+  "Rear delts",
+  "Front delts",
+  "Biceps",
+  "Triceps",
+  "Calves",
+  "Core",
+  "Glutes",
+]);
+
+export function weeklyMuscleCap(p: PathPreferences, muscle: string): number {
+  const big =
+    p.pathKey === "advanced-physique"
+      ? 24
+      : p.pathKey === "build-muscle"
+        ? 20
+        : 16;
+  return smallMuscles.has(muscle) ? Math.round(big * 0.7) : big;
+}
+
 // Shared mapping from a user's muscle priorities to the roles/patterns that
 // train them. Used by both set redistribution and duration-aware filling.
 const priorityRoles: Record<string, PathRole[]> = {
