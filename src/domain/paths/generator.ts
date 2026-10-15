@@ -524,11 +524,16 @@ function fillProgram(
   strength: boolean,
 ) {
   const weekly: Record<string, number> = {};
-  const directOf = (id: string) => exerciseStimulus(id).direct;
+  // Gate weekly volume on each movement's primary target muscle only. Compounds
+  // co-target other muscles (a squat also works glutes), but gating on those
+  // co-targets would wrongly let a byproduct muscle block legitimate filling of
+  // the prime mover. Co-targets still accrue coverage in the user-facing review.
+  const primaryMuscle = (id: string) => exerciseStimulus(id).direct[0];
   for (const day of days)
-    for (const pr of day.exercises)
-      for (const muscle of directOf(pr.exerciseId))
-        weekly[muscle] = (weekly[muscle] ?? 0) + pr.sets;
+    for (const pr of day.exercises) {
+      const muscle = primaryMuscle(pr.exerciseId);
+      if (muscle) weekly[muscle] = (weekly[muscle] ?? 0) + pr.sets;
+    }
 
   const isPrimaryStrength = (day: PathDay, i: number) => {
     const ex = catalog.find((e) => e.id === day.exercises[i]!.exerciseId);
@@ -560,15 +565,15 @@ function fillProgram(
           exerciseSetCap(p, ex, isPrimaryStrength(day, i))
         )
           continue;
-        const directs = directOf(day.exercises[i]!.exerciseId);
-        if (directs.some((m) => (weekly[m] ?? 0) >= weeklyMuscleCap(p, m)))
+        const muscle = primaryMuscle(day.exercises[i]!.exerciseId);
+        if (muscle && (weekly[muscle] ?? 0) >= weeklyMuscleCap(p, muscle))
           continue;
         day.exercises[i]!.sets++;
         if (estimatedMinutes(day.exercises, catalog) > p.duration) {
           day.exercises[i]!.sets--;
           continue;
         }
-        for (const m of directs) weekly[m] = (weekly[m] ?? 0) + 1;
+        if (muscle) weekly[muscle] = (weekly[muscle] ?? 0) + 1;
         added = true;
       }
     }
