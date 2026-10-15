@@ -1,6 +1,9 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { repository } from "./data/native";
+export async function cancelAllNotifications() {
+  await Notifications.cancelAllScheduledNotificationsAsync();
+}
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,

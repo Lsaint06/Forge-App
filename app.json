@@ -18,6 +18,7 @@
       "expo-secure-store",
       "expo-notifications"
     ],
-    "experiments": { "typedRoutes": false }
+    "experiments": { "typedRoutes": false },
+    "web": { "bundler": "metro", "output": "static" }
   }
 }

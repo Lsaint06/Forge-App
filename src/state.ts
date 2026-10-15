@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Alert } from "react-native";
+import { Alert } from "./platform/alert";
 import * as Haptics from "expo-haptics";
 import { repository } from "./data/native";
 import type { Profile } from "./domain/types";

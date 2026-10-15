@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Alert } from "react-native";
+import { Alert } from "../src/platform/alert";
 import * as Linking from "expo-linking";
 import { recoveryTokens } from "../src/cloud/recovery";
 import { router } from "expo-router";

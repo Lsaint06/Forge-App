@@ -6,13 +6,17 @@ This is a substantial first implementation, **not completion of every requiremen
 
 ## Run locally
 
+For Windows browser access, see [Use FORGE on a PC](docs/WEB.md). Run `npm ci`
+and `npm run web`, then open the printed localhost address after the build finishes.
+The phone and browser keep separate local records.
+
 Use Node.js **24** and npm. The integration tests use Node's built-in SQLite module. The application uses Expo **SDK 57**, React **19.2.3**, and React Native **0.86.3**; compatible native versions and the dependency lockfile are committed.
 
 ```sh
 git clone https://github.com/Lsaint06/Forge-App.git
 cd Forge-App
 # Before this feature is merged:
-git checkout feat/forge-app
+git checkout feat/forge-web
 npm ci
 npm start
 ```

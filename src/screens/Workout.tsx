@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { View, Alert, FlatList } from "react-native";
+import { View, FlatList, Platform } from "react-native";
+import { Alert } from "../platform/alert";
 import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useRepo, mutate, confirm, useApp } from "../state";
@@ -114,6 +115,10 @@ export default function WorkoutScreen() {
   const r = useRepo();
   const { id: workoutId } = useLocalSearchParams<{ id?: string }>();
   const w = workoutId ? r.workout(workoutId) : r.active();
+  function returnToTraining() {
+    if (Platform.OS === "web") router.replace("/(tabs)/train");
+    else router.back();
+  }
   const [details, setDetails] = useState(false);
   const [picker, setPicker] = useState(false);
   const [templateName, setTemplateName] = useState("");
@@ -123,9 +128,7 @@ export default function WorkoutScreen() {
         <Empty
           title="Ready when you are"
           detail="Start a workout from Train."
-          action={
-            <Button title="Back to Train" onPress={() => router.back()} />
-          }
+          action={<Button title="Back to Train" onPress={returnToTraining} />}
         />
       </Screen>
     );
@@ -142,11 +145,7 @@ export default function WorkoutScreen() {
                 {w.status} · <SessionClock workout={w} />
               </Label>
             </View>
-            <Button
-              title="Back to tabs"
-              secondary
-              onPress={() => router.back()}
-            />
+            <Button title="Back to tabs" secondary onPress={returnToTraining} />
           </Row>
         </View>
       }
@@ -244,7 +243,7 @@ export default function WorkoutScreen() {
                   "This cannot be undone. Export a backup first if you need to keep it.",
                   () => {
                     r.deleteWorkout(w.id);
-                    router.back();
+                    returnToTraining();
                   },
                 )
               }
@@ -279,7 +278,7 @@ export default function WorkoutScreen() {
                   r.finishWorkout(w.id);
                   r.setSetting("restDeadline", "0");
                   void cancelRestNotification().catch(() => {});
-                  router.back();
+                  returnToTraining();
                 },
               );
             }}

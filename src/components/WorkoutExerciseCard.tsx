@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View, Alert } from "react-native";
+import { View } from "react-native";
+import { Alert } from "../platform/alert";
 import { useRepo, mutate, confirm } from "../state";
 import {
   Card,

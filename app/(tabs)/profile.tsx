@@ -1,10 +1,8 @@
 import React, { useState } from "react";
-import { Alert } from "react-native";
+import { Alert } from "../../src/platform/alert";
 import { router } from "expo-router";
-import * as FileSystem from "expo-file-system";
-import * as Sharing from "expo-sharing";
-import * as DocumentPicker from "expo-document-picker";
-import * as Notifications from "expo-notifications";
+import { downloadBackup, pickBackup } from "../../src/platform/backup";
+import { cancelAllNotifications } from "../../src/notifications";
 import {
   Screen,
   Card,
@@ -22,38 +20,15 @@ export default function Profile() {
   const [edit, setEdit] = useState(false);
   async function exportData() {
     try {
-      const file = new FileSystem.File(
-        FileSystem.Paths.cache,
-        `forge-backup-${Date.now()}.json`,
-      );
-      file.create();
-      file.write(JSON.stringify(r.exportBackup(), null, 2));
-      if (await Sharing.isAvailableAsync())
-        await Sharing.shareAsync(file.uri, {
-          mimeType: "application/json",
-          dialogTitle: "Save your FORGE backup",
-        });
-      else
-        Alert.alert(
-          "Sharing unavailable",
-          "This device does not support the native share sheet.",
-        );
+      await downloadBackup(JSON.stringify(r.exportBackup(), null, 2));
     } catch (e) {
       Alert.alert("Export failed", String(e));
     }
   }
   async function importData() {
     try {
-      const picked = await DocumentPicker.getDocumentAsync({
-        type: ["application/json", "text/plain"],
-        copyToCacheDirectory: true,
-      });
-      if (picked.canceled) return;
-      const asset = picked.assets[0];
-      if (!asset) return;
-      const file = new FileSystem.File(asset.uri);
-      if (file.size > 50_000_000) throw new Error("Backup exceeds 50 MB");
-      const text = await file.text();
+      const text = await pickBackup();
+      if (text === null) return;
       confirm(
         "Replace local data from backup?",
         "All current records will be replaced atomically if the backup is valid. Export first. If cloud sync is enabled, this resets the local sync identity and may cause conflicts on your next sync.",
@@ -161,8 +136,8 @@ export default function Profile() {
               "This removes every local workout, template, preference and journal entry. Cloud records and your account are not deleted. Export first. A later sync can restore cloud records.",
               () => {
                 r.clearData();
-                void Notifications.cancelAllScheduledNotificationsAsync().catch(
-                  (e) => Alert.alert("Reminder cleanup failed", String(e)),
+                void cancelAllNotifications().catch((e) =>
+                  Alert.alert("Reminder cleanup failed", String(e)),
                 );
                 router.replace("/onboarding");
               },

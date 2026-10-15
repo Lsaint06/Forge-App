@@ -1,7 +1,10 @@
 node_modules/
 .expo/
 dist/
+dist-web/
 coverage/
+playwright-report/
+test-results/
 .env
 .env.*
 !.env.example

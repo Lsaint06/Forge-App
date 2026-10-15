@@ -1,10 +1,10 @@
 import React, { useEffect, useState, Component } from "react";
 import { Stack } from "expo-router";
-import { View, Text, Pressable, AppState } from "react-native";
+import { View, Text, Pressable, AppState, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { repository } from "../src/data/native";
+import { initializeRepository } from "../src/data/native";
 import { useApp } from "../src/state";
 import { Loading, dark, useColors } from "../src/components/ui";
 class Boundary extends Component<
@@ -72,20 +72,30 @@ function Ready() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<Error>();
   useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        repository();
+    let mounted = true;
+    void initializeRepository()
+      .then(() => {
+        if (!mounted) return;
         useApp.getState().touch();
         setReady(true);
-      } catch (e) {
+      })
+      .catch((e) => {
+        if (!mounted) return;
         setError(e instanceof Error ? e : new Error("Database startup failed"));
-      }
-    }, 0);
+      });
     const sub = AppState.addEventListener("change", (s) => {
-      if (s === "active") useApp.getState().touch();
+      if (s === "active" && mounted) {
+        void initializeRepository()
+          .then(() => {
+            if (mounted) useApp.getState().touch();
+          })
+          .catch((e) => {
+            if (mounted) setError(e);
+          });
+      }
     });
     return () => {
-      clearTimeout(t);
+      mounted = false;
       sub.remove();
     };
   }, []);
@@ -93,9 +103,16 @@ function Ready() {
   return ready ? <Navigation /> : <Loading />;
 }
 export default function Root() {
+  const c = useColors();
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: c.background }}>
+      <SafeAreaProvider
+        style={
+          Platform.OS === "web"
+            ? { width: "100%", maxWidth: 1100, alignSelf: "center" }
+            : undefined
+        }
+      >
         <Boundary>
           <Ready />
         </Boundary>

@@ -1,6 +1,9 @@
 import * as SQLite from "expo-sqlite";
 import { Repository } from "./repository";
 let instance: Repository | undefined;
+export async function initializeRepository() {
+  repository();
+}
 export function repository() {
   if (!instance) {
     const db = SQLite.openDatabaseSync("forge.db");

@@ -1,13 +1,14 @@
 import React, { useState } from "react";
-import { View, Alert } from "react-native";
+import { View, Platform } from "react-native";
+import { Alert } from "../platform/alert";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRepo, mutate } from "../state";
 import type { Profile } from "../domain/types";
 import { profileSchema } from "../domain/validation";
 import { Field, Label, Button, Chips, Card, ProgressBar } from "./ui";
-import * as Notifications from "expo-notifications";
-import { enableNotifications } from "../notifications";
+
+import { enableNotifications, cancelAllNotifications } from "../notifications";
 const numeric = new Set([
   "height",
   "weight",
@@ -202,8 +203,8 @@ export function ProfileForm({
         onPress={() => {
           if (r.profile().notifications) {
             mutate(() => r.saveProfile({ notifications: false }));
-            void Notifications.cancelAllScheduledNotificationsAsync().catch(
-              (e) => Alert.alert("Reminder cleanup failed", String(e)),
+            void cancelAllNotifications().catch((e) =>
+              Alert.alert("Reminder cleanup failed", String(e)),
             );
           } else
             void enableNotifications()
@@ -212,7 +213,9 @@ export function ProfileForm({
                 if (!granted)
                   Alert.alert(
                     "Notifications not enabled",
-                    "Workouts and in-app timers still work. You can change permissions in phone settings.",
+                    Platform.OS === "web"
+                      ? "Browser previews support in-app timers. Background reminders are available in the phone app."
+                      : "Workouts and in-app timers still work. You can change permissions in phone settings.",
                   );
               })
               .catch((e) =>

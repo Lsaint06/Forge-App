@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert } from "react-native";
+import { Alert } from "../platform/alert";
 import { router, useLocalSearchParams } from "expo-router";
 import {
   Screen,
