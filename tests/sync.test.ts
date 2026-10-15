@@ -7,6 +7,16 @@ import {
   type CloudTransport,
   type CloudRecord,
 } from "../src/cloud/sync";
+import {
+  acceptPath,
+  pathPrograms,
+  pathSummary,
+  pathSessions,
+  startPathSession,
+} from "../src/data/paths";
+import { generatePath } from "../src/domain/paths/generator";
+import { exercises } from "../src/data/catalog";
+import { pathPreferences } from "./path-fixture";
 function local() {
   const db = new DatabaseSync(":memory:");
   const adapter: SqlDatabase = {
@@ -42,6 +52,28 @@ function remote(rows: CloudRecord[] = []) {
   };
   return cloud;
 }
+test("Path phases, calendar links and completed sessions round-trip through the existing sync protocol", async () => {
+  const a = local();
+  acceptPath(a, generatePath(pathPreferences(), exercises));
+  const program = pathPrograms(a)[0]!;
+  const session = pathSessions(a, program)[0]!;
+  const workout = startPathSession(a, session.record.id);
+  a.editSet(a.workoutSets(workout.id)[0]!.id, { reps: 8, completed: true });
+  a.finishWorkout(workout.id);
+  const server = remote();
+  assert.equal((await synchronize(a, server, "paths-user")).errors.length, 0);
+  const b = local();
+  const result = await synchronize(b, server, "paths-user");
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(pathPrograms(b)[0]!.data.phases, program.data.phases);
+  assert.equal(pathSummary(b, pathPrograms(b)[0]!).completed, 1);
+  assert.equal(
+    pathSessions(b, pathPrograms(b)[0]!).find(
+      (s) => s.record.id === session.record.id,
+    )!.data.workoutId,
+    workout.id,
+  );
+});
 test("sync uploads local data then restores on second offline repository", async () => {
   const a = local();
   a.saveProfile({ name: "Ada" });

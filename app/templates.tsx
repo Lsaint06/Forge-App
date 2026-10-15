@@ -20,6 +20,11 @@ import {
   type Template,
   type Prescription,
 } from "../src/domain/types";
+import {
+  visibleSchedules,
+  startScheduledSession,
+  standaloneTemplates,
+} from "../src/data/paths";
 import { notifyAt } from "../src/notifications";
 export default function Templates() {
   const r = useRepo();
@@ -125,7 +130,7 @@ export default function Templates() {
       {view === "Templates" && (
         <>
           <Button title="Create template" icon="add" onPress={() => edit()} />
-          {r.templates().map((t) => (
+          {standaloneTemplates(r).map((t) => (
             <Card key={t.id}>
               <Label size={21} bold>
                 {t.name}
@@ -182,8 +187,8 @@ export default function Templates() {
           <Label bold size={23}>
             Your calendar
           </Label>
-          {r
-            .journal("schedule")
+          {visibleSchedules(r)
+            .sort((a, b) => a.date.localeCompare(b.date))
             .slice(0, 30)
             .map((j) => (
               <Card key={j.id}>
@@ -198,36 +203,37 @@ export default function Templates() {
                     title="Start planned session"
                     secondary
                     onPress={() => {
-                      const w = mutate(() =>
-                        r.transaction(() => {
-                          const existing = r.active();
-                          const w = r.startWorkout(
-                            String(j.data.name),
-                            String(j.data.templateId),
-                          );
-                          if (!existing && j.data.deload === true)
-                            for (const e of r.workoutExercises(w.id)) {
-                              const sets = r.sets(e.id);
-                              if (sets.length > 1)
-                                r.removeSet(sets[sets.length - 1]!.id);
-                            }
-                          return w;
-                        }),
-                      );
+                      const w = mutate(() => startScheduledSession(r, j));
                       if (w) router.push("/workout");
                     }}
                   />
-                  <Button
-                    title="Remove plan"
-                    secondary
-                    onPress={() =>
-                      confirm(
-                        "Remove planned session?",
-                        "Your recorded workouts will remain.",
-                        () => r.deleteJournal(j.id),
-                      )
-                    }
-                  />
+                  {j.data.forgePath === 1 ? (
+                    <Button
+                      title="Manage Path session"
+                      secondary
+                      onPress={() =>
+                        router.push({
+                          pathname: "/paths",
+                          params: {
+                            programId: String(j.data.programId),
+                            week: String(j.data.week),
+                          },
+                        })
+                      }
+                    />
+                  ) : (
+                    <Button
+                      title="Remove plan"
+                      secondary
+                      onPress={() =>
+                        confirm(
+                          "Remove planned session?",
+                          "Your recorded workouts will remain.",
+                          () => r.deleteJournal(j.id),
+                        )
+                      }
+                    />
+                  )}
                 </Row>
               </Card>
             ))}

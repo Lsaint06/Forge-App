@@ -10,6 +10,7 @@ import {
   Stat,
   ProgressBar,
 } from "../../src/components/ui";
+import { PathSummary } from "../../src/components/PathSummary";
 import { Chart } from "../../src/components/Chart";
 import { useRepo } from "../../src/state";
 import {
@@ -78,6 +79,7 @@ export default function Progress() {
   const s = summary(all, (id) => r.workoutSets(id));
   return (
     <Screen title="Progress" eyebrow="YOUR EFFORT, OVER TIME">
+      <PathSummary />
       <Card>
         <Label bold>This week</Label>
         <WeeklyConsistency workouts={all} />
@@ -231,26 +233,29 @@ export default function Progress() {
           }
         />
       </Card>
-      {r.journal("program").map((program) => {
-        const schedule = r
-          .journal("schedule")
-          .filter((j) => j.data.programId === program.id)
-          .map((j) => ({
-            date: j.date,
-            templateId: String(j.data.templateId),
-          }));
-        const adherence = programAdherence(schedule, all);
-        return (
-          <Card key={program.id}>
-            <Label bold>{String(program.data.name)}</Label>
-            <Label muted>
-              {adherence.completed} / {adherence.due} due sessions completed on
-              their planned dates
-            </Label>
-            <ProgressBar value={adherence.ratio} label="Program adherence" />
-          </Card>
-        );
-      })}
+      {r
+        .journal("program")
+        .filter((program) => program.data.forgePath !== 1)
+        .map((program) => {
+          const schedule = r
+            .journal("schedule")
+            .filter((j) => j.data.programId === program.id)
+            .map((j) => ({
+              date: j.date,
+              templateId: String(j.data.templateId),
+            }));
+          const adherence = programAdherence(schedule, all);
+          return (
+            <Card key={program.id}>
+              <Label bold>{String(program.data.name)}</Label>
+              <Label muted>
+                {adherence.completed} / {adherence.due} due sessions completed
+                on their planned dates
+              </Label>
+              <ProgressBar value={adherence.ratio} label="Program adherence" />
+            </Card>
+          );
+        })}
       <Card>
         <Label bold size={21}>
           Earned achievements

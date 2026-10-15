@@ -10,12 +10,20 @@ import {
 } from "../../src/components/ui";
 import { useRepo, mutate, confirm } from "../../src/state";
 import { SectionHeader, WorkoutCard } from "../../src/components/design";
+import { PathSummary } from "../../src/components/PathSummary";
+import { standaloneTemplates } from "../../src/data/paths";
 import { volume, elapsedSeconds, kgToLb } from "../../src/domain/metrics";
 export default function Train() {
   const r = useRepo();
   const history = r.workouts().filter((w) => w.status === "completed");
   return (
     <Screen title="Train" eyebrow="YOUR NEXT SESSION">
+      <Button
+        title="Forge Paths"
+        icon="trail-sign-outline"
+        onPress={() => router.push("/paths")}
+      />
+      <PathSummary />
       {r.active() && (
         <WorkoutCard
           title={r.active()!.name}
@@ -38,7 +46,7 @@ export default function Train() {
       />
       <SectionHeader
         title="Your training plans"
-        detail={`${r.templates().length} saved templates`}
+        detail={`${standaloneTemplates(r).length} saved templates`}
       />
       <Button
         title="Templates & programs"
@@ -57,8 +65,7 @@ export default function Train() {
           })
         }
       />
-      {r
-        .templates()
+      {standaloneTemplates(r)
         .slice(0, 3)
         .map((template) => (
           <WorkoutCard

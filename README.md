@@ -2,6 +2,10 @@
 
 A dark-first, offline fitness log for iOS and Android. Workouts, templates, measurements, nutrition and recovery live in SQLite. Guest mode requires no account, API key, food database or AI service. Dashboard statistics come from your own recorded workouts.
 
+This branch adds **Forge Paths — Phase A**: six personalized, editable eight-week
+plans with a saved dashboard, explicit workout links and flexible scheduling.
+Open **Train → Forge Paths**. See [scope, architecture and verification](docs/FORGE_PATHS_PHASE_A.md).
+
 This is a substantial first implementation, **not completion of every requirement in the product brief**. Read [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for exact coverage and verification limits. The supplied brief is preserved in [docs/PRODUCT_SPEC.txt](docs/PRODUCT_SPEC.txt).
 
 ## Run locally
@@ -16,7 +20,7 @@ Use Node.js **24** and npm. The integration tests use Node's built-in SQLite mod
 git clone https://github.com/Lsaint06/Forge-App.git
 cd Forge-App
 # Before this feature is merged:
-git checkout feat/forge-web
+git checkout feat/forge-paths-foundation
 npm ci
 npm start
 ```

@@ -11,6 +11,8 @@ import {
 } from "../components/design";
 import { summary, readiness, volume, kgToLb } from "../domain/metrics";
 import { localDate } from "../domain/types";
+import { PathSummary } from "../components/PathSummary";
+import { visibleSchedules, startScheduledSession } from "../data/paths";
 export default function Home() {
   const r = useRepo();
   const p = r.profile();
@@ -18,7 +20,7 @@ export default function Home() {
   const stats = summary(all, (id) => r.workoutSets(id));
   const last = all.find((w) => w.status === "completed");
   const active = r.active();
-  const today = r.journal("schedule").find((j) => j.date === localDate());
+  const today = visibleSchedules(r).find((j) => j.date === localDate());
   const template = today
     ? r.templates().find((t) => t.id === today.data.templateId)
     : undefined;
@@ -31,19 +33,11 @@ export default function Home() {
       router.push("/templates");
       return;
     }
-    const w = mutate(() =>
-      r.transaction(() => {
-        const existing = r.active();
-        const session = r.startWorkout(template?.name, template?.id);
-        if (!existing && template && today?.data.deload === true) {
-          for (const row of r.workoutExercises(session.id)) {
-            const sets = r.sets(row.id);
-            if (sets.length > 1) r.removeSet(sets[sets.length - 1]!.id);
-          }
-        }
-        return session;
-      }),
-    );
+    const w = mutate(() => {
+      if (active) return active;
+      if (today) return startScheduledSession(r, today);
+      return r.startWorkout();
+    });
     if (w) router.push("/workout");
   }
   return (
@@ -95,6 +89,7 @@ export default function Home() {
           />
         )}
       </Card>
+      <PathSummary />
       <Card>
         <Row>
           <ProgressRing
