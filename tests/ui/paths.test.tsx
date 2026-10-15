@@ -163,7 +163,7 @@ test("selected Path shows one actionable workout and keeps essays and alternativ
   }
 }, 20_000);
 
-test("Path workouts do not apply the unrelated global profile rep-range suggestion", async () => {
+test("Path workouts progress against the Path's prescribed rep target, not the global range", async () => {
   const { r, db } = pathRepository();
   try {
     acceptPath(
@@ -180,8 +180,11 @@ test("Path workouts do not apply the unrelated global profile rep-range suggesti
       <WorkoutExerciseCard row={r.workoutExercises(workout.id)[0]!} />,
     );
     await fireEvent.press(view.getByLabelText("Exercise options"));
-    expect(view.getByText(/Path progression:/)).toBeTruthy();
-    expect(view.queryByLabelText("Apply suggested load")).toBeNull();
+    // The first Get Strong lift is prescribed 5 reps; the suggestion is driven
+    // by that target (not the profile's 8-12 range) and stays user-applied.
+    expect(view.getByText("Path target: 5 reps per working set")).toBeTruthy();
+    expect(view.getByLabelText("Apply suggested load")).toBeTruthy();
+    expect(view.queryByText(/Path progression:/)).toBeNull();
   } finally {
     db.close();
   }

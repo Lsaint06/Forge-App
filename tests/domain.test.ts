@@ -53,6 +53,18 @@ test("overload holds below target and reduces repeated regression", () => {
     90,
   );
 });
+test("Path progression uses the prescribed rep target, not the generic range", () => {
+  // A Path drives progression against its exact prescribed reps (min === max).
+  const target = { min: 5, max: 5, increment: 2.5 };
+  const hit = { weight: 100, reps: 5, completed: true, kind: "working", rpe: 7 };
+  // Two sessions hitting the prescribed reps with manageable effort: increment.
+  assert.equal(overload([[hit], [hit]], target).weight, 102.5);
+  // A single qualifying session holds the load (no premature increase).
+  assert.equal(overload([[hit]], target).weight, 100);
+  // Two sessions below the prescribed reps: reduce and review recovery.
+  const miss = { weight: 100, reps: 4, completed: true, kind: "working" };
+  assert.equal(overload([[miss], [miss]], target).weight, 90);
+});
 test("nutrition totals scale serving quantities", () =>
   assert.deepEqual(
     nutritionTotals([

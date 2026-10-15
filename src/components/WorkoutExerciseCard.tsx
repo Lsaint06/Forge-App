@@ -185,19 +185,30 @@ export default function WorkoutExerciseCard({
   const previous = r
     .history(e.exerciseId)[0]
     ?.filter((s) => s.completed && s.kind !== "warmup");
-  // Generic profile rep ranges can conflict with a Path's prescribed reps.
-  // Keep Path progression manual until immutable target snapshots are supported.
-  const pathWorkout = r
+  // Path workouts progress against the Path's own prescribed reps (stored on
+  // the linked template) rather than the profile's generic rep range, so the
+  // double-progression suggestion matches what the Path actually asks for.
+  // Suggestions still require logged RIR/RPE support and never infer readiness
+  // from rep completion alone; the user keeps full control of loads.
+  const pathEntry = r
     .journal("schedule")
-    .some(
+    .find(
       (entry) =>
         entry.data.forgePath === 1 && entry.data.workoutId === e.workoutId,
     );
-  const recommendation = overload(r.history(e.exerciseId), {
-    min: p.repMin,
-    max: p.repMax,
-    increment: p.increment,
-  });
+  const pathWorkout = !!pathEntry;
+  const prescribedReps = pathEntry
+    ? r
+        .templates()
+        .find((t) => t.id === String(pathEntry.data.templateId))
+        ?.exercises.find((x) => x.exerciseId === e.exerciseId)?.reps
+    : undefined;
+  const recommendation = overload(
+    r.history(e.exerciseId),
+    pathWorkout && prescribedReps
+      ? { min: prescribedReps, max: prescribedReps, increment: p.increment }
+      : { min: p.repMin, max: p.repMax, increment: p.increment },
+  );
   return (
     <Card>
       <Label size={21} bold>
@@ -247,40 +258,48 @@ export default function WorkoutExerciseCard({
               }
             />
           </Row>
-          {pathWorkout && exercise?.category === "strength" && (
-            <Label muted size={12}>
-              Path progression: reach the prescribed reps on every working set
-              with controlled technique and about two reps left, then consider
-              the smallest load increase. Repeat or reduce the load when
-              recovery calls for it.
-            </Label>
-          )}
-          {!pathWorkout && exercise?.category === "strength" && (
-            <View style={{ gap: 6 }}>
-              <Label size={12} muted>
-                NEXT LOAD ·{" "}
-                {Math.round(
-                  (p.units === "lb"
-                    ? kgToLb(recommendation.weight)
-                    : recommendation.weight) * 100,
-                ) / 100}{" "}
-                {p.units}
+          {pathWorkout &&
+            !prescribedReps &&
+            exercise?.category === "strength" && (
+              <Label muted size={12}>
+                Path progression: reach the prescribed reps on every working set
+                with controlled technique and about two reps left, then consider
+                the smallest load increase. Repeat or reduce the load when
+                recovery calls for it.
               </Label>
-              <Label size={12} muted>
-                {recommendation.reason}
-              </Label>
-              <Button
-                title="Apply suggested load"
-                secondary
-                onPress={() =>
-                  mutate(() => {
-                    for (const s of sets.filter((s) => !s.completed))
-                      r.editSet(s.id, { weight: recommendation.weight });
-                  })
-                }
-              />
-            </View>
-          )}
+            )}
+          {(!pathWorkout || prescribedReps) &&
+            exercise?.category === "strength" && (
+              <View style={{ gap: 6 }}>
+                {pathWorkout && prescribedReps ? (
+                  <Label size={12} muted>
+                    {`Path target: ${prescribedReps} reps per working set`}
+                  </Label>
+                ) : null}
+                <Label size={12} muted>
+                  NEXT LOAD ·{" "}
+                  {Math.round(
+                    (p.units === "lb"
+                      ? kgToLb(recommendation.weight)
+                      : recommendation.weight) * 100,
+                  ) / 100}{" "}
+                  {p.units}
+                </Label>
+                <Label size={12} muted>
+                  {recommendation.reason}
+                </Label>
+                <Button
+                  title="Apply suggested load"
+                  secondary
+                  onPress={() =>
+                    mutate(() => {
+                      for (const s of sets.filter((s) => !s.completed))
+                        r.editSet(s.id, { weight: recommendation.weight });
+                    })
+                  }
+                />
+              </View>
+            )}
           <Field
             label="Exercise notes"
             value={e.notes}
