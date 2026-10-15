@@ -78,7 +78,7 @@ export function acceptPath(r: Repository, draft: PathDraft, replace = false) {
     );
     const data: PathProgramData = {
       forgePath: 1,
-      engineVersion: 1,
+      engineVersion: checked.engineVersion ?? 1,
       pathKey: checked.preferences.pathKey,
       name: forgePaths.find((p) => p.key === checked.preferences.pathKey)!.name,
       weeks: 8,
@@ -284,6 +284,7 @@ export function savedDraft(
 ): PathDraft {
   const templates = r.templates();
   return {
+    engineVersion: program.data.engineVersion,
     preferences: program.data.preferences,
     days: program.data.days.map((day, index) => ({
       ...day,

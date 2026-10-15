@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, FlatList, Platform } from "react-native";
+import { View, FlatList } from "react-native";
 import { Alert } from "../platform/alert";
 import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -116,8 +116,7 @@ export default function WorkoutScreen() {
   const { id: workoutId } = useLocalSearchParams<{ id?: string }>();
   const w = workoutId ? r.workout(workoutId) : r.active();
   function returnToTraining() {
-    if (Platform.OS === "web") router.replace("/(tabs)/train");
-    else router.back();
+    router.back();
   }
   const [details, setDetails] = useState(false);
   const [picker, setPicker] = useState(false);

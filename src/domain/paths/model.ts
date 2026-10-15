@@ -29,6 +29,8 @@ export const roleKeys = [
   "biceps",
   "triceps",
   "core",
+  "calf",
+  "rear",
 ] as const;
 export type PathRole = (typeof roleKeys)[number];
 export const movementOptions = [
@@ -98,7 +100,7 @@ export const dayStructureSchema = z.object({
   key: z.string().min(1),
   name: z.string().min(1).max(80),
   offset: z.number().int().min(0).max(6),
-  roles: z.array(z.enum(roleKeys)).min(2).max(6),
+  roles: z.array(z.enum(roleKeys)).min(2).max(8),
 });
 export type PathDayStructure = z.infer<typeof dayStructureSchema>;
 export const phasesSchema = z.tuple([
@@ -134,7 +136,7 @@ function json<T extends z.ZodType>(schema: T) {
 export const pathProgramDataSchema = z
   .object({
     forgePath: z.literal(1),
-    engineVersion: z.literal(1),
+    engineVersion: z.union([z.literal(1), z.literal(2)]),
     pathKey: z.enum(pathKeys),
     name: z.string().min(1).max(120),
     weeks: z.literal(8),

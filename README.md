@@ -4,15 +4,13 @@ A dark-first, offline fitness log for iOS and Android. Workouts, templates, meas
 
 This branch adds **Forge Paths — Phase A**: six personalized, editable eight-week
 plans with a saved dashboard, explicit workout links and flexible scheduling.
-Open **Train → Forge Paths**. See [scope, architecture and verification](docs/FORGE_PATHS_PHASE_A.md).
+Open **Train → Forge Paths**. See the current [phone-first Paths rework](docs/PATHS_REWORK.md) and the historical [Phase A report](docs/FORGE_PATHS_PHASE_A.md).
 
 This is a substantial first implementation, **not completion of every requirement in the product brief**. Read [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for exact coverage and verification limits. The supplied brief is preserved in [docs/PRODUCT_SPEC.txt](docs/PRODUCT_SPEC.txt).
 
 ## Run locally
 
-For Windows browser access, see [Use FORGE on a PC](docs/WEB.md). Run `npm ci`
-and `npm run web`, then open the printed localhost address after the build finishes.
-The phone and browser keep separate local records.
+FORGE now targets iPhone and Android only. The dedicated browser preview has been retired. On Windows, run the Expo development server and open it in Expo Go on your phone.
 
 Use Node.js **24** and npm. The integration tests use Node's built-in SQLite module. The application uses Expo **SDK 57**, React **19.2.3**, and React Native **0.86.3**; compatible native versions and the dependency lockfile are committed.
 

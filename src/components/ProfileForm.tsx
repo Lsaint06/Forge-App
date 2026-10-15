@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Platform } from "react-native";
+import { View } from "react-native";
 import { Alert } from "../platform/alert";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -336,9 +336,7 @@ export function ProfileForm({
                 if (!granted)
                   Alert.alert(
                     "Notifications not enabled",
-                    Platform.OS === "web"
-                      ? "Browser previews support in-app timers. Background reminders are available in the phone app."
-                      : "Workouts and in-app timers still work. You can change permissions in phone settings.",
+                    "Workouts and in-app timers still work. You can change permissions in phone settings.",
                   );
               })
               .catch((e) =>

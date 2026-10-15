@@ -1,3 +1,5 @@
+> Historical Phase A implementation report. The current phone-only Paths rework supersedes the browser workflow below; see [Paths rework](PATHS_REWORK.md).
+
 # Forge Paths — Phase A foundation
 
 ## Scope and implementation plan

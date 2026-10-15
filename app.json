@@ -9,16 +9,22 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lsaint06.forge",
-      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
-    "android": { "package": "com.lsaint06.forge" },
+    "android": {
+      "package": "com.lsaint06.forge"
+    },
     "plugins": [
       "expo-router",
       "expo-sqlite",
       "expo-secure-store",
       "expo-notifications"
     ],
-    "experiments": { "typedRoutes": false },
-    "web": { "bundler": "metro", "output": "static" }
+    "experiments": {
+      "typedRoutes": false
+    },
+    "platforms": ["ios", "android"]
   }
 }

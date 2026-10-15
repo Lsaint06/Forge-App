@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View } from "react-native";
+import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import {
   Screen,
@@ -12,6 +12,7 @@ import {
   NumberField,
   Sheet,
   ProgressBar,
+  useColors,
 } from "../components/ui";
 import { SectionHeader } from "../components/design";
 import { useRepo, mutate, confirm } from "../state";
@@ -22,6 +23,7 @@ import {
   compatibleMovements,
   estimatedMinutes,
   roleReasons,
+  structure,
   type PathDraft,
   type PathDay,
 } from "../domain/paths/generator";
@@ -50,6 +52,12 @@ import {
   type PathSession,
 } from "../data/paths";
 import { localDate, type Exercise, type Prescription } from "../domain/types";
+import {
+  calendarWeek,
+  weekDates,
+  weekIntention,
+} from "../domain/paths/calendar";
+import { workloadReview, trainingGuidance } from "../domain/paths/review";
 import { kgToLb, lbToKg } from "../domain/metrics";
 
 function toggle<T>(values: T[], value: T): T[] {
@@ -199,6 +207,8 @@ export function PathDayEditor({
 
 export default function Paths() {
   const r = useRepo();
+  const colors = useColors();
+  const [selectedDate, setSelectedDate] = useState<string>();
   const params = useLocalSearchParams<{ programId?: string; week?: string }>();
   const active = currentPath(r);
   const [view, setView] = useState<
@@ -210,9 +220,47 @@ export default function Paths() {
   const selected =
     pathPrograms(r).find((p) => p.record.id === selectedId) ?? active;
   const stats = selected ? pathSummary(r, selected) : undefined;
+  const sessionName = (index: number, fallback: string) =>
+    selected?.data.engineVersion === 1
+      ? (structure(selected.data.preferences)[index]?.name ?? fallback)
+      : fallback;
   const [week, setWeek] = useState(
-    Math.max(1, Math.min(8, Number(params.week) || stats?.week || 1)),
+    Math.max(
+      1,
+      Number(params.week) ||
+        (selected
+          ? calendarWeek(
+              selected.data.started,
+              stats?.next?.record.date ??
+                stats?.sessions[stats.sessions.length - 1]?.record.date ??
+                selected.data.started,
+            )
+          : 1),
+    ),
   );
+  const dates = selected ? weekDates(selected.data.started, week) : [];
+  const lastCalendarWeek =
+    selected && stats
+      ? Math.max(
+          8,
+          ...stats.sessions.map((s) =>
+            calendarWeek(selected.data.started, s.record.date),
+          ),
+        )
+      : 8;
+  const visibleSessions =
+    stats?.sessions.filter(
+      (s) =>
+        dates.includes(s.record.date) &&
+        (!selectedDate || s.record.date === selectedDate),
+    ) ?? [];
+  const trainingWeeks = [
+    ...new Set(
+      stats?.sessions
+        .filter((s) => dates.includes(s.record.date))
+        .map((s) => s.data.week) ?? [],
+    ),
+  ].sort((a, b) => a - b);
   const [step, setStep] = useState(0);
   const [preferences, setPreferences] = useState<PathPreferences>();
   const [draft, setDraft] = useState<PathDraft>();
@@ -291,6 +339,13 @@ export default function Paths() {
           secondary
           onPress={() => {
             setSelectedId(active.record.id);
+            setWeek(
+              calendarWeek(
+                active.data.started,
+                pathSummary(r, active).next?.record.date ?? active.data.started,
+              ),
+            );
+            setSelectedDate(undefined);
             setView("dashboard");
           }}
         />
@@ -338,6 +393,8 @@ export default function Paths() {
                 secondary
                 onPress={() => {
                   setSelectedId(p.record.id);
+                  setWeek(1);
+                  setSelectedDate(undefined);
                   setView("dashboard");
                 }}
               />
@@ -369,7 +426,7 @@ export default function Paths() {
                 }
               />
               <Label muted>
-                Training days per week · beginners: up to three
+                Training days per week · choose a recoverable schedule
               </Label>
               <Chips
                 values={["1", "2", "3", "4", "5", "6"]}
@@ -537,6 +594,29 @@ export default function Paths() {
               {draft.preferences.frequency * 8} scheduled sessions · starts{" "}
               {draft.preferences.startDate}
             </Label>
+            <Label>{trainingGuidance(draft.preferences.pathKey)}</Label>
+            <Label bold>
+              Weekly working sets · {workloadReview(draft, catalog).total} total
+            </Label>
+            <Label muted>
+              {Object.entries(workloadReview(draft, catalog).sets)
+                .map(([muscle, sets]) => `${muscle}: ${sets}`)
+                .join(" · ")}
+            </Label>
+            <Label muted size={13}>
+              Primary targets only; assistance from compound lifts is not
+              counted again. These are starting prescriptions, not a promise of
+              an optimal dose.
+            </Label>
+            {workloadReview(draft, catalog).warnings.map((warning) => (
+              <Label key={warning} muted>
+                {warning}
+              </Label>
+            ))}
+            <Label muted size={13}>
+              For single-leg, single-arm and alternating core movements, the
+              target is per side. Complete both sides with control.
+            </Label>
             <Label muted size={13}>
               Time estimates include rests and a short warmup. Choose
               comfortable starting loads. Load fields begin at zero and are
@@ -550,7 +630,8 @@ export default function Paths() {
               </Label>
               <Label muted>
                 {addDays(draft.preferences.startDate, day.offset)} · repeats
-                weekly · {estimatedMinutes(day.exercises)} min
+                weekly · {estimatedMinutes(day.exercises)} min ·{" "}
+                {day.exercises.reduce((sum, e) => sum + e.sets, 0)} working sets
               </Label>
               <Label muted>
                 {day.exercises
@@ -603,6 +684,7 @@ export default function Paths() {
                 () => {
                   const record = acceptPath(r, draft, !!active);
                   setSelectedId(record.id);
+                  setSelectedDate(undefined);
                   setWeek(1);
                   setView("dashboard");
                 },
@@ -663,6 +745,38 @@ export default function Paths() {
                 </Label>
               )}
             </Card>
+            {selected.data.engineVersion === 1 &&
+              selected.data.status !== "archived" && (
+                <Card>
+                  <Label bold>
+                    Your saved plan uses the earlier programming.
+                  </Label>
+                  <Label muted>
+                    Keep training it, or preview a rebuilt plan. Accepting a
+                    replacement archives this schedule and preserves every
+                    logged workout.
+                  </Label>
+                  <Button
+                    title="Rebuild this Path"
+                    onPress={() => {
+                      const definition = forgePaths.find(
+                        (p) => p.key === selected.data.pathKey,
+                      )!;
+                      setPreferences({
+                        ...selected.data.preferences,
+                        startDate: localDate(),
+                        duration: Math.max(
+                          selected.data.preferences.duration,
+                          definition.duration,
+                        ),
+                      });
+                      setStep(0);
+                      setView("setup");
+                      setDraft(undefined);
+                    }}
+                  />
+                </Card>
+              )}
             {stats.complete && (
               <Card>
                 <Label bold size={23}>
@@ -682,7 +796,7 @@ export default function Paths() {
                   detail={`${stats.next.record.date} · ${stats.next.state}`}
                 />
                 <Label bold size={22}>
-                  {stats.next.data.name}
+                  {sessionName(stats.next.data.dayIndex, stats.next.data.name)}
                 </Label>
                 <Label muted>
                   {selected.data.days[stats.next.data.dayIndex]!.roles.join(
@@ -721,7 +835,8 @@ export default function Paths() {
               />
             )}
             <Card>
-              <SectionHeader title="Your eight-week timeline" />
+              <SectionHeader title="Your training approach" />
+              <Label muted>{trainingGuidance(selected.data.pathKey)}</Label>
               <Label>1–4 · Foundation</Label>
               <Label>5–8 · Evolution</Label>
               <Label muted size={13}>
@@ -744,93 +859,252 @@ export default function Paths() {
                 })}
               </Row>
             </Card>
-            <SectionHeader
-              title="Your schedule"
-              detail="Move a session without losing its identity. Completed workouts keep their link."
-            />
-            <Chips
-              values={Array.from({ length: 8 }, (_, i) => `Week ${i + 1}`)}
-              value={`Week ${week}`}
-              onChange={(v) => setWeek(Number(v.split(" ")[1]))}
-            />
-            {stats.sessions
-              .filter((s) => s.data.week === week)
-              .map((session) => (
-                <Card key={session.record.id}>
-                  <Label bold size={20}>
-                    {session.data.name}
-                  </Label>
-                  <Label muted>
-                    {session.record.date} · {session.state}
-                  </Label>
-                  {session.state === "unlinked" && (
-                    <Label muted>
-                      The linked workout is unavailable. No completion is
-                      counted. Starting again creates a new workout.
+            <Card>
+              <Label muted size={11}>
+                YOUR TRAINING CALENDAR
+              </Label>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="← Previous week"
+                  accessibilityState={{ disabled: week <= 1 }}
+                  disabled={week <= 1}
+                  onPress={() => {
+                    setWeek(week - 1);
+                    setSelectedDate(undefined);
+                  }}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.elevated,
+                    opacity: week <= 1 ? 0.35 : 1,
+                  }}
+                >
+                  <Label size={26}>←</Label>
+                </Pressable>
+                <Label bold size={20}>
+                  Calendar week {week}
+                </Label>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Next week →"
+                  accessibilityState={{ disabled: week >= lastCalendarWeek }}
+                  disabled={week >= lastCalendarWeek}
+                  onPress={() => {
+                    setWeek(week + 1);
+                    setSelectedDate(undefined);
+                  }}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.elevated,
+                    opacity: week >= lastCalendarWeek ? 0.35 : 1,
+                  }}
+                >
+                  <Label size={26}>→</Label>
+                </Pressable>
+              </View>
+              <Label muted>
+                {dates[0]} – {dates[6]}
+              </Label>
+              {trainingWeeks.length ? (
+                trainingWeeks.map((w) => (
+                  <View key={w} style={{ gap: 6 }}>
+                    <Label bold>
+                      Training week {w} · {w <= 4 ? "Foundation" : "Evolution"}
                     </Label>
-                  )}
-                  {session.state === "completed" ? (
-                    <Button
-                      title={`Review ${session.data.name}`}
-                      secondary
+                    <Label muted>{weekIntention(w)}</Label>
+                  </View>
+                ))
+              ) : (
+                <Label muted>{weekIntention(9)}</Label>
+              )}
+              <View style={{ flexDirection: "row", gap: 3 }}>
+                {dates.map((date, i) => {
+                  const sessions = stats.sessions.filter(
+                    (s) => s.record.date === date,
+                  );
+                  const complete =
+                    sessions.length > 0 &&
+                    sessions.every((s) => s.state === "completed");
+                  return (
+                    <Pressable
+                      key={date}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${weekdayNames[i]} ${date}, ${sessions.length ? sessions.map((s) => s.state).join(", ") : "Rest day"}`}
+                      accessibilityState={{ selected: date === selectedDate }}
                       onPress={() =>
-                        router.push({
-                          pathname: "/workout",
-                          params: { id: session.data.workoutId },
-                        })
+                        setSelectedDate(
+                          date === selectedDate ? undefined : date,
+                        )
                       }
-                    />
-                  ) : (
-                    selected.data.status !== "archived" && (
-                      <>
-                        {!session.data.skipped &&
-                          selected.data.status === "active" && (
-                            <Button
-                              title={`Start ${session.data.name}`}
-                              onPress={() => start(session)}
-                            />
-                          )}
-                        {!["in-progress", "completed"].includes(
-                          session.state,
-                        ) && (
-                          <Row>
-                            <Button
-                              title={`Move ${session.data.name}`}
-                              secondary
-                              onPress={() => {
-                                setMoving(session);
-                                setMoveDate(
-                                  session.record.date < localDate()
-                                    ? localDate()
-                                    : session.record.date,
-                                );
-                              }}
-                            />
-                            <Button
-                              title={`${session.data.skipped ? "Restore" : "Skip"} ${session.data.name}`}
-                              secondary
-                              onPress={() =>
-                                confirm(
-                                  session.data.skipped
-                                    ? "Restore this session?"
-                                    : "Skip this session?",
-                                  "Skipping is recorded separately and never counts as a completed workout. History is preserved.",
-                                  () =>
-                                    skipPathSession(
-                                      r,
-                                      session.record.id,
-                                      !session.data.skipped,
-                                    ),
-                                )
-                              }
-                            />
-                          </Row>
+                      style={{
+                        flex: 1,
+                        minHeight: 88,
+                        paddingVertical: 10,
+                        alignItems: "center",
+                        gap: 6,
+                        borderRadius: 12,
+                        borderWidth: date === localDate() ? 2 : 1,
+                        borderColor:
+                          date === selectedDate || date === localDate()
+                            ? colors.accent
+                            : colors.border,
+                        backgroundColor:
+                          date === selectedDate
+                            ? colors.elevated
+                            : colors.surface,
+                      }}
+                    >
+                      <Label size={11} muted>
+                        {weekdayNames[i]}
+                      </Label>
+                      <Label bold size={17}>
+                        {Number(date.slice(-2))}
+                      </Label>
+                      <Label size={11}>
+                        {complete
+                          ? "✓"
+                          : sessions.some((s) => s.state === "in-progress")
+                            ? "◐"
+                            : sessions.some((s) => s.state === "missed")
+                              ? "!"
+                              : sessions.length &&
+                                  sessions.every((s) => s.state === "skipped")
+                                ? "↷"
+                                : sessions.length
+                                  ? "●"
+                                  : "–"}
+                      </Label>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Label muted size={12}>
+                ● Training · ✓ Completed · ! Missed · ↷ Skipped · ◐ Active · –
+                Rest. Tap a day for details; tap again to see the week.
+              </Label>
+              {selectedDate && !visibleSessions.length && (
+                <Label>
+                  Rest day · {selectedDate}. Recover, or take an easy walk if it
+                  suits you.
+                </Label>
+              )}
+              <Label muted size={12}>
+                Moved sessions appear on their actual dates and keep their
+                original training week. Missed and skipped sessions stay
+                visible.
+              </Label>
+            </Card>
+            {visibleSessions.map((session) => (
+              <Card key={session.record.id}>
+                <Label bold size={20}>
+                  {sessionName(session.data.dayIndex, session.data.name)}
+                </Label>
+                <Label muted>
+                  {session.record.date} · {session.state}
+                </Label>
+                <Label muted size={13}>
+                  Training week {session.data.week} · {session.data.phase} ·{" "}
+                  {estimatedMinutes(
+                    r.templates().find((t) => t.id === session.data.templateId)
+                      ?.exercises ?? [],
+                  )}{" "}
+                  min
+                </Label>
+                {!["completed", "in-progress"].includes(session.state) && (
+                  <Label muted size={13}>
+                    {r
+                      .templates()
+                      .find((t) => t.id === session.data.templateId)
+                      ?.exercises.map(
+                        (e) =>
+                          `${catalog.find((x) => x.id === e.exerciseId)?.name ?? "Unavailable movement"}: ${e.sets} × ${e.reps} · rest ${e.rest}s`,
+                      )
+                      .join("\n")}
+                  </Label>
+                )}
+                {session.state === "unlinked" && (
+                  <Label muted>
+                    The linked workout is unavailable. No completion is counted.
+                    Starting again creates a new workout.
+                  </Label>
+                )}
+                {session.state === "completed" ? (
+                  <Button
+                    title={`Review ${sessionName(session.data.dayIndex, session.data.name)}`}
+                    secondary
+                    onPress={() =>
+                      router.push({
+                        pathname: "/workout",
+                        params: { id: session.data.workoutId },
+                      })
+                    }
+                  />
+                ) : (
+                  selected.data.status !== "archived" && (
+                    <>
+                      {!session.data.skipped &&
+                        selected.data.status === "active" && (
+                          <Button
+                            title={`Start ${sessionName(session.data.dayIndex, session.data.name)}`}
+                            onPress={() => start(session)}
+                          />
                         )}
-                      </>
-                    )
-                  )}
-                </Card>
-              ))}
+                      {!["in-progress", "completed"].includes(
+                        session.state,
+                      ) && (
+                        <Row>
+                          <Button
+                            title={`Move ${sessionName(session.data.dayIndex, session.data.name)}`}
+                            secondary
+                            onPress={() => {
+                              setMoving(session);
+                              setMoveDate(
+                                session.record.date < localDate()
+                                  ? localDate()
+                                  : session.record.date,
+                              );
+                            }}
+                          />
+                          <Button
+                            title={`${session.data.skipped ? "Restore" : "Skip"} ${sessionName(session.data.dayIndex, session.data.name)}`}
+                            secondary
+                            onPress={() =>
+                              confirm(
+                                session.data.skipped
+                                  ? "Restore this session?"
+                                  : "Skip this session?",
+                                "Skipping is recorded separately and never counts as a completed workout. History is preserved.",
+                                () =>
+                                  skipPathSession(
+                                    r,
+                                    session.record.id,
+                                    !session.data.skipped,
+                                  ),
+                              )
+                            }
+                          />
+                        </Row>
+                      )}
+                    </>
+                  )
+                )}
+              </Card>
+            ))}
             {selected.data.status !== "archived" && (
               <>
                 <SectionHeader
@@ -840,12 +1114,15 @@ export default function Paths() {
                 {selected.data.days.map((day, index) => (
                   <Button
                     key={day.key}
-                    title={`Edit plan: ${day.name}`}
+                    title={`Edit plan: ${sessionName(index, day.name)}`}
                     secondary
                     onPress={() =>
                       setEditing({
                         index,
-                        day: savedDraft(r, selected).days[index]!,
+                        day: {
+                          ...savedDraft(r, selected).days[index]!,
+                          name: sessionName(index, day.name),
+                        },
                       })
                     }
                   />
@@ -937,7 +1214,11 @@ export default function Paths() {
               reschedulePathSession(r, moving!.record.id, moveDate);
               return true;
             });
-            if (saved) setMoving(undefined);
+            if (saved) {
+              setWeek(calendarWeek(selected!.data.started, moveDate));
+              setSelectedDate(moveDate);
+              setMoving(undefined);
+            }
           }}
         />
       </Sheet>

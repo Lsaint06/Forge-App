@@ -49,7 +49,9 @@ test("all six Paths use distinct, valid goal prescriptions and their own frequen
     assert.deepEqual(generatePath(p, exercises), draft);
     if (path.key === "get-strong")
       assert.ok(
-        draft.days[0]!.exercises.every((e) => e.reps <= 8 && e.rest >= 180),
+        draft.days[0]!.exercises.slice(0, 2).every(
+          (e) => e.reps <= 6 && e.rest >= 180,
+        ),
       );
     if (path.key === "advanced-physique")
       assert.ok(draft.days.some((d) => d.roles.includes("biceps")));
@@ -466,7 +468,11 @@ test("Evolution templates can change independently without recreating the cycle 
   // Exercise the existing template storage interface, not a rotation engine.
   r.saveTemplate(
     template.name,
-    template.exercises.map((e) => ({ ...e, weight: 15 })),
+    template.exercises.map((e, index) => ({
+      ...e,
+      exerciseId: index === 0 ? "dumbbell-floor-press" : e.exerciseId,
+      weight: 15,
+    })),
     evolutionId,
     template.notes,
   );
@@ -475,6 +481,10 @@ test("Evolution templates can change independently without recreating the cycle 
   )!;
   const evolved = startPathSession(r, week5.record.id);
   assert.ok(r.workoutSets(evolved.id).every((s) => s.weight === 15));
+  assert.equal(
+    r.workoutExercises(evolved.id)[0]!.exerciseId,
+    "dumbbell-floor-press",
+  );
   assert.deepEqual(savedDraft(r, program, 0), originalPlan);
   assert.deepEqual(r.workoutSets(foundation.id), originalSets);
   assert.equal(pathPrograms(r)[0]!.record.id, program.record.id);

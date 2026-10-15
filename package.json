@@ -13,11 +13,7 @@
     "export": "expo export --platform ios --platform android --max-workers 2",
     "format": "prettier --write app src tests",
     "format:check": "prettier --check app src tests",
-    "test:ui": "jest --runInBand",
-    "web": "npm run export:web && node scripts/serve-web.cjs",
-    "export:web": "node scripts/export-web.cjs",
-    "test:web": "playwright test",
-    "preview:web": "node scripts/serve-web.cjs"
+    "test:ui": "jest --runInBand"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.17",
@@ -36,7 +32,6 @@
     "expo-sqlite": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
-    "react-dom": "19.2.3",
     "react-hook-form": "^7.62.0",
     "react-native": "0.86.3",
     "react-native-gesture-handler": "~2.32.0",
@@ -44,14 +39,12 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
-    "react-native-web": "~0.21.0",
     "react-native-worklets": "0.10.1",
     "zod": "^4.1.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.10",
-    "@playwright/test": "^1.64.1",
     "@testing-library/react-native": "^14.1.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^24.0.0",
