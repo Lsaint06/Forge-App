@@ -10,7 +10,19 @@ test("personalize a Path, save it, log a linked workout and manage its schedule 
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Skip optional setup · use guest defaults" })
+    .getByRole("textbox", { name: "Height (feet)", exact: true })
+    .fill("5");
+  await page
+    .getByRole("textbox", { name: "Height (inches)", exact: true })
+    .fill("10");
+  await page
+    .getByRole("textbox", {
+      name: "Starting weight (kg, required)",
+      exact: true,
+    })
+    .fill("75");
+  await page
+    .getByRole("button", { name: "Skip remaining optional setup" })
     .click();
   await page.getByRole("tab", { name: "train", exact: true }).click();
   await page.getByRole("button", { name: "Forge Paths", exact: true }).click();

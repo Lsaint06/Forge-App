@@ -8,7 +8,19 @@ test("browser saves workouts across reloads and confirms backup replacement and 
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Skip optional setup · use guest defaults" })
+    .getByRole("textbox", { name: "Height (feet)", exact: true })
+    .fill("5");
+  await page
+    .getByRole("textbox", { name: "Height (inches)", exact: true })
+    .fill("10");
+  await page
+    .getByRole("textbox", {
+      name: "Starting weight (kg, required)",
+      exact: true,
+    })
+    .fill("75");
+  await page
+    .getByRole("button", { name: "Skip remaining optional setup" })
     .click();
   await expect(page.getByText("Ready, Athlete?")).toBeVisible();
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
@@ -85,7 +97,19 @@ test("browser saves workouts across reloads and confirms backup replacement and 
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete all local data" }).click();
   await page
-    .getByRole("button", { name: "Skip optional setup · use guest defaults" })
+    .getByRole("textbox", { name: "Height (feet)", exact: true })
+    .fill("5");
+  await page
+    .getByRole("textbox", { name: "Height (inches)", exact: true })
+    .fill("10");
+  await page
+    .getByRole("textbox", {
+      name: "Starting weight (kg, required)",
+      exact: true,
+    })
+    .fill("75");
+  await page
+    .getByRole("button", { name: "Skip remaining optional setup" })
     .click();
   await page.getByRole("tab", { name: "You", exact: true }).click();
   page.once("dialog", (dialog) => dialog.accept());

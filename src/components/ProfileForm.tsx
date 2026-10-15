@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { View, Platform } from "react-native";
 import { Alert } from "../platform/alert";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRepo, mutate } from "../state";
 import type { Profile } from "../domain/types";
 import { profileSchema } from "../domain/validation";
-import { Field, Label, Button, Chips, Card, ProgressBar } from "./ui";
+import { kgToLb, lbToKg, cmToIn, inToCm } from "../domain/metrics";
+import { Field, Label, Button, Chips, Card, ProgressBar, Row } from "./ui";
 
 import { enableNotifications, cancelAllNotifications } from "../notifications";
 const numeric = new Set([
@@ -48,8 +49,8 @@ const sections: {
         ],
       },
       { key: "units", label: "Load display units", options: ["kg", "lb"] },
-      { key: "height", label: "Height (cm, optional; 0 to skip)" },
-      { key: "weight", label: "Starting weight (kg, optional; 0 to skip)" },
+      { key: "height", label: "Height (required)" },
+      { key: "weight", label: "Starting weight" },
       { key: "bodyFat", label: "Body fat % (optional; 0 to skip)" },
     ],
   },
@@ -57,7 +58,6 @@ const sections: {
     title: "Your training",
     fields: [
       { key: "frequency", label: "Workouts per week (1–7)" },
-      { key: "equipment", label: "Available equipment" },
       { key: "duration", label: "Preferred workout duration (minutes)" },
       { key: "muscles", label: "Target muscle groups" },
       { key: "rest", label: "Default rest (seconds)" },
@@ -81,6 +81,22 @@ const sections: {
     ],
   },
 ];
+// Form requirements stay separate from storage validation so older backups and
+// existing guest profiles with unset measurements remain readable.
+const requiredProfileSchema = profileSchema
+  .refine((p) => p.height > 0, {
+    path: ["height"],
+    message: "Enter your height in feet and inches.",
+  })
+  .refine((p) => p.weight > 0, {
+    path: ["weight"],
+    message: "Enter your starting weight.",
+  });
+const displayWeight = (kg: number, units: Profile["units"]) =>
+  kg > 0
+    ? String(Math.round((units === "lb" ? kgToLb(kg) : kg) * 100) / 100)
+    : "";
+
 export function ProfileForm({
   onDone,
   onboarding = false,
@@ -89,17 +105,33 @@ export function ProfileForm({
   onboarding?: boolean;
 }) {
   const r = useRepo();
-  const [step, setStep] = useState(() =>
-    Math.max(0, Math.min(2, Number(r.setting?.("onboardingStep") ?? 0))),
+  const [step, setStep] = useState(() => {
+    const profile = r.profile();
+    if (!profile.height || !profile.weight) return 0;
+    return Math.max(0, Math.min(2, Number(r.setting?.("onboardingStep") ?? 0)));
+  });
+  const initial = r.profile();
+  const totalInches = Math.round(cmToIn(initial.height));
+  const [feet, setFeet] = useState(
+    initial.height > 0 ? String(Math.floor(totalInches / 12)) : "",
+  );
+  const [inches, setInches] = useState(
+    initial.height > 0 ? String(totalInches % 12) : "",
+  );
+  const [weightText, setWeightText] = useState(() =>
+    displayWeight(initial.weight, initial.units),
   );
   const {
     control,
+    getValues,
+    trigger,
     handleSubmit,
     formState: { errors },
   } = useForm<Profile>({
     defaultValues: r.profile(),
-    resolver: zodResolver(profileSchema),
+    resolver: zodResolver(requiredProfileSchema),
   });
+  const units = useWatch({ control, name: "units" });
   const display = onboarding ? [sections[step]!] : sections;
   const submit = handleSubmit(
     (data) => {
@@ -112,11 +144,16 @@ export function ProfileForm({
       );
       if (result) onDone();
     },
-    () =>
+    (invalid) => {
+      if (onboarding && (invalid.height || invalid.weight || invalid.name)) {
+        setStep(0);
+        mutate(() => r.setSetting("onboardingStep", "0"));
+      }
       Alert.alert(
         "Check your settings",
         "Review the highlighted fields in each section.",
-      ),
+      );
+    },
   );
   return (
     <View style={{ gap: 18 }}>
@@ -146,12 +183,88 @@ export function ProfileForm({
                       values={f.options!}
                       value={String(value)}
                       onChange={(value) => {
+                        if (f.key === "units")
+                          setWeightText(
+                            displayWeight(
+                              getValues("weight"),
+                              value as Profile["units"],
+                            ),
+                          );
                         onChange(value);
                         if (onboarding)
                           mutate(() => r.saveProfile({ [f.key]: value }));
                       }}
                     />
                   </View>
+                ) : f.key === "height" ? (
+                  <View style={{ gap: 8 }}>
+                    <Label muted size={12}>
+                      Height (required)
+                    </Label>
+                    <Row>
+                      <Field
+                        label="Height (feet)"
+                        placeholder="5"
+                        keyboardType="number-pad"
+                        value={feet}
+                        onChangeText={(text) => {
+                          setFeet(text);
+                          const ft = Number(text),
+                            inch = Number(inches);
+                          const valid =
+                            /^\d+$/.test(text) &&
+                            /^(\d+)?$/.test(inches) &&
+                            inch <= 11;
+                          onChange(
+                            valid
+                              ? inToCm(ft * 12 + inch)
+                              : text === "" && inches === ""
+                                ? 0
+                                : NaN,
+                          );
+                        }}
+                      />
+                      <Field
+                        label="Height (inches)"
+                        placeholder="0"
+                        keyboardType="number-pad"
+                        value={inches}
+                        onChangeText={(text) => {
+                          setInches(text);
+                          const ft = Number(feet),
+                            inch = Number(text);
+                          const valid =
+                            /^\d+$/.test(feet) &&
+                            /^(\d+)?$/.test(text) &&
+                            inch <= 11;
+                          onChange(
+                            valid
+                              ? inToCm(ft * 12 + inch)
+                              : feet === "" && text === ""
+                                ? 0
+                                : NaN,
+                          );
+                        }}
+                      />
+                    </Row>
+                    {errors.height && (
+                      <Label size={12}>
+                        Enter a valid height in feet and inches (0–11 inches).
+                      </Label>
+                    )}
+                  </View>
+                ) : f.key === "weight" ? (
+                  <Field
+                    label={`Starting weight (${units === "lb" ? "lbs" : "kg"}, required)`}
+                    value={weightText}
+                    keyboardType="decimal-pad"
+                    onChangeText={(text) => {
+                      setWeightText(text);
+                      const number = text.trim() === "" ? 0 : Number(text);
+                      onChange(units === "lb" ? lbToKg(number) : number);
+                    }}
+                    error={errors.weight?.message}
+                  />
                 ) : (
                   <Field
                     label={f.label}
@@ -182,7 +295,17 @@ export function ProfileForm({
       {onboarding && step < 2 ? (
         <Button
           title="Next"
-          onPress={() => {
+          onPress={async () => {
+            if (step === 0 && !(await trigger(["name", "height", "weight"])))
+              return;
+            if (step === 0)
+              mutate(() =>
+                r.saveProfile({
+                  name: getValues("name"),
+                  height: getValues("height"),
+                  weight: getValues("weight"),
+                }),
+              );
             setStep((s) => s + 1);
             mutate(() => r.setSetting("onboardingStep", String(step + 1)));
           }}
@@ -225,12 +348,9 @@ export function ProfileForm({
       />
       {onboarding && (
         <Button
-          title="Skip optional setup · use guest defaults"
+          title="Skip remaining optional setup"
           secondary
-          onPress={() => {
-            mutate(() => r.saveProfile({ onboarded: true }));
-            onDone();
-          }}
+          onPress={() => void submit()}
         />
       )}
       <Label muted size={12}>
