@@ -13,7 +13,7 @@ import {
 
 export type PathDay = PathDayStructure & { exercises: Prescription[] };
 export type PathDraft = {
-  engineVersion?: 1 | 2;
+  engineVersion?: 1 | 2 | 3;
   preferences: PathPreferences;
   days: PathDay[];
 };

@@ -27,3 +27,18 @@ export function weekIntention(week: number) {
     "Recovery & rescheduled sessions · Your original training week and workout links are preserved. Resume at a manageable pace without cramming missed work together."
   );
 }
+
+export function weekFocus(week: number) {
+  return (
+    [
+      "Find repeatable starting loads.",
+      "Repeat clean reps. Build consistency.",
+      "Add a rep or a small load when earned.",
+      "Review your progress and recovery.",
+      "Keep your lifts. Build on Foundation.",
+      "Make every working set count.",
+      "Consolidate progress. Keep technique clean.",
+      "Finish strong. Review your training log.",
+    ][week - 1] ?? "Recover missed sessions at your pace."
+  );
+}

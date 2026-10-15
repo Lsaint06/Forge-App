@@ -146,7 +146,7 @@ function json<T extends z.ZodType>(schema: T) {
 export const pathProgramDataSchema = z
   .object({
     forgePath: z.literal(1),
-    engineVersion: z.union([z.literal(1), z.literal(2)]),
+    engineVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]),
     pathKey: z.enum(pathKeys),
     name: z.string().min(1).max(120),
     weeks: z.literal(8),

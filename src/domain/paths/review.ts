@@ -1,48 +1,37 @@
+import { exerciseStimulus } from "./stimulus";
 import type { Exercise } from "../types";
 import type { PathDraft } from "./generator";
 
-// Reviewed primary targets only: compound assistance is deliberately not counted
-// as a second full set. These are planning counts, not a physiological dose model.
+// Reviewed direct targets and assistance remain separate. A compound set may
+// directly target two muscles, but total workout sets count it only once.
 export function workloadReview(draft: PathDraft, catalog: Exercise[]) {
   const sets: Record<string, number> = {};
+  const assistance: Record<string, number> = {};
   const patterns = new Set<string>();
+  let total = 0;
+  let unreviewed = false;
   for (const day of draft.days)
-    day.exercises.forEach((p, i) => {
+    for (const p of day.exercises) {
       const e = catalog.find((e) => e.id === p.exerciseId);
-      if (!e) return;
+      if (!e) {
+        unreviewed = true;
+        total += p.sets;
+        continue;
+      }
       patterns.add(e.pattern);
-      const role = day.roles[i]!;
-      const target =
-        role === "push"
-          ? "Chest"
-          : role === "pull"
-            ? e.pattern === "shoulder isolation"
-              ? "Rear delts"
-              : "Back"
-            : role === "squat"
-              ? "Quads"
-              : role === "posterior"
-                ? e.pattern === "hip extension"
-                  ? "Glutes"
-                  : "Hamstrings"
-                : role === "shoulder"
-                  ? e.id === "dumbbell-lateral-raise"
-                    ? "Side delts"
-                    : /reverse-fly|pull-apart/.test(e.id)
-                      ? "Rear delts"
-                      : "Front delts"
-                  : role === "rear"
-                    ? "Rear delts"
-                    : role === "calf"
-                      ? "Calves"
-                      : role === "biceps"
-                        ? "Biceps"
-                        : role === "triceps"
-                          ? "Triceps"
-                          : "Core";
-      sets[target] = (sets[target] ?? 0) + p.sets;
-    });
+      const stimulus = exerciseStimulus(e.id);
+      total += p.sets;
+      if (!stimulus.reviewed) unreviewed = true;
+      for (const muscle of stimulus.direct)
+        sets[muscle] = (sets[muscle] ?? 0) + p.sets;
+      for (const muscle of stimulus.assistance)
+        assistance[muscle] = (assistance[muscle] ?? 0) + p.sets;
+    }
   const warnings: string[] = [];
+  if (unreviewed)
+    warnings.push(
+      "Custom or unavailable movements have not been assessed for muscle coverage.",
+    );
   if (draft.preferences.avoidPatterns.length)
     warnings.push(
       `Excluded movements: ${draft.preferences.avoidPatterns.join(", ")}. Unavailable slots are omitted rather than forcing these movements back into your plan. Working-set totals reflect the adapted plan.`,
@@ -55,11 +44,15 @@ export function workloadReview(draft: PathDraft, catalog: Exercise[]) {
     warnings.push(
       "This plan has no direct quadriceps work with your current choices. It is an adapted plan, not complete lower-body coverage.",
     );
-  if (!patterns.has("vertical pull"))
+  const bodybuilding = ["build-muscle", "advanced-physique"].includes(
+    draft.preferences.pathKey,
+  );
+  if (bodybuilding && !patterns.has("vertical pull"))
     warnings.push(
-      "No vertical pull fits this plan. Any remaining back work uses other movements; coverage is limited by your equipment and exclusions.",
+      "No vertical pull is programmed with these choices. Rows and pulldowns serve different purposes; review your equipment or exclusions if you want both.",
     );
   if (
+    bodybuilding &&
     !draft.days.some((d) =>
       d.exercises.some((e) => e.exerciseId === "seated-leg-curl"),
     )
@@ -67,9 +60,7 @@ export function workloadReview(draft: PathDraft, catalog: Exercise[]) {
     warnings.push(
       "No knee-flexion hamstring curl is included. Hinges and bridges are not identical substitutes; a leg-curl machine expands your options.",
     );
-  if (
-    ["build-muscle", "advanced-physique"].includes(draft.preferences.pathKey)
-  ) {
+  if (bodybuilding) {
     for (const target of ["Calves", "Side delts", "Biceps", "Triceps"])
       if (!sets[target])
         warnings.push(
@@ -79,7 +70,8 @@ export function workloadReview(draft: PathDraft, catalog: Exercise[]) {
   return {
     sets,
     warnings,
-    total: Object.values(sets).reduce((a, b) => a + b, 0),
+    total,
+    assistance,
   };
 }
 export function trainingGuidance(key: string) {

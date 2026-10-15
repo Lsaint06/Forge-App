@@ -1,5 +1,6 @@
 import React from "react";
 import { render, fireEvent, act } from "@testing-library/react-native";
+import WorkoutExerciseCard from "../../src/components/WorkoutExerciseCard";
 import Paths, { PathDayEditor } from "../../src/screens/Paths";
 import { useRepo, confirm } from "../../src/state";
 import { pathRepository, pathPreferences } from "../path-fixture";
@@ -9,9 +10,12 @@ import {
   acceptPath,
   pathSessions,
   reschedulePathSession,
+  startPathSession,
 } from "../../src/data/paths";
 import { generatePath } from "../../src/domain/paths/generator";
 import { exercises } from "../../src/data/catalog";
+
+jest.mock("../../src/notifications", () => ({ restNotification: jest.fn() }));
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn(), replace: jest.fn() },
@@ -120,6 +124,64 @@ test("gym access selects equipment and individual machines can still be deselect
     await fireEvent.press(view.getByLabelText("✓ Leg curl machine"));
     expect(view.getByLabelText("Leg curl machine")).toBeTruthy();
     expect(view.getByLabelText("✓ Chest press machine")).toBeTruthy();
+  } finally {
+    db.close();
+  }
+}, 20_000);
+
+test("selected Path shows one actionable workout and keeps essays and alternatives behind controls", async () => {
+  const { r, db } = pathRepository();
+  try {
+    acceptPath(r, generatePath(pathPreferences(), exercises));
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<Paths />);
+    expect(view.getAllByLabelText("Start workout")).toHaveLength(1);
+    expect(view.queryByText("Weekly muscle coverage")).toBeNull();
+    expect(view.queryByLabelText("Pause Path")).toBeNull();
+    expect(view.queryByLabelText(/Change movement/)).toBeNull();
+    expect(view.queryByText("Upper body · angles & detail")).toBeNull();
+    await fireEvent.press(view.getByLabelText("Plan details"));
+    expect(view.getByText("Weekly muscle coverage")).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Close"));
+    await fireEvent.press(view.getByLabelText("Manage Path"));
+    expect(view.getByLabelText("Pause Path")).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Close"));
+    await fireEvent.press(view.getByLabelText("Workout options"));
+    await fireEvent.press(
+      view.getByLabelText("Move Upper body · chest & back"),
+    );
+    await fireEvent.changeText(
+      view.getByLabelText("New session date (YYYY-MM-DD)"),
+      "2027-01-04",
+    );
+    await fireEvent.press(view.getByLabelText("Save new session date"));
+    expect(view.getByText("Calendar week 12")).toBeTruthy();
+    expect(view.getByText("2027-01-04 · scheduled")).toBeTruthy();
+    expect(pathSummary(r, pathPrograms(r)[0]!).completed).toBe(0);
+  } finally {
+    db.close();
+  }
+}, 20_000);
+
+test("Path workouts do not apply the unrelated global profile rep-range suggestion", async () => {
+  const { r, db } = pathRepository();
+  try {
+    acceptPath(
+      r,
+      generatePath(
+        pathPreferences({ pathKey: "get-strong", frequency: 3 }),
+        exercises,
+      ),
+    );
+    const session = pathSessions(r, pathPrograms(r)[0]!)[0]!;
+    const workout = startPathSession(r, session.record.id);
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(
+      <WorkoutExerciseCard row={r.workoutExercises(workout.id)[0]!} />,
+    );
+    await fireEvent.press(view.getByLabelText("Exercise options"));
+    expect(view.getByText(/Path progression:/)).toBeTruthy();
+    expect(view.queryByLabelText("Apply suggested load")).toBeNull();
   } finally {
     db.close();
   }

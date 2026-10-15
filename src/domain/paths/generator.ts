@@ -1,6 +1,8 @@
 import type { Exercise, Prescription } from "../types";
 import { prescriptionSchema } from "../validation";
 import { forgePaths } from "./catalog";
+import { validateDraft as validateVersionTwo } from "./versionTwoGenerator";
+import { exerciseStimulus } from "./stimulus";
 import {
   pathPreferencesSchema,
   machineRequirement,
@@ -28,6 +30,7 @@ type Slot = {
   patterns?: string[];
   preferred?: string[];
   isolation?: boolean;
+  ids?: string[];
 };
 const slot = (
   role: PathRole,
@@ -40,15 +43,14 @@ const press = slot(
   ["horizontal push"],
   ["barbell-bench-press", "dumbbell-bench-press", "machine-chest-press"],
 );
-const incline = slot(
-  "push",
-  ["horizontal push"],
-  [
-    "incline-dumbbell-bench-press",
-    "standing-cable-fly",
-    "dumbbell-floor-press",
-  ],
-);
+const incline: Slot = {
+  ...slot(
+    "push",
+    ["horizontal push"],
+    ["incline-dumbbell-bench-press", "standing-cable-fly", "pec-deck-fly"],
+  ),
+  ids: ["incline-dumbbell-bench-press", "standing-cable-fly", "pec-deck-fly"],
+};
 const row = slot(
   "pull",
   ["horizontal pull"],
@@ -63,34 +65,28 @@ const squat = slot(
   ["squat"],
   ["back-squat", "goblet-squat", "leg-press"],
 );
-const unilateral = slot(
-  "squat",
-  ["squat"],
-  ["bodyweight-split-squat", "goblet-squat"],
-);
-const quad = slot(
-  "squat",
-  ["squat"],
-  ["leg-extension", "leg-press", "bodyweight-split-squat"],
-  true,
-);
+const unilateral: Slot = {
+  ...slot(
+    "squat",
+    ["squat"],
+    ["dumbbell-split-squat", "bodyweight-split-squat"],
+  ),
+  ids: ["dumbbell-split-squat", "bodyweight-split-squat"],
+};
+const quad: Slot = {
+  ...slot("squat", ["squat"], ["leg-extension", "leg-press"], true),
+  ids: ["leg-extension", "leg-press"],
+};
 const hinge = slot(
   "posterior",
   ["hinge"],
   ["romanian-deadlift", "dumbbell-romanian-deadlift", "kettlebell-deadlift"],
 );
-const curl = slot(
-  "posterior",
-  undefined,
-  ["seated-leg-curl", "dumbbell-romanian-deadlift", "band-good-morning"],
-  true,
-);
-const side = slot(
-  "shoulder",
-  ["shoulder isolation"],
-  ["dumbbell-lateral-raise", "band-pull-apart"],
-  true,
-);
+const curl = slot("posterior", ["knee flexion"], ["seated-leg-curl"], true);
+const side: Slot = {
+  ...slot("shoulder", ["shoulder isolation"], ["dumbbell-lateral-raise"], true),
+  ids: ["dumbbell-lateral-raise"],
+};
 const rear = slot(
   "rear",
   ["shoulder isolation"],
@@ -122,7 +118,6 @@ function sessions(p: PathPreferences): Session[] {
   const strength = p.pathKey === "get-strong";
   const athlete = p.pathKey === "athlete-mode";
   const lean = p.pathKey === "lean-strong";
-  const physique = p.pathKey === "advanced-physique";
   const upper = (second: boolean): Session => ({
     name: second ? "Upper body · angles & detail" : "Upper body · chest & back",
     slots: [
@@ -151,7 +146,13 @@ function sessions(p: PathPreferences): Session[] {
             "Build movement confidence",
             "Practice & progress",
           ][i]!,
-          slots: [i === 1 ? unilateral : squat, press, row, hinge],
+          slots: [
+            i === 1 ? unilateral : squat,
+            press,
+            row,
+            hinge,
+            i === 0 ? core : i === 1 ? calf : side,
+          ],
         };
       if (strength)
         return {
@@ -162,8 +163,8 @@ function sessions(p: PathPreferences): Session[] {
           ][i]!,
           slots:
             i === 1
-              ? [hinge, shoulderPress, row, unilateral]
-              : [squat, press, row, hinge],
+              ? [hinge, shoulderPress, row, unilateral, calf]
+              : [squat, press, row, hinge, core],
         };
       if (athlete)
         return {
@@ -172,7 +173,15 @@ function sessions(p: PathPreferences): Session[] {
             "Posterior chain & stability",
             "Whole-body movement practice",
           ][i]!,
-          slots: [unilateral, hinge, i === 1 ? vertical : row, press, core],
+          slots: [
+            unilateral,
+            hinge,
+            i === 1 ? vertical : row,
+            press,
+            core,
+            calf,
+            ...(i === 1 ? [] : [side]),
+          ],
         };
       if (lean)
         return {
@@ -196,16 +205,12 @@ function sessions(p: PathPreferences): Session[] {
           "Full body · back & hamstrings",
           "Full body · balanced growth",
         ][i]!,
-        slots: [
-          i === 1 ? unilateral : squat,
-          i === 1 ? incline : press,
-          i === 1 ? vertical : row,
-          i === 1 ? curl : hinge,
-          side,
-          i === 1 ? tri : bi,
-          calf,
-          ...(physique ? [i === 1 ? bi : tri] : []),
-        ],
+        slots:
+          i === 1
+            ? [unilateral, incline, vertical, curl, rear, bi, calf, core]
+            : i === 0
+              ? [squat, press, row, hinge, side, tri, calf, core]
+              : [squat, press, row, hinge, side, bi, tri, calf],
       };
     });
   if (strength)
@@ -214,12 +219,18 @@ function sessions(p: PathPreferences): Session[] {
         name: "Upper body · press strength",
         slots: [press, row, shoulderPress, vertical],
       },
-      { name: "Lower body · squat strength", slots: [squat, hinge, core] },
+      {
+        name: "Lower body · squat strength",
+        slots: [squat, hinge, calf, core],
+      },
       {
         name: "Upper body · overhead strength",
         slots: [shoulderPress, vertical, press, row],
       },
-      { name: "Lower body · hinge strength", slots: [hinge, unilateral, core] },
+      {
+        name: "Lower body · hinge strength",
+        slots: [hinge, unilateral, calf, core],
+      },
     ];
   if (athlete || lean)
     return [
@@ -291,19 +302,17 @@ export function slotMovements(
   const target = sessions(p)[dayIndex]?.slots[index];
   if (!target) return [];
   const choices = compatibleMovements(p, target.role, catalog);
-  const exact = target.patterns
-    ? choices.filter((m) =>
-        target.patterns!.includes(catalog.find((e) => e.id === m.id)!.pattern),
-      )
-    : choices;
-  const hasAnotherPull = sessions(p)[dayIndex]!.slots.some(
-    (s) => s !== target && s.role === "pull",
+  const available = choices.filter(
+    (m) =>
+      (!target.patterns ||
+        target.patterns.includes(
+          catalog.find((e) => e.id === m.id)!.pattern,
+        )) &&
+      (!target.ids || target.ids.includes(m.id)) &&
+      (target !== row || exerciseStimulus(m.id).direct.includes("Back")) &&
+      ((target !== press && target !== squat) ||
+        !exerciseStimulus(m.id).isolation),
   );
-  const available = exact.length
-    ? exact
-    : target === vertical && hasAnotherPull
-      ? []
-      : choices;
   return [...available].sort((a, b) => {
     const rank = (id: string) => {
       const i = target.preferred?.indexOf(id) ?? -1;
@@ -379,18 +388,24 @@ export function generatePath(
         adapted = true;
         return;
       }
-      const strengthAssistance = strength && j >= 2;
+      const stimulus = exerciseStimulus(choices[0]!.id);
+      if (!stimulus.reviewed)
+        throw new Error(
+          "A selected movement needs a reviewed training purpose.",
+        );
+      const primaryStrength = strength && j < 2 && !stimulus.isolation;
+      const strengthAssistance = strength && !primaryStrength;
       const sets = strengthAssistance
         ? 2
         : novice
           ? 2
-          : target.isolation
+          : stimulus.isolation
             ? physique
               ? 3
               : 2
             : p.experience === "Beginner"
               ? 3
-              : physique || strength
+              : strength || (physique && j < 2)
                 ? 4
                 : 3;
       exercises.push({
@@ -399,26 +414,26 @@ export function generatePath(
         reps:
           target.role === "core"
             ? 8
-            : strengthAssistance
-              ? 8
-              : strength
-                ? p.experience === "Beginner"
-                  ? 6
-                  : 5
-                : target.isolation
-                  ? 12
+            : primaryStrength
+              ? p.experience === "Beginner"
+                ? 6
+                : 5
+              : stimulus.isolation
+                ? 12
+                : strengthAssistance
+                  ? 8
                   : p.pathKey === "athlete-mode"
                     ? 6
                     : novice
                       ? 10
                       : 8,
         weight: 0,
-        rest: strengthAssistance
-          ? 120
-          : strength
-            ? 180
-            : target.isolation
-              ? 75
+        rest: primaryStrength
+          ? 180
+          : stimulus.isolation
+            ? 75
+            : strengthAssistance
+              ? 120
               : novice
                 ? 75
                 : 120,
@@ -489,14 +504,15 @@ export function generatePath(
       if (estimatedMinutes(day.exercises) > p.duration) day.exercises = before;
     }
   }
-  return validateDraft({ engineVersion: 2, preferences: p, days }, catalog);
+  return validateDraft({ engineVersion: 3, preferences: p, days }, catalog);
 }
 export function validateDraft(
   draft: PathDraft,
   catalog: Exercise[],
 ): PathDraft {
   if ((draft.engineVersion ?? 1) === 1) return validateLegacy(draft, catalog);
-  if (draft.engineVersion !== 2)
+  if (draft.engineVersion === 2) return validateVersionTwo(draft, catalog);
+  if (draft.engineVersion !== 3)
     throw new Error("Unsupported programming version.");
   const p = pathPreferencesSchema.parse(draft.preferences);
   checkPreferences(p);

@@ -156,6 +156,7 @@ export const movementMenu: {
   },
   { id: "goblet-squat", role: "squat", needs: ["Dumbbell"], level: 0 },
   { id: "leg-press", role: "squat", needs: ["Leg press machine"], level: 0 },
+  { id: "dumbbell-split-squat", role: "squat", needs: ["Dumbbell"], level: 0 },
   { id: "bodyweight-split-squat", role: "squat", needs: [], level: 0 },
   { id: "bodyweight-squat", role: "squat", needs: [], level: 0 },
   { id: "romanian-deadlift", role: "posterior", needs: ["Barbell"], level: 1 },

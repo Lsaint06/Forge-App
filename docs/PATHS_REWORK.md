@@ -1,3 +1,5 @@
+> Updated by the [Planner 3 audit and gym-flow simplification](research/PROGRAMMING_AUDIT_2026_10_15.md). The current screen shows one session; details and management open on request.
+
 # Forge Paths: phone-first rework
 
 This update supersedes the browser requirements in the historical Phase A report. At the user's request, supported targets are now **iOS and Android**. Windows remains a suitable computer for running Expo and connecting an iPhone; the application itself runs on the phone.
@@ -27,7 +29,7 @@ The preview shows total weekly working sets and primary-target counts, explicitl
 
 ## Saved data and phases
 
-Programming version 2 applies to newly accepted plans. Version 1 retains its validation rules so old schedules can still start and be edited. SQLite schema, backup format, completed workout snapshots and explicit schedule/workout links are retained. Existing pause/resume, move, skip/restore and archive behavior remains in place.
+Programming version 3 applies to newly accepted plans. Versions 1 and 2 retain their validation rules so old schedules can still start and be edited. SQLite schema, backup format, completed workout snapshots and explicit schedule/workout links are retained. Existing pause/resume, move, skip/restore and archive behavior remains in place.
 
 Foundation (weeks 1–4) and Evolution (weeks 5–8) still own independent template references. Accepted exercises remain consistent through all eight weeks. Week descriptions provide guidance; they do not silently alter prescriptions or introduce an exercise rotation engine.
 

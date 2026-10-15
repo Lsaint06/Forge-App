@@ -185,6 +185,14 @@ export default function WorkoutExerciseCard({
   const previous = r
     .history(e.exerciseId)[0]
     ?.filter((s) => s.completed && s.kind !== "warmup");
+  // Generic profile rep ranges can conflict with a Path's prescribed reps.
+  // Keep Path progression manual until immutable target snapshots are supported.
+  const pathWorkout = r
+    .journal("schedule")
+    .some(
+      (entry) =>
+        entry.data.forgePath === 1 && entry.data.workoutId === e.workoutId,
+    );
   const recommendation = overload(r.history(e.exerciseId), {
     min: p.repMin,
     max: p.repMax,
@@ -239,7 +247,15 @@ export default function WorkoutExerciseCard({
               }
             />
           </Row>
-          {exercise?.category === "strength" && (
+          {pathWorkout && exercise?.category === "strength" && (
+            <Label muted size={12}>
+              Path progression: reach the prescribed reps on every working set
+              with controlled technique and about two reps left, then consider
+              the smallest load increase. Repeat or reduce the load when
+              recovery calls for it.
+            </Label>
+          )}
+          {!pathWorkout && exercise?.category === "strength" && (
             <View style={{ gap: 6 }}>
               <Label size={12} muted>
                 NEXT LOAD ·{" "}

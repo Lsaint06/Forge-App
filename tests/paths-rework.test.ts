@@ -33,7 +33,7 @@ test("muscle-building defaults include complementary back, leg, calf and arm wor
       exercises,
     );
     const review = workloadReview(draft, exercises);
-    assert.equal(draft.engineVersion, 2);
+    assert.equal(draft.engineVersion, 3);
     assert.deepEqual(review.warnings, []);
     assert.ok(review.sets.Chest! >= 10);
     assert.ok(review.sets.Back! >= 10);
@@ -105,7 +105,9 @@ test("strength separates primary lift work from assistance and beginner split wo
   );
   assert.ok(
     strength.days.every((d) =>
-      d.exercises.slice(2).every((e) => e.sets === 2 && e.reps === 8),
+      d.exercises
+        .slice(2)
+        .every((e) => e.sets === 2 && [8, 12].includes(e.reps)),
     ),
   );
   const beginner = generatePath(
@@ -313,6 +315,7 @@ test("a single permitted movement survives saving and backup without restoring e
       frequency: 1,
       duration: 90,
       equipment: ["Dumbbell"],
+      excluded: ["dead-bug", "bird-dog", "reverse-crunch"],
       avoidPatterns: ["squat", "horizontal push", "hinge", "hip extension"],
     }),
     exercises,
