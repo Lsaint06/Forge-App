@@ -10,14 +10,16 @@ import {
 import { generatePath as legacyPath } from "../src/domain/paths/legacyGenerator";
 import { estimateSession } from "../src/domain/paths/duration";
 import { exerciseStimulus } from "../src/domain/paths/stimulus";
-import {
-  sessionSetCap,
-  weeklyMuscleCap,
-} from "../src/domain/paths/volume";
+import { sessionSetCap, weeklyMuscleCap } from "../src/domain/paths/volume";
 import type { PathPreferences } from "../src/domain/paths/model";
 import { pathPreferences } from "./path-fixture";
 
-const pres = (exerciseId: string, sets: number, reps: number, rest: number) => ({
+const pres = (
+  exerciseId: string,
+  sets: number,
+  reps: number,
+  rest: number,
+) => ({
   exerciseId,
   sets,
   reps,
@@ -73,7 +75,10 @@ test("duration model: empty session is zero and ranges are ordered", () => {
     expected: 0,
     high: 0,
   });
-  const e = estimateSession([pres("barbell-bench-press", 3, 8, 120)], exercises);
+  const e = estimateSession(
+    [pres("barbell-bench-press", 3, 8, 120)],
+    exercises,
+  );
   assert.ok(e.low <= e.expected && e.expected <= e.high && e.low > 0);
 });
 
@@ -118,9 +123,7 @@ test("scenario: beginner 30-minute full-body stays manageable and unpadded", () 
   const draft = generatePath(p, exercises);
   assertInvariants(draft, p);
   // Beginners are not volume-filled: every exercise keeps its foundation dose.
-  assert.ok(
-    draft.days.every((d) => d.exercises.every((e) => e.sets <= 3)),
-  );
+  assert.ok(draft.days.every((d) => d.exercises.every((e) => e.sets <= 3)));
 });
 
 test("scenario: intermediate hypertrophy fills toward longer targets up to a cap", () => {
@@ -133,7 +136,10 @@ test("scenario: intermediate hypertrophy fills toward longer targets up to a cap
     exercises,
   );
   const sets = (d: PathDraft) =>
-    d.days.reduce((n, day) => n + day.exercises.reduce((m, e) => m + e.sets, 0), 0);
+    d.days.reduce(
+      (n, day) => n + day.exercises.reduce((m, e) => m + e.sets, 0),
+      0,
+    );
   assert.ok(sets(long) >= sets(short));
   assertInvariants(long, long.preferences);
 });
@@ -196,7 +202,10 @@ test("scenario: limited home equipment adapts without barbells or excluded gear"
   for (const day of draft.days)
     for (const item of day.exercises) {
       const ex = exercises.find((e) => e.id === item.exerciseId)!;
-      assert.ok(!/barbell/i.test(ex.equipment), `${item.exerciseId} needs no barbell`);
+      assert.ok(
+        !/barbell/i.test(ex.equipment),
+        `${item.exerciseId} needs no barbell`,
+      );
     }
 });
 
@@ -234,7 +243,11 @@ test("scenario: a request that cannot be met productively is explained, not cut"
   assert.throws(
     () =>
       generatePath(
-        pathPreferences({ pathKey: "build-muscle", frequency: 4, duration: 30 }),
+        pathPreferences({
+          pathKey: "build-muscle",
+          frequency: 4,
+          duration: 30,
+        }),
         exercises,
       ),
     /will not silently cut/,
@@ -243,7 +256,10 @@ test("scenario: a request that cannot be met productively is explained, not cut"
 
 test("scenario: regenerating with more time yields at least as much volume", () => {
   const sets = (d: PathDraft) =>
-    d.days.reduce((n, day) => n + day.exercises.reduce((m, e) => m + e.sets, 0), 0);
+    d.days.reduce(
+      (n, day) => n + day.exercises.reduce((m, e) => m + e.sets, 0),
+      0,
+    );
   const tight = generatePath(
     pathPreferences({ pathKey: "build-muscle", frequency: 4, duration: 55 }),
     exercises,
