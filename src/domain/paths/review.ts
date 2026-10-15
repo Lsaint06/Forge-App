@@ -43,9 +43,21 @@ export function workloadReview(draft: PathDraft, catalog: Exercise[]) {
       sets[target] = (sets[target] ?? 0) + p.sets;
     });
   const warnings: string[] = [];
+  if (draft.preferences.avoidPatterns.length)
+    warnings.push(
+      `Excluded movements: ${draft.preferences.avoidPatterns.join(", ")}. Unavailable slots are omitted rather than forcing these movements back into your plan. Working-set totals reflect the adapted plan.`,
+    );
+  if (draft.preferences.excluded.length)
+    warnings.push(
+      "Your exercise exclusions are respected. Where no distinct permitted alternative fits, the slot is omitted; review the resulting muscle coverage below.",
+    );
+  if (!sets.Quads)
+    warnings.push(
+      "This plan has no direct quadriceps work with your current choices. It is an adapted plan, not complete lower-body coverage.",
+    );
   if (!patterns.has("vertical pull"))
     warnings.push(
-      "No vertical pull fits this plan. Back work relies on rows; add suitable pulling equipment or review your exclusions for more variety.",
+      "No vertical pull fits this plan. Any remaining back work uses other movements; coverage is limited by your equipment and exclusions.",
     );
   if (
     !draft.days.some((d) =>

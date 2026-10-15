@@ -117,9 +117,15 @@ test("beginner constraints, equipment prerequisites and exercise exclusions are 
     () => generatePath({ ...p, pathKey: "advanced-physique" }, exercises),
     /experienced lifters/,
   );
-  assert.throws(
-    () => generatePath({ ...p, equipment: [] }, exercises),
-    /compatible pull/,
+  const bodyweight = generatePath({ ...p, equipment: [] }, exercises);
+  assert.ok(
+    bodyweight.days.every((day) =>
+      day.exercises.every(
+        (item) =>
+          movementMenu.find((m) => m.id === item.exerciseId)!.needs.length ===
+          0,
+      ),
+    ),
   );
   assert.throws(
     () => generatePath({ ...p, weekdays: [0, 1, 2] }, exercises),

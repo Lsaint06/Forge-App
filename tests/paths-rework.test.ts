@@ -222,3 +222,130 @@ test("specific machines are independent and legacy full-gym programs remain comp
     db.close();
   }
 });
+
+test("no Path requires squatting when the user excludes that movement", () => {
+  for (const path of forgePaths) {
+    const p = pathPreferences({
+      pathKey: path.key,
+      frequency: path.frequency,
+      duration: 90,
+      avoidPatterns: ["squat"],
+    });
+    const draft = generatePath(p, exercises);
+    assert.ok(
+      draft.days.every((d) =>
+        d.exercises.every(
+          (item) =>
+            exercises.find((e) => e.id === item.exerciseId)!.pattern !==
+            "squat",
+        ),
+      ),
+    );
+    assert.ok(
+      workloadReview(draft, exercises).warnings.some((w) =>
+        w.includes("no direct quadriceps"),
+      ),
+    );
+    const { r, db } = pathRepository();
+    try {
+      acceptPath(r, draft);
+      const program = pathPrograms(r)[0]!;
+      for (const session of pathSessions(r, program).slice(0, p.frequency)) {
+        const w = startPathSession(r, session.record.id);
+        assert.ok(
+          r
+            .workoutExercises(w.id)
+            .every(
+              (item) =>
+                exercises.find((e) => e.id === item.exerciseId)!.pattern !==
+                "squat",
+            ),
+        );
+        r.finishWorkout(w.id);
+      }
+    } finally {
+      db.close();
+    }
+  }
+});
+
+test("all other movement exclusions and individual exercise exclusions are respected", () => {
+  const base = pathPreferences({ frequency: 3, duration: 90 });
+  for (const pattern of [
+    "horizontal push",
+    "horizontal pull",
+    "vertical push",
+    "vertical pull",
+    "hinge",
+    "hip extension",
+    "shoulder isolation",
+    "elbow flexion",
+    "elbow extension",
+    "trunk stability",
+  ] as const) {
+    const plan = generatePath({ ...base, avoidPatterns: [pattern] }, exercises);
+    assert.ok(
+      plan.days.every((day) =>
+        day.exercises.every(
+          (item) =>
+            exercises.find((e) => e.id === item.exerciseId)!.pattern !==
+            pattern,
+        ),
+      ),
+    );
+  }
+  const allSquats = exercises
+    .filter((e) => e.pattern === "squat")
+    .slice(0, 30)
+    .map((e) => e.id);
+  const plan = generatePath({ ...base, excluded: allSquats }, exercises);
+  assert.ok(
+    plan.days.every((day) =>
+      day.exercises.every((item) => !allSquats.includes(item.exerciseId)),
+    ),
+  );
+});
+
+test("a single permitted movement survives saving and backup without restoring excluded slots", () => {
+  const plan = generatePath(
+    pathPreferences({
+      pathKey: "start-strong",
+      frequency: 1,
+      duration: 90,
+      equipment: ["Dumbbell"],
+      avoidPatterns: ["squat", "horizontal push", "hinge", "hip extension"],
+    }),
+    exercises,
+  );
+  assert.equal(plan.days[0]!.exercises.length, 1);
+  assert.deepEqual(plan.days[0]!.roles, ["pull"]);
+  const { r, db } = pathRepository();
+  const restored = pathRepository();
+  try {
+    acceptPath(r, plan);
+    restored.r.importBackup(JSON.stringify(r.exportBackup()));
+    const session = pathSessions(restored.r, pathPrograms(restored.r)[0]!)[0]!;
+    const workout = startPathSession(restored.r, session.record.id);
+    assert.equal(restored.r.workoutExercises(workout.id).length, 1);
+    assert.throws(
+      () =>
+        generatePath(
+          {
+            ...plan.preferences,
+            equipment: [],
+            avoidPatterns: [
+              "squat",
+              "horizontal push",
+              "hinge",
+              "hip extension",
+            ],
+          },
+          exercises,
+        ),
+      /No exercises match/,
+    );
+  } finally {
+    db.close();
+    restored.db.close();
+  }
+});

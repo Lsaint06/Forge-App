@@ -110,7 +110,7 @@ export const dayStructureSchema = z.object({
   key: z.string().min(1),
   name: z.string().min(1).max(80),
   offset: z.number().int().min(0).max(6),
-  roles: z.array(z.enum(roleKeys)).min(2).max(8),
+  roles: z.array(z.enum(roleKeys)).min(1).max(8),
 });
 export type PathDayStructure = z.infer<typeof dayStructureSchema>;
 export const phasesSchema = z.tuple([

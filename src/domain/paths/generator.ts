@@ -368,16 +368,16 @@ export function generatePath(
   const days = sessions(p).map((s, i): PathDay => {
     const exercises: Prescription[] = [];
     const roles: PathRole[] = [];
+    let adapted = false;
     s.slots.forEach((target, j) => {
       const choices = slotMovements(p, i, j, catalog).filter(
         (m) => !exercises.some((e) => e.exerciseId === m.id),
       );
-      // Optional isolation coverage may be unavailable at home. Required foundational slots cannot disappear.
+      // Every movement slot is optional. Never override exclusions or assume
+      // missing equipment simply to fill a predetermined session structure.
       if (!choices.length) {
-        if (target.isolation || target.optional) return;
-        throw new Error(
-          `No compatible ${target.role} movement is available. Review equipment and movement exclusions.`,
-        );
+        adapted = true;
+        return;
       }
       const strengthAssistance = strength && j >= 2;
       const sets = strengthAssistance
@@ -425,13 +425,22 @@ export function generatePath(
       });
       roles.push(target.role);
     });
+    if (!exercises.length)
+      throw new Error(
+        "No exercises match your choices for this session. Try another Path, fewer training days or different equipment. Excluded movements will not be added back.",
+      );
     if (estimatedMinutes(exercises) > p.duration)
       throw new Error(
         `${s.name} needs about ${estimatedMinutes(exercises)} minutes with its working sets and rests. Choose a longer duration or a different training frequency; Forge will not silently cut your workload.`,
       );
     return {
       key: `day-${i}`,
-      name: s.name,
+      name: adapted
+        ? `Adapted · ${[...new Set(roles)].map((role) => ({ push: "chest", pull: "back", squat: "quads", posterior: "posterior chain", shoulder: "shoulders", rear: "rear delts", biceps: "biceps", triceps: "triceps", calf: "calves", core: "core" })[role]).join(" & ")}`.slice(
+            0,
+            80,
+          )
+        : s.name,
       offset: offsets[i]!,
       roles,
       exercises,
@@ -505,15 +514,15 @@ export function validateDraft(
       throw new Error("Training day names, dates or identities are invalid.");
     if (
       day.exercises.length !== day.roles.length ||
-      day.roles.length < 2 ||
+      day.roles.length < 1 ||
       day.roles.length > 8 ||
       new Set(day.exercises.map((e) => e.exerciseId)).size !==
         day.exercises.length
     )
       throw new Error(
-        "Keep distinct exercises and two to eight movement slots.",
+        "Keep distinct exercises and one to eight movement slots.",
       );
-    // Required slots retain order; optional unavailable isolation slots may be omitted.
+    // Retained slots keep their order; every slot may be omitted.
     const matches = (slotIndex: number, roleIndex: number): boolean => {
       if (slotIndex === specs[i]!.slots.length)
         return roleIndex === day.roles.length;
@@ -522,8 +531,7 @@ export function validateDraft(
         (roleIndex < day.roles.length &&
           day.roles[roleIndex] === target.role &&
           matches(slotIndex + 1, roleIndex + 1)) ||
-        (!!(target.isolation || target.optional) &&
-          matches(slotIndex + 1, roleIndex))
+        matches(slotIndex + 1, roleIndex)
       );
     };
     if (!matches(0, 0))
