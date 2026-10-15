@@ -33,7 +33,7 @@ test("muscle-building defaults include complementary back, leg, calf and arm wor
       exercises,
     );
     const review = workloadReview(draft, exercises);
-    assert.equal(draft.engineVersion, 3);
+    assert.equal(draft.engineVersion, 4);
     assert.deepEqual(review.warnings, []);
     assert.ok(review.sets.Chest! >= 10);
     assert.ok(review.sets.Back! >= 10);
@@ -55,14 +55,27 @@ test("muscle-building defaults include complementary back, leg, calf and arm wor
   }
 });
 
-test("short duration requests are explained rather than silently weakening workouts", () => {
+test("duration is a real target: more time adds productive volume up to a goal cap, never junk", () => {
+  // A base session that cannot fit the request is explained, not silently cut.
   assert.throws(
     () => generatePath(pathPreferences({ duration: 30 }), exercises),
     /will not silently cut/,
   );
-  const full = generatePath(pathPreferences({ duration: 90 }), exercises);
-  const regular = generatePath(pathPreferences({ duration: 75 }), exercises);
-  assert.deepEqual(full.days, regular.days);
+  const totalSets = (draft: ReturnType<typeof generatePath>) =>
+    draft.days.reduce(
+      (n, day) => n + day.exercises.reduce((m, e) => m + e.sets, 0),
+      0,
+    );
+  const short = generatePath(pathPreferences({ duration: 50 }), exercises);
+  const mid = generatePath(pathPreferences({ duration: 60 }), exercises);
+  const long = generatePath(pathPreferences({ duration: 90 }), exercises);
+  // A tighter time budget yields fewer working sets; more time adds volume.
+  assert.ok(totalSets(short) < totalSets(mid));
+  // Past the goal's volume cap, extra time adds nothing: no junk padding.
+  assert.deepEqual(mid.days, long.days);
+  // Every filled session still fits within its requested duration.
+  for (const day of long.days)
+    assert.ok(estimatedMinutes(day.exercises, exercises) <= 90);
 });
 
 test("priorities redistribute the same set budget and limited equipment exposes coverage gaps", () => {

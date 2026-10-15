@@ -16,6 +16,7 @@ import {
   type PathDay,
   type PathDraft,
 } from "./legacyGenerator";
+import { sessionSetCap, exerciseSetCap, isPriorityTarget } from "./volume";
 export {
   compatibleMovements,
   estimatedMinutes,
@@ -462,29 +463,13 @@ export function generatePath(
     };
   });
   // Priorities redistribute a fixed session set budget rather than increasing everything.
-  const priority: Record<string, PathRole[]> = {
-    Chest: ["push"],
-    Back: ["pull"],
-    Shoulders: ["shoulder"],
-    Quadriceps: ["squat"],
-    Hamstrings: ["posterior"],
-    Glutes: ["posterior"],
-    Arms: ["biceps", "triceps"],
-    Core: ["core"],
-  };
   for (const [dayIndex, day] of days.entries()) {
-    const isTarget = (role: PathRole, index: number) => {
-      const exercise = catalog.find(
-        (e) => e.id === day.exercises[index]!.exerciseId,
-      )!;
-      return p.priorities.some((priorityName) =>
-        priorityName === "Glutes"
-          ? ["squat", "hinge", "hip extension"].includes(exercise.pattern)
-          : priorityName === "Hamstrings"
-            ? role === "posterior" && exercise.pattern !== "hip extension"
-            : (priority[priorityName] ?? []).includes(role),
+    const isTarget = (role: PathRole, index: number) =>
+      isPriorityTarget(
+        p,
+        role,
+        catalog.find((e) => e.id === day.exercises[index]!.exerciseId),
       );
-    };
     const candidates = day.roles
       .map((role, index) => (isTarget(role, index) ? index : -1))
       .filter((index) => index >= 0);
@@ -505,7 +490,51 @@ export function generatePath(
         day.exercises = before;
     }
   }
-  return validateDraft({ engineVersion: 3, preferences: p, days }, catalog);
+  // Duration-aware filling: approach the requested session length by adding
+  // working sets, priority slots first, but never past the goal's volume cap
+  // or the session target. Only goals where added volume is productive are
+  // filled; strength (intensity-led) and beginner/foundation plans (manageable
+  // by design) keep their deliberate lower-volume templates so time is not
+  // padded with junk sets. If the productive session is shorter, it stays
+  // shorter and the honest estimate is reported.
+  const fillable = !strength && !novice && p.experience !== "Beginner";
+  if (fillable) for (const day of days) fillToTarget(day, p, catalog);
+  return validateDraft({ engineVersion: 4, preferences: p, days }, catalog);
+}
+
+// Distributes extra working sets across a session to approach its duration
+// target. Even distribution with priority slots first; capped by goal volume,
+// per-exercise limits and the time target. Pure and deterministic.
+function fillToTarget(day: PathDay, p: PathPreferences, catalog: Exercise[]) {
+  const cap = sessionSetCap(p);
+  const order = day.exercises
+    .map((_, i) => i)
+    .sort((a, b) => {
+      const rank = (i: number) =>
+        isPriorityTarget(
+          p,
+          day.roles[i]!,
+          catalog.find((e) => e.id === day.exercises[i]!.exerciseId),
+        )
+          ? 1
+          : 0;
+      return rank(b) - rank(a);
+    });
+  let added = true;
+  while (added) {
+    added = false;
+    for (const i of order) {
+      if (day.exercises.reduce((n, e) => n + e.sets, 0) >= cap) return;
+      const ex = catalog.find((e) => e.id === day.exercises[i]!.exerciseId);
+      if (day.exercises[i]!.sets >= exerciseSetCap(p, ex, false)) continue;
+      day.exercises[i]!.sets++;
+      if (estimatedMinutes(day.exercises, catalog) > p.duration) {
+        day.exercises[i]!.sets--;
+        continue;
+      }
+      added = true;
+    }
+  }
 }
 export function validateDraft(
   draft: PathDraft,
@@ -513,7 +542,7 @@ export function validateDraft(
 ): PathDraft {
   if ((draft.engineVersion ?? 1) === 1) return validateLegacy(draft, catalog);
   if (draft.engineVersion === 2) return validateVersionTwo(draft, catalog);
-  if (draft.engineVersion !== 3)
+  if (draft.engineVersion !== 3 && draft.engineVersion !== 4)
     throw new Error("Unsupported programming version.");
   const p = pathPreferencesSchema.parse(draft.preferences);
   checkPreferences(p);
