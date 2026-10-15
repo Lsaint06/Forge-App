@@ -1,0 +1,292 @@
+import React, { useEffect, useState } from "react";
+import { Alert } from "react-native";
+import * as Linking from "expo-linking";
+import { recoveryTokens } from "../src/cloud/recovery";
+import { router } from "expo-router";
+import {
+  Screen,
+  Card,
+  Label,
+  Button,
+  Field,
+  Chips,
+} from "../src/components/ui";
+import { useRepo, useApp, confirm } from "../src/state";
+import { cloudClient, transport } from "../src/cloud/client";
+import { synchronize } from "../src/cloud/sync";
+export default function Account() {
+  const r = useRepo();
+  const client = cloudClient();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [user, setUser] = useState<{ id: string; email?: string }>();
+  const [mode, setMode] = useState("Login");
+  const [recovery, setRecovery] = useState(false);
+  const incoming = Linking.useURL();
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+  useEffect(() => {
+    if (!client) return;
+    void client.auth.getSession().then(({ data, error }) => {
+      if (error) setStatus(error.message);
+      else setUser(data.session?.user);
+    });
+    const { data } = client.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user);
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
+    });
+    return () => data.subscription.unsubscribe();
+  }, [client]);
+  useEffect(() => {
+    if (!client || !incoming) return;
+    const tokens = recoveryTokens(incoming);
+    if (!tokens) return;
+    let active = true;
+    void client.auth.setSession(tokens).then(({ error }) => {
+      if (!active) return;
+      if (error) setStatus(error.message);
+      else {
+        setRecovery(true);
+        setStatus("Recovery session verified. Enter a new password below.");
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [client, incoming]);
+  async function updatePassword() {
+    if (!client) return;
+    setBusy(true);
+    try {
+      if (password.length < 8) throw new Error("Use at least 8 characters");
+      const { error } = await client.auth.updateUser({ password });
+      if (error) throw error;
+      setPassword("");
+      setRecovery(false);
+      setStatus("Password updated.");
+      router.replace("/account");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Password update failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function auth() {
+    if (!client) return;
+    setBusy(true);
+    try {
+      if (!email.trim() || (!password && mode !== "Reset password"))
+        throw new Error("Enter your email and password");
+      const result =
+        mode === "Register"
+          ? await client.auth.signUp({ email: email.trim(), password })
+          : mode === "Reset password"
+            ? await client.auth.resetPasswordForEmail(email.trim(), {
+                redirectTo: Linking.createURL("/account"),
+              })
+            : await client.auth.signInWithPassword({
+                email: email.trim(),
+                password,
+              });
+      if (result.error) throw result.error;
+      setPassword("");
+      setStatus(
+        mode === "Register"
+          ? "Registration submitted. Check email if confirmation is enabled."
+          : mode === "Reset password"
+            ? "Password-reset email requested. Use the secure link to set a new password."
+            : "Signed in. Synchronization remains opt-in.",
+      );
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Authentication failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function sync() {
+    if (!client || !user) return;
+    setBusy(true);
+    try {
+      const result = await synchronize(r, transport(client, user.id), user.id);
+      useApp.getState().touch();
+      setStatus(
+        `${result.uploaded} uploaded · ${result.downloaded} downloaded · ${result.pending} pending · ${result.conflicts} conflicts${result.errors.length ? "\n" + result.errors.join("\n") : ""}`,
+      );
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Sync failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Screen title="Your data. Your choice." eyebrow="PROFILE / ACCOUNT">
+      <Button title="Back" secondary onPress={() => router.back()} />
+      {!client ? (
+        <Card>
+          <Label bold size={21}>
+            Guest mode is active
+          </Label>
+          <Label muted>
+            Training and lifestyle logs work offline. Cloud accounts are
+            unavailable until EXPO_PUBLIC_SUPABASE_URL and
+            EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY are configured and the database
+            migration is applied. See README for setup.
+          </Label>
+        </Card>
+      ) : user ? (
+        <Card>
+          <Label bold>{user.email ?? "Authenticated account"}</Label>
+          {recovery && (
+            <>
+              <Field
+                label="New password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                autoComplete="new-password"
+              />
+              <Button
+                title="Set new password"
+                disabled={busy}
+                onPress={() => void updatePassword()}
+              />
+            </>
+          )}
+          <Label muted>
+            Sync sends your local training and lifestyle data to your configured
+            Supabase project. It runs only when requested. Export a backup
+            before your first sync.
+          </Label>
+          <Button
+            title={busy ? "Working…" : "Synchronize now"}
+            disabled={busy}
+            onPress={() => void sync()}
+          />
+          <Button
+            title="Log out"
+            secondary
+            disabled={busy}
+            onPress={() => {
+              void client.auth.signOut().then(({ error }) => {
+                if (error) setStatus(error.message);
+                else
+                  setStatus(
+                    "Signed out. Your local records remain on this device.",
+                  );
+              });
+            }}
+          />
+          <Button
+            title="Delete cloud account"
+            danger
+            disabled={busy}
+            onPress={() =>
+              confirm(
+                "Delete account permanently?",
+                "This deletes your account and all cloud records. Local records remain until you delete them in Profile.",
+                () => {
+                  void client
+                    .rpc("forge_delete_account")
+                    .then(async ({ error }) => {
+                      if (error) {
+                        Alert.alert("Account deletion failed", error.message);
+                        return;
+                      }
+                      await client.auth.signOut({ scope: "local" });
+                      r.setSetting("cloudAccountDeleted", "true");
+                      setStatus(
+                        "Cloud account deleted. Export then clear local data before using a different account.",
+                      );
+                    });
+                },
+              )
+            }
+          />
+        </Card>
+      ) : (
+        <Card>
+          <Chips
+            values={["Login", "Register", "Reset password"]}
+            value={mode}
+            onChange={setMode}
+          />
+          <Field
+            label="Email"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoComplete="email"
+          />
+          {mode !== "Reset password" && (
+            <Field
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoComplete="password"
+            />
+          )}
+          <Button
+            title={busy ? "Working…" : mode}
+            disabled={busy}
+            onPress={() => void auth()}
+          />
+        </Card>
+      )}
+      {status && (
+        <Card>
+          <Label>{status}</Label>
+        </Card>
+      )}
+      {r.conflicts().map((c) => (
+        <Card key={c.id}>
+          <Label bold>Sync conflict · {c.id}</Label>
+          <Label muted>
+            The cloud record changed since this device last synchronized. Your
+            local record remains intact. Keeping local explicitly replaces the
+            cloud version on the next sync. Export a backup first.
+          </Label>
+          <Button
+            title="Keep local version"
+            secondary
+            onPress={() =>
+              confirm(
+                "Keep local version?",
+                "This authorizes replacing the currently conflicting cloud version on your next sync.",
+                () => r.keepLocal(c.id),
+              )
+            }
+          />
+          <Button
+            title="Use cloud version"
+            secondary
+            onPress={() =>
+              confirm(
+                "Use cloud version?",
+                "Export first. This replaces the local record with the preserved cloud version.",
+                () => {
+                  const row = JSON.parse(
+                    c.remote,
+                  ) as import("../src/cloud/sync").CloudRecord;
+                  r.transaction(() => {
+                    r.applyRemote(
+                      row.id,
+                      row.kind,
+                      row.payload,
+                      row.revision,
+                      row.deleted,
+                    );
+                    r.db.run("DELETE FROM outbox WHERE id=?", [row.id]);
+                    r.db.run("DELETE FROM conflicts WHERE id=?", [row.id]);
+                  });
+                  useApp.getState().touch();
+                },
+              )
+            }
+          />
+        </Card>
+      ))}
+    </Screen>
+  );
+}
