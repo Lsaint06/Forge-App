@@ -1,0 +1,452 @@
+FORGE 2.0 — PREMIUM ATHLETIC PRODUCT REDESIGN
+
+ROLE AND MISSION
+
+You are acting as a senior product designer, mobile UX architect, React Native engineer, accessibility specialist, and quality-assurance engineer.
+
+Your assignment is to transform the existing FORGE fitness tracking application from a functional developer prototype into a polished, premium athletic mobile experience.
+
+This is a REAL IMPLEMENTATION TASK. Do not stop at producing mockups, recommendations, or a design document. Implement the redesign in the existing application, run tests, and commit working code.
+
+The app already exists. Preserve its functional architecture, data models, business logic, persistence, and implemented features.
+
+Repository: Lsaint06/Forge-App
+
+Existing implementation branch: feat/forge-app
+
+Read and understand the existing source code, README, implementation status, product specification, and tests before changing anything.
+
+Create a dedicated redesign branch based on the latest implementation branch. Do not overwrite the original implementation or merge into main.
+
+PRIMARY OBJECTIVE
+
+FORGE must feel like a premium strength-training application that users would willingly use every day.
+
+Current problems identified through physical iPhone testing:
+
+1. The visual design feels generic, unfinished, and overly dependent on red accents.
+2. Screens are excessively text-heavy.
+3. Features appear scattered without a clear information hierarchy.
+4. The interface lacks meaningful exercise imagery, movement visualization, and distinctive iconography.
+5. Important actions compete visually with secondary information.
+6. The workout editor displays a React Native VirtualizedLists nesting warning.
+7. The overall experience resembles a developer dashboard rather than a professional fitness product.
+
+Solve these problems systematically.
+
+NON-NEGOTIABLE PRESERVATION REQUIREMENTS
+
+* Preserve the existing SQLite database and workout records.
+* Do not drop, reset, or silently migrate user data.
+* Maintain compatibility with existing exported JSON backups.
+* Preserve guest/offline functionality.
+* Preserve working workout logging, exercise history, templates, programs, progression, nutrition, measurements, recovery, goals, achievements, and settings.
+* Preserve existing authentication and sync interfaces.
+* Do not replace working domain logic with placeholders or mock state.
+* Do not require Supabase for offline guest usage.
+* Preserve Expo Go compatibility unless a necessary dependency makes that impossible; explain any such issue before introducing it.
+* Do not silently change the units, calculations, or meaning of recorded workout data.
+* Existing tests must continue passing.
+
+DESIGN PHILOSOPHY
+
+Product identity: FORGE.
+
+Personality: powerful, disciplined, refined, athletic, confident, minimal.
+
+Avoid generic gaming aesthetics, excessive neon, random gradients, glowing borders, oversized emojis, and decorative clutter.
+
+The visual design should communicate serious training and quality.
+
+Use restrained color, strong typography, clear visual hierarchy, polished interactions, and meaningful data visualization.
+
+Design for a real iPhone first, while retaining reasonable Android compatibility.
+
+DESIGN TOKENS
+
+Primary background: #101216
+Secondary surface: #1A1D22
+Elevated surface: #24282E
+Primary text: #F5F3EF
+Secondary text: #A6A8AD
+Muted text: #747981
+Primary accent: #F46B35
+Accent pressed: #D95727
+Success: #43B88C
+Warning: #E5AE58
+Error: #E26C68
+
+Create a centralized, typed theme system containing colors, typography, spacing, radii, shadows, border treatments, animation durations, and semantic state colors.
+
+Use an 8-point spacing system with 4-point adjustments where necessary.
+
+Default corner radii should be restrained and consistent.
+
+Orange is reserved primarily for high-priority actions, selected states, important progress, and significant achievements.
+
+Do not make every icon, heading, chart, or card orange.
+
+Maintain accessible contrast for text, controls, and disabled states.
+
+Use a deliberate typography hierarchy:
+
+* Display: bold athletic headlines
+* Screen title: strong, concise, readable
+* Section title: clear and understated
+* Body: highly legible
+* Supporting information: smaller but readable
+* Numeric statistics: prominent and aligned
+
+Use available, properly licensed font assets or reliable system fonts. Do not make a network connection necessary for fonts to render.
+
+DESIGN SYSTEM COMPONENTS
+
+Build reusable components rather than styling every screen independently.
+
+Include:
+
+* AppScreen
+* ScreenHeader
+* SectionHeader
+* PrimaryButton
+* SecondaryButton
+* IconButton
+* MetricCard
+* StatRow
+* ProgressRing
+* ProgressBar
+* ExerciseCard
+* WorkoutCard
+* ProgramCard
+* EmptyState
+* ErrorState
+* LoadingSkeleton
+* FilterChips
+* SearchField
+* SegmentedControl
+* BottomSheet
+* ConfirmationDialog
+* FormField
+* NumericStepper
+* SetRow
+* RestTimer
+* AchievementCard
+* ChartContainer
+
+These components must support appropriate accessibility labels, touch targets, dynamic content, and loading/error/empty states.
+
+INFORMATION ARCHITECTURE
+
+Preserve five main destinations but reorganize them:
+
+HOME
+Purpose: answer what the user should do today.
+
+TRAIN
+Purpose: start, manage, and complete workouts.
+
+EXPLORE
+Purpose: discover exercises and learn movements.
+
+PROGRESS
+Purpose: understand improvement over time.
+
+YOU
+Purpose: manage personal information, goals, recovery, nutrition, and settings.
+
+Avoid creating additional primary tabs for every feature.
+
+Use contextual navigation, clearly labeled secondary screens, and grouped sections.
+
+HOME REDESIGN
+
+Home must become an attractive training command center.
+
+Suggested hierarchy:
+
+1. Compact personalized greeting and current date.
+2. Hero card for today’s scheduled session, or a clear freestyle workout action when no program is scheduled.
+3. Weekly training consistency visualization.
+4. A small selection of meaningful metrics.
+5. One contextual training insight.
+6. Recent workout or next planned session.
+
+Make the Start Workout action immediately recognizable.
+
+Do not flood Home with every available metric.
+
+Handle first-time users gracefully with a motivating but concise empty state.
+
+Never fabricate scheduled sessions or achievements.
+
+TRAIN REDESIGN
+
+Train should prioritize speed, clarity, and minimal friction.
+
+Create clear sections for:
+
+* Active workout
+* Start freestyle workout
+* Saved templates
+* Training programs
+* Workout history
+
+ACTIVE WORKOUT EXPERIENCE
+
+The active workout is the highest-priority interaction in the entire app.
+
+Provide:
+
+* Persistent workout header
+* Elapsed timer
+* Exercise cards
+* Previous performance references
+* Clear set rows
+* Weight and reps entry
+* Set completion controls
+* Warmup and working-set distinctions
+* Rest timer
+* Add exercise
+* Add set
+* Exercise substitution
+* Notes
+* Finish workout
+* Cancel workout with confirmation
+
+Preserve all existing supported advanced set fields through progressive disclosure.
+
+Do not display every advanced option by default.
+
+Use large, reliable tap targets and appropriate numeric keyboards.
+
+Keep the most common logging operations within easy thumb reach.
+
+Fix the VirtualizedLists nesting warning through correct list architecture, not by suppressing the warning.
+
+Ensure long workouts scroll smoothly.
+
+The user must be able to switch tabs and return to the active workout without losing progress.
+
+Protect against accidental workout completion or deletion.
+
+EXPLORE REDESIGN
+
+Make the exercise library visual and easy to browse.
+
+Support:
+
+* Search
+* Muscle group filters
+* Equipment filters
+* Favorites
+* Recently used exercises
+* Exercise detail screens
+* Movement instructions
+* Relevant workout history
+
+Create a coherent visual language for muscle groups.
+
+Exercise cards should communicate the exercise name, primary muscle, equipment, and available demonstration media.
+
+Do not rely on large blocks of instructional text.
+
+EXERCISE MEDIA
+
+Implement a real, extensible exercise-media architecture.
+
+Support locally bundled imagery and optional licensed demonstration videos.
+
+Do not invent media URLs, scrape copyrighted media, or falsely label placeholders as real demonstrations.
+
+Where media is unavailable, provide an elegant, clearly identified illustration or icon-based fallback.
+
+Prioritize a small, high-quality set of representative exercise visuals over hundreds of low-quality or fake assets.
+
+If generated illustrations are unavailable, implement the UI and asset interfaces with tasteful fallback visuals and document exactly which media still needs to be sourced.
+
+Do not make the exercise library dependent on internet connectivity.
+
+PROGRESS REDESIGN
+
+Replace dense statistical text with meaningful visualizations.
+
+Provide:
+
+* Weekly training frequency
+* Training volume trends
+* Workout consistency
+* Exercise-specific strength history
+* Personal best summaries where supported
+* Body measurement trends
+* Time-range selection
+
+Use clear axes, units, legends, and empty states.
+
+Do not invent missing data.
+
+Avoid charts that look impressive but communicate nothing.
+
+Ensure charts remain readable on smaller iPhones.
+
+Reuse existing calculation logic and distinguish between implemented metrics and unsupported features.
+
+YOU REDESIGN
+
+Group existing features into meaningful sections.
+
+Suggested structure:
+
+PERSONAL
+
+* Profile
+* Preferences
+* Units
+
+TRAINING & WELLNESS
+
+* Goals
+* Recovery
+* Nutrition
+* Measurements
+
+MILESTONES
+
+* Achievements
+* Training history shortcuts
+
+ACCOUNT & DATA
+
+* Authentication
+* Sync
+* Export/import
+* Privacy
+* Data deletion
+* Settings
+
+Do not hide important privacy or data-management functionality.
+
+Do not imply cloud sync is operational when Supabase is not configured.
+
+INTERACTIONS AND MOTION
+
+Add subtle, purposeful animations:
+
+* Button press feedback
+* Card expansion
+* Workout set completion
+* Progress updates
+* Bottom-sheet transitions
+* Tab transitions where appropriate
+* Rest timer transitions
+
+Use haptics for important actions when supported.
+
+Respect reduced-motion accessibility settings.
+
+Avoid long, flashy, or distracting animations.
+
+ICONOGRAPHY AND VISUAL CONTENT
+
+Use a consistent icon family with coherent stroke weight and sizing.
+
+Replace generic emoji-heavy UI with proper icons.
+
+Use original, licensed, or appropriately sourced visual assets.
+
+Develop a distinctive FORGE visual identity.
+
+Do not generate misleading transformation imagery or imply guaranteed fitness results.
+
+Provide a polished app icon direction and reusable branding assets if feasible, but prioritize the actual in-app experience.
+
+MOBILE USABILITY
+
+Design for physical iPhones, including smaller screens.
+
+Account for safe areas, home indicators, keyboard avoidance, long text, dynamic type, and one-handed interactions.
+
+No clipped buttons, overlapping tab bars, horizontal overflow, or unreadable text.
+
+Forms must remain usable when the keyboard is visible.
+
+Support screen readers and sensible accessibility labels.
+
+Avoid tiny tap targets.
+
+RELIABILITY AND TESTING
+
+Run existing domain, repository, and UI tests.
+
+Add tests for redesigned navigation and critical workout interactions.
+
+Verify:
+
+* Start workout
+* Add exercise
+* Log set
+* Start/skip rest
+* Switch tabs
+* Resume workout
+* Finish workout
+* View completed history
+* Search exercises
+* Open templates
+* Open programs
+* Open progress
+* Save settings
+* Export backup
+
+Test empty, loading, populated, and error states.
+
+Check TypeScript, lint, formatting, and iOS/Android export.
+
+Do not claim physical-device testing unless actually performed.
+
+Document remaining warnings and limitations.
+
+IMPLEMENTATION STRATEGY
+
+First audit the current app and identify reusable logic, components, screens, and navigation.
+
+Then create a concise design-system specification and screen hierarchy.
+
+Implement the design system and redesign all five destinations.
+
+Prioritize the active workout experience, Home, and Explore before secondary screens.
+
+Do not leave the application half-converted between incompatible design systems.
+
+If scope exceeds the available execution window, finish a coherent, usable subset and document exactly what remains. Never replace incomplete work with fake functionality.
+
+REQUIRED DELIVERABLES
+
+1. Working redesigned application source.
+2. Centralized design tokens and reusable UI components.
+3. Reorganized navigation and screens.
+4. Improved workout logging experience.
+5. Visualized progress metrics.
+6. Exercise media infrastructure with honest fallbacks.
+7. Fixed nested VirtualizedLists warning.
+8. Updated tests and validation results.
+9. Before/after design notes.
+10. A clear implementation-status report.
+11. Exact Git commit and branch information.
+12. Instructions to preview the redesigned app through the existing GitHub Codespaces and Expo Go workflow.
+
+FINAL QUALITY BAR
+
+The redesign must feel cohesive across the entire app.
+
+A user should understand the purpose of each screen within seconds.
+
+Common actions should require fewer taps, not more.
+
+Data should be easier to interpret.
+
+The app should be visually appealing without sacrificing usability.
+
+The existing workout tracker must remain genuinely functional.
+
+Do not describe the redesign as complete unless its implemented scope has been validated.
+
+Begin by inspecting the existing repository and planning the implementation. Then execute the redesign, test it, and commit the result.

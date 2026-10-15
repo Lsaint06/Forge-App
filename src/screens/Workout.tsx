@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Alert } from "react-native";
+import { View, Alert, FlatList } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useRepo, mutate, confirm, useApp } from "../state";
@@ -25,9 +25,10 @@ function useNow() {
   }, []);
   return now;
 }
-function RestTimer() {
+export function RestTimer() {
   const r = useRepo();
   const now = useNow();
+  const [settings, setSettings] = useState(false);
   const deadline = Number(r.setting("restDeadline") ?? 0);
   const left = Math.max(0, Math.ceil((deadline - now) / 1000));
   useEffect(() => {
@@ -74,20 +75,46 @@ function RestTimer() {
           />
         )}
       </Row>
-      <NumberField
-        label="Default rest (seconds)"
-        max={3600}
-        value={r.profile().rest}
-        onSave={(n) => mutate(() => r.saveProfile({ rest: n ?? 90 }))}
+      <Button
+        title={settings ? "Hide rest settings" : "Rest settings"}
+        secondary
+        onPress={() => setSettings(!settings)}
       />
+      {settings && (
+        <NumberField
+          label="Default rest (seconds)"
+          max={3600}
+          value={r.profile().rest}
+          onSave={(n) => mutate(() => r.saveProfile({ rest: n ?? 90 }))}
+        />
+      )}
     </Card>
+  );
+}
+function SessionClock({
+  workout: w,
+}: {
+  workout: import("../domain/types").Workout;
+}) {
+  const now = useNow();
+  return (
+    <Label bold style={{ fontVariant: ["tabular-nums"] }}>
+      {clock(
+        elapsedSeconds(
+          w.startedAt,
+          w.finishedAt ?? now,
+          w.pausedMs,
+          w.pausedAt,
+        ),
+      )}
+    </Label>
   );
 }
 export default function WorkoutScreen() {
   const r = useRepo();
   const { id: workoutId } = useLocalSearchParams<{ id?: string }>();
   const w = workoutId ? r.workout(workoutId) : r.active();
-  const now = useNow();
+  const [details, setDetails] = useState(false);
   const [picker, setPicker] = useState(false);
   const [templateName, setTemplateName] = useState("");
   if (!w)
@@ -105,116 +132,160 @@ export default function WorkoutScreen() {
   const rows = r.workoutExercises(w.id);
   return (
     <Screen
+      scroll={false}
+      header={
+        <View style={{ paddingHorizontal: 24, paddingVertical: 8, gap: 8 }}>
+          <Row>
+            <View style={{ flex: 1 }}>
+              <Label bold>{w.name}</Label>
+              <Label muted size={13}>
+                {w.status} · <SessionClock workout={w} />
+              </Label>
+            </View>
+            <Button
+              title="Back to tabs"
+              secondary
+              onPress={() => router.back()}
+            />
+          </Row>
+        </View>
+      }
       title={w.status === "completed" ? "Session review" : "Your session."}
       eyebrow={
         w.status === "completed" ? "THE WORK / HISTORY" : "THE WORK / LIVE"
       }
     >
-      <Button title="Back" secondary onPress={() => router.back()} />
-      <Card>
-        <Field
-          label="Workout name"
-          value={w.name}
-          onChangeText={(name) => {
-            if (name.trim()) mutate(() => r.updateWorkout(w.id, { name }));
-          }}
-        />
-        <Row>
-          <View style={{ flex: 1 }}>
-            <Label size={38} bold>
-              {clock(
-                elapsedSeconds(
-                  w.startedAt,
-                  w.finishedAt ?? now,
-                  w.pausedMs,
-                  w.pausedAt,
-                ),
-              )}
-            </Label>
-            <Label muted>
-              {w.status.toUpperCase()} · {rows.length} exercises ·{" "}
-              {Math.round(volume(r.workoutSets(w.id)))} kg
-            </Label>
-          </View>
-          {w.status !== "completed" && (
+      <FlatList
+        data={rows}
+        keyExtractor={(e) => e.id}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ gap: 16, paddingBottom: 48 }}
+        renderItem={({ item }) => <WorkoutExerciseCard row={item} />}
+        ListHeaderComponent={
+          <View style={{ gap: 16 }}>
             <Button
-              title={w.status === "paused" ? "Resume" : "Pause"}
+              title={details ? "Hide session details" : "Session details"}
               secondary
-              onPress={() => mutate(() => r.pauseWorkout(w.id))}
+              onPress={() => setDetails(!details)}
             />
-          )}
-        </Row>
-        <Field
-          label="Workout notes"
-          value={w.notes}
-          multiline
-          onChangeText={(notes) =>
-            mutate(() => r.updateWorkout(w.id, { notes }))
-          }
-        />
-      </Card>
-      {w.status !== "completed" && <RestTimer />}
-      {rows.map((e) => (
-        <WorkoutExerciseCard key={e.id} row={e} />
-      ))}
-      <Button title="Add exercise" icon="add" onPress={() => setPicker(true)} />
-      {w.status !== "completed" && (
-        <Button
-          title="Finish workout"
-          icon="checkmark"
-          onPress={() => {
-            const sets = r.workoutSets(w.id);
-            if (!sets.some((s) => s.completed)) {
-              Alert.alert(
-                "No completed sets",
-                "Mark at least one set complete before finishing.",
-              );
-              return;
-            }
-            confirm(
-              "Finish workout?",
-              `${sets.filter((s) => s.completed).length} completed sets will be included in your progress.`,
-              () => {
-                r.finishWorkout(w.id);
-                r.setSetting("restDeadline", "0");
-                void cancelRestNotification().catch(() => {});
-                router.back();
-              },
-            );
-          }}
-        />
-      )}
-      <Card>
-        <Label bold>Make this repeatable</Label>
-        <Field
-          label="Template name"
-          value={templateName}
-          onChangeText={setTemplateName}
-        />
-        <Button
-          title="Save as template"
-          secondary
-          disabled={!templateName.trim() || !rows.length}
-          onPress={() => {
-            const t = mutate(() => r.templateFromWorkout(w.id, templateName));
-            if (t) Alert.alert("Template saved", t.name);
-          }}
-        />
-      </Card>
-      <Button
-        title={w.status === "completed" ? "Delete session" : "Discard workout"}
-        danger
-        onPress={() =>
-          confirm(
-            "Delete this workout?",
-            "This cannot be undone. Export a backup first if you need to keep it.",
-            () => {
-              r.deleteWorkout(w.id);
-              router.back();
-            },
-          )
+            {details && (
+              <Card>
+                <Field
+                  label="Workout name"
+                  value={w.name}
+                  onChangeText={(name) => {
+                    if (name.trim())
+                      mutate(() => r.updateWorkout(w.id, { name }));
+                  }}
+                />
+                <Row>
+                  <View style={{ flex: 1 }}>
+                    <Label size={38} bold>
+                      <SessionClock workout={w} />
+                    </Label>
+                    <Label muted>
+                      {w.status.toUpperCase()} · {rows.length} exercises ·{" "}
+                      {Math.round(volume(r.workoutSets(w.id)))} kg
+                    </Label>
+                  </View>
+                  {w.status !== "completed" && (
+                    <Button
+                      title={w.status === "paused" ? "Resume" : "Pause"}
+                      secondary
+                      onPress={() => mutate(() => r.pauseWorkout(w.id))}
+                    />
+                  )}
+                </Row>
+                <Field
+                  label="Workout notes"
+                  value={w.notes}
+                  multiline
+                  onChangeText={(notes) =>
+                    mutate(() => r.updateWorkout(w.id, { notes }))
+                  }
+                />
+              </Card>
+            )}
+            {w.status !== "completed" && <RestTimer />}
+            {!rows.length && (
+              <Label muted>Add your first exercise to start logging.</Label>
+            )}
+          </View>
+        }
+        ListFooterComponent={
+          <View style={{ gap: 16, paddingTop: 16 }}>
+            <Card>
+              <Label bold>Make this repeatable</Label>
+              <Field
+                label="Template name"
+                value={templateName}
+                onChangeText={setTemplateName}
+              />
+              <Button
+                title="Save as template"
+                secondary
+                disabled={!templateName.trim() || !rows.length}
+                onPress={() => {
+                  const t = mutate(() =>
+                    r.templateFromWorkout(w.id, templateName),
+                  );
+                  if (t) Alert.alert("Template saved", t.name);
+                }}
+              />
+            </Card>
+            <Button
+              title={
+                w.status === "completed" ? "Delete session" : "Discard workout"
+              }
+              danger
+              onPress={() =>
+                confirm(
+                  "Delete this workout?",
+                  "This cannot be undone. Export a backup first if you need to keep it.",
+                  () => {
+                    r.deleteWorkout(w.id);
+                    router.back();
+                  },
+                )
+              }
+            />
+          </View>
         }
       />
+      <View style={{ gap: 8, paddingVertical: 8 }}>
+        <Button
+          title="Add exercise"
+          icon="add"
+          secondary
+          onPress={() => setPicker(true)}
+        />
+        {w.status !== "completed" && (
+          <Button
+            title="Finish workout"
+            icon="checkmark"
+            onPress={() => {
+              const sets = r.workoutSets(w.id);
+              if (!sets.some((s) => s.completed)) {
+                Alert.alert(
+                  "No completed sets",
+                  "Mark at least one set complete before finishing.",
+                );
+                return;
+              }
+              confirm(
+                "Finish workout?",
+                `${sets.filter((s) => s.completed).length} completed sets will be included in your progress.`,
+                () => {
+                  r.finishWorkout(w.id);
+                  r.setSetting("restDeadline", "0");
+                  void cancelRestNotification().catch(() => {});
+                  router.back();
+                },
+              );
+            }}
+          />
+        )}
+      </View>
       <ExercisePicker
         visible={picker}
         onClose={() => setPicker(false)}

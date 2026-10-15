@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Pressable, ScrollView } from "react-native";
-import Svg, { Line, Polyline, Circle } from "react-native-svg";
+import Svg, { Line, Polyline, Circle, Text as SvgText } from "react-native-svg";
 import { Label, useColors } from "./ui";
 export function Chart({
   points,
@@ -23,7 +23,7 @@ export function Chart({
   const max = Math.max(1, ...data.map((p) => p.value));
   const min = Math.min(0, ...data.map((p) => p.value));
   const xy = data.map((p, i) => ({
-    x: 16 + (i * 288) / Math.max(1, data.length - 1),
+    x: 48 + (i * 256) / Math.max(1, data.length - 1),
     y: 144 - ((p.value - min) / (max - min)) * 120,
   }));
   return (
@@ -38,12 +38,18 @@ export function Chart({
         accessible
         accessibilityLabel={`Chart with ${data.length} points; values can be selected below`}
       >
-        <Line x1={16} y1={144} x2={304} y2={144} stroke={c.border} />
-        <Line x1={16} y1={84} x2={304} y2={84} stroke={c.border} />
+        <Line x1={48} y1={144} x2={304} y2={144} stroke={c.border} />
+        <Line x1={48} y1={84} x2={304} y2={84} stroke={c.border} />
+        <SvgText x={4} y={28} fontSize={11} fill={c.muted}>
+          {Math.round(max).toLocaleString()}
+        </SvgText>
+        <SvgText x={4} y={148} fontSize={11} fill={c.muted}>
+          {Math.round(min)}
+        </SvgText>
         <Polyline
           points={xy.map((p) => `${p.x},${p.y}`).join(" ")}
           fill="none"
-          stroke={c.accent}
+          stroke={c.success}
           strokeWidth={3}
         />
         {xy.map((p, i) => (
@@ -52,11 +58,14 @@ export function Chart({
             cx={p.x}
             cy={p.y}
             r={i === at ? 6 : 3}
-            fill={i === at ? c.text : c.accent}
+            fill={i === at ? c.text : c.success}
             onPress={() => setSelected(i)}
           />
         ))}
       </Svg>
+      <Label muted size={12}>
+        {data[0]!.label} → {data[data.length - 1]!.label} · {unit}
+      </Label>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={{ flexDirection: "row", gap: 8 }}>
           {data.map((p, i) => (

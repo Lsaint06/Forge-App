@@ -26,17 +26,8 @@ import Animated, {
 } from "react-native-reanimated";
 import { useApp } from "../state";
 import { defaults } from "../domain/types";
-export const dark = {
-  background: "#080A0D",
-  surface: "#12161C",
-  elevated: "#1A2028",
-  accent: "#FF5A36",
-  text: "#F5F7FA",
-  muted: "#9CA6B4",
-  success: "#35C98A",
-  border: "#28303B",
-  warning: "#F5B942",
-};
+import { theme } from "../theme";
+export const dark = theme.colors;
 export function useColors() {
   const p = useApp((s) => s.profile) ?? defaults;
   const os = useColorScheme();
@@ -50,6 +41,9 @@ export function useColors() {
         muted: "#505C6C",
         border: "#CFD6DF",
         accent: "#B83215",
+        pressed: "#96270F",
+        success: "#19724F",
+        error: "#A52C32",
       }
     : dark;
 }
@@ -88,41 +82,60 @@ export function Screen({
   eyebrow,
   children,
   scroll = true,
+  header,
 }: {
   title: string;
   eyebrow?: string;
   children: React.ReactNode;
   scroll?: boolean;
+  header?: React.ReactNode;
 }) {
   const c = useColors();
   const body = (
-    <View style={{ padding: 20, gap: 18, paddingBottom: 100 }}>
-      {eyebrow && (
-        <Label size={11} bold style={{ color: c.accent, letterSpacing: 3 }}>
+    <View
+      style={{
+        padding: theme.spacing.lg,
+        gap: theme.spacing.lg,
+        paddingBottom: scroll ? 40 : 0,
+        ...(scroll ? {} : { flex: 1 }),
+      }}
+    >
+      {eyebrow && !(header && !scroll) && (
+        <Label size={11} bold style={{ color: c.muted, letterSpacing: 2 }}>
           {eyebrow.toUpperCase()}
         </Label>
       )}
-      <Label size={32} bold>
-        {title}
-      </Label>
+      {!(header && !scroll) && (
+        <Label size={theme.typography.title} bold>
+          {title}
+        </Label>
+      )}
       {children}
     </View>
   );
   return (
     <SafeAreaView
-      edges={["top", "left", "right"]}
+      edges={
+        scroll ? ["top", "left", "right"] : ["top", "bottom", "left", "right"]
+      }
       style={{ flex: 1, backgroundColor: c.background }}
     >
-      {scroll ? (
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ flexGrow: 1 }}
-        >
-          {body}
-        </ScrollView>
-      ) : (
-        body
-      )}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        {header}
+        {scroll ? (
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ flexGrow: 1 }}
+          >
+            {body}
+          </ScrollView>
+        ) : (
+          body
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -139,8 +152,8 @@ export function Card({
       style={[
         {
           backgroundColor: c.surface,
-          borderRadius: 20,
-          padding: 18,
+          borderRadius: theme.radii.card,
+          padding: theme.spacing.md,
           gap: 12,
           borderWidth: 1,
           borderColor: c.border,
@@ -179,9 +192,16 @@ export function Button({
         minHeight: 48,
         paddingVertical: 12,
         paddingHorizontal: 16,
-        borderRadius: 14,
-        backgroundColor: secondary ? c.elevated : danger ? "#A72C3A" : c.accent,
-        opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+        borderRadius: theme.radii.control,
+        backgroundColor:
+          disabled || secondary
+            ? c.elevated
+            : danger
+              ? c.elevated
+              : pressed
+                ? c.pressed
+                : c.accent,
+        opacity: pressed ? 0.85 : 1,
         flexDirection: "row",
         justifyContent: "center",
         alignItems: "center",
@@ -193,21 +213,31 @@ export function Button({
           name={icon}
           size={20}
           color={
-            secondary
-              ? c.text
-              : danger || c.background !== dark.background
-                ? "#FFF"
-                : dark.background
+            disabled
+              ? c.muted
+              : danger
+                ? c.error
+                : secondary
+                  ? c.text
+                  : danger || c.background !== dark.background
+                    ? "#FFF"
+                    : dark.background
           }
         />
       )}
       <Text
         style={{
-          color: secondary
-            ? c.text
-            : danger || c.background !== dark.background
-              ? "#FFF"
-              : dark.background,
+          flexShrink: 1,
+          textAlign: "center",
+          color: disabled
+            ? c.muted
+            : danger
+              ? c.error
+              : secondary
+                ? c.text
+                : danger || c.background !== dark.background
+                  ? "#FFF"
+                  : dark.background,
           fontWeight: "700",
           fontSize: 15,
         }}
@@ -238,7 +268,7 @@ export function Field({
 }: TextInputProps & { label: string; error?: string }) {
   const c = useColors();
   return (
-    <View style={{ gap: 5, flexGrow: 1 }}>
+    <View style={{ gap: 5, flexGrow: 1, flexShrink: 1, minWidth: 100 }}>
       <Label size={12} muted>
         {label}
       </Label>
@@ -256,13 +286,13 @@ export function Field({
             paddingVertical: 10,
             fontSize: 16,
             borderWidth: 1,
-            borderColor: error ? "#F05D65" : c.border,
+            borderColor: error ? c.error : c.border,
           },
           props.style,
         ]}
       />
       {error && (
-        <Label size={12} style={{ color: "#F05D65" }}>
+        <Label size={12} style={{ color: c.error }}>
           {error}
         </Label>
       )}
@@ -361,7 +391,7 @@ export function Chips({
               minHeight: 44,
               justifyContent: "center",
               paddingHorizontal: 14,
-              borderRadius: 22,
+              borderRadius: theme.radii.control,
               backgroundColor: v === value ? c.accent : c.elevated,
             }}
           >
@@ -413,7 +443,7 @@ export function Empty({
 }) {
   return (
     <Card>
-      <Ionicons name="barbell-outline" size={30} color={dark.accent} />
+      <Ionicons name="barbell-outline" size={30} color={dark.muted} />
       <Label bold size={20}>
         {title}
       </Label>
@@ -427,8 +457,10 @@ export function Sheet({
   onClose,
   title,
   children,
+  scroll = true,
 }: {
   visible: boolean;
+  scroll?: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
@@ -469,12 +501,16 @@ export function Sheet({
             </View>
             <Button title="Close" onPress={onClose} secondary />
           </Row>
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ gap: 16 }}
-          >
-            {children}
-          </ScrollView>
+          {scroll ? (
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ gap: 16 }}
+            >
+              {children}
+            </ScrollView>
+          ) : (
+            children
+          )}
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -493,7 +529,9 @@ export function ProgressBar({
     let alive = true;
     void AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
       if (alive)
-        progress.value = reduced ? value : withTiming(value, { duration: 450 });
+        progress.value = reduced
+          ? value
+          : withTiming(value, { duration: theme.motion.progress });
     });
     return () => {
       alive = false;
@@ -540,7 +578,7 @@ export function Loading() {
         },
       ]}
     >
-      <ActivityIndicator color={dark.accent} />
+      <ActivityIndicator color={dark.muted} />
       <Text style={{ color: dark.text, fontSize: 22 }}>Opening FORGE…</Text>
     </View>
   );

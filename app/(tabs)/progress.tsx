@@ -23,6 +23,10 @@ import {
   kgToLb,
   displayMeasurement,
 } from "../../src/domain/metrics";
+import {
+  WeeklyConsistency,
+  AchievementCard,
+} from "../../src/components/design";
 export default function Progress() {
   const r = useRepo();
   const [range, setRange] = useState("30 days");
@@ -73,7 +77,14 @@ export default function Progress() {
   const names = [...new Set(measurements.map((e) => String(e.data.name)))];
   const s = summary(all, (id) => r.workoutSets(id));
   return (
-    <Screen title="Proof of your effort." eyebrow="YOUR NUMBERS / PROGRESS">
+    <Screen title="Progress" eyebrow="YOUR EFFORT, OVER TIME">
+      <Card>
+        <Label bold>This week</Label>
+        <WeeklyConsistency workouts={all} />
+        <Label muted size={12}>
+          Completed workouts · Monday–Sunday
+        </Label>
+      </Card>
       <Chips
         values={["7 days", "30 days", "90 days", "1 year", "All time"]}
         value={range}
@@ -260,7 +271,7 @@ export default function Progress() {
             ? 1
             : 0,
         ).map((x) => (
-          <Label key={x.id}>✦ {x.name}</Label>
+          <AchievementCard key={x.id} title={x.name} />
         ))}
         {!s.count && (
           <Label muted>

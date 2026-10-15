@@ -15,6 +15,7 @@ import {
 } from "../../src/components/ui";
 import { ProfileForm } from "../../src/components/ProfileForm";
 import { useRepo, confirm } from "../../src/state";
+import { SectionHeader } from "../../src/components/design";
 export default function Profile() {
   const r = useRepo();
   const p = r.profile();
@@ -63,7 +64,8 @@ export default function Profile() {
     }
   }
   return (
-    <Screen title={p.name} eyebrow="YOUR SPACE / PROFILE">
+    <Screen title="You" eyebrow={p.name}>
+      <SectionHeader title="Personal" />
       <Card>
         <Label size={24} bold>
           {p.goal}
@@ -83,6 +85,7 @@ export default function Profile() {
           onPress={() => router.push("/account")}
         />
       </Card>
+      <SectionHeader title="Training & wellness" />
       <Row>
         <Button
           title="Body measurements"
@@ -116,6 +119,20 @@ export default function Profile() {
           }
         />
       </Row>
+      <SectionHeader title="Milestones" />
+      <Button
+        title="Achievements & progress"
+        secondary
+        icon="ribbon-outline"
+        onPress={() => router.push("/(tabs)/progress")}
+      />
+      <Button
+        title="Training history"
+        secondary
+        icon="time-outline"
+        onPress={() => router.push("/(tabs)/train")}
+      />
+      <SectionHeader title="Account & data" />
       <Card>
         <Label bold size={21}>
           Own your data
@@ -169,7 +186,7 @@ export default function Profile() {
           movements.
         </Label>
         <Label muted size={12}>
-          FORGE 1.0.0 · Local schema v1 · {r.outbox().length} pending sync
+          FORGE · Design 2 · Local schema v1 · {r.outbox().length} pending sync
           records
         </Label>
       </Card>

@@ -18,7 +18,12 @@ export function ExercisePicker({
   const [muscle, setMuscle] = useState("All");
   const list = r.exercises(query, muscle);
   return (
-    <Sheet visible={visible} onClose={onClose} title="Choose your movement">
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      title="Choose your movement"
+      scroll={false}
+    >
       <Field
         label="Search exercises"
         value={query}
@@ -41,12 +46,11 @@ export function ExercisePicker({
         value={muscle}
         onChange={setMuscle}
       />
-      <View style={{ height: 350 }}>
+      <View style={{ height: 350, flexShrink: 1, minHeight: 100 }}>
         <FlatList
           data={list}
           keyExtractor={(e) => e.id}
           keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
           renderItem={({ item: e }) => (
             <Pressable
               accessibilityRole="button"

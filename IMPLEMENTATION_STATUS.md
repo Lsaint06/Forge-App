@@ -85,3 +85,7 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 4. Add dedicated PR events/strength trends, program completion and per-exercise progression rules.
 5. Add actual circuit rounds, recurring reminders and automatic incremental sync with audited lifecycle boundaries.
 6. Add private photos only with a complete permission/storage/security flow; add nutrition APIs only with valid sources and credentials.
+
+## FORGE 2 presentation pass
+
+The `feat/forge-2-redesign` branch is based on the fetched implementation head `60f4e7a`. It changes presentation and navigation without database/domain/cloud changes. [Redesign status](docs/redesign/STATUS.md) records implemented UI, media sourcing gaps, device acceptance limits and phone preview instructions. This does not change the backend or physical-device limitations above.

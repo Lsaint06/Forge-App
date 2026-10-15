@@ -1,0 +1,35 @@
+/** Offline system typography; all design values are independent of persisted data. */
+export const theme = {
+  colors: {
+    background: "#101216",
+    surface: "#1A1D22",
+    elevated: "#24282E",
+    text: "#F5F3EF",
+    muted: "#A6A8AD",
+    subtle: "#747981",
+    accent: "#F46B35",
+    pressed: "#D95727",
+    success: "#43B88C",
+    warning: "#E5AE58",
+    error: "#E26C68",
+    border: "#343940",
+  },
+  spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 },
+  radii: { control: 8, card: 12, sheet: 24 },
+  typography: {
+    display: 36,
+    title: 28,
+    section: 20,
+    body: 16,
+    supporting: 13,
+    numeric: 32,
+  },
+  motion: { press: 100, transition: 180, progress: 300 },
+  shadow: {
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  border: { width: 1 },
+} as const;

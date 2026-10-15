@@ -1,14 +1,30 @@
 import React, { useState } from "react";
 import { View, Alert } from "react-native";
 import { useRepo, mutate, confirm } from "../state";
-import { Card, Label, Button, Row, Field, NumberField, Chips } from "./ui";
+import {
+  Card,
+  Label,
+  Button,
+  Row,
+  Field,
+  NumberField,
+  Chips,
+  useColors,
+} from "./ui";
 import { ExercisePicker } from "./ExercisePicker";
 import { overload, kgToLb, lbToKg } from "../domain/metrics";
 import type { WorkoutExercise, WorkoutSet } from "../domain/types";
 import { restNotification } from "../notifications";
-function SetRow({ set: s, category }: { set: WorkoutSet; category: string }) {
+export function SetRow({
+  set: s,
+  category,
+}: {
+  set: WorkoutSet;
+  category: string;
+}) {
   const r = useRepo();
   const p = r.profile();
+  const c = useColors();
   const [more, setMore] = useState(false);
   const display = p.units === "lb" ? kgToLb(s.weight) : s.weight;
   function save(patch: Partial<WorkoutSet>) {
@@ -20,7 +36,10 @@ function SetRow({ set: s, category }: { set: WorkoutSet; category: string }) {
         gap: 10,
         paddingVertical: 12,
         borderTopWidth: 1,
-        borderColor: "#28303B",
+        borderColor: c.border,
+        backgroundColor: s.completed ? c.elevated : "transparent",
+        borderRadius: 8,
+        paddingHorizontal: 4,
       }}
     >
       <Row>
@@ -32,8 +51,9 @@ function SetRow({ set: s, category }: { set: WorkoutSet; category: string }) {
         </Label>
         <View style={{ flex: 1 }} />
         <Button
-          title={s.completed ? "✓ Done" : "Complete"}
-          secondary={!s.completed}
+          title={s.completed ? "Done" : "Complete"}
+          secondary
+          icon={s.completed ? "checkmark-circle" : "ellipse-outline"}
           onPress={() => {
             mutate(() => r.editSet(s.id, { completed: !s.completed }));
             if (
@@ -53,7 +73,7 @@ function SetRow({ set: s, category }: { set: WorkoutSet; category: string }) {
         {category === "strength" ? (
           <>
             <NumberField
-              label={`Load (${p.units}; added load for bodyweight)`}
+              label={`Load (${p.units})`}
               value={display}
               onSave={(n) =>
                 save({ weight: p.units === "lb" ? lbToKg(n ?? 0) : (n ?? 0) })
@@ -90,18 +110,18 @@ function SetRow({ set: s, category }: { set: WorkoutSet; category: string }) {
           secondary
           onPress={() => setMore(!more)}
         />
-        <Button
-          title="Remove set"
-          secondary
-          onPress={() =>
-            confirm("Remove set?", "This set will be deleted.", () =>
-              r.removeSet(s.id),
-            )
-          }
-        />
       </Row>
       {more && (
         <>
+          <Button
+            title="Remove set"
+            secondary
+            onPress={() =>
+              confirm("Remove set?", "This set will be deleted.", () =>
+                r.removeSet(s.id),
+              )
+            }
+          />
           <Chips
             values={["warmup", "working", "drop", "failure"]}
             value={s.kind}
@@ -160,6 +180,10 @@ export default function WorkoutExerciseCard({
   const p = r.profile();
   const sets = r.sets(e.id);
   const [replace, setReplace] = useState(false);
+  const [details, setDetails] = useState(false);
+  const previous = r
+    .history(e.exerciseId)[0]
+    ?.filter((s) => s.completed && s.kind !== "warmup");
   const recommendation = overload(r.history(e.exerciseId), {
     min: p.repMin,
     max: p.repMax,
@@ -173,75 +197,96 @@ export default function WorkoutExerciseCard({
       <Label size={12} muted>
         {exercise?.muscle} · {exercise?.equipment}
       </Label>
-      <Row>
-        <Button
-          title="↑"
-          secondary
-          onPress={() => mutate(() => r.moveExercise(e.id, -1))}
-        />
-        <Button
-          title="↓"
-          secondary
-          onPress={() => mutate(() => r.moveExercise(e.id, 1))}
-        />
-        <Button title="Substitute" secondary onPress={() => setReplace(true)} />
-        <Button
-          title="Remove"
-          secondary
-          onPress={() =>
-            confirm(
-              "Remove exercise?",
-              "All sets for this movement will also be removed.",
-              () => r.removeExercise(e.id),
-            )
-          }
-        />
-      </Row>
-      {exercise?.category === "strength" && (
-        <View style={{ gap: 6 }}>
-          <Label size={12} style={{ color: "#FF8A4C" }}>
-            NEXT LOAD ·{" "}
-            {Math.round(
-              (p.units === "lb"
-                ? kgToLb(recommendation.weight)
-                : recommendation.weight) * 100,
-            ) / 100}{" "}
-            {p.units}
-          </Label>
-          <Label size={12} muted>
-            {recommendation.reason}
-          </Label>
-          <Button
-            title="Apply suggested load"
-            secondary
-            onPress={() =>
-              mutate(() => {
-                for (const s of sets.filter((s) => !s.completed))
-                  r.editSet(s.id, { weight: recommendation.weight });
-              })
+      <Label muted size={12}>
+        {previous?.length
+          ? `Previous: ${previous.map((s) => `${Math.round((p.units === "lb" ? kgToLb(s.weight) : s.weight) * 10) / 10} ${p.units} × ${s.reps}`).join(" · ")}`
+          : "No previous working sets"}
+      </Label>
+      <Button
+        title={details ? "Hide exercise options" : "Exercise options"}
+        secondary
+        icon="options-outline"
+        onPress={() => setDetails(!details)}
+      />
+      {details && (
+        <View style={{ gap: 12 }}>
+          <Row>
+            <Button
+              title="Move up"
+              secondary
+              onPress={() => mutate(() => r.moveExercise(e.id, -1))}
+            />
+            <Button
+              title="Move down"
+              secondary
+              onPress={() => mutate(() => r.moveExercise(e.id, 1))}
+            />
+            <Button
+              title="Substitute"
+              secondary
+              onPress={() => setReplace(true)}
+            />
+            <Button
+              title="Remove"
+              secondary
+              onPress={() =>
+                confirm(
+                  "Remove exercise?",
+                  "All sets for this movement will also be removed.",
+                  () => r.removeExercise(e.id),
+                )
+              }
+            />
+          </Row>
+          {exercise?.category === "strength" && (
+            <View style={{ gap: 6 }}>
+              <Label size={12} muted>
+                NEXT LOAD ·{" "}
+                {Math.round(
+                  (p.units === "lb"
+                    ? kgToLb(recommendation.weight)
+                    : recommendation.weight) * 100,
+                ) / 100}{" "}
+                {p.units}
+              </Label>
+              <Label size={12} muted>
+                {recommendation.reason}
+              </Label>
+              <Button
+                title="Apply suggested load"
+                secondary
+                onPress={() =>
+                  mutate(() => {
+                    for (const s of sets.filter((s) => !s.completed))
+                      r.editSet(s.id, { weight: recommendation.weight });
+                  })
+                }
+              />
+            </View>
+          )}
+          <Field
+            label="Exercise notes"
+            value={e.notes}
+            onChangeText={(notes) =>
+              mutate(() => r.editExercise(e.id, { notes }))
+            }
+          />
+          <Field
+            label="Superset / circuit group (shared label)"
+            value={e.groupId}
+            onChangeText={(groupId) =>
+              mutate(() => r.editExercise(e.id, { groupId }))
+            }
+          />
+          <NumberField
+            label="Exercise default rest (seconds)"
+            value={e.rest}
+            onSave={(rest) =>
+              mutate(() => r.editExercise(e.id, { rest: rest ?? 0 }))
             }
           />
         </View>
       )}
-      <Field
-        label="Exercise notes"
-        value={e.notes}
-        onChangeText={(notes) => mutate(() => r.editExercise(e.id, { notes }))}
-      />
-      <Field
-        label="Superset / circuit group (shared label)"
-        value={e.groupId}
-        onChangeText={(groupId) =>
-          mutate(() => r.editExercise(e.id, { groupId }))
-        }
-      />
-      <NumberField
-        label="Exercise default rest (seconds)"
-        value={e.rest}
-        onSave={(rest) =>
-          mutate(() => r.editExercise(e.id, { rest: rest ?? 0 }))
-        }
-      />
       {sets.map((s) => (
         <SetRow
           key={s.id}

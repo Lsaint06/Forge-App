@@ -10,8 +10,10 @@ import {
   Row,
 } from "../src/components/ui";
 import { useRepo, mutate } from "../src/state";
-import { id, type Exercise } from "../src/domain/types";
+import { id, localDate, type Exercise } from "../src/domain/types";
+import { Chart } from "../src/components/Chart";
 import { records, kgToLb } from "../src/domain/metrics";
+import { ExerciseVisual, ChartContainer } from "../src/components/design";
 export default function ExerciseScreen() {
   const r = useRepo();
   const { id: exerciseId, custom } = useLocalSearchParams<{
@@ -104,6 +106,7 @@ export default function ExerciseScreen() {
         e && (
           <>
             <Card>
+              <ExerciseVisual exercise={e} large />
               <Label muted>
                 {e.muscle} · {e.equipment} · {e.difficulty}
               </Label>
@@ -126,6 +129,37 @@ export default function ExerciseScreen() {
               <Label bold>Safety</Label>
               <Label muted>{e.safety}</Label>
             </Card>
+            {e.category === "strength" && (
+              <ChartContainer title="Strength history">
+                <Chart
+                  unit={r.profile().units}
+                  points={r
+                    .workouts()
+                    .filter((w) => w.status === "completed")
+                    .flatMap((w) => {
+                      const sets = r
+                        .workoutExercises(w.id)
+                        .filter((row) => row.exerciseId === e.id)
+                        .flatMap((row) => r.sets(row.id))
+                        .filter((s) => s.completed && s.kind !== "warmup");
+                      if (!sets.length) return [];
+                      const load = records(sets).load;
+                      return [
+                        {
+                          label: localDate(w.finishedAt ?? w.startedAt),
+                          value:
+                            r.profile().units === "lb" ? kgToLb(load) : load,
+                        },
+                      ];
+                    })
+                    .reverse()}
+                />
+                <Label muted size={12}>
+                  Best completed working-set load per session · added load for
+                  bodyweight movements
+                </Label>
+              </ChartContainer>
+            )}
             <Card>
               <Label bold size={20}>
                 Your records

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Alert } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import {
   Screen,
   Card,
@@ -10,6 +10,7 @@ import {
   Sheet,
   Field,
   NumberField,
+  Chips,
 } from "../src/components/ui";
 import { ExercisePicker } from "../src/components/ExercisePicker";
 import { useRepo, mutate, confirm } from "../src/state";
@@ -22,6 +23,11 @@ import {
 import { notifyAt } from "../src/notifications";
 export default function Templates() {
   const r = useRepo();
+  const { section } = useLocalSearchParams<{ section?: string }>();
+  const [view, setView] = useState(
+    section === "programs" ? "Programs" : "Templates",
+  );
+  const [programDetails, setProgramDetails] = useState<string>();
   const [editor, setEditor] = useState(false);
   const [picker, setPicker] = useState(false);
   const [editingId, setEditingId] = useState<string>();
@@ -104,146 +110,179 @@ export default function Templates() {
       );
   }
   return (
-    <Screen title="Build your blueprint." eyebrow="TRAIN / PROGRAMMING">
+    <Screen title="Training plans" eyebrow="TRAIN">
+      <Chips
+        values={["Templates", "Programs"]}
+        value={view}
+        onChange={setView}
+      />
       <Button title="Back" secondary onPress={() => router.back()} />
       <Field
         label="Schedule / program start date (YYYY-MM-DD)"
         value={date}
         onChangeText={setDate}
       />
-      <Button title="Create template" icon="add" onPress={() => edit()} />
-      {r.templates().map((t) => (
-        <Card key={t.id}>
-          <Label size={21} bold>
-            {t.name}
+      {view === "Templates" && (
+        <>
+          <Button title="Create template" icon="add" onPress={() => edit()} />
+          {r.templates().map((t) => (
+            <Card key={t.id}>
+              <Label size={21} bold>
+                {t.name}
+              </Label>
+              <Label muted>
+                {t.exercises.length} exercises ·{" "}
+                {t.exercises.reduce((n, e) => n + e.sets, 0)} sets
+              </Label>
+              <Label muted size={12}>
+                {t.notes}
+              </Label>
+              <Row>
+                <Button
+                  title="Train"
+                  onPress={() => {
+                    const w = mutate(() => r.startWorkout(t.name, t.id));
+                    if (w) router.push("/workout");
+                  }}
+                />
+                <Button title="Edit" secondary onPress={() => edit(t)} />
+                <Button
+                  title="Duplicate"
+                  secondary
+                  onPress={() =>
+                    mutate(() =>
+                      r.saveTemplate(
+                        `${t.name} copy`,
+                        t.exercises,
+                        undefined,
+                        t.notes,
+                      ),
+                    )
+                  }
+                />
+                <Button
+                  title="Schedule"
+                  secondary
+                  onPress={() => schedule(t)}
+                />
+                <Button
+                  title="Delete"
+                  secondary
+                  onPress={() =>
+                    confirm(
+                      "Delete template?",
+                      "Completed workouts are preserved. Planned sessions will need a new template.",
+                      () => r.deleteTemplate(t.id),
+                    )
+                  }
+                />
+              </Row>
+            </Card>
+          ))}
+          <Label bold size={23}>
+            Your calendar
+          </Label>
+          {r
+            .journal("schedule")
+            .slice(0, 30)
+            .map((j) => (
+              <Card key={j.id}>
+                <Label bold>
+                  {j.date} · {String(j.data.name)}
+                </Label>
+                {j.data.deload === true && (
+                  <Label muted>Deload: one fewer set per exercise</Label>
+                )}
+                <Row>
+                  <Button
+                    title="Start planned session"
+                    secondary
+                    onPress={() => {
+                      const w = mutate(() =>
+                        r.transaction(() => {
+                          const existing = r.active();
+                          const w = r.startWorkout(
+                            String(j.data.name),
+                            String(j.data.templateId),
+                          );
+                          if (!existing && j.data.deload === true)
+                            for (const e of r.workoutExercises(w.id)) {
+                              const sets = r.sets(e.id);
+                              if (sets.length > 1)
+                                r.removeSet(sets[sets.length - 1]!.id);
+                            }
+                          return w;
+                        }),
+                      );
+                      if (w) router.push("/workout");
+                    }}
+                  />
+                  <Button
+                    title="Remove plan"
+                    secondary
+                    onPress={() =>
+                      confirm(
+                        "Remove planned session?",
+                        "Your recorded workouts will remain.",
+                        () => r.deleteJournal(j.id),
+                      )
+                    }
+                  />
+                </Row>
+              </Card>
+            ))}
+        </>
+      )}
+      {view === "Programs" && (
+        <>
+          <Label bold size={23}>
+            Starter programs
           </Label>
           <Label muted>
-            {t.exercises.length} exercises ·{" "}
-            {t.exercises.reduce((n, e) => n + e.sets, 0)} sets
+            Real prescriptions. Start light, choose loads yourself, and progress
+            from recorded performance. These are general training examples.
           </Label>
-          <Label muted size={12}>
-            {t.notes}
-          </Label>
-          <Row>
-            <Button
-              title="Train"
-              onPress={() => {
-                const w = mutate(() => r.startWorkout(t.name, t.id));
-                if (w) router.push("/workout");
-              }}
-            />
-            <Button title="Edit" secondary onPress={() => edit(t)} />
-            <Button
-              title="Duplicate"
-              secondary
-              onPress={() =>
-                mutate(() =>
-                  r.saveTemplate(
-                    `${t.name} copy`,
-                    t.exercises,
-                    undefined,
-                    t.notes,
-                  ),
-                )
-              }
-            />
-            <Button title="Schedule" secondary onPress={() => schedule(t)} />
-            <Button
-              title="Delete"
-              secondary
-              onPress={() =>
-                confirm(
-                  "Delete template?",
-                  "Completed workouts are preserved. Planned sessions will need a new template.",
-                  () => r.deleteTemplate(t.id),
-                )
-              }
-            />
-          </Row>
-        </Card>
-      ))}
-      <Label bold size={23}>
-        Your calendar
-      </Label>
-      {r
-        .journal("schedule")
-        .slice(0, 30)
-        .map((j) => (
-          <Card key={j.id}>
-            <Label bold>
-              {j.date} · {String(j.data.name)}
-            </Label>
-            {j.data.deload === true && (
-              <Label muted>Deload: one fewer set per exercise</Label>
-            )}
-            <Row>
+          {starterPrograms.map((p) => (
+            <Card key={p.id}>
+              <Label size={21} bold>
+                {p.name}
+              </Label>
+              <Label muted>
+                {p.days.length} days / week · {p.weeks} weeks · deload every
+                fourth week
+              </Label>
               <Button
-                title="Start planned session"
-                secondary
-                onPress={() => {
-                  const w = mutate(() =>
-                    r.transaction(() => {
-                      const existing = r.active();
-                      const w = r.startWorkout(
-                        String(j.data.name),
-                        String(j.data.templateId),
-                      );
-                      if (!existing && j.data.deload === true)
-                        for (const e of r.workoutExercises(w.id)) {
-                          const sets = r.sets(e.id);
-                          if (sets.length > 1)
-                            r.removeSet(sets[sets.length - 1]!.id);
-                        }
-                      return w;
-                    }),
-                  );
-                  if (w) router.push("/workout");
-                }}
-              />
-              <Button
-                title="Remove plan"
+                title={
+                  programDetails === p.id
+                    ? "Hide program details"
+                    : "View program details"
+                }
                 secondary
                 onPress={() =>
-                  confirm(
-                    "Remove planned session?",
-                    "Your recorded workouts will remain.",
-                    () => r.deleteJournal(j.id),
-                  )
+                  setProgramDetails(programDetails === p.id ? undefined : p.id)
                 }
               />
-            </Row>
-          </Card>
-        ))}
-      <Label bold size={23}>
-        Starter programs
-      </Label>
-      <Label muted>
-        Real prescriptions. Start light, choose loads yourself, and progress
-        from recorded performance. These are general training examples.
-      </Label>
-      {starterPrograms.map((p) => (
-        <Card key={p.id}>
-          <Label size={21} bold>
-            {p.name}
-          </Label>
-          <Label muted>
-            {p.days.length} days / week · {p.weeks} weeks · deload every fourth
-            week
-          </Label>
-          {p.days.map((d) => (
-            <Label key={d.name} size={12}>
-              {d.name}:{" "}
-              {d.items
-                .map(
-                  (x) =>
-                    `${r.exercise(x.exerciseId)?.name} ${x.sets}×${x.reps}`,
-                )
-                .join(" · ")}
-            </Label>
+              {programDetails === p.id &&
+                p.days.map((d) => (
+                  <Label key={d.name} size={12}>
+                    {d.name}:{" "}
+                    {d.items
+                      .map(
+                        (x) =>
+                          `${r.exercise(x.exerciseId)?.name} ${x.sets}×${x.reps}`,
+                      )
+                      .join(" · ")}
+                  </Label>
+                ))}
+              <Button
+                title={`Use ${p.name}`}
+                secondary
+                onPress={() => adopt(p)}
+              />
+            </Card>
           ))}
-          <Button title={`Use ${p.name}`} secondary onPress={() => adopt(p)} />
-        </Card>
-      ))}
+        </>
+      )}
       <Sheet
         visible={editor}
         onClose={() => setEditor(false)}

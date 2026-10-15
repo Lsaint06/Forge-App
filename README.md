@@ -102,3 +102,7 @@ Local databases and JSON exports are not encrypted by FORGE. Use the device lock
 See [docs/VALIDATION.md](docs/VALIDATION.md) for command results and limitations. Native bundle exports demonstrate build compatibility, not physical-device behavior. No cloud project, Apple credentials or device was provided, so live Supabase, background notifications and physical iPhone tests are outstanding.
 
 The build was reviewed independently for data-integrity defects; regression tests cover the confirmed findings. Additional review before a production release should address the scope gaps in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
+### FORGE 2 redesign preview
+
+The dedicated `feat/forge-2-redesign` branch adds the shared athletic theme, today-first Home, visual exercise browsing, streamlined workout logging, and grouped You destination while retaining schema v1 and guest tracking. See [design/status and Safari preview steps](docs/redesign/STATUS.md). Original implementation and `main` remain separate. Real exercise demonstration media and physical-device acceptance remain outstanding.

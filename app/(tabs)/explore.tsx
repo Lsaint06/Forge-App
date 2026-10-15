@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { FlatList, View, Pressable } from "react-native";
+import React, { useState } from "react";
+import { FlatList, View } from "react-native";
 import { router } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRepo, mutate } from "../../src/state";
@@ -10,9 +10,11 @@ import {
   Button,
   useColors,
 } from "../../src/components/ui";
+import { ExerciseCard } from "../../src/components/design";
 export default function Explore() {
   const r = useRepo();
   const c = useColors();
+  const [filters, setFilters] = useState(false);
   const [q, setQ] = useState("");
   const [muscle, setMuscle] = useState("All");
   const [equipment, setEquipment] = useState("All");
@@ -20,17 +22,13 @@ export default function Explore() {
   const [sort, setSort] = useState("Name");
   const favorites = r.favorites();
   const all = r.exercises();
-  const recentIds = useMemo(
-    () =>
-      new Set(
-        r
-          .workouts()
-          .slice(0, 10)
-          .flatMap((w) => r.workoutExercises(w.id).map((e) => e.exerciseId)),
-      ),
-    [r],
+  const recentIds = new Set(
+    r
+      .workouts()
+      .slice(0, 10)
+      .flatMap((w) => r.workoutExercises(w.id).map((e) => e.exerciseId)),
   );
-  const list = useMemo(() => {
+  const list = (() => {
     let data = r
       .exercises(q, muscle, equipment)
       .filter((e) =>
@@ -46,7 +44,7 @@ export default function Explore() {
           a.muscle.localeCompare(b.muscle) || a.name.localeCompare(b.name),
       );
     return data;
-  }, [r, q, muscle, equipment, mode, sort, favorites, recentIds]);
+  })();
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
@@ -57,14 +55,14 @@ export default function Explore() {
         keyExtractor={(e) => e.id}
         initialNumToRender={12}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 110 }}
+        contentContainerStyle={{ padding: 24, gap: 12, paddingBottom: 40 }}
         ListHeaderComponent={
           <View style={{ gap: 16, paddingBottom: 12 }}>
-            <Label size={11} bold style={{ color: c.accent, letterSpacing: 3 }}>
-              YOUR MOVEMENT TOOLKIT
+            <Label size={11} bold style={{ color: c.muted, letterSpacing: 2 }}>
+              MOVEMENT LIBRARY
             </Label>
             <Label size={32} bold>
-              Built for your body.
+              Explore
             </Label>
             <Label muted>
               {all.length} movements. Find your next challenge.
@@ -80,21 +78,33 @@ export default function Explore() {
               value={mode}
               onChange={setMode}
             />
-            <Chips
-              values={["All", ...new Set(all.map((e) => e.muscle))]}
-              value={muscle}
-              onChange={setMuscle}
+            <Button
+              title={
+                filters ? "Hide filters" : `Filters · ${muscle} / ${equipment}`
+              }
+              secondary
+              icon="options-outline"
+              onPress={() => setFilters(!filters)}
             />
-            <Chips
-              values={["All", ...new Set(all.map((e) => e.equipment))]}
-              value={equipment}
-              onChange={setEquipment}
-            />
-            <Chips
-              values={["Name", "Muscle"]}
-              value={sort}
-              onChange={setSort}
-            />
+            {filters && (
+              <View style={{ gap: 12 }}>
+                <Chips
+                  values={["All", ...new Set(all.map((e) => e.muscle))]}
+                  value={muscle}
+                  onChange={setMuscle}
+                />
+                <Chips
+                  values={["All", ...new Set(all.map((e) => e.equipment))]}
+                  value={equipment}
+                  onChange={setEquipment}
+                />
+                <Chips
+                  values={["Name", "Muscle"]}
+                  value={sort}
+                  onChange={setSort}
+                />
+              </View>
+            )}
             <Button
               title="Create custom exercise"
               secondary
@@ -109,45 +119,14 @@ export default function Explore() {
           </View>
         }
         renderItem={({ item: e }) => (
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              padding: 16,
-              backgroundColor: c.surface,
-              borderRadius: 16,
-              borderWidth: 1,
-              borderColor: c.border,
-            }}
-          >
-            <Pressable
-              accessibilityRole="button"
-              onPress={() =>
-                router.push({ pathname: "/exercise", params: { id: e.id } })
-              }
-              style={{
-                flex: 1,
-                minHeight: 48,
-                justifyContent: "center",
-                gap: 4,
-              }}
-            >
-              <Label bold>{e.name}</Label>
-              <Label muted size={12}>
-                {e.muscle} · {e.equipment} · {e.category}
-              </Label>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${favorites.includes(e.id) ? "Unfavorite" : "Favorite"} ${e.name}`}
-              onPress={() => mutate(() => r.toggleFavorite(e.id))}
-              style={{ padding: 14 }}
-            >
-              <Label size={24} style={{ color: c.accent }}>
-                {favorites.includes(e.id) ? "★" : "☆"}
-              </Label>
-            </Pressable>
-          </View>
+          <ExerciseCard
+            exercise={e}
+            favorite={favorites.includes(e.id)}
+            onFavorite={() => mutate(() => r.toggleFavorite(e.id))}
+            onPress={() =>
+              router.push({ pathname: "/exercise", params: { id: e.id } })
+            }
+          />
         )}
         ListEmptyComponent={
           <Label muted>

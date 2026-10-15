@@ -58,5 +58,5 @@ test("earned lifetime PR achievement remains visible outside the selected chart 
     journal: () => [],
   } as unknown as ReturnType<typeof useRepo>);
   const view = await render(<Progress />);
-  expect(view.getByText("✦ New territory · first PR")).toBeTruthy();
+  expect(view.getByText("New territory · first PR")).toBeTruthy();
 });

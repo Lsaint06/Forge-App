@@ -9,19 +9,36 @@ import {
   Row,
 } from "../../src/components/ui";
 import { useRepo, mutate, confirm } from "../../src/state";
-import { volume, elapsedSeconds } from "../../src/domain/metrics";
+import { SectionHeader, WorkoutCard } from "../../src/components/design";
+import { volume, elapsedSeconds, kgToLb } from "../../src/domain/metrics";
 export default function Train() {
   const r = useRepo();
   const history = r.workouts().filter((w) => w.status === "completed");
   return (
-    <Screen title="Train with intent." eyebrow="THE WORK / TRAIN">
+    <Screen title="Train" eyebrow="YOUR NEXT SESSION">
+      {r.active() && (
+        <WorkoutCard
+          title={r.active()!.name}
+          detail="Active session · every edit is saved"
+        >
+          <Button
+            title="Resume active workout"
+            icon="play"
+            onPress={() => router.push("/workout")}
+          />
+        </WorkoutCard>
+      )}
       <Button
-        title={r.active() ? "Resume active workout" : "Start empty workout"}
+        title={r.active() ? "Return to workout" : "Start freestyle workout"}
         icon="add"
         onPress={() => {
           const w = mutate(() => r.startWorkout());
           if (w) router.push("/workout");
         }}
+      />
+      <SectionHeader
+        title="Your training plans"
+        detail={`${r.templates().length} saved templates`}
       />
       <Button
         title="Templates & programs"
@@ -29,9 +46,40 @@ export default function Train() {
         icon="calendar-outline"
         onPress={() => router.push("/templates")}
       />
-      <Label bold size={22}>
-        Session history
-      </Label>
+      <Button
+        title="Training programs"
+        secondary
+        icon="layers-outline"
+        onPress={() =>
+          router.push({
+            pathname: "/templates",
+            params: { section: "programs" },
+          })
+        }
+      />
+      {r
+        .templates()
+        .slice(0, 3)
+        .map((template) => (
+          <WorkoutCard
+            key={template.id}
+            title={template.name}
+            detail={`${template.exercises.length} exercises`}
+          >
+            <Button
+              title={`Start ${template.name}`}
+              secondary
+              icon="play"
+              onPress={() => {
+                const session = mutate(() =>
+                  r.startWorkout(template.name, template.id),
+                );
+                if (session) router.push("/workout");
+              }}
+            />
+          </WorkoutCard>
+        ))}
+      <SectionHeader title="Workout history" />
       {!history.length && (
         <Empty
           title="A clean slate"
@@ -52,7 +100,13 @@ export default function Train() {
                 w.pausedMs,
               ) / 60,
             )}{" "}
-            min · {Math.round(volume(r.workoutSets(w.id)))} kg
+            min ·{" "}
+            {Math.round(
+              r.profile().units === "lb"
+                ? kgToLb(volume(r.workoutSets(w.id)))
+                : volume(r.workoutSets(w.id)),
+            )}{" "}
+            {r.profile().units}
           </Label>
           <Row>
             <Button

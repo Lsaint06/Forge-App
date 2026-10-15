@@ -60,7 +60,13 @@ export default function TabLayout() {
                   key={route.key}
                   accessibilityRole="tab"
                   accessibilityState={{ selected }}
-                  accessibilityLabel={name === "index" ? "Home" : name}
+                  accessibilityLabel={
+                    name === "index"
+                      ? "Home"
+                      : name === "profile"
+                        ? "You"
+                        : name
+                  }
                   onPress={() => {
                     const event = navigation.emit({
                       type: "tabPress",
@@ -92,7 +98,9 @@ export default function TabLayout() {
                   >
                     {name === "index"
                       ? "Home"
-                      : name.charAt(0).toUpperCase() + name.slice(1)}
+                      : name === "profile"
+                        ? "You"
+                        : name.charAt(0).toUpperCase() + name.slice(1)}
                   </Text>
                 </Pressable>
               );
