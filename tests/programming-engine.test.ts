@@ -8,9 +8,13 @@ import {
   type PathDraft,
 } from "../src/domain/paths/generator";
 import { generatePath as legacyPath } from "../src/domain/paths/legacyGenerator";
-import { estimateSession } from "../src/domain/paths/duration";
+import {
+  estimateSession,
+  durationRangeLabel,
+} from "../src/domain/paths/duration";
 import { exerciseStimulus } from "../src/domain/paths/stimulus";
 import { sessionSetCap, weeklyMuscleCap } from "../src/domain/paths/volume";
+import { forgePaths } from "../src/domain/paths/catalog";
 import type { PathPreferences } from "../src/domain/paths/model";
 import { pathPreferences } from "./path-fixture";
 
@@ -303,4 +307,95 @@ test("invariant: generation is deterministic", () => {
     duration: 90,
   });
   assert.deepEqual(generatePath(p, exercises), generatePath(p, exercises));
+});
+
+// --- Budget enforcement: duration is a ceiling, quality over filling ---------
+// Forge treats the selected duration primarily as a time budget (never exceed)
+// and only secondarily as a fill target. These regressions guard against a
+// generator ever emitting a session that substantially exceeds the user's
+// available time, and against padding a generous budget with junk volume.
+
+function prefsForPath(
+  path: (typeof forgePaths)[number],
+  duration: number,
+): PathPreferences {
+  return pathPreferences({
+    pathKey: path.key,
+    experience: path.key === "advanced-physique" ? "Advanced" : "Intermediate",
+    frequency: path.frequency,
+    duration,
+  });
+}
+
+test("budget enforcement: no generated session ever exceeds the requested time budget", () => {
+  for (const path of forgePaths) {
+    for (const duration of [30, 45, 60, 75, 90]) {
+      let draft: PathDraft;
+      try {
+        draft = generatePath(prefsForPath(path, duration), exercises);
+      } catch (e) {
+        // A plan that cannot fit the budget is explained, never emitted at a
+        // length that exceeds the user's available time.
+        assert.match((e as Error).message, /will not silently cut/);
+        continue;
+      }
+      for (const day of draft.days) {
+        const est = estimateSession(day.exercises, exercises);
+        assert.ok(
+          est.expected <= duration,
+          `${path.key} ${duration}min: ${day.name} expected ${est.expected}`,
+        );
+        // Even the unhurried high end stays within the modelled spread of the
+        // budget, so a session never realistically balloons past the budget.
+        assert.ok(
+          est.high <= Math.ceil(duration * 1.2),
+          `${path.key} ${duration}min: ${day.name} high ${est.high}`,
+        );
+      }
+    }
+  }
+});
+
+test("budget enforcement: a 30-minute request never yields a double-length session", () => {
+  // Volume-led paths cannot fit 30 minutes, so they are explained rather than
+  // emitted at roughly double the budget.
+  for (const key of [
+    "build-muscle",
+    "advanced-physique",
+    "get-strong",
+  ] as const) {
+    const path = forgePaths.find((p) => p.key === key)!;
+    assert.throws(
+      () => generatePath(prefsForPath(path, 30), exercises),
+      /will not silently cut/,
+    );
+  }
+});
+
+test("quality over filling: a generous budget yields a shorter productive session, not padding", () => {
+  // Build Muscle at 90 minutes lands well under the budget: surplus time is
+  // left unused rather than filled with junk volume to reach the target.
+  const draft = generatePath(
+    pathPreferences({ pathKey: "build-muscle", frequency: 4, duration: 90 }),
+    exercises,
+  );
+  for (const day of draft.days) {
+    const est = estimateSession(day.exercises, exercises);
+    assert.ok(est.expected <= 90);
+    assert.ok(
+      est.expected < 75,
+      `session padded past productive length: ${est.expected}`,
+    );
+  }
+});
+
+test("duration display: the label reflects the computed range honestly", () => {
+  const items = [
+    pres("barbell-bench-press", 3, 8, 120),
+    pres("dumbbell-lateral-raise", 3, 12, 75),
+  ];
+  const { low, high } = estimateSession(items, exercises);
+  assert.equal(durationRangeLabel(items, exercises), `${low}–${high} min`);
+  // An empty session collapses to a single honest value, not a fake range.
+  assert.equal(durationRangeLabel([], exercises), "0 min");
 });
