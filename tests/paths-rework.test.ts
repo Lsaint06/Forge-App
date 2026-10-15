@@ -48,7 +48,9 @@ test("muscle-building defaults include complementary back, leg, calf and arm wor
     );
     assert.ok(draft.days.every((d) => !/\b[AB]$/.test(d.name)));
     assert.ok(
-      draft.days.every((d) => estimatedMinutes(d.exercises) <= path.duration),
+      draft.days.every(
+        (d) => estimatedMinutes(d.exercises, exercises) <= path.duration,
+      ),
     );
   }
 });

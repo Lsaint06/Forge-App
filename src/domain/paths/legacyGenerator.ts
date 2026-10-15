@@ -1,5 +1,6 @@
 import type { Exercise, Prescription } from "../types";
 import { prescriptionSchema } from "../validation";
+import { estimatedMinutes } from "./duration";
 import { forgePaths, movementMenu } from "./catalog";
 import {
   pathPreferencesSchema,
@@ -10,6 +11,8 @@ import {
   type PathRole,
   type PathDayStructure,
 } from "./model";
+
+export { estimatedMinutes };
 
 export type PathDay = PathDayStructure & { exercises: Prescription[] };
 export type PathDraft = {
@@ -39,13 +42,6 @@ export const roleReasons: Record<PathRole, string> = {
   calf: "Direct calf training through controlled ankle movement.",
   core: "Controlled trunk work to support the main movements.",
 };
-export function estimatedMinutes(items: Prescription[]) {
-  return Math.ceil(
-    5 +
-      items.length +
-      items.reduce((sum, p) => sum + (p.sets * (40 + p.rest)) / 60, 0),
-  );
-}
 export function compatibleMovements(
   p: PathPreferences,
   role: PathRole,
@@ -250,15 +246,15 @@ export function generatePath(
     // Respect session length before adding accessories, never silently remove a
     // required movement. Two main sets remain the minimum foundation dose.
     while (
-      estimatedMinutes(exercises) > p.duration &&
+      estimatedMinutes(exercises, catalog) > p.duration &&
       exercises.some((e) => e.sets > 2)
     )
       exercises.forEach((e) => {
         if (e.sets > 2) e.sets--;
       });
-    if (estimatedMinutes(exercises) > p.duration)
+    if (estimatedMinutes(exercises, catalog) > p.duration)
       throw new Error(
-        `${day.name} needs about ${estimatedMinutes(exercises)} minutes including rests. Increase the session duration or adjust training days.`,
+        `${day.name} needs about ${estimatedMinutes(exercises, catalog)} minutes including rests. Increase the session duration or adjust training days.`,
       );
     const extras = p.priorities.flatMap((name) => priorityRole[name] ?? []);
     if (physique) extras.push("shoulder", "biceps", "triceps");
@@ -283,7 +279,7 @@ export function generatePath(
       const length = exercises.length;
       add(role, true);
       if (
-        estimatedMinutes(exercises) > p.duration ||
+        estimatedMinutes(exercises, catalog) > p.duration ||
         exercises.reduce((n, e) => n + e.sets, 0) > (physique ? 20 : 18)
       ) {
         exercises.splice(length);
@@ -361,7 +357,7 @@ export function validateDraft(
       (p.pathKey === "advanced-physique" ? 20 : 18)
     )
       throw new Error("Keep working sets within this Path's session limit.");
-    if (estimatedMinutes(day.exercises) > p.duration)
+    if (estimatedMinutes(day.exercises, catalog) > p.duration)
       throw new Error(
         "This edit exceeds your preferred session duration. Reduce sets or increase duration in setup.",
       );

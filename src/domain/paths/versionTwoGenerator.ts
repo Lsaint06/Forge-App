@@ -429,9 +429,9 @@ export function generatePath(
       throw new Error(
         "No exercises match your choices for this session. Try another Path, fewer training days or different equipment. Excluded movements will not be added back.",
       );
-    if (estimatedMinutes(exercises) > p.duration)
+    if (estimatedMinutes(exercises, catalog) > p.duration)
       throw new Error(
-        `${s.name} needs about ${estimatedMinutes(exercises)} minutes with its working sets and rests. Choose a longer duration or a different training frequency; Forge will not silently cut your workload.`,
+        `${s.name} needs about ${estimatedMinutes(exercises, catalog)} minutes with its working sets and rests. Choose a longer duration or a different training frequency; Forge will not silently cut your workload.`,
       );
     return {
       key: `day-${i}`,
@@ -486,7 +486,8 @@ export function generatePath(
       const before = day.exercises.map((e) => ({ ...e }));
       day.exercises[targetIndex]!.sets++;
       day.exercises[donor]!.sets--;
-      if (estimatedMinutes(day.exercises) > p.duration) day.exercises = before;
+      if (estimatedMinutes(day.exercises, catalog) > p.duration)
+        day.exercises = before;
     }
   }
   return validateDraft({ engineVersion: 2, preferences: p, days }, catalog);
@@ -559,7 +560,7 @@ export function validateDraft(
     });
     if (day.exercises.reduce((n, e) => n + e.sets, 0) > 28)
       throw new Error("Keep working sets within this Path's session limit.");
-    if (estimatedMinutes(day.exercises) > p.duration)
+    if (estimatedMinutes(day.exercises, catalog) > p.duration)
       throw new Error(
         "This edit exceeds your preferred session duration. Reduce sets or increase duration in setup.",
       );

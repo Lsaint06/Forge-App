@@ -22,12 +22,12 @@ import { forgePaths } from "../domain/paths/catalog";
 import {
   generatePath,
   compatibleMovements,
-  estimatedMinutes,
   roleReasons,
   structure,
   type PathDraft,
   type PathDay,
 } from "../domain/paths/generator";
+import { durationRangeLabel } from "../domain/paths/duration";
 import {
   equipmentOptions,
   expandEquipment,
@@ -125,8 +125,8 @@ export function PathDayEditor({
         {day.name}
       </Label>
       <Label muted>
-        {estimatedMinutes(day.exercises)} min estimated · including rests and a
-        short warmup
+        {durationRangeLabel(day.exercises, catalog)} estimated · including
+        rests, warm-up and transitions
       </Label>
       {day.exercises.map((item, index) => (
         <Card key={`${day.key}-${index}`}>
@@ -655,7 +655,7 @@ export default function Paths() {
               {previewDay.name}
             </Label>
             <Label muted size={13}>
-              {estimatedMinutes(previewDay.exercises)} min ·{" "}
+              {durationRangeLabel(previewDay.exercises, catalog)} ·{" "}
               {previewDay.exercises.reduce((n, e) => n + e.sets, 0)} working
               sets
             </Label>
@@ -783,7 +783,7 @@ export default function Paths() {
                 </Label>
                 <Label muted size={13}>
                   {template?.exercises.length ?? 0} exercises ·{" "}
-                  {estimatedMinutes(template?.exercises ?? [])} min
+                  {durationRangeLabel(template?.exercises ?? [], catalog)}
                 </Label>
                 {session.state === "completed" ? (
                   <Button
