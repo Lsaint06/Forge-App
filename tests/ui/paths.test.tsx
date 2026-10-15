@@ -103,3 +103,24 @@ test("weekly calendar navigates Monday–Sunday, shows rest days and recovers a 
     db.close();
   }
 }, 20_000);
+
+test("gym access selects equipment and individual machines can still be deselected", async () => {
+  const { r, db } = pathRepository();
+  try {
+    r.saveProfile({ equipment: "" });
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<Paths />);
+    await fireEvent.press(view.getByLabelText("Choose START STRONG"));
+    await fireEvent.press(view.getByLabelText("Next step"));
+    await fireEvent.press(view.getByText("Gym access"));
+    expect(view.getByLabelText("✓ Chest press machine")).toBeTruthy();
+    expect(view.getByLabelText("✓ Leg curl machine")).toBeTruthy();
+    expect(view.getByLabelText("✓ Cable station")).toBeTruthy();
+    expect(view.queryByLabelText("Full gym machines")).toBeNull();
+    await fireEvent.press(view.getByLabelText("✓ Leg curl machine"));
+    expect(view.getByLabelText("Leg curl machine")).toBeTruthy();
+    expect(view.getByLabelText("✓ Chest press machine")).toBeTruthy();
+  } finally {
+    db.close();
+  }
+}, 20_000);

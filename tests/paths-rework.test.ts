@@ -178,3 +178,47 @@ test("every advertised frequency generates a recoverable experienced-lifter plan
       );
     }
 });
+
+test("specific machines are independent and legacy full-gym programs remain compatible", () => {
+  const p = pathPreferences({
+    equipment: [
+      "Full gym machines",
+      "Cable",
+      "Bench",
+      "Barbell",
+      "Squat rack",
+      "Dumbbell",
+    ],
+  });
+  const legacy = legacyPath(p, exercises);
+  const { r, db } = pathRepository();
+  try {
+    acceptPath(r, legacy);
+    assert.doesNotThrow(() =>
+      startPathSession(r, pathSessions(r, pathPrograms(r)[0]!)[0]!.record.id),
+    );
+    const onlyChest = generatePath(
+      pathPreferences({
+        equipment: ["Dumbbell", "Chest press machine"],
+        duration: 90,
+      }),
+      exercises,
+    );
+    assert.ok(
+      onlyChest.days.every((d) =>
+        d.exercises.every(
+          (e) =>
+            ![
+              "leg-press",
+              "leg-extension",
+              "seated-leg-curl",
+              "machine-row",
+              "pec-deck-fly",
+            ].includes(e.exerciseId),
+        ),
+      ),
+    );
+  } finally {
+    db.close();
+  }
+});

@@ -8,12 +8,20 @@ export const pathKeys = [
   "athlete-mode",
   "advanced-physique",
 ] as const;
+export const machineEquipment = [
+  "Chest press machine",
+  "Leg press machine",
+  "Leg curl machine",
+  "Leg extension machine",
+  "Chest fly machine",
+  "Seated row machine",
+] as const;
 export const equipmentOptions = [
   "Dumbbell",
   "Barbell",
   "Kettlebell",
   "Cable",
-  "Full gym machines",
+  ...machineEquipment,
   "Resistance band",
   "Band anchor",
   "Pull-up bar",
@@ -62,7 +70,9 @@ export const pathPreferencesSchema = z
     experience: z.enum(["Beginner", "Intermediate", "Advanced"]),
     frequency: z.number().int().min(1).max(6),
     duration: z.number().int().min(30).max(90),
-    equipment: z.array(z.enum(equipmentOptions)).max(10),
+    equipment: z
+      .array(z.enum([...equipmentOptions, "Full gym machines"]))
+      .max(16),
     gymAccess: z.boolean(),
     excluded: z.array(z.string().min(1).max(100)).max(30),
     avoidPatterns: z.array(z.enum(movementOptions)).max(11),
@@ -209,5 +219,32 @@ export function defaultWeekdays(frequency: number): number[] {
         6: [0, 1, 2, 4, 5, 6],
       } as Record<number, number[]>
     )[frequency] ?? [0, 2, 4]
+  );
+}
+
+// Legacy broad equipment selections remain readable in saved programs/backups.
+export function expandEquipment(
+  values: PathPreferences["equipment"],
+): PathPreferences["equipment"] {
+  return [
+    ...new Set(
+      values.flatMap((value) =>
+        value === "Full gym machines" ? [...machineEquipment] : [value],
+      ),
+    ),
+  ];
+}
+export function hasEquipment(
+  values: PathPreferences["equipment"],
+  required: string,
+) {
+  return expandEquipment(values).includes(
+    required as PathPreferences["equipment"][number],
+  );
+}
+export function machineRequirement(required: string) {
+  return (
+    required === "Full gym machines" ||
+    machineEquipment.some((value) => value === required)
   );
 }

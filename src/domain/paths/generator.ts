@@ -3,6 +3,7 @@ import { prescriptionSchema } from "../validation";
 import { forgePaths } from "./catalog";
 import {
   pathPreferencesSchema,
+  machineRequirement,
   type PathPreferences,
   type PathRole,
 } from "./model";
@@ -312,9 +313,7 @@ export function slotMovements(
     const style = (id: string) => {
       const e = choices.find((c) => c.id === id)!;
       return p.style === "Machines"
-        ? Number(
-            e.needs.some((n) => n === "Cable" || n === "Full gym machines"),
-          )
+        ? Number(e.needs.some((n) => n === "Cable" || machineRequirement(n)))
         : p.style === "Free weights"
           ? Number(
               e.needs.some((n) =>

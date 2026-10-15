@@ -29,6 +29,7 @@ import {
 } from "../domain/paths/generator";
 import {
   equipmentOptions,
+  expandEquipment,
   movementOptions,
   priorityOptions,
   defaultWeekdays,
@@ -285,9 +286,14 @@ export default function Paths() {
       experience,
       frequency,
       duration: path.duration,
-      equipment: equipmentOptions.filter((e) =>
-        p.equipment.toLowerCase().includes(e.toLowerCase()),
-      ),
+      equipment: expandEquipment([
+        ...equipmentOptions.filter((e) =>
+          p.equipment.toLowerCase().includes(e.toLowerCase()),
+        ),
+        ...(p.equipment.toLowerCase().includes("full gym")
+          ? (["Full gym machines"] as const)
+          : []),
+      ]),
       gymAccess: /gym|machine|cable/i.test(p.equipment),
       excluded: [],
       avoidPatterns: [],
@@ -468,17 +474,38 @@ export default function Paths() {
                     ? "Gym access"
                     : "Home / limited equipment"
                 }
-                onChange={(v) => patch({ gymAccess: v === "Gym access" })}
+                onChange={(v) =>
+                  patch({
+                    gymAccess: v === "Gym access",
+                    equipment:
+                      v === "Gym access"
+                        ? [...equipmentOptions]
+                        : preferences.equipment,
+                  })
+                }
               />
               <ChoiceList
                 label="Available equipment"
                 values={equipmentOptions}
-                selected={preferences.equipment}
+                selected={expandEquipment(preferences.equipment)}
+                names={equipmentOptions.map(
+                  (e) =>
+                    (
+                      ({
+                        Dumbbell: "Dumbbells",
+                        Barbell: "Barbell & plates",
+                        Kettlebell: "Kettlebells",
+                        Cable: "Cable station",
+                        "Resistance band": "Resistance bands",
+                        "Band anchor": "Secure band anchor",
+                      }) as Record<string, string>
+                    )[e] ?? e,
+                )}
                 onChange={(equipment) => patch({ equipment })}
               />
               <Label muted size={13}>
-                Bodyweight and floor space are assumed. Full gym machines means
-                chest press, leg press and leg curl stations. Bands need a
+                Gym access selects all equipment; deselect anything your gym
+                lacks. Bodyweight and floor space are assumed. Bands need a
                 secure anchor for face pulls and pushdowns. Select only
                 equipment you can actually use.
               </Label>

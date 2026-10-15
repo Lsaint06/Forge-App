@@ -34,7 +34,7 @@ export const forgePaths: PathDefinition[] = [
     muscles: "Full body, with optional emphasis",
     benefits:
       "Moderate repetitions, upper/lower or push/pull/legs splits as availability grows.",
-    equipment: "Dumbbells, cables or full gym machines",
+    equipment: "Dumbbells, cable stations or compatible machines",
   },
   {
     key: "get-strong",
@@ -102,7 +102,7 @@ export const forgePaths: PathDefinition[] = [
     muscles: "Full body, shoulders & arms",
     benefits:
       "Upper/lower or push/pull/legs structure, focused accessories and higher rep isolation work.",
-    equipment: "Dumbbells, cables or full gym machines",
+    equipment: "Dumbbells, cable stations or compatible machines",
   },
 ];
 
@@ -131,7 +131,7 @@ export const movementMenu: {
   {
     id: "machine-chest-press",
     role: "push",
-    needs: ["Full gym machines"],
+    needs: ["Chest press machine"],
     level: 0,
   },
   { id: "push-up", role: "push", needs: [], level: 0 },
@@ -155,7 +155,7 @@ export const movementMenu: {
     level: 1,
   },
   { id: "goblet-squat", role: "squat", needs: ["Dumbbell"], level: 0 },
-  { id: "leg-press", role: "squat", needs: ["Full gym machines"], level: 0 },
+  { id: "leg-press", role: "squat", needs: ["Leg press machine"], level: 0 },
   { id: "bodyweight-split-squat", role: "squat", needs: [], level: 0 },
   { id: "bodyweight-squat", role: "squat", needs: [], level: 0 },
   { id: "romanian-deadlift", role: "posterior", needs: ["Barbell"], level: 1 },
@@ -174,7 +174,7 @@ export const movementMenu: {
   {
     id: "seated-leg-curl",
     role: "posterior",
-    needs: ["Full gym machines"],
+    needs: ["Leg curl machine"],
     level: 0,
   },
   {
@@ -233,7 +233,7 @@ export const movementMenu: {
   {
     id: "leg-extension",
     role: "squat",
-    needs: ["Full gym machines"],
+    needs: ["Leg extension machine"],
     level: 0,
   },
   {
@@ -257,8 +257,8 @@ export const movementMenu: {
   { id: "dumbbell-calf-raise", role: "calf", needs: ["Dumbbell"], level: 0 },
   { id: "single-leg-calf-raise", role: "calf", needs: [], level: 0 },
   { id: "cable-reverse-fly", role: "rear", needs: ["Cable"], level: 0 },
-  { id: "pec-deck-fly", role: "push", needs: ["Full gym machines"], level: 0 },
-  { id: "machine-row", role: "pull", needs: ["Full gym machines"], level: 0 },
+  { id: "pec-deck-fly", role: "push", needs: ["Chest fly machine"], level: 0 },
+  { id: "machine-row", role: "pull", needs: ["Seated row machine"], level: 0 },
   { id: "dead-bug", role: "core", needs: [], level: 0 },
   { id: "bird-dog", role: "core", needs: [], level: 0 },
   { id: "reverse-crunch", role: "core", needs: [], level: 0 },

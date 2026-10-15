@@ -3,6 +3,8 @@ import { prescriptionSchema } from "../validation";
 import { forgePaths, movementMenu } from "./catalog";
 import {
   pathPreferencesSchema,
+  hasEquipment,
+  machineRequirement,
   addDays,
   type PathPreferences,
   type PathRole,
@@ -57,9 +59,7 @@ export function compatibleMovements(
       return (
         m.role === role &&
         m.level <= level &&
-        m.needs.every((n) =>
-          p.equipment.includes(n as (typeof p.equipment)[number]),
-        ) &&
+        m.needs.every((n) => hasEquipment(p.equipment, n)) &&
         e &&
         e.category === "strength" &&
         e.difficulty !== "Advanced" &&
@@ -90,15 +90,11 @@ export function compatibleMovements(
             ? 20
             : 0;
         if (p.pathKey === "advanced-physique")
-          value += m.needs.some(
-            (n) => n === "Cable" || n === "Full gym machines",
-          )
+          value += m.needs.some((n) => n === "Cable" || machineRequirement(n))
             ? 10
             : 0;
         if (p.style === "Machines")
-          value += m.needs.some(
-            (n) => n === "Cable" || n === "Full gym machines",
-          )
+          value += m.needs.some((n) => n === "Cable" || machineRequirement(n))
             ? 25
             : 0;
         if (p.style === "Free weights")
