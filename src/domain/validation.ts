@@ -122,6 +122,11 @@ export function validateJournal(
     z.string().trim().min(1).parse(data.name);
     n("value", 10000, 0.01);
     z.enum(["kg", "cm", "percent"]).parse(data.unit);
+    if (data.unit === "percent") n("value", 100, 0.01);
+    if (/^body\s*weight$/i.test(String(data.name).trim()) && data.unit !== "kg")
+      throw new Error(
+        "Bodyweight must be stored in kilograms; imperial entries are converted before saving",
+      );
   }
   if (kind === "recovery") {
     n("sleep", 24);

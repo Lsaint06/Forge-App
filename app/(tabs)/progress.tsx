@@ -247,7 +247,18 @@ export default function Progress() {
         {achievements(
           s.count,
           s.totalVolume,
-          Object.values(a.exercises).filter((e) => e.load > 0).length,
+          all.some(
+            (w) =>
+              w.status === "completed" &&
+              r
+                .workoutSets(w.id)
+                .some(
+                  (set) =>
+                    set.completed && set.kind !== "warmup" && set.weight > 0,
+                ),
+          )
+            ? 1
+            : 0,
         ).map((x) => (
           <Label key={x.id}>✦ {x.name}</Label>
         ))}

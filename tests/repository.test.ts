@@ -233,3 +233,23 @@ test("workout edits survive closing and reopening a disk-backed SQLite database"
     rmSync(dir, { recursive: true, force: true });
   }
 });
+test("measurement percentages and recognized bodyweight units reject misleading data", () => {
+  const { r } = open();
+  assert.throws(() =>
+    r.addJournal("measurement", {
+      name: "Body fat",
+      value: 150,
+      unit: "percent",
+    }),
+  );
+  assert.throws(
+    () =>
+      r.addJournal("measurement", {
+        name: "Bodyweight",
+        value: 180,
+        unit: "cm",
+      }),
+    /kilograms/i,
+  );
+  assert.equal(r.journal("measurement").length, 0);
+});

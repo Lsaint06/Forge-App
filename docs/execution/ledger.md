@@ -15,3 +15,7 @@ Ruling: Use maintained SVG rendering with accessible interactive selectors inste
 Ruling: Optional photos, barcode services, native distribution and remote push are omitted rather than simulated. Cost: these scope requirements remain unimplemented.
 
 No review findings were dismissed as minor. Live Supabase, native permission/background behavior and physical iPhone verification are not claimed complete. See IMPLEMENTATION_STATUS.md.
+
+- Additional UI regression: lifetime first-PR achievement no longer disappears when its source workout is outside the selected chart range. Test reproduced failure before fix.
+
+- Additional measurement regression: percentage entries cannot exceed 100 and recognized Bodyweight values require canonical kg, preventing mislabeled dashboard mass. Test reproduced acceptance of invalid data before fix.
