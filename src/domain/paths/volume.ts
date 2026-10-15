@@ -31,6 +31,9 @@ export function exerciseSetCap(
 ): number {
   if (p.experience === "Beginner" || p.pathKey === "start-strong") return 3;
   if (primaryStrength) return 5;
+  // Strength assistance stays deliberately low so the main lifts remain the
+  // emphasis; it is not a hypertrophy accessory block.
+  if (p.pathKey === "get-strong") return 3;
   const isolation = ex ? exerciseStimulus(ex.id).isolation : false;
   return isolation ? 4 : 5;
 }

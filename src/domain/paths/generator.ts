@@ -491,42 +491,53 @@ export function generatePath(
     }
   }
   // Duration-aware filling: approach the requested session length by adding
-  // working sets, priority slots first, but never past the goal's volume cap
-  // or the session target. Only goals where added volume is productive are
-  // filled; strength (intensity-led) and beginner/foundation plans (manageable
-  // by design) keep their deliberate lower-volume templates so time is not
-  // padded with junk sets. If the productive session is shorter, it stays
-  // shorter and the honest estimate is reported.
-  const fillable = !strength && !novice && p.experience !== "Beginner";
-  if (fillable) for (const day of days) fillToTarget(day, p, catalog);
+  // working sets, but never past the goal's volume cap or the session target,
+  // so time is never padded with junk sets. Beginner and start-strong plans
+  // stay at their deliberate, manageable templates. Strength is filled too, but
+  // channelled into heavy main-lift practice first (see fillToTarget), not into
+  // a hypertrophy accessory block. If the productive session is shorter, it
+  // stays shorter and the honest estimate is reported.
+  const fillable = !novice && p.experience !== "Beginner";
+  if (fillable)
+    for (const day of days) fillToTarget(day, p, catalog, strength);
   return validateDraft({ engineVersion: 4, preferences: p, days }, catalog);
 }
 
 // Distributes extra working sets across a session to approach its duration
-// target. Even distribution with priority slots first; capped by goal volume,
+// target. Strength channels fill into the main lifts first; other goals fill
+// priority slots first, then the rest evenly. Capped by goal volume,
 // per-exercise limits and the time target. Pure and deterministic.
-function fillToTarget(day: PathDay, p: PathPreferences, catalog: Exercise[]) {
+function fillToTarget(
+  day: PathDay,
+  p: PathPreferences,
+  catalog: Exercise[],
+  strength: boolean,
+) {
   const cap = sessionSetCap(p);
+  const isPrimaryStrength = (i: number) => {
+    const ex = catalog.find((e) => e.id === day.exercises[i]!.exerciseId);
+    return strength && i < 2 && !(ex && exerciseStimulus(ex.id).isolation);
+  };
+  const rank = (i: number) =>
+    (isPrimaryStrength(i) ? 2 : 0) +
+    (isPriorityTarget(
+      p,
+      day.roles[i]!,
+      catalog.find((e) => e.id === day.exercises[i]!.exerciseId),
+    )
+      ? 1
+      : 0);
   const order = day.exercises
     .map((_, i) => i)
-    .sort((a, b) => {
-      const rank = (i: number) =>
-        isPriorityTarget(
-          p,
-          day.roles[i]!,
-          catalog.find((e) => e.id === day.exercises[i]!.exerciseId),
-        )
-          ? 1
-          : 0;
-      return rank(b) - rank(a);
-    });
+    .sort((a, b) => rank(b) - rank(a));
   let added = true;
   while (added) {
     added = false;
     for (const i of order) {
       if (day.exercises.reduce((n, e) => n + e.sets, 0) >= cap) return;
       const ex = catalog.find((e) => e.id === day.exercises[i]!.exerciseId);
-      if (day.exercises[i]!.sets >= exerciseSetCap(p, ex, false)) continue;
+      if (day.exercises[i]!.sets >= exerciseSetCap(p, ex, isPrimaryStrength(i)))
+        continue;
       day.exercises[i]!.sets++;
       if (estimatedMinutes(day.exercises, catalog) > p.duration) {
         day.exercises[i]!.sets--;

@@ -106,25 +106,28 @@ test("priorities redistribute the same set budget and limited equipment exposes 
   );
 });
 
-test("strength separates primary lift work from assistance and beginner split work stays manageable", () => {
+test("strength emphasises heavy main-lift practice over assistance volume", () => {
   const strength = generatePath(
     pathPreferences({ pathKey: "get-strong", frequency: 3 }),
     exercises,
   );
-  assert.ok(
-    strength.days.every((d) =>
-      d.exercises
-        .slice(0, 2)
-        .every((e) => e.sets === 4 && e.reps === 5 && e.rest === 180),
-    ),
-  );
-  assert.ok(
-    strength.days.every((d) =>
-      d.exercises
-        .slice(2)
-        .every((e) => e.sets === 2 && [8, 12].includes(e.reps)),
-    ),
-  );
+  for (const d of strength.days) {
+    const primary = d.exercises.slice(0, 2);
+    const assistance = d.exercises.slice(2);
+    assert.ok(
+      primary.every(
+        (e) => e.reps === 5 && e.rest === 180 && e.sets >= 4 && e.sets <= 5,
+      ),
+    );
+    assert.ok(
+      assistance.every(
+        (e) => [8, 12].includes(e.reps) && e.sets >= 2 && e.sets <= 3,
+      ),
+    );
+    const primarySets = primary.reduce((n, e) => n + e.sets, 0);
+    const assistanceSets = assistance.reduce((n, e) => n + e.sets, 0);
+    assert.ok(primarySets >= assistanceSets);
+  }
   const beginner = generatePath(
     pathPreferences({ experience: "Beginner" }),
     exercises,
