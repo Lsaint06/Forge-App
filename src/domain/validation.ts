@@ -66,6 +66,15 @@ export const workoutSchema = z.object({
   templateId: z.string().nullable(),
   updatedAt: nonnegative,
 });
+export const repTargetSchema = z
+  .object({
+    min: z.number().int().min(1).max(1000),
+    max: z.number().int().min(1).max(1000),
+    sets: z.number().int().min(1).max(30),
+  })
+  .refine((target) => target.min <= target.max, {
+    message: "Minimum reps must not exceed maximum reps",
+  });
 export const workoutExerciseSchema = z.object({
   id: z.string().min(1),
   workoutId: z.string().min(1),
@@ -74,14 +83,20 @@ export const workoutExerciseSchema = z.object({
   notes: z.string().max(2000),
   rest: nonnegative.max(3600),
   groupId: z.string().max(80),
+  target: repTargetSchema.optional(),
 });
-export const prescriptionSchema = z.object({
-  exerciseId: z.string().min(1),
-  sets: z.number().int().min(1).max(30),
-  reps: nonnegative.int().max(1000),
-  weight: nonnegative.max(2000),
-  rest: nonnegative.max(3600),
-});
+export const prescriptionSchema = z
+  .object({
+    exerciseId: z.string().min(1),
+    sets: z.number().int().min(1).max(30),
+    reps: nonnegative.int().max(1000),
+    repMax: z.number().int().min(1).max(1000).optional(),
+    weight: nonnegative.max(2000),
+    rest: nonnegative.max(3600),
+  })
+  .refine((p) => p.repMax === undefined || (p.reps > 0 && p.reps <= p.repMax), {
+    message: "Rep ranges require positive, ordered bounds",
+  });
 export const templateSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1).max(120),

@@ -14,6 +14,8 @@ import {
 } from "./ui";
 import { ExercisePicker } from "./ExercisePicker";
 import { overload, kgToLb, lbToKg } from "../domain/metrics";
+import { targetProgression } from "../domain/progression";
+import { repRangeLabel } from "../domain/prescriptions";
 import type { WorkoutExercise, WorkoutSet } from "../domain/types";
 import { restNotification } from "../notifications";
 export function SetRow({
@@ -185,30 +187,24 @@ export default function WorkoutExerciseCard({
   const previous = r
     .history(e.exerciseId)[0]
     ?.filter((s) => s.completed && s.kind !== "warmup");
-  // Path workouts progress against the Path's own prescribed reps (stored on
-  // the linked template) rather than the profile's generic rep range, so the
-  // double-progression suggestion matches what the Path actually asks for.
-  // Suggestions still require logged RIR/RPE support and never infer readiness
-  // from rep completion alone; the user keeps full control of loads.
-  const pathEntry = r
+  const pathWorkout = r
     .journal("schedule")
-    .find(
+    .some(
       (entry) =>
         entry.data.forgePath === 1 && entry.data.workoutId === e.workoutId,
     );
-  const pathWorkout = !!pathEntry;
-  const prescribedReps = pathEntry
-    ? r
-        .templates()
-        .find((t) => t.id === String(pathEntry.data.templateId))
-        ?.exercises.find((x) => x.exerciseId === e.exerciseId)?.reps
-    : undefined;
-  const recommendation = overload(
-    r.history(e.exerciseId),
-    pathWorkout && prescribedReps
-      ? { min: prescribedReps, max: prescribedReps, increment: p.increment }
-      : { min: p.repMin, max: p.repMax, increment: p.increment },
-  );
+  const target = e.target;
+  const recommendation = target
+    ? targetProgression(
+        r.targetHistory(e.exerciseId, target),
+        target,
+        p.increment,
+      )
+    : overload(r.history(e.exerciseId), {
+        min: p.repMin,
+        max: p.repMax,
+        increment: p.increment,
+      });
   return (
     <Card>
       <Label size={21} bold>
@@ -217,6 +213,11 @@ export default function WorkoutExerciseCard({
       <Label size={12} muted>
         {exercise?.muscle} · {exercise?.equipment}
       </Label>
+      {target && (
+        <Label size={12} muted>
+          {`${pathWorkout ? "Path" : "Template"} target: ${repRangeLabel({ reps: target.min, repMax: target.max })} reps per working set`}
+        </Label>
+      )}
       <Label muted size={12}>
         {previous?.length
           ? `Previous: ${previous.map((s) => `${Math.round((p.units === "lb" ? kgToLb(s.weight) : s.weight) * 10) / 10} ${p.units} × ${s.reps}`).join(" · ")}`
@@ -258,24 +259,17 @@ export default function WorkoutExerciseCard({
               }
             />
           </Row>
-          {pathWorkout &&
-            !prescribedReps &&
-            exercise?.category === "strength" && (
-              <Label muted size={12}>
-                Path progression: reach the prescribed reps on every working set
-                with controlled technique and about two reps left, then consider
-                the smallest load increase. Repeat or reduce the load when
-                recovery calls for it.
-              </Label>
-            )}
-          {(!pathWorkout || prescribedReps) &&
-            exercise?.category === "strength" && (
-              <View style={{ gap: 6 }}>
-                {pathWorkout && prescribedReps ? (
-                  <Label size={12} muted>
-                    {`Path target: ${prescribedReps} reps per working set`}
-                  </Label>
-                ) : null}
+          {pathWorkout && !target && exercise?.category === "strength" && (
+            <Label muted size={12}>
+              Path progression: reach the prescribed reps on every working set
+              with controlled technique and about two reps left, then consider
+              the smallest load increase. Repeat or reduce the load when
+              recovery calls for it.
+            </Label>
+          )}
+          {(!pathWorkout || target) && exercise?.category === "strength" && (
+            <View style={{ gap: 6 }}>
+              {recommendation.weight != null && (
                 <Label size={12} muted>
                   NEXT LOAD ·{" "}
                   {Math.round(
@@ -285,21 +279,30 @@ export default function WorkoutExerciseCard({
                   ) / 100}{" "}
                   {p.units}
                 </Label>
-                <Label size={12} muted>
-                  {recommendation.reason}
-                </Label>
-                <Button
-                  title="Apply suggested load"
-                  secondary
-                  onPress={() =>
-                    mutate(() => {
-                      for (const s of sets.filter((s) => !s.completed))
-                        r.editSet(s.id, { weight: recommendation.weight });
-                    })
-                  }
-                />
-              </View>
-            )}
+              )}
+              <Label size={12} muted>
+                {recommendation.reason}
+              </Label>
+              <Button
+                title="Apply suggested load"
+                secondary
+                disabled={recommendation.weight == null}
+                onPress={() =>
+                  mutate(() => {
+                    const weight = recommendation.weight;
+                    if (weight == null)
+                      throw new Error(
+                        "Choose a working load manually until comparable performance is available.",
+                      );
+                    for (const s of sets.filter(
+                      (s) => !s.completed && (!target || s.kind === "working"),
+                    ))
+                      r.editSet(s.id, { weight });
+                  })
+                }
+              />
+            </View>
+          )}
           <Field
             label="Exercise notes"
             value={e.notes}

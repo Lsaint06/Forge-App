@@ -1,4 +1,4 @@
-import { schema } from "./schema";
+import { schema, migrationV2 } from "./schema";
 import { exercises as catalog, searchExercises } from "./catalog";
 import {
   defaults,
@@ -10,6 +10,7 @@ import {
   type WorkoutSet,
   type Exercise,
   type Prescription,
+  type RepTarget,
   type Journal,
   type JournalKind,
   type Outbox,
@@ -24,6 +25,7 @@ import {
   journalSchema,
   exerciseSchema,
   validateJournal,
+  repTargetSchema,
 } from "../domain/validation";
 export interface SqlDatabase {
   exec(sql: string): void;
@@ -31,7 +33,7 @@ export interface SqlDatabase {
   all<T>(sql: string, params?: (string | number | null)[]): T[];
 }
 const wSelect = `SELECT id,name,status,started_at AS startedAt,finished_at AS finishedAt,paused_at AS pausedAt,paused_ms AS pausedMs,notes,template_id AS templateId,updated_at AS updatedAt FROM workouts`;
-const eSelect = `SELECT id,workout_id AS workoutId,exercise_id AS exerciseId,position,notes,rest,group_id AS groupId FROM workout_exercises`;
+const eSelect = `SELECT id,workout_id AS workoutId,exercise_id AS exerciseId,position,notes,rest,group_id AS groupId,target FROM workout_exercises`;
 const sSelect = `SELECT id,exercise_row_id AS exerciseRowId,position,weight,reps,duration,distance,rpe,rir,kind,completed,rest,tempo,notes,side FROM workout_sets`;
 export class Repository {
   private depth = 0;
@@ -55,6 +57,8 @@ export class Repository {
   migrate() {
     this.db.exec(schema);
     this.transaction(() => {
+      if (!this.db.all("SELECT version FROM migrations WHERE version=2").length)
+        this.db.exec(migrationV2);
       for (const e of catalog)
         this.db.run(
           "INSERT OR IGNORE INTO exercises(id,data,custom) VALUES(?,?,0)",
@@ -155,10 +159,22 @@ export class Repository {
     )[0];
   }
   workoutExercises(workoutId: string) {
-    return this.db.all<WorkoutExercise>(
-      `${eSelect} WHERE workout_id=? ORDER BY position`,
-      [workoutId],
-    );
+    return this.exerciseRows(" WHERE workout_id=? ORDER BY position", [
+      workoutId,
+    ]);
+  }
+  private exerciseRows(suffix = "", params: (string | number | null)[] = []) {
+    return this.db
+      .all<Omit<WorkoutExercise, "target"> & { target: string | null }>(
+        `${eSelect}${suffix}`,
+        params,
+      )
+      .map(({ target, ...row }): WorkoutExercise => ({
+        ...row,
+        ...(target === null
+          ? {}
+          : { target: repTargetSchema.parse(JSON.parse(target)) }),
+      }));
   }
   sets(exerciseRowId: string) {
     return this.db
@@ -183,6 +199,48 @@ export class Repository {
       ]);
     return [...history.values()];
   }
+  targetHistory(exerciseId: string, target: RepTarget): WorkoutSet[][] {
+    repTargetSchema.parse(target);
+    const rows = this.db.all<{
+      id: string;
+      workoutId: string;
+      target: string | null;
+    }>(
+      `SELECT e.id,w.id AS workoutId,e.target FROM workout_exercises e JOIN workouts w ON w.id=e.workout_id WHERE e.exercise_id=? AND w.status='completed' ORDER BY w.finished_at DESC,e.position`,
+      [exerciseId],
+    );
+    const groups = new Map<string, typeof rows>();
+    for (const row of rows)
+      groups.set(row.workoutId, [...(groups.get(row.workoutId) ?? []), row]);
+    const history: WorkoutSet[][] = [];
+    for (const group of groups.values()) {
+      if (
+        !group.every((row) => {
+          if (row.target === null) return false;
+          const stored = repTargetSchema.parse(JSON.parse(row.target));
+          return (
+            stored.min === target.min &&
+            stored.max === target.max &&
+            stored.sets === target.sets
+          );
+        })
+      )
+        continue;
+      const workingGroups = group.map((row) =>
+        this.sets(row.id).filter((set) => set.kind !== "warmup"),
+      );
+      if (
+        !workingGroups.every(
+          (sets) =>
+            sets.length === target.sets && sets.every((set) => set.completed),
+        )
+      )
+        continue;
+      const sets = workingGroups.flat();
+      if (sets.length === target.sets) history.push(sets);
+    }
+    return history;
+  }
   private putWorkout(w: Workout) {
     workoutSchema.parse(w);
     this.db.run(
@@ -205,8 +263,17 @@ export class Repository {
     workoutExerciseSchema.parse(e);
     if (!this.exercise(e.exerciseId)) throw new Error("Exercise not found");
     this.db.run(
-      "INSERT INTO workout_exercises(id,workout_id,exercise_id,position,notes,rest,group_id) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET exercise_id=excluded.exercise_id,position=excluded.position,notes=excluded.notes,rest=excluded.rest,group_id=excluded.group_id",
-      [e.id, e.workoutId, e.exerciseId, e.position, e.notes, e.rest, e.groupId],
+      "INSERT INTO workout_exercises(id,workout_id,exercise_id,position,notes,rest,group_id,target) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET exercise_id=excluded.exercise_id,position=excluded.position,notes=excluded.notes,rest=excluded.rest,group_id=excluded.group_id,target=excluded.target",
+      [
+        e.id,
+        e.workoutId,
+        e.exerciseId,
+        e.position,
+        e.notes,
+        e.rest,
+        e.groupId,
+        e.target === undefined ? null : JSON.stringify(e.target),
+      ],
     );
   }
   private putSet(s: WorkoutSet) {
@@ -269,6 +336,19 @@ export class Repository {
         if (!t) throw new Error("Template no longer exists");
         for (const p of t.exercises) {
           const e = this.addExercise(w.id, p.exerciseId);
+          this.putExercise({
+            ...e,
+            rest: p.rest,
+            ...(p.reps > 0
+              ? {
+                  target: {
+                    min: p.reps,
+                    max: p.repMax ?? p.reps,
+                    sets: p.sets,
+                  },
+                }
+              : {}),
+          });
           for (let i = 0; i < p.sets; i++)
             this.addSet(e.id, { reps: p.reps, weight: p.weight, rest: p.rest });
         }
@@ -348,15 +428,21 @@ export class Repository {
       Pick<WorkoutExercise, "notes" | "rest" | "groupId" | "exerciseId">
     >,
   ) {
-    const e = this.db.all<WorkoutExercise>(`${eSelect} WHERE id=?`, [rowId])[0];
+    const e = this.exerciseRows(" WHERE id=?", [rowId])[0];
     if (!e) throw new Error("Exercise row not found");
     this.transaction(() => {
-      this.putExercise({ ...e, ...patch });
+      const updated = { ...e };
+      for (const key of ["notes", "rest", "groupId", "exerciseId"] as const) {
+        if (patch[key] !== undefined)
+          Object.assign(updated, { [key]: patch[key] });
+      }
+      if (updated.exerciseId !== e.exerciseId) delete updated.target;
+      this.putExercise(updated);
       this.queueWorkout(e.workoutId);
     });
   }
   removeExercise(rowId: string) {
-    const e = this.db.all<WorkoutExercise>(`${eSelect} WHERE id=?`, [rowId])[0];
+    const e = this.exerciseRows(" WHERE id=?", [rowId])[0];
     if (!e) return;
     this.transaction(() => {
       this.db.run("DELETE FROM workout_exercises WHERE id=?", [rowId]);
@@ -367,7 +453,7 @@ export class Repository {
     });
   }
   moveExercise(rowId: string, direction: number) {
-    const e = this.db.all<WorkoutExercise>(`${eSelect} WHERE id=?`, [rowId])[0];
+    const e = this.exerciseRows(" WHERE id=?", [rowId])[0];
     if (!e) return;
     const rows = this.workoutExercises(e.workoutId);
     const index = rows.findIndex((x) => x.id === rowId);
@@ -380,7 +466,7 @@ export class Repository {
     });
   }
   addSet(rowId: string, patch: Partial<WorkoutSet> = {}) {
-    const e = this.db.all<WorkoutExercise>(`${eSelect} WHERE id=?`, [rowId])[0];
+    const e = this.exerciseRows(" WHERE id=?", [rowId])[0];
     if (!e) throw new Error("Exercise row not found");
     return this.transaction(() => {
       const s: WorkoutSet = {
@@ -415,9 +501,7 @@ export class Repository {
     const s = { ...raw, completed: !!raw.completed, ...patch };
     this.transaction(() => {
       this.putSet(s);
-      const e = this.db.all<WorkoutExercise>(`${eSelect} WHERE id=?`, [
-        s.exerciseRowId,
-      ])[0];
+      const e = this.exerciseRows(" WHERE id=?", [s.exerciseRowId])[0];
       if (e) this.queueWorkout(e.workoutId);
     });
   }
@@ -429,9 +513,7 @@ export class Repository {
       this.sets(s.exerciseRowId).forEach((row, position) =>
         this.putSet({ ...row, position }),
       );
-      const e = this.db.all<WorkoutExercise>(`${eSelect} WHERE id=?`, [
-        s.exerciseRowId,
-      ])[0];
+      const e = this.exerciseRows(" WHERE id=?", [s.exerciseRowId])[0];
       if (e) this.queueWorkout(e.workoutId);
     });
   }
@@ -444,10 +526,12 @@ export class Repository {
       const w = this.startWorkout(source.name);
       for (const e of this.workoutExercises(workoutId)) {
         const copy = this.addExercise(w.id, e.exerciseId);
-        this.editExercise(copy.id, {
+        this.putExercise({
+          ...copy,
           notes: e.notes,
           rest: e.rest,
           groupId: e.groupId,
+          ...(e.target ? { target: e.target } : {}),
         });
         for (const s of this.sets(e.id)) {
           const { id: oldId, exerciseRowId: oldRow, ...fields } = s;
@@ -470,10 +554,15 @@ export class Repository {
         name: t.name,
         notes: t.notes,
         updatedAt: t.updated_at,
-        exercises: this.db.all<Prescription>(
-          "SELECT exercise_id AS exerciseId,sets,reps,weight,rest FROM template_exercises WHERE template_id=? ORDER BY position",
-          [t.id],
-        ),
+        exercises: this.db
+          .all<Omit<Prescription, "repMax"> & { repMax: number | null }>(
+            "SELECT exercise_id AS exerciseId,sets,reps,rep_max AS repMax,weight,rest FROM template_exercises WHERE template_id=? ORDER BY position",
+            [t.id],
+          )
+          .map(({ repMax, ...p }): Prescription => ({
+            ...p,
+            ...(repMax === null ? {} : { repMax }),
+          })),
       }));
   }
   saveTemplate(
@@ -497,8 +586,18 @@ export class Repository {
       this.db.run("DELETE FROM template_exercises WHERE template_id=?", [t.id]);
       t.exercises.forEach((e, i) =>
         this.db.run(
-          "INSERT INTO template_exercises(id,template_id,exercise_id,position,sets,reps,weight,rest) VALUES(?,?,?,?,?,?,?,?)",
-          [id(), t.id, e.exerciseId, i, e.sets, e.reps, e.weight, e.rest],
+          "INSERT INTO template_exercises(id,template_id,exercise_id,position,sets,reps,weight,rest,rep_max) VALUES(?,?,?,?,?,?,?,?,?)",
+          [
+            id(),
+            t.id,
+            e.exerciseId,
+            i,
+            e.sets,
+            e.reps,
+            e.weight,
+            e.rest,
+            e.repMax ?? null,
+          ],
         ),
       );
       this.queue(t.id, "template", t);
@@ -512,8 +611,9 @@ export class Repository {
         const sets = this.sets(e.id);
         return {
           exerciseId: e.exerciseId,
-          sets: Math.max(1, sets.length),
-          reps: sets[0]?.reps ?? 10,
+          sets: e.target?.sets ?? Math.max(1, sets.length),
+          reps: e.target?.min ?? sets[0]?.reps ?? 10,
+          ...(e.target ? { repMax: e.target.max } : {}),
           weight: sets[0]?.weight ?? 0,
           rest: e.rest,
         };
@@ -598,7 +698,7 @@ export class Repository {
       exportedAt: Date.now(),
       profile: this.profile(),
       workouts: this.workouts(),
-      workoutExercises: this.db.all<WorkoutExercise>(eSelect),
+      workoutExercises: this.exerciseRows(),
       sets: this.db
         .all<WorkoutSet>(sSelect)
         .map((s) => ({ ...s, completed: !!s.completed })),

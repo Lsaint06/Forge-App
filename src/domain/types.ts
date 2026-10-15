@@ -34,6 +34,7 @@ export type Workout = {
   templateId: string | null;
   updatedAt: number;
 };
+export type RepTarget = { min: number; max: number; sets: number };
 export type WorkoutExercise = {
   id: string;
   workoutId: string;
@@ -42,6 +43,7 @@ export type WorkoutExercise = {
   notes: string;
   rest: number;
   groupId: string;
+  target?: RepTarget;
 };
 export type WorkoutSet = {
   id: string;
@@ -79,6 +81,7 @@ export type Prescription = {
   exerciseId: string;
   sets: number;
   reps: number;
+  repMax?: number;
   weight: number;
   rest: number;
 };

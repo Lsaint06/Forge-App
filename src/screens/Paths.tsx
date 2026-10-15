@@ -147,6 +147,10 @@ export function PathDayEditor({
         {durationRangeLabel(day.exercises, catalog)} estimated · including
         rests, warm-up and transitions
       </Label>
+      <Label muted size={13}>
+        Reps is the lower target; maximum reps is the upper target. Use equal
+        values for a fixed prescription.
+      </Label>
       {day.exercises.map((item, index) => (
         <Card key={`${day.key}-${index}`}>
           <Label bold size={18}>
@@ -199,7 +203,22 @@ export function PathDayEditor({
               integer
               min={1}
               max={20}
-              onSave={(reps) => update(index, { reps: reps! })}
+              onSave={(reps) =>
+                update(index, {
+                  reps: reps!,
+                  ...(item.repMax != null
+                    ? { repMax: Math.max(reps!, item.repMax) }
+                    : {}),
+                })
+              }
+            />
+            <NumberField
+              label={`${day.name} exercise ${index + 1} maximum reps`}
+              value={item.repMax ?? item.reps}
+              integer
+              min={item.reps}
+              max={20}
+              onSave={(repMax) => update(index, { repMax: repMax! })}
             />
             <NumberField
               label={`${day.name} exercise ${index + 1} load (${units})`}
@@ -1220,7 +1239,7 @@ export default function Paths() {
         {reviewDraft && review && (
           <>
             {selected &&
-              selected.data.engineVersion < 3 &&
+              selected.data.engineVersion < 5 &&
               view !== "preview" && (
                 <Label muted>
                   This saved plan uses an earlier planner. Use Manage Path →

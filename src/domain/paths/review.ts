@@ -81,5 +81,5 @@ export function trainingGuidance(key: string) {
     return "Athletic foundation: controlled single-leg work, strength and trunk stability. Leave two to three good repetitions in reserve. This block is not a sport-specific power or conditioning plan.";
   if (key === "start-strong")
     return "Foundation: learn each movement, warm up, then complete the listed working sets with about three good repetitions left. Add repetitions or the smallest load when technique and recovery allow.";
-  return "Choose a load that makes the listed repetitions challenging with about one to three good repetitions left. When all sets meet their targets with control, add the smallest load next time. Keep rests longer when needed; warm-ups are additional. Reassess if performance or recovery declines.";
+  return "Choose a load that makes the listed repetitions challenging with about one to three good repetitions left. If a rep range is shown, build repetitions within it before adding load. After consistently reaching the upper target on every set with controlled technique and manageable effort, consider the smallest practical increase. Logged reps alone do not establish readiness. Keep rests longer when needed; warm-ups are additional. Reassess if performance or recovery declines.";
 }

@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { Label, useColors } from "./ui";
 import type { Exercise, Prescription } from "../domain/types";
 import { exerciseStimulus } from "../domain/paths/stimulus";
+import { repRangeLabel } from "../domain/prescriptions";
 
 export function PathWorkoutList({
   items,
@@ -38,7 +39,7 @@ export function PathWorkoutList({
             </View>
             <View style={{ alignItems: "flex-end" }}>
               <Label bold>
-                {item.sets} × {item.reps}
+                {item.sets} × {repRangeLabel(item)}
               </Label>
               <Label muted size={11}>
                 {item.rest}s rest

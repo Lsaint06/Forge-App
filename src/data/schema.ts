@@ -22,3 +22,8 @@ CREATE TABLE IF NOT EXISTS outbox(id TEXT PRIMARY KEY,kind TEXT NOT NULL,payload
 CREATE TABLE IF NOT EXISTS conflicts(id TEXT PRIMARY KEY,local TEXT NOT NULL,remote TEXT NOT NULL,revision INTEGER NOT NULL);
 INSERT OR IGNORE INTO migrations(version,applied_at) VALUES(1,0);
 `;
+export const migrationV2 = `
+ALTER TABLE template_exercises ADD COLUMN rep_max INTEGER;
+ALTER TABLE workout_exercises ADD COLUMN target TEXT;
+INSERT INTO migrations(version,applied_at) VALUES(2,CAST(strftime('%s','now') AS INTEGER)*1000);
+`;

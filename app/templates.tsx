@@ -26,6 +26,7 @@ import {
   standaloneTemplates,
 } from "../src/data/paths";
 import { notifyAt } from "../src/notifications";
+import { repRangeLabel } from "../src/domain/prescriptions";
 export default function Templates() {
   const r = useRepo();
   const { section } = useLocalSearchParams<{ section?: string }>();
@@ -275,7 +276,7 @@ export default function Templates() {
                     {d.items
                       .map(
                         (x) =>
-                          `${r.exercise(x.exerciseId)?.name} ${x.sets}×${x.reps}`,
+                          `${r.exercise(x.exerciseId)?.name} ${x.sets}×${repRangeLabel(x)}`,
                       )
                       .join(" · ")}
                   </Label>
@@ -313,12 +314,32 @@ export default function Templates() {
                   onSave={(value) =>
                     setItems((a) =>
                       a.map((p, n) =>
-                        n === i ? { ...p, [k]: value ?? 0 } : p,
+                        n === i
+                          ? {
+                              ...p,
+                              [k]: value ?? 0,
+                              ...(k === "reps" && p.repMax != null
+                                ? { repMax: Math.max(value ?? 0, p.repMax) }
+                                : {}),
+                            }
+                          : p,
                       ),
                     )
                   }
                 />
               ))}
+              <NumberField
+                label="Maximum reps"
+                value={item.repMax ?? item.reps}
+                integer
+                min={Math.max(1, item.reps)}
+                max={1000}
+                onSave={(repMax) =>
+                  setItems((a) =>
+                    a.map((p, n) => (n === i ? { ...p, repMax: repMax! } : p)),
+                  )
+                }
+              />
             </Row>
             <Row>
               <Button

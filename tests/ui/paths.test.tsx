@@ -2,6 +2,8 @@ import React from "react";
 import { render, fireEvent, act } from "@testing-library/react-native";
 import WorkoutExerciseCard from "../../src/components/WorkoutExerciseCard";
 import Paths, { PathDayEditor } from "../../src/screens/Paths";
+import { PathWorkoutList } from "../../src/components/PathWorkoutList";
+import Templates from "../../app/templates";
 import { useRepo, confirm } from "../../src/state";
 import { pathRepository, pathPreferences } from "../path-fixture";
 import {
@@ -219,6 +221,153 @@ test("Path preview honors imperial preferences while saving canonical kilograms"
   expect(onChange.mock.calls.at(-1)![0].exercises[0].weight).toBeCloseTo(20, 2);
   expect(r.profile().units).toBe("lb");
   db.close();
+});
+
+test("hypertrophy preview displays rep ranges and its editor preserves both boundaries", async () => {
+  const { r, db } = pathRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const draft = generatePath(pathPreferences(), exercises);
+    const day = draft.days[0]!;
+    const list = await render(
+      <PathWorkoutList items={day.exercises} catalog={exercises} />,
+    );
+    expect(list.getByText(/× 6-8/)).toBeTruthy();
+    expect(list.getByText(/× 10-12/)).toBeTruthy();
+    await list.unmount();
+    const onChange = jest.fn();
+    const view = await render(
+      <PathDayEditor
+        day={day}
+        preferences={draft.preferences}
+        catalog={exercises}
+        onChange={onChange}
+      />,
+    );
+    await fireEvent.changeText(
+      view.getByLabelText(`${day.name} exercise 1 maximum reps`),
+      "10",
+    );
+    expect(onChange.mock.calls.at(-1)![0].exercises[0]).toMatchObject({
+      reps: 6,
+      repMax: 10,
+    });
+    await fireEvent.changeText(
+      view.getByLabelText(`${day.name} exercise 1 reps`),
+      "9",
+    );
+    expect(onChange.mock.calls.at(-1)![0].exercises[0]).toMatchObject({
+      reps: 9,
+      repMax: 9,
+    });
+  } finally {
+    db.close();
+  }
+});
+
+test("workout shows its saved rep range even if the template later changes, with no unsupported load suggestion", async () => {
+  const { r, db } = pathRepository();
+  try {
+    acceptPath(r, generatePath(pathPreferences(), exercises));
+    const session = pathSessions(r, pathPrograms(r)[0]!)[0]!;
+    const workout = startPathSession(r, session.record.id);
+    const row = r.workoutExercises(workout.id)[0]!;
+    const template = r.templates().find((t) => t.id === workout.templateId)!;
+    r.saveTemplate(
+      template.name,
+      template.exercises.map((p) => ({ ...p, reps: 10, repMax: 15 })),
+      template.id,
+      template.notes,
+    );
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<WorkoutExerciseCard row={row} />);
+    expect(
+      view.getByText("Path target: 6-8 reps per working set"),
+    ).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Exercise options"));
+    expect(
+      view.getByRole("button", {
+        name: "Apply suggested load",
+        disabled: true,
+      }),
+    ).toBeTruthy();
+    expect(
+      view.getByText(/Log a complete session at this prescription/),
+    ).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
+test("template editor saves and reopens both rep boundaries without collapsing to a fixed target", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const template = r.saveTemplate("Range template", [
+      {
+        exerciseId: "barbell-bench-press",
+        sets: 3,
+        reps: 6,
+        weight: 0,
+        rest: 120,
+      },
+    ]);
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<Templates />);
+    await fireEvent.press(view.getByRole("button", { name: "Edit" }));
+    await fireEvent.changeText(view.getByLabelText("Maximum reps"), "8");
+    await fireEvent.press(view.getByRole("button", { name: "Save template" }));
+    expect(
+      r.templates().find((t) => t.id === template.id)!.exercises[0],
+    ).toMatchObject({ reps: 6, repMax: 8 });
+    await fireEvent.press(view.getByRole("button", { name: "Edit" }));
+    expect(view.getByLabelText("Maximum reps").props.value).toBe("8");
+    expect(view.getByLabelText("reps").props.value).toBe("6");
+  } finally {
+    db.close();
+  }
+});
+
+test("applying a target recommendation changes only unfinished working sets", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const template = r.saveTemplate("Progression", [
+      {
+        exerciseId: "barbell-bench-press",
+        sets: 3,
+        reps: 6,
+        repMax: 8,
+        weight: 50,
+        rest: 120,
+      },
+    ]);
+    for (let i = 0; i < 2; i++) {
+      const prior = r.startWorkout(template.name, template.id);
+      for (const set of r.workoutSets(prior.id))
+        r.editSet(set.id, { reps: 8, rir: 2, completed: true });
+      r.finishWorkout(prior.id);
+    }
+    const workout = r.startWorkout(template.name, template.id);
+    const row = r.workoutExercises(workout.id)[0]!;
+    const completed = r.sets(row.id)[0]!;
+    r.editSet(completed.id, { weight: 40, completed: true });
+    const warmup = r.addSet(row.id, { kind: "warmup", weight: 20, reps: 5 });
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<WorkoutExerciseCard row={row} />);
+    await fireEvent.press(view.getByLabelText("Exercise options"));
+    await fireEvent.press(
+      view.getByRole("button", { name: "Apply suggested load" }),
+    );
+    const result = r.sets(row.id);
+    expect(result.find((s) => s.id === completed.id)!.weight).toBe(40);
+    expect(result.find((s) => s.id === warmup.id)!.weight).toBe(20);
+    expect(
+      result
+        .filter((s) => !s.completed && s.kind === "working")
+        .every((s) => s.weight === 52.5),
+    ).toBe(true);
+  } finally {
+    db.close();
+  }
 });
 
 test("weekly calendar navigates Monday–Sunday, shows rest days and recovers a moved session", async () => {

@@ -77,7 +77,7 @@ export function estimateSession(
     const isolation = isIsolation(ex);
     const execPerSet = Math.max(
       MIN_SET_EXECUTION,
-      prescription.reps * secondsPerRep(ex),
+      (prescription.repMax ?? prescription.reps) * secondsPerRep(ex),
     );
 
     // Transition onto the station. The first exercise is covered by the

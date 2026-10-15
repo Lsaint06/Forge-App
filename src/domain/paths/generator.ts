@@ -3,6 +3,7 @@ import { prescriptionSchema } from "../validation";
 import { forgePaths } from "./catalog";
 import { validateDraft as validateVersionTwo } from "./versionTwoGenerator";
 import { exerciseStimulus } from "./stimulus";
+import { compoundRepRange } from "./repRanges";
 import {
   pathPreferencesSchema,
   machineRequirement,
@@ -443,6 +444,11 @@ export function generatePath(
               : novice
                 ? 75
                 : 120,
+        ...compoundRepRange(
+          p,
+          catalog.find((e) => e.id === choices[0]!.id)!,
+          !exercises.some((e) => !exerciseStimulus(e.exerciseId).isolation),
+        ),
       });
       roles.push(target.role);
     });
@@ -505,7 +511,7 @@ export function generatePath(
   // shorter and report the honest estimate.
   const fillable = !novice && p.experience !== "Beginner";
   if (fillable) fillProgram(days, p, catalog, strength);
-  return validateDraft({ engineVersion: 4, preferences: p, days }, catalog);
+  return validateDraft({ engineVersion: 5, preferences: p, days }, catalog);
 }
 
 function sessionSets(day: PathDay): number {
@@ -585,7 +591,7 @@ export function validateDraft(
 ): PathDraft {
   if ((draft.engineVersion ?? 1) === 1) return validateLegacy(draft, catalog);
   if (draft.engineVersion === 2) return validateVersionTwo(draft, catalog);
-  if (draft.engineVersion !== 3 && draft.engineVersion !== 4)
+  if (![3, 4, 5].includes(draft.engineVersion ?? 1))
     throw new Error("Unsupported programming version.");
   const p = pathPreferencesSchema.parse(draft.preferences);
   checkPreferences(p);
@@ -640,6 +646,7 @@ export function validateDraft(
         item.sets > (p.experience === "Beginner" ? 3 : 5) ||
         item.reps < 1 ||
         item.reps > 20 ||
+        (item.repMax ?? item.reps) > 20 ||
         item.rest < 45
       )
         throw new Error(

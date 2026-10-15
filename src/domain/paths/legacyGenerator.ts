@@ -16,7 +16,7 @@ export { estimatedMinutes };
 
 export type PathDay = PathDayStructure & { exercises: Prescription[] };
 export type PathDraft = {
-  engineVersion?: 1 | 2 | 3 | 4;
+  engineVersion?: 1 | 2 | 3 | 4 | 5;
   preferences: PathPreferences;
   days: PathDay[];
 };
