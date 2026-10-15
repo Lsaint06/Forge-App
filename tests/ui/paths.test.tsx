@@ -14,6 +14,7 @@ import {
 } from "../../src/data/paths";
 import { generatePath } from "../../src/domain/paths/generator";
 import { exercises } from "../../src/data/catalog";
+import { forgePaths } from "../../src/domain/paths/catalog";
 
 jest.mock("../../src/notifications", () => ({ restNotification: jest.fn() }));
 
@@ -28,6 +29,146 @@ jest.mock("../../src/state", () => ({
   useApp: (selector: (s: { profile: undefined }) => unknown) =>
     selector({ profile: undefined }),
 }));
+
+test("switching from a saved Path retains its supported training frequency", async () => {
+  const { r, db } = pathRepository();
+  try {
+    acceptPath(
+      r,
+      generatePath(pathPreferences({ frequency: 2, duration: 90 }), exercises),
+    );
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<Paths />);
+    await fireEvent.press(view.getByLabelText("Manage Path"));
+    await fireEvent.press(view.getByLabelText("Browse or change Path"));
+    await fireEvent.press(view.getByLabelText("Choose ATHLETE MODE"));
+    expect(
+      view.getByRole("button", { name: "2", selected: true }),
+    ).toBeTruthy();
+    expect(view.getByText("Available weekdays · 2 / 2 selected")).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
+test.each(forgePaths)(
+  "$name setup offers only catalog-supported training frequencies",
+  async (path) => {
+    const { r, db } = pathRepository();
+    try {
+      r.saveProfile({ experience: "Advanced" });
+      jest.mocked(useRepo).mockReturnValue(r);
+      const view = await render(<Paths />);
+      await fireEvent.press(view.getByLabelText(`Choose ${path.name}`));
+      for (let frequency = 1; frequency <= 7; frequency++) {
+        const option = view.queryByRole("button", { name: String(frequency) });
+        if (frequency < path.minDays || frequency > path.maxDays) {
+          expect(option).toBeNull();
+        } else {
+          expect(option).toBeTruthy();
+          await fireEvent.press(option!);
+          expect(
+            view.getByRole("button", {
+              name: String(frequency),
+              selected: true,
+            }),
+          ).toBeTruthy();
+          expect(
+            view.getByText(
+              `Available weekdays · ${frequency} / ${frequency} selected`,
+            ),
+          ).toBeTruthy();
+        }
+      }
+    } finally {
+      db.close();
+    }
+  },
+);
+
+test("switching Paths preserves supported frequencies and weekdays, otherwise uses the new Path default", async () => {
+  const { r, db } = pathRepository();
+  try {
+    r.saveProfile({ experience: "Advanced" });
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<Paths />);
+    await fireEvent.press(view.getByLabelText("Choose BUILD MUSCLE"));
+    await fireEvent.press(view.getByRole("button", { name: "4" }));
+    await fireEvent.press(view.getByLabelText("✓ Mon"));
+    await fireEvent.press(view.getByLabelText("Wed"));
+    await fireEvent.press(view.getByLabelText("Browse Paths"));
+    await fireEvent.press(view.getByLabelText("Choose ATHLETE MODE"));
+    expect(
+      view.getByRole("button", { name: "4", selected: true }),
+    ).toBeTruthy();
+    expect(view.getByLabelText("Mon")).toBeTruthy();
+    expect(view.getByLabelText("✓ Wed")).toBeTruthy();
+    expect(view.getByText("Available weekdays · 4 / 4 selected")).toBeTruthy();
+
+    await fireEvent.press(view.getByLabelText("Browse Paths"));
+    await fireEvent.press(view.getByLabelText("Choose START STRONG"));
+    const starter = forgePaths.find((p) => p.key === "start-strong")!;
+    expect(
+      view.getByRole("button", {
+        name: String(starter.frequency),
+        selected: true,
+      }),
+    ).toBeTruthy();
+    expect(view.getByText("Available weekdays · 3 / 3 selected")).toBeTruthy();
+    await fireEvent.press(view.getByRole("button", { name: "1" }));
+    await fireEvent.press(view.getByLabelText("Browse Paths"));
+    await fireEvent.press(view.getByLabelText("Choose ADVANCED PHYSIQUE"));
+    const physique = forgePaths.find((p) => p.key === "advanced-physique")!;
+    expect(
+      view.getByRole("button", {
+        name: String(physique.frequency),
+        selected: true,
+      }),
+    ).toBeTruthy();
+    expect(view.getByText("Available weekdays · 5 / 5 selected")).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
+test.each(forgePaths)(
+  "$name rebuild uses the same supported options and retains the saved frequency",
+  async (path) => {
+    const { r, db } = pathRepository();
+    try {
+      acceptPath(
+        r,
+        generatePath(
+          pathPreferences({
+            pathKey: path.key,
+            experience: "Advanced",
+            frequency: path.frequency,
+            duration: 90,
+          }),
+          exercises,
+        ),
+      );
+      jest.mocked(useRepo).mockReturnValue(r);
+      const view = await render(<Paths />);
+      await fireEvent.press(view.getByLabelText("Manage Path"));
+      await fireEvent.press(view.getByLabelText("Rebuild this Path"));
+      expect(
+        view.getByRole("button", {
+          name: String(path.frequency),
+          selected: true,
+        }),
+      ).toBeTruthy();
+      for (let frequency = 1; frequency <= 7; frequency++) {
+        const option = view.queryByRole("button", { name: String(frequency) });
+        expect(!!option).toBe(
+          frequency >= path.minDays && frequency <= path.maxDays,
+        );
+      }
+    } finally {
+      db.close();
+    }
+  },
+);
 
 test("Path personalization previews real workouts without saving until acceptance is confirmed", async () => {
   const { r, db } = pathRepository();

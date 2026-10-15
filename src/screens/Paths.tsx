@@ -68,6 +68,25 @@ function toggle<T>(values: T[], value: T): T[] {
     ? values.filter((x) => x !== value)
     : [...values, value];
 }
+function pathSchedule(
+  path: PathDefinition,
+  frequency: number,
+  weekdays: number[],
+  experience: PathPreferences["experience"],
+) {
+  if (frequency >= path.minDays && frequency <= path.maxDays)
+    return { frequency, weekdays };
+  const fallback =
+    experience === "Beginner" ? Math.min(3, path.frequency) : path.frequency;
+  const validFrequency = Math.max(
+    path.minDays,
+    Math.min(path.maxDays, fallback),
+  );
+  return {
+    frequency: validFrequency,
+    weekdays: defaultWeekdays(validFrequency),
+  };
+}
 function ChoiceList<T extends string | number>({
   label,
   values,
@@ -302,12 +321,17 @@ export default function Paths() {
     )
       ? (p.experience as PathPreferences["experience"])
       : "Beginner";
-    const frequency =
-      experience === "Beginner" ? Math.min(3, path.frequency) : path.frequency;
+    const previous = preferences ?? selected?.data.preferences;
+    const schedule = pathSchedule(
+      path,
+      previous?.frequency ?? 0,
+      previous?.weekdays ?? [],
+      experience,
+    );
     setPreferences({
       pathKey: path.key,
       experience,
-      frequency,
+      ...schedule,
       duration: path.duration,
       equipment: expandEquipment([
         ...equipmentOptions.filter((e) =>
@@ -324,7 +348,6 @@ export default function Paths() {
       priorities: [],
       style: "Balanced",
       startDate: localDate(),
-      weekdays: defaultWeekdays(frequency),
     });
     setQuery("");
     setStep(0);
@@ -460,7 +483,10 @@ export default function Paths() {
                 Training days per week · choose a recoverable schedule
               </Label>
               <Chips
-                values={["1", "2", "3", "4", "5", "6"]}
+                values={Array.from(
+                  { length: definition!.maxDays - definition!.minDays + 1 },
+                  (_, index) => String(definition!.minDays + index),
+                )}
                 value={String(preferences.frequency)}
                 onChange={(v) =>
                   patch({
@@ -1070,6 +1096,12 @@ export default function Paths() {
                     )!;
                     setPreferences({
                       ...selected.data.preferences,
+                      ...pathSchedule(
+                        definition,
+                        selected.data.preferences.frequency,
+                        selected.data.preferences.weekdays,
+                        selected.data.preferences.experience,
+                      ),
                       startDate: localDate(),
                       duration: Math.max(
                         selected.data.preferences.duration,
