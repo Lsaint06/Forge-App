@@ -8,7 +8,9 @@ import {
   type WorkoutExercise,
   type Exercise,
 } from "../../src/domain/types";
-import { SetRow } from "../../src/components/WorkoutExerciseCard";
+import WorkoutExerciseCard, {
+  SetRow,
+} from "../../src/components/WorkoutExerciseCard";
 import WorkoutScreen, { RestTimer } from "../../src/screens/Workout";
 import Train from "../../app/(tabs)/train";
 import Explore from "../../app/(tabs)/explore";
@@ -124,7 +126,7 @@ function repo(overrides: Record<string, unknown> = {}) {
   return data;
 }
 beforeEach(() => jest.clearAllMocks());
-test("completion persists the set and starts rest; advanced fields stay available", async () => {
+test("compact set completion persists and starts rest without per-set detail controls", async () => {
   const edited = { ...set };
   const r = repo({
     sets: () => [edited],
@@ -134,13 +136,90 @@ test("completion persists the set and starts rest; advanced fields stay availabl
   });
   const view = await render(<SetRow set={set} category="strength" />);
   expect(view.queryByLabelText("Set notes")).toBeNull();
-  await fireEvent.press(view.getByLabelText("Complete"));
+  expect(view.queryByText("Effort & details")).toBeNull();
+  expect(view.getByLabelText("Set 1 weight (kg)")).toBeTruthy();
+  expect(view.getByLabelText("Set 1 reps")).toBeTruthy();
+  await fireEvent.press(view.getByLabelText("Complete set 1"));
   expect(r.editSet).toHaveBeenCalledWith("set", { completed: true });
   expect(r.setSetting).toHaveBeenCalledWith("restDeadline", expect.any(String));
   expect(restNotification).toHaveBeenCalled();
-  await fireEvent.press(view.getByLabelText("Effort & details"));
+  expect(view.queryByLabelText("RPE (1–10, optional)")).toBeNull();
+});
+
+test("exercise cards collapse logging but retain their summary and progress", async () => {
+  repo();
+  const view = await render(<WorkoutExerciseCard row={row} />);
+  expect(view.getByText("1 working set · 90s rest")).toBeTruthy();
+  expect(view.getByText("0 / 1 sets complete")).toBeTruthy();
+  expect(view.queryByLabelText("Set 1 reps")).toBeNull();
+  expect(view.queryByLabelText("Exercise options")).toBeNull();
+  await fireEvent.press(
+    view.getByRole("button", { name: "Expand Bench press", expanded: false }),
+  );
+  expect(view.getByLabelText("Set 1 reps")).toBeTruthy();
+  expect(view.queryByText("Effort & details")).toBeNull();
+  expect(view.queryByLabelText("Set notes")).toBeNull();
+  expect(view.queryByLabelText("RIR (0–20, optional)")).toBeNull();
+  await fireEvent.press(view.getByLabelText("Exercise options"));
+  expect(view.getByLabelText("RIR (0–20, optional)")).toBeTruthy();
   expect(view.getByLabelText("Set notes")).toBeTruthy();
-  expect(view.getByLabelText("RPE (1–10, optional)")).toBeTruthy();
+  await fireEvent.press(
+    view.getByRole("button", {
+      name: "Collapse Bench press",
+      expanded: true,
+    }),
+  );
+  expect(view.queryByLabelText("Set 1 reps")).toBeNull();
+  expect(view.queryByLabelText("Set notes")).toBeNull();
+});
+
+test.each(["duration", "distance"])(
+  "compact %s sets retain their category-specific logging controls",
+  async (category) => {
+    const r = repo();
+    const view = await render(<SetRow set={set} category={category} />);
+    expect(view.queryByLabelText("Set 1 reps")).toBeNull();
+    await fireEvent.changeText(
+      view.getByLabelText("Set 1 duration (seconds)"),
+      "60",
+    );
+    expect(r.editSet).toHaveBeenCalledWith(set.id, { duration: 60 });
+    if (category === "distance") {
+      await fireEvent.changeText(
+        view.getByLabelText("Set 1 distance (meters)"),
+        "100",
+      );
+      expect(r.editSet).toHaveBeenCalledWith(set.id, { distance: 100 });
+    } else expect(view.queryByLabelText("Set 1 distance (meters)")).toBeNull();
+  },
+);
+
+test("the workout initially opens the first unfinished exercise without opening all the cards", async () => {
+  const second = {
+    ...row,
+    id: "row2",
+    exerciseId: "row-exercise",
+    position: 1,
+  };
+  repo({
+    workoutExercises: () => [row, second],
+    sets: (id: string) => [
+      { ...set, exerciseRowId: id, completed: id === row.id },
+    ],
+    exercise: (id: string) => ({
+      ...exercise,
+      id,
+      name: id === "bench" ? "Bench press" : "Row",
+    }),
+  });
+  const view = await render(<WorkoutScreen />);
+  expect(
+    view.getByRole("button", { name: "Expand Bench press", expanded: false }),
+  ).toBeTruthy();
+  expect(
+    view.getByRole("button", { name: "Collapse Row", expanded: true }),
+  ).toBeTruthy();
+  expect(view.getAllByLabelText("Set 1 reps")).toHaveLength(1);
 });
 test("rest controls persist a deadline and skip cancels the reminder", async () => {
   const r = repo();

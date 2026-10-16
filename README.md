@@ -41,6 +41,7 @@ GitHub Actions runs these checks and retains native export artifacts. CI does no
 - Set up a guest profile and edit training, units, theme, rest, progression and nutrition preferences.
 - Search/filter/sort 366 exercise definitions; favorite movements, inspect history, and create/edit custom exercises.
 - Start an empty workout or a template; add/substitute/reorder/remove exercises and sets; log loads, reps, duration, distance, RPE, RIR, tempo, notes, side and set type.
+- Log strength sets in compact number/weight/reps/completion rows inside collapsible exercise cards. The first unfinished exercise opens initially; prescribed sets, reps and rest remain visible when collapsed. Optional per-set effort, notes and other advanced tracking live under **Exercise options → Optional set tracking**, without clearing saved information.
 - Pause/resume, recover an interrupted session, finish once, edit history, repeat a workout and save it as a template.
 - Use persistent rest deadlines, manual rest starts, skip/extend and optional local completion notifications.
 - Edit/duplicate/delete templates, schedule sessions and adopt seven prescribed multiweek starter programs. Every fourth program week removes one set per exercise when started through the calendar.

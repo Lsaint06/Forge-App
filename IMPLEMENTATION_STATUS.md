@@ -19,6 +19,7 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 | Restartable active workout | Implemented and tested | Stored rows reopened through repository; phone process termination still unverified |
 | Empty completed-set rejection | Implemented and tested | Regression rejects completion without reps/duration/distance |
 | Workout editor controls, exercise substitution and notes | Implemented but unverified | Typecheck/export; device flow outstanding |
+| Collapsible exercise cards and compact set logging | Implemented and tested | Path/workout/input interaction regressions cover summaries, completion/rest, optional effort/notes and retained target history; physical-device testing outstanding |
 | Valid numeric edits persist before blur | Implemented and tested | React Native interaction tests |
 | Pause/resume duration arithmetic | Implemented and tested | Pure timestamp timer test; background native behavior outstanding |
 | Rest deadlines/manual start/skip/extend/per-exercise defaults | Implemented but unverified | Persisted settings and native notification hooks; device delivery outstanding |

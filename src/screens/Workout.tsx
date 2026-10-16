@@ -132,6 +132,10 @@ export default function WorkoutScreen() {
       </Screen>
     );
   const rows = r.workoutExercises(w.id);
+  const firstUnfinished = rows.find((row) => {
+    const sets = r.sets(row.id);
+    return !sets.length || sets.some((set) => !set.completed);
+  });
   return (
     <Screen
       scroll={false}
@@ -158,7 +162,12 @@ export default function WorkoutScreen() {
         keyExtractor={(e) => e.id}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ gap: 16, paddingBottom: 48 }}
-        renderItem={({ item }) => <WorkoutExerciseCard row={item} />}
+        renderItem={({ item }) => (
+          <WorkoutExerciseCard
+            row={item}
+            initialExpanded={item.id === firstUnfinished?.id}
+          />
+        )}
         ListHeaderComponent={
           <View style={{ gap: 16 }}>
             <Button

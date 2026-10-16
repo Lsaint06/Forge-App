@@ -264,14 +264,25 @@ export function Row({ children }: { children: React.ReactNode }) {
 export function Field({
   label,
   error,
+  compact = false,
   ...props
-}: TextInputProps & { label: string; error?: string }) {
+}: TextInputProps & { label: string; error?: string; compact?: boolean }) {
   const c = useColors();
   return (
-    <View style={{ gap: 5, flexGrow: 1, flexShrink: 1, minWidth: 100 }}>
-      <Label size={12} muted>
-        {label}
-      </Label>
+    <View
+      style={{
+        gap: compact ? 0 : 5,
+        flexGrow: 1,
+        flexShrink: 1,
+        minWidth: compact ? 0 : 100,
+        ...(compact ? { flexBasis: 0 } : {}),
+      }}
+    >
+      {!compact && (
+        <Label size={12} muted>
+          {label}
+        </Label>
+      )}
       <TextInput
         accessibilityLabel={label}
         placeholderTextColor={c.muted}
@@ -307,6 +318,7 @@ export function NumberField({
   min = 0,
   max = Infinity,
   integer = false,
+  compact = false,
 }: {
   label: string;
   value: number | null;
@@ -315,6 +327,7 @@ export function NumberField({
   min?: number;
   max?: number;
   integer?: boolean;
+  compact?: boolean;
 }) {
   const format = (n: number | null) =>
     n == null ? "" : String(Math.round(n * 100) / 100);
@@ -346,6 +359,7 @@ export function NumberField({
   return (
     <Field
       label={label}
+      compact={compact}
       keyboardType="decimal-pad"
       value={focused ? draft : format(value)}
       onFocus={() => {

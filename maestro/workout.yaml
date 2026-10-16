@@ -9,14 +9,14 @@ appId: com.lsaint06.forge
 - tapOn: 'Search exercises'
 - inputText: 'Barbell Bench Press'
 - tapOn: 'Add Barbell Bench Press'
-- tapOn: 'Load (kg; added load for bodyweight)'
+- tapOn: 'Set 1 weight (kg)'
 - eraseText
 - inputText: '40'
-- tapOn: 'Reps'
+- tapOn: 'Set 1 reps'
 - eraseText
 - inputText: '8'
 - hideKeyboard
-- tapOn: 'Complete'
+- tapOn: 'Complete set 1'
 - scrollUntilVisible:
     element: 'Finish workout'
 - tapOn: 'Finish workout'

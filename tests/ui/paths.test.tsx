@@ -18,7 +18,9 @@ import { generatePath } from "../../src/domain/paths/generator";
 import { exercises } from "../../src/data/catalog";
 import { forgePaths } from "../../src/domain/paths/catalog";
 
-jest.mock("../../src/notifications", () => ({ restNotification: jest.fn() }));
+jest.mock("../../src/notifications", () => ({
+  restNotification: jest.fn(async () => {}),
+}));
 
 jest.mock("expo-router", () => ({
   router: { push: jest.fn(), replace: jest.fn() },
@@ -282,8 +284,11 @@ test("workout shows its saved rep range even if the template later changes, with
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<WorkoutExerciseCard row={row} />);
     expect(
-      view.getByText("Path target: 6-8 reps per working set"),
+      view.getByText(
+        `Path target: ${row.target!.sets} × 6-8 reps · ${row.rest}s rest`,
+      ),
     ).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Expand Barbell Bench Press"));
     await fireEvent.press(view.getByLabelText("Exercise options"));
     expect(
       view.getByRole("button", {
@@ -294,6 +299,85 @@ test("workout shows its saved rep range even if the template later changes, with
     expect(
       view.getByText(/Log a complete session at this prescription/),
     ).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
+test("compact logging and optional set tracking preserve saved details and comparable target history", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const template = r.saveTemplate("Compact", [
+      {
+        exerciseId: "barbell-bench-press",
+        sets: 2,
+        reps: 6,
+        repMax: 8,
+        weight: 40,
+        rest: 120,
+      },
+    ]);
+    const workout = r.startWorkout(template.name, template.id);
+    const row = r.workoutExercises(workout.id)[0]!;
+    const [first, second] = r.sets(row.id);
+    r.editSet(first!.id, {
+      reps: 8,
+      rpe: 8,
+      rir: 2,
+      tempo: "3-1-1-0",
+      notes: "Controlled",
+      completed: true,
+    });
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<WorkoutExerciseCard row={row} />);
+    expect(
+      view.getByText("Template target: 2 × 6-8 reps · 120s rest"),
+    ).toBeTruthy();
+    expect(view.getByText("1 / 2 sets complete")).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Expand Barbell Bench Press"));
+    await fireEvent.changeText(view.getByLabelText("Set 2 weight (kg)"), "45");
+    await fireEvent.changeText(view.getByLabelText("Set 2 reps"), "8");
+    expect(view.queryByLabelText("Set notes")).toBeNull();
+    await fireEvent.press(view.getByLabelText("Exercise options"));
+    expect(view.getByLabelText("Set notes").props.value).toBe("Controlled");
+    expect(view.getByLabelText("RIR (0–20, optional)").props.value).toBe("2");
+    expect(view.getByLabelText("Tempo (e.g. 3-1-1-0)").props.value).toBe(
+      "3-1-1-0",
+    );
+    await fireEvent.press(view.getByRole("button", { name: "Set 2" }));
+    await fireEvent.changeText(
+      view.getByLabelText("Set notes"),
+      "Second working set",
+    );
+    await fireEvent.changeText(
+      view.getByLabelText("RIR (0–20, optional)"),
+      "3",
+    );
+    await fireEvent.press(view.getByLabelText("Hide exercise options"));
+    expect(view.queryByLabelText("RIR (0–20, optional)")).toBeNull();
+    await fireEvent.press(view.getByLabelText("Complete set 2"));
+    await fireEvent.press(view.getByLabelText("Collapse Barbell Bench Press"));
+    expect(view.queryByLabelText("Set 2 reps")).toBeNull();
+    const saved = r.sets(row.id);
+    expect(saved[0]).toMatchObject({
+      id: first!.id,
+      rpe: 8,
+      rir: 2,
+      notes: "Controlled",
+      tempo: "3-1-1-0",
+      completed: true,
+    });
+    expect(saved[1]).toMatchObject({
+      id: second!.id,
+      weight: 45,
+      reps: 8,
+      rir: 3,
+      notes: "Second working set",
+      completed: true,
+    });
+    expect(r.workoutExercises(workout.id)[0]!.target).toEqual(row.target);
+    r.finishWorkout(workout.id);
+    expect(r.targetHistory(row.exerciseId, row.target!)[0]).toEqual(saved);
   } finally {
     db.close();
   }
@@ -352,7 +436,9 @@ test("applying a target recommendation changes only unfinished working sets", as
     r.editSet(completed.id, { weight: 40, completed: true });
     const warmup = r.addSet(row.id, { kind: "warmup", weight: 20, reps: 5 });
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<WorkoutExerciseCard row={row} />);
+    const view = await render(
+      <WorkoutExerciseCard row={row} initialExpanded />,
+    );
     await fireEvent.press(view.getByLabelText("Exercise options"));
     await fireEvent.press(
       view.getByRole("button", { name: "Apply suggested load" }),
@@ -467,12 +553,20 @@ test("Path workouts progress against the Path's prescribed rep target, not the g
     const workout = startPathSession(r, session.record.id);
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(
-      <WorkoutExerciseCard row={r.workoutExercises(workout.id)[0]!} />,
+      <WorkoutExerciseCard
+        row={r.workoutExercises(workout.id)[0]!}
+        initialExpanded
+      />,
     );
     await fireEvent.press(view.getByLabelText("Exercise options"));
     // The first Get Strong lift is prescribed 5 reps; the suggestion is driven
     // by that target (not the profile's 8-12 range) and stays user-applied.
-    expect(view.getByText("Path target: 5 reps per working set")).toBeTruthy();
+    const row = r.workoutExercises(workout.id)[0]!;
+    expect(
+      view.getByText(
+        `Path target: ${row.target!.sets} × 5 reps · ${row.rest}s rest`,
+      ),
+    ).toBeTruthy();
     expect(view.getByLabelText("Apply suggested load")).toBeTruthy();
     expect(view.queryByText(/Path progression:/)).toBeNull();
   } finally {
