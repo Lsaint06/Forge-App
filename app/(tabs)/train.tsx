@@ -45,25 +45,14 @@ export default function Train() {
         }}
       />
       <SectionHeader
-        title="Your training plans"
+        title="Your workout templates"
         detail={`${standaloneTemplates(r).length} saved templates`}
       />
       <Button
-        title="Templates & programs"
+        title="Workout templates"
         secondary
         icon="calendar-outline"
         onPress={() => router.push("/templates")}
-      />
-      <Button
-        title="Training programs"
-        secondary
-        icon="layers-outline"
-        onPress={() =>
-          router.push({
-            pathname: "/templates",
-            params: { section: "programs" },
-          })
-        }
       />
       {standaloneTemplates(r)
         .slice(0, 3)

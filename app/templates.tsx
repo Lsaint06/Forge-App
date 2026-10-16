@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Alert } from "../src/platform/alert";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import {
   Screen,
   Card,
@@ -10,11 +10,9 @@ import {
   Sheet,
   Field,
   NumberField,
-  Chips,
 } from "../src/components/ui";
 import { ExercisePicker } from "../src/components/ExercisePicker";
 import { useRepo, mutate, confirm } from "../src/state";
-import { starterPrograms } from "../src/data/catalog";
 import {
   localDate,
   type Template,
@@ -26,14 +24,8 @@ import {
   standaloneTemplates,
 } from "../src/data/paths";
 import { notifyAt } from "../src/notifications";
-import { repRangeLabel } from "../src/domain/prescriptions";
 export default function Templates() {
   const r = useRepo();
-  const { section } = useLocalSearchParams<{ section?: string }>();
-  const [view, setView] = useState(
-    section === "programs" ? "Programs" : "Templates",
-  );
-  const [programDetails, setProgramDetails] = useState<string>();
   const [editor, setEditor] = useState(false);
   const [picker, setPicker] = useState(false);
   const [editingId, setEditingId] = useState<string>();
@@ -61,235 +53,118 @@ export default function Templates() {
       ).catch((e) => Alert.alert("Reminder unavailable", String(e)));
     }
   }
-  function adopt(program: (typeof starterPrograms)[number]) {
-    const saved = mutate(() =>
-      r.transaction(() => {
-        const templates = program.days.map((d) =>
-          r.saveTemplate(
-            d.name,
-            d.items,
-            undefined,
-            `${program.name}: repeat for ${program.weeks} weeks; every fourth week reduce sets by one.`,
-          ),
-        );
-        const plan = r.addJournal(
-          "program",
-          {
-            name: program.name,
-            weeks: program.weeks,
-            started: date,
-            templates: templates.map((t) => t.id).join(","),
-            deloadEvery: 4,
-          },
-          date,
-        );
-        const offsets =
-          templates.length === 3
-            ? [0, 2, 4]
-            : templates.length === 4
-              ? [0, 1, 3, 4]
-              : [0, 1, 2, 3, 4, 5];
-        for (let week = 0; week < program.weeks; week++) {
-          templates.forEach((t, i) => {
-            const at = new Date(`${date}T12:00:00`);
-            at.setDate(at.getDate() + week * 7 + offsets[i]!);
-            r.addJournal(
-              "schedule",
-              {
-                name: t.name,
-                templateId: t.id,
-                programId: plan.id,
-                week: week + 1,
-                deload: (week + 1) % 4 === 0,
-              },
-              localDate(at.getTime()),
-            );
-          });
-        }
-        return plan;
-      }),
-    );
-    if (saved)
-      Alert.alert(
-        "Program added",
-        `${program.name} has prescribed templates and ${program.weeks} weeks on your calendar. Deload sessions reduce each exercise by one set.`,
-      );
-  }
   return (
-    <Screen title="Training plans" eyebrow="TRAIN">
-      <Chips
-        values={["Templates", "Programs"]}
-        value={view}
-        onChange={setView}
-      />
+    <Screen title="Workout templates" eyebrow="TRAIN">
       <Button title="Back" secondary onPress={() => router.back()} />
       <Field
-        label="Schedule / program start date (YYYY-MM-DD)"
+        label="Schedule date (YYYY-MM-DD)"
         value={date}
         onChangeText={setDate}
       />
-      {view === "Templates" && (
-        <>
-          <Button title="Create template" icon="add" onPress={() => edit()} />
-          {standaloneTemplates(r).map((t) => (
-            <Card key={t.id}>
-              <Label size={21} bold>
-                {t.name}
-              </Label>
-              <Label muted>
-                {t.exercises.length} exercises ·{" "}
-                {t.exercises.reduce((n, e) => n + e.sets, 0)} sets
-              </Label>
-              <Label muted size={12}>
-                {t.notes}
-              </Label>
-              <Row>
+      <Button title="Create template" icon="add" onPress={() => edit()} />
+      {standaloneTemplates(r).map((t) => (
+        <Card key={t.id}>
+          <Label size={21} bold>
+            {t.name}
+          </Label>
+          <Label muted>
+            {t.exercises.length} exercises ·{" "}
+            {t.exercises.reduce((n, e) => n + e.sets, 0)} sets
+          </Label>
+          <Label muted size={12}>
+            {t.notes}
+          </Label>
+          <Row>
+            <Button
+              title="Train"
+              onPress={() => {
+                const w = mutate(() => r.startWorkout(t.name, t.id));
+                if (w) router.push("/workout");
+              }}
+            />
+            <Button title="Edit" secondary onPress={() => edit(t)} />
+            <Button
+              title="Duplicate"
+              secondary
+              onPress={() =>
+                mutate(() =>
+                  r.saveTemplate(
+                    `${t.name} copy`,
+                    t.exercises,
+                    undefined,
+                    t.notes,
+                  ),
+                )
+              }
+            />
+            <Button title="Schedule" secondary onPress={() => schedule(t)} />
+            <Button
+              title="Delete"
+              secondary
+              onPress={() =>
+                confirm(
+                  "Delete template?",
+                  "Completed workouts are preserved. Planned sessions will need a new template.",
+                  () => r.deleteTemplate(t.id),
+                )
+              }
+            />
+          </Row>
+        </Card>
+      ))}
+      <Label bold size={23}>
+        Your calendar
+      </Label>
+      {visibleSchedules(r)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .slice(0, 30)
+        .map((j) => (
+          <Card key={j.id}>
+            <Label bold>
+              {j.date} · {String(j.data.name)}
+            </Label>
+            {j.data.deload === true && (
+              <Label muted>Deload: one fewer set per exercise</Label>
+            )}
+            <Row>
+              <Button
+                title="Start planned session"
+                secondary
+                onPress={() => {
+                  const w = mutate(() => startScheduledSession(r, j));
+                  if (w) router.push("/workout");
+                }}
+              />
+              {j.data.forgePath === 1 ? (
                 <Button
-                  title="Train"
-                  onPress={() => {
-                    const w = mutate(() => r.startWorkout(t.name, t.id));
-                    if (w) router.push("/workout");
-                  }}
-                />
-                <Button title="Edit" secondary onPress={() => edit(t)} />
-                <Button
-                  title="Duplicate"
+                  title="Manage Path session"
                   secondary
                   onPress={() =>
-                    mutate(() =>
-                      r.saveTemplate(
-                        `${t.name} copy`,
-                        t.exercises,
-                        undefined,
-                        t.notes,
-                      ),
-                    )
+                    router.push({
+                      pathname: "/paths",
+                      params: {
+                        programId: String(j.data.programId),
+                        week: String(j.data.week),
+                      },
+                    })
                   }
                 />
+              ) : (
                 <Button
-                  title="Schedule"
-                  secondary
-                  onPress={() => schedule(t)}
-                />
-                <Button
-                  title="Delete"
+                  title="Remove plan"
                   secondary
                   onPress={() =>
                     confirm(
-                      "Delete template?",
-                      "Completed workouts are preserved. Planned sessions will need a new template.",
-                      () => r.deleteTemplate(t.id),
+                      "Remove planned session?",
+                      "Your recorded workouts will remain.",
+                      () => r.deleteJournal(j.id),
                     )
                   }
                 />
-              </Row>
-            </Card>
-          ))}
-          <Label bold size={23}>
-            Your calendar
-          </Label>
-          {visibleSchedules(r)
-            .sort((a, b) => a.date.localeCompare(b.date))
-            .slice(0, 30)
-            .map((j) => (
-              <Card key={j.id}>
-                <Label bold>
-                  {j.date} · {String(j.data.name)}
-                </Label>
-                {j.data.deload === true && (
-                  <Label muted>Deload: one fewer set per exercise</Label>
-                )}
-                <Row>
-                  <Button
-                    title="Start planned session"
-                    secondary
-                    onPress={() => {
-                      const w = mutate(() => startScheduledSession(r, j));
-                      if (w) router.push("/workout");
-                    }}
-                  />
-                  {j.data.forgePath === 1 ? (
-                    <Button
-                      title="Manage Path session"
-                      secondary
-                      onPress={() =>
-                        router.push({
-                          pathname: "/paths",
-                          params: {
-                            programId: String(j.data.programId),
-                            week: String(j.data.week),
-                          },
-                        })
-                      }
-                    />
-                  ) : (
-                    <Button
-                      title="Remove plan"
-                      secondary
-                      onPress={() =>
-                        confirm(
-                          "Remove planned session?",
-                          "Your recorded workouts will remain.",
-                          () => r.deleteJournal(j.id),
-                        )
-                      }
-                    />
-                  )}
-                </Row>
-              </Card>
-            ))}
-        </>
-      )}
-      {view === "Programs" && (
-        <>
-          <Label bold size={23}>
-            Starter programs
-          </Label>
-          <Label muted>
-            Real prescriptions. Start light, choose loads yourself, and progress
-            from recorded performance. These are general training examples.
-          </Label>
-          {starterPrograms.map((p) => (
-            <Card key={p.id}>
-              <Label size={21} bold>
-                {p.name}
-              </Label>
-              <Label muted>
-                {p.days.length} days / week · {p.weeks} weeks · deload every
-                fourth week
-              </Label>
-              <Button
-                title={
-                  programDetails === p.id
-                    ? "Hide program details"
-                    : "View program details"
-                }
-                secondary
-                onPress={() =>
-                  setProgramDetails(programDetails === p.id ? undefined : p.id)
-                }
-              />
-              {programDetails === p.id &&
-                p.days.map((d) => (
-                  <Label key={d.name} size={12}>
-                    {d.name}:{" "}
-                    {d.items
-                      .map(
-                        (x) =>
-                          `${r.exercise(x.exerciseId)?.name} ${x.sets}×${repRangeLabel(x)}`,
-                      )
-                      .join(" · ")}
-                  </Label>
-                ))}
-              <Button
-                title={`Use ${p.name}`}
-                secondary
-                onPress={() => adopt(p)}
-              />
-            </Card>
-          ))}
-        </>
-      )}
+              )}
+            </Row>
+          </Card>
+        ))}
       <Sheet
         visible={editor}
         onClose={() => setEditor(false)}

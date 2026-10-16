@@ -68,7 +68,7 @@ export default function Home() {
               ? template
                 ? "Your planned session is ready."
                 : "The saved template is unavailable. Choose a replacement."
-              : "Start freestyle or choose a training plan."}
+              : "Start freestyle or choose a Forge Path."}
         </Label>
         <Button
           title={
@@ -83,9 +83,9 @@ export default function Home() {
         />
         {!active && !today && (
           <Button
-            title="Choose a program"
+            title="Choose a Forge Path"
             secondary
-            onPress={() => router.push("/templates")}
+            onPress={() => router.push("/paths")}
           />
         )}
       </Card>

@@ -238,7 +238,8 @@ test("Train exposes resume and plans without creating a new session on resume", 
   await fireEvent.press(view.getByLabelText("Resume active workout"));
   expect(router.push).toHaveBeenCalledWith("/workout");
   expect(r.startWorkout).not.toHaveBeenCalled();
-  await fireEvent.press(view.getByLabelText("Templates & programs"));
+  expect(view.queryByLabelText("Training programs")).toBeNull();
+  await fireEvent.press(view.getByLabelText("Workout templates"));
   expect(router.push).toHaveBeenCalledWith("/templates");
 });
 test("Explore forwards search to the repository and opens the real exercise", async () => {

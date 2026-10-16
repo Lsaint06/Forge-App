@@ -44,7 +44,7 @@ GitHub Actions runs these checks and retains native export artifacts. CI does no
 - Log strength sets in compact number/weight/reps/completion rows inside collapsible exercise cards. The first unfinished exercise opens initially; prescribed sets, reps and rest remain visible when collapsed. Optional per-set effort, notes and other advanced tracking live under **Exercise options → Optional set tracking**, without clearing saved information.
 - Pause/resume, recover an interrupted session, finish once, edit history, repeat a workout and save it as a template.
 - Use persistent rest deadlines, manual rest starts, skip/extend and optional local completion notifications.
-- Edit/duplicate/delete templates, schedule sessions and adopt seven prescribed multiweek starter programs. Every fourth program week removes one set per exercise when started through the calendar.
+- Edit/duplicate/delete custom workout templates and schedule sessions. Forge Paths is the only guided-plan offering; the ready-made starter-program catalog has been retired. Previously adopted programs, saved templates, schedules and workout history remain available, including their existing calendar deload behavior.
 - Inspect volume, primary-muscle set distribution, frequency, duration, best loads/reps, Epley estimates, program adherence and measurement trends.
 - Log historical body measurements, manually supplied food values/servings, saved foods, repeat meals, recovery inputs and goals.
 - Export/import validated JSON backups and delete local records with confirmation.
