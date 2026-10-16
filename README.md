@@ -6,6 +6,8 @@ This branch adds **Forge Paths — Phase A**: six personalized, editable eight-w
 plans with a saved dashboard, explicit workout links and flexible scheduling.
 Open **Train → Forge Paths**. See the current [phone-first Paths rework](docs/PATHS_REWORK.md) and the historical [Phase A report](docs/FORGE_PATHS_PHASE_A.md).
 
+Optional **Plan details** reviews weekly session balance, including intentional differences between broad and focused days. New plans redistribute existing work without increasing the previous weekly set budget; see the [weekly balance audit](docs/research/WEEKLY_SESSION_BALANCE.md) for measured before/after programs and limitations. Rebuild explicitly to update an existing Path.
+
 This is a substantial first implementation, **not completion of every requirement in the product brief**. Read [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for exact coverage and verification limits. The supplied brief is preserved in [docs/PRODUCT_SPEC.txt](docs/PRODUCT_SPEC.txt).
 
 ## Run locally

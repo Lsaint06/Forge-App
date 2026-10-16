@@ -726,7 +726,10 @@ export default function Paths() {
           </Card>
           <Button
             title={
-              review?.warnings.length
+              review?.warnings.length ||
+              review?.balance.diagnostics.some(
+                (item) => item.kind !== "intentional",
+              )
                 ? "Review coverage & adjustments"
                 : "Why this plan?"
             }
@@ -1239,7 +1242,7 @@ export default function Paths() {
         {reviewDraft && review && (
           <>
             {selected &&
-              selected.data.engineVersion < 5 &&
+              selected.data.engineVersion < 6 &&
               view !== "preview" && (
                 <Label muted>
                   This saved plan uses an earlier planner. Use Manage Path →
@@ -1255,11 +1258,38 @@ export default function Paths() {
             </Label>
             <Label>{trainingGuidance(reviewDraft.preferences.pathKey)}</Label>
             <Label muted>{weekIntention(trainingWeeks[0] ?? 1)}</Label>
+            <Label bold>Weekly session balance</Label>
+            <Label muted size={12}>
+              Compare training purpose and workload, not exercise count alone.
+              Different muscle-group scopes and heavy lifts can justify
+              different session lengths.
+            </Label>
+            {review.balance.sessions.map((session) => (
+              <Label key={session.key} size={13}>
+                {session.name}: {session.exerciseCount} exercises ·{" "}
+                {session.workingSets} sets · about {session.duration.expected}{" "}
+                min
+                {" · "}
+                {session.purpose}
+              </Label>
+            ))}
+            {review.balance.diagnostics
+              .filter(
+                (item) =>
+                  item.kind !== "intentional" || item.dayKeys.length > 1,
+              )
+              .map((item, index) => (
+                <Label key={index} muted size={12}>
+                  {item.message}
+                </Label>
+              ))}
             <Label bold>Weekly muscle coverage</Label>
             <Label muted size={12}>
               Direct working sets and supporting work are separate. A compound
               set can target more than one muscle; weekly total counts each set
-              once. These counts do not measure efficiency.
+              once. Allocation ceilings count the primary target of each
+              movement; co-target and supporting exposure still matter for
+              recovery. These counts are not a measured fatigue score.
             </Label>
             {Array.from(
               new Set([

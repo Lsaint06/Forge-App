@@ -152,6 +152,7 @@ export const pathProgramDataSchema = z
       z.literal(3),
       z.literal(4),
       z.literal(5),
+      z.literal(6),
     ]),
     pathKey: z.enum(pathKeys),
     name: z.string().min(1).max(120),

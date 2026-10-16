@@ -225,6 +225,37 @@ test("Path preview honors imperial preferences while saving canonical kilograms"
   db.close();
 });
 
+test("weekly session balance stays in optional plan details and explains broad versus focused days", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const draft = generatePath(
+      pathPreferences({
+        pathKey: "advanced-physique",
+        frequency: 5,
+        duration: 90,
+      }),
+      exercises,
+    );
+    acceptPath(r, draft);
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<Paths />);
+    expect(view.queryByText("Weekly session balance")).toBeNull();
+    await fireEvent.press(view.getByLabelText("Plan details"));
+    expect(view.getByText("Weekly session balance")).toBeTruthy();
+    expect(
+      view.getByText(/Upper body · chest & back: 8 exercises/),
+    ).toBeTruthy();
+    expect(
+      view.getByText(/Chest, shoulders & triceps: 5 exercises/),
+    ).toBeTruthy();
+    expect(
+      view.getByText(/different scopes \(upper versus push\)/),
+    ).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
 test("hypertrophy preview displays rep ranges and its editor preserves both boundaries", async () => {
   const { r, db } = pathRepository();
   try {

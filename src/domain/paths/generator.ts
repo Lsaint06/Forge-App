@@ -4,6 +4,7 @@ import { forgePaths } from "./catalog";
 import { validateDraft as validateVersionTwo } from "./versionTwoGenerator";
 import { exerciseStimulus } from "./stimulus";
 import { compoundRepRange } from "./repRanges";
+import { redistributeWeeklySets, redistributeFocusSets } from "./balance";
 import {
   pathPreferencesSchema,
   machineRequirement,
@@ -119,7 +120,7 @@ const tri = slot(
 const calf = slot("calf", undefined, undefined, true);
 const core = slot("core", undefined, undefined, true);
 
-type Session = { name: string; slots: Slot[] };
+type Session = { name: string; slots: Slot[]; focusRoles?: PathRole[] };
 function sessions(p: PathPreferences): Session[] {
   const novice = p.pathKey === "start-strong";
   const strength = p.pathKey === "get-strong";
@@ -137,12 +138,14 @@ function sessions(p: PathPreferences): Session[] {
       bi,
       tri,
     ],
+    focusRoles: ["push", "pull"],
   });
   const lower = (second: boolean): Session => ({
     name: second ? "Legs · posterior focus" : "Legs · quad focus",
     slots: second
       ? [hinge, unilateral, curl, quad, calf, core]
       : [squat, hinge, quad, curl, calf, core],
+    focusRoles: [second ? "posterior" : "squat"],
   });
   if (p.frequency <= 3)
     return Array.from({ length: p.frequency }, (_, i) => {
@@ -212,6 +215,8 @@ function sessions(p: PathPreferences): Session[] {
           "Full body · back & hamstrings",
           "Full body · balanced growth",
         ][i]!,
+        focusRoles:
+          i === 0 ? ["push", "squat"] : i === 1 ? ["pull", "posterior"] : [],
         slots:
           i === 1
             ? [unilateral, incline, vertical, curl, rear, bi, calf, core]
@@ -296,6 +301,7 @@ export function structure(p: PathPreferences) {
   return sessions(p).map((s) => ({
     name: s.name,
     roles: s.slots.map((s) => s.role),
+    focusRoles: s.focusRoles ?? [],
   }));
 }
 // A matching pattern is preferred, never invented when equipment cannot support it.
@@ -411,7 +417,9 @@ export function generatePath(
               ? 3
               : 2
             : p.experience === "Beginner"
-              ? 3
+              ? strength
+                ? 3
+                : 2
               : strength || (physique && j < 2)
                 ? 4
                 : 3;
@@ -510,8 +518,27 @@ export function generatePath(
   // is filled into the main lifts first. Shorter productive sessions stay
   // shorter and report the honest estimate.
   const fillable = !novice && p.experience !== "Beginner";
-  if (fillable) fillProgram(days, p, catalog, strength);
-  return validateDraft({ engineVersion: 5, preferences: p, days }, catalog);
+  if (fillable) {
+    // The pre-balance allocation supplies an upper budget, not a target. A
+    // cheaper allocation must not turn saved time into additional weekly sets.
+    const reference = days.map((day) => ({
+      ...day,
+      exercises: day.exercises.map((item) => ({ ...item })),
+    }));
+    fillProgram(reference, p, catalog, strength, { preserveOrder: true });
+    const weeklyBudget = reference.reduce((n, day) => n + sessionSets(day), 0);
+    for (const [index, day] of days.entries())
+      day.exercises = redistributeFocusSets(
+        day,
+        p,
+        catalog,
+        sessions(p)[index]!.focusRoles ?? [],
+      ).exercises;
+    fillProgram(days, p, catalog, strength, { weeklyBudget });
+  }
+  const draft: PathDraft = { engineVersion: 6, preferences: p, days };
+  const balanced = redistributeWeeklySets(draft, catalog, structure(p));
+  return validateDraft({ ...draft, days: balanced.days }, catalog);
 }
 
 function sessionSets(day: PathDay): number {
@@ -528,6 +555,10 @@ function fillProgram(
   p: PathPreferences,
   catalog: Exercise[],
   strength: boolean,
+  {
+    preserveOrder = false,
+    weeklyBudget = Infinity,
+  }: { preserveOrder?: boolean; weeklyBudget?: number } = {},
 ) {
   const weekly: Record<string, number> = {};
   // Gate weekly volume on each movement's primary target muscle only. Compounds
@@ -543,7 +574,12 @@ function fillProgram(
 
   const isPrimaryStrength = (day: PathDay, i: number) => {
     const ex = catalog.find((e) => e.id === day.exercises[i]!.exerciseId);
-    return strength && i < 2 && !(ex && exerciseStimulus(ex.id).isolation);
+    const item = day.exercises[i]!;
+    return (
+      strength &&
+      (preserveOrder ? i < 2 : item.reps <= 6 && item.rest >= 180) &&
+      !(ex && exerciseStimulus(ex.id).isolation)
+    );
   };
   const orderFor = (day: PathDay) => {
     const rank = (i: number) =>
@@ -554,16 +590,31 @@ function fillProgram(
         catalog.find((e) => e.id === day.exercises[i]!.exerciseId),
       )
         ? 1
+        : 0) +
+      (!preserveOrder &&
+      sessions(p)[days.indexOf(day)]!.focusRoles?.includes(day.roles[i]!)
+        ? 1
         : 0);
-    return day.exercises.map((_, i) => i).sort((a, b) => rank(b) - rank(a));
+    return day.exercises
+      .map((_, i) => i)
+      .sort(
+        (a, b) =>
+          rank(b) - rank(a) ||
+          (preserveOrder
+            ? 0
+            : day.exercises[a]!.sets - day.exercises[b]!.sets) ||
+          a - b,
+      );
   };
 
   const cap = sessionSetCap(p);
+  let allocated = days.reduce((n, day) => n + sessionSets(day), 0);
   let added = true;
   while (added) {
     added = false;
     for (const day of days) {
       for (const i of orderFor(day)) {
+        if (allocated >= weeklyBudget) return;
         if (sessionSets(day) >= cap) break;
         const ex = catalog.find((e) => e.id === day.exercises[i]!.exerciseId);
         if (
@@ -580,6 +631,7 @@ function fillProgram(
           continue;
         }
         if (muscle) weekly[muscle] = (weekly[muscle] ?? 0) + 1;
+        allocated++;
         added = true;
       }
     }
@@ -591,7 +643,7 @@ export function validateDraft(
 ): PathDraft {
   if ((draft.engineVersion ?? 1) === 1) return validateLegacy(draft, catalog);
   if (draft.engineVersion === 2) return validateVersionTwo(draft, catalog);
-  if (![3, 4, 5].includes(draft.engineVersion ?? 1))
+  if (![3, 4, 5, 6].includes(draft.engineVersion ?? 1))
     throw new Error("Unsupported programming version.");
   const p = pathPreferencesSchema.parse(draft.preferences);
   checkPreferences(p);
@@ -599,6 +651,7 @@ export function validateDraft(
     throw new Error("Plan days do not match your weekly availability.");
   const offsets = dates(p);
   const specs = sessions(p);
+  const weekly: Record<string, number> = {};
   draft.days.forEach((day, i) => {
     if (
       day.key !== `day-${i}` ||
@@ -652,14 +705,37 @@ export function validateDraft(
         throw new Error(
           "Use 1–3 sets for beginners (1–5 for experienced lifters), 1–20 reps and at least 45 seconds rest.",
         );
+      if (draft.engineVersion === 6) {
+        const ex = catalog.find((e) => e.id === item.exerciseId);
+        const mainStrength =
+          p.pathKey === "get-strong" &&
+          item.reps <= 6 &&
+          item.rest >= 180 &&
+          !(ex && exerciseStimulus(ex.id).isolation);
+        if (item.sets > exerciseSetCap(p, ex, mainStrength))
+          throw new Error(
+            "This exercise exceeds its goal-specific working-set limit.",
+          );
+        const muscle = exerciseStimulus(item.exerciseId).direct[0];
+        if (muscle) weekly[muscle] = (weekly[muscle] ?? 0) + item.sets;
+      }
     });
-    if (day.exercises.reduce((n, e) => n + e.sets, 0) > 28)
+    if (
+      day.exercises.reduce((n, e) => n + e.sets, 0) >
+      (draft.engineVersion === 6 ? sessionSetCap(p) : 28)
+    )
       throw new Error("Keep working sets within this Path's session limit.");
     if (estimatedMinutes(day.exercises, catalog) > p.duration)
       throw new Error(
         "This edit exceeds your preferred session duration. Reduce sets or increase duration in setup.",
       );
   });
+  if (draft.engineVersion === 6)
+    for (const [muscle, sets] of Object.entries(weekly))
+      if (sets > weeklyMuscleCap(p, muscle))
+        throw new Error(
+          `${muscle} exceeds this Path's weekly primary-target set ceiling.`,
+        );
   recovery(draft.days);
   return JSON.parse(JSON.stringify(draft)) as PathDraft;
 }

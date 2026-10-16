@@ -1,6 +1,8 @@
 import { exerciseStimulus } from "./stimulus";
 import type { Exercise } from "../types";
 import type { PathDraft } from "./generator";
+import { structure } from "./generator";
+import { weeklySessionBalance } from "./balance";
 
 // Reviewed direct targets and assistance remain separate. A compound set may
 // directly target two muscles, but total workout sets count it only once.
@@ -72,6 +74,13 @@ export function workloadReview(draft: PathDraft, catalog: Exercise[]) {
     warnings,
     total,
     assistance,
+    balance: weeklySessionBalance(
+      draft,
+      catalog,
+      (draft.engineVersion ?? 1) >= 6
+        ? structure(draft.preferences)
+        : undefined,
+    ),
   };
 }
 export function trainingGuidance(key: string) {

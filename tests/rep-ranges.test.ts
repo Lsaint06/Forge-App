@@ -11,7 +11,7 @@ import { pathPreferences } from "./path-fixture";
 
 test("hypertrophy compounds have role-based ranges, not arbitrary exercise variation", () => {
   const draft = generatePath(pathPreferences(), exercises);
-  assert.equal(draft.engineVersion, 5);
+  assert.equal(draft.engineVersion, 6);
   const upper = draft.days[0]!.exercises;
   const expected = [
     ["barbell-bench-press", 6, 8],

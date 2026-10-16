@@ -33,7 +33,7 @@ test("muscle-building defaults include complementary back, leg, calf and arm wor
       exercises,
     );
     const review = workloadReview(draft, exercises);
-    assert.equal(draft.engineVersion, 5);
+    assert.equal(draft.engineVersion, 6);
     assert.deepEqual(review.warnings, []);
     assert.ok(review.sets.Chest! >= 10);
     assert.ok(review.sets.Back! >= 10);

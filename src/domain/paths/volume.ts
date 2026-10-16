@@ -2,9 +2,9 @@ import type { Exercise } from "../types";
 import { exerciseStimulus } from "./stimulus";
 import type { PathPreferences, PathRole } from "./model";
 
-// Goal-specific working-set ceilings. Duration-aware filling approaches the
-// requested session length only up to these caps, so it never adds junk volume
-// just to "use up" time. Every cap stays within the planner's hard limits
+// Goal-specific working-set ceilings, not per-person optimum doses.
+// Duration remains a budget; these bounds alone do not justify adding work.
+// Every cap stays within the planner's hard limits
 // (<= 28 working sets per session, <= 5 sets per exercise, <= 3 for beginners).
 
 export function sessionSetCap(p: PathPreferences): number {
@@ -38,10 +38,10 @@ export function exerciseSetCap(
   return isolation ? 4 : 5;
 }
 
-// Upper bound on direct weekly working sets for a single muscle, used so that
+// Upper bound on primary-target weekly working sets for a single muscle, so that
 // duration-aware filling across a high-frequency week does not pile excessive
-// volume onto one muscle. These are practical ceilings where returns clearly
-// diminish for most lifters, not claimed per-person optima. Smaller muscles and
+// volume onto one primary target. Co-targets and assistance remain visible in
+// the review, not converted into equivalent sets or a fatigue score. Smaller muscles and
 // accessories get a lower ceiling than the large prime movers.
 const smallMuscles = new Set([
   "Side delts",

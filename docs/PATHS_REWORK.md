@@ -41,6 +41,12 @@ Target-based suggestions use complete, comparable finished sessions. A load incr
 
 Programming version 5 is opt-in through accepting or rebuilding a Path; existing versions 1–4 are not regenerated. SQLite schema 2 adds nullable range/snapshot fields. Backups remain envelope version 1 with optional fields, and cloud workout aggregates carry those fields without changing the remote SQL schema. Old fixed-target backups remain readable; importing new backups into older app builds is not supported.
 
+### Planner 6: weekly session balance
+
+New plans review session purpose, working sets, duration, compound/isolation demands and overlapping muscle exposure, rather than requiring equal exercise counts. Explicit focus roles and lower-set-first allocation correct positional set bias; conservative redistribution moves existing work without adding exercises or increasing the previous weekly set budget. Goal-specific limits are enforced on new-plan edits as well as generation. Optional **Plan details** explains broad versus focused sessions and restriction-driven omissions.
+
+The [weekly balance audit](research/WEEKLY_SESSION_BALANCE.md) contains the 525-request before/after evaluation, all supported full-equipment weekly structures, muscle coverage and limitations. Existing versions 1-5 are retained until an explicit rebuild. The underlying duration model, rep ranges, saved workout snapshots and supported frequencies remain intact.
+
 The following describes the earlier Planner 3 release:
 
 Programming version 3 applies to newly accepted plans. Versions 1 and 2 retain their validation rules so old schedules can still start and be edited. SQLite schema, backup format, completed workout snapshots and explicit schedule/workout links are retained. Existing pause/resume, move, skip/restore and archive behavior remains in place.

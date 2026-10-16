@@ -35,6 +35,7 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 | Template prescriptions/start/duplicate | Implemented and tested | Actual template-to-workout integration test |
 | Purposeful hypertrophy rep ranges and frozen workout targets | Implemented and tested | Planner 5 range, duration, migration/backup/sync and native UI regressions; existing plans require an explicit rebuild to adopt new ranges |
 | Target-specific repetition/load progression | Implemented and tested | Complete comparable sessions and explicit effort required for an increase; user applies suggestions, never warm-ups or completed sets; technique/recovery still require judgment |
+| Purpose-aware weekly session balance and review | Implemented and tested | Planner 6: 525-request replay, volume-neutral redistribution, focus/assistance corrections, goal-specific edit guards and optional diagnostics; exercise counts need not match; personal fatigue/recovery is not modeled |
 | Template creation/editor/deletion/scheduling UI | Implemented but unverified | Native flows not exercised |
 | Ready-made starter-program catalog and adoption | Retired | Removed from Home/Train/template entry points; Forge Paths remains the guided-plan offering; existing saved data is preserved |
 | Legacy program schedules and deload starts | Implemented and tested | Saved templates, program/schedule journals, backups and completed workouts are retained; UI regression starts a restored deload session; physical-device testing outstanding |
