@@ -37,10 +37,12 @@ export function targetProgression(
     reason: `Build repetitions toward ${target.max} on every working set before increasing load. Keep technique controlled; an effort entry cannot verify technique.`,
   };
   if (recent.length < 2) return hold;
+  // Matches Path effort targets (about one to two reps in reserve). Sets taken
+  // to failure do not establish that the load is manageable.
   const effortSupported = (s: WorkoutSet) =>
     (s.rpe != null || s.rir != null) &&
-    (s.rpe == null || s.rpe <= 8) &&
-    (s.rir == null || s.rir >= 2);
+    (s.rpe == null || s.rpe <= 9) &&
+    (s.rir == null || s.rir >= 1);
   if (recent.every((h) => h.every((s) => s.reps >= target.max))) {
     if (!recent.every((h) => h.every(effortSupported)))
       return {

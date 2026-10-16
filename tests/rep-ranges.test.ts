@@ -2,57 +2,111 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { exercises } from "../src/data/catalog";
 import { generatePath, validateDraft } from "../src/domain/paths/generator";
-import { compoundRepRange } from "../src/domain/paths/repRanges";
+import { generatePath as legacyPath } from "../src/domain/paths/legacyGenerator";
+import { prescriptionPolicy } from "../src/domain/paths/policy";
 import { repRangeLabel } from "../src/domain/prescriptions";
 import { targetProgression } from "../src/domain/progression";
 import type { RepTarget, WorkoutSet } from "../src/domain/types";
 import { pathPreferences } from "./path-fixture";
 
-test("hypertrophy compounds have role-based ranges, not arbitrary exercise variation", () => {
+test("prescriptions follow each movement's purpose, not its slot or an experience multiplier", () => {
   const draft = generatePath(pathPreferences(), exercises);
-  assert.equal(draft.engineVersion, 7);
   const upper = draft.days[0]!.exercises;
   const expected = [
-    ["barbell-bench-press", 6, 8],
-    ["seated-cable-row", 8, 10],
-    ["lat-pulldown", 10, 12],
-    ["incline-dumbbell-bench-press", 8, 12],
+    // Heavy session anchor, stable cable/machine compounds, then isolation.
+    ["barbell-bench-press", 3, 6, 8, 180],
+    ["seated-cable-row", 3, 8, 12, 120],
+    ["lat-pulldown", 3, 8, 12, 120],
+    ["dumbbell-lateral-raise", 3, 10, 15, 90],
   ] as const;
-  for (const [id, min, max] of expected) {
+  for (const [id, sets, min, max, rest] of expected) {
     const item = upper.find((p) => p.exerciseId === id)!;
-    assert.equal(item.reps, min, id);
-    assert.equal(item.repMax, max, id);
+    assert.deepEqual(
+      [item.sets, item.reps, item.repMax, item.rest],
+      [sets, min, max, rest],
+      id,
+    );
   }
-  const alternate = compoundRepRange(
-    pathPreferences(),
-    exercises.find((e) => e.id === "dumbbell-bench-press")!,
+  // Advanced lifters do not receive more sets per lift than intermediates.
+  const intermediate = prescriptionPolicy(pathPreferences(), "compound", true);
+  const advanced = prescriptionPolicy(
+    pathPreferences({ experience: "Advanced" }),
+    "compound",
     true,
   );
-  assert.deepEqual(alternate, { reps: 6, repMax: 8 });
+  assert.ok(advanced.sets <= intermediate.sets);
+  assert.ok(advanced.rir[0] <= intermediate.rir[0]);
 });
 
-test("foundation, strength, athletic and recomposition prescriptions keep their existing fixed targets", () => {
+test("every non-strength prescription uses a rep range so double progression applies", () => {
   for (const pathKey of [
     "start-strong",
-    "get-strong",
+    "build-muscle",
     "athlete-mode",
     "lean-strong",
-  ] as const) {
-    const draft = generatePath(
-      pathPreferences({ pathKey, frequency: 3 }),
-      exercises,
-    );
-    assert.ok(
-      draft.days.every((d) => d.exercises.every((p) => p.repMax == null)),
-    );
-  }
-  const beginner = generatePath(
-    pathPreferences({ experience: "Beginner" }),
+    "advanced-physique",
+  ] as const)
+    for (const experience of [
+      "Beginner",
+      "Intermediate",
+      "Advanced",
+    ] as const) {
+      if (pathKey === "advanced-physique" && experience === "Beginner")
+        continue;
+      const draft = generatePath(
+        pathPreferences({ pathKey, frequency: 3, experience }),
+        exercises,
+      );
+      assert.ok(
+        draft.days.every((d) =>
+          d.exercises.every((p) => p.repMax != null && p.repMax > p.reps),
+        ),
+        `${pathKey} ${experience}`,
+      );
+    }
+  // Beginners train strength with dumbbell variants (barbell lifts unlock at
+  // Intermediate), so their main lifts use a 6-8 range with long rests.
+  const strength = generatePath(
+    pathPreferences({
+      pathKey: "get-strong",
+      experience: "Beginner",
+      frequency: 3,
+    }),
     exercises,
   );
   assert.ok(
-    beginner.days.every((d) => d.exercises.every((p) => p.repMax == null)),
+    strength.days.every((d) =>
+      d.exercises
+        .slice(0, 2)
+        .every((p) => p.reps === 6 && p.repMax === 8 && p.rest >= 180),
+    ),
   );
+});
+
+test("heavy targets of five or fewer reps are reserved for barbell and machine lifts", () => {
+  for (const pathKey of [
+    "get-strong",
+    "athlete-mode",
+    "build-muscle",
+    "lean-strong",
+  ] as const)
+    for (const experience of ["Beginner", "Intermediate", "Advanced"] as const)
+      for (const frequency of [3, 4]) {
+        const draft = generatePath(
+          pathPreferences({ pathKey, experience, frequency }),
+          exercises,
+        );
+        for (const item of draft.days.flatMap((d) => d.exercises)) {
+          const exercise = exercises.find((e) => e.id === item.exerciseId)!;
+          if (item.reps > 5) continue;
+          assert.match(
+            `${exercise.equipment} ${exercise.id}`,
+            /barbell|machine|cable|smith|leg press/i,
+            `${pathKey} ${experience} ${frequency}d: ${item.exerciseId} ${item.reps}`,
+          );
+          if (exercise.pattern === "hinge") assert.ok(item.reps >= 5);
+        }
+      }
 });
 
 test("new ranges retain session and weekly safeguards across supported hypertrophy frequencies", () => {
@@ -74,20 +128,12 @@ test("new ranges retain session and weekly safeguards across supported hypertrop
   }
 });
 
-test("a fixed-target Planner 4 draft still validates without conversion", () => {
-  const current = generatePath(pathPreferences(), exercises);
-  const fixed = {
-    ...current,
-    engineVersion: 4 as const,
-    days: current.days.map((d) => ({
-      ...d,
-      exercises: d.exercises.map(({ repMax, ...p }) => {
-        void repMax;
-        return { ...p, reps: 8 };
-      }),
-    })),
-  };
-  assert.deepEqual(validateDraft(fixed, exercises), fixed);
+test("a fixed-target first-engine draft still validates without conversion", () => {
+  const legacy = legacyPath(pathPreferences(), exercises);
+  assert.ok(
+    legacy.days.every((d) => d.exercises.every((p) => p.repMax == null)),
+  );
+  assert.deepEqual(validateDraft(legacy, exercises), legacy);
 });
 
 test("rep labels distinguish genuine ranges from fixed targets", () => {
@@ -141,9 +187,19 @@ test("range progression first builds reps and only suggests an increase with rep
     ).weight,
     50,
   );
+  // About one rep in reserve matches the Path effort target and progresses.
   assert.equal(
     targetProgression(
-      [session(8, { rpe: 9 }), session(8, { rpe: 9 })],
+      [session(8, { rpe: 9 }), session(8, { rir: 1 })],
+      target,
+      2.5,
+    ).weight,
+    52.5,
+  );
+  // Sets taken to failure do not establish a manageable load.
+  assert.equal(
+    targetProgression(
+      [session(8, { rir: 0 }), session(8, { rir: 0 })],
       target,
       2.5,
     ).weight,

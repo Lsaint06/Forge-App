@@ -9,20 +9,19 @@ import {
   Row,
   Field,
   Chips,
-  NumberField,
   Sheet,
   ProgressBar,
   useColors,
 } from "../components/ui";
 import { PathWorkoutList } from "../components/PathWorkoutList";
+import { PathDayEditor, PlanPreview } from "../components/PathPlanEditor";
 import { SectionHeader } from "../components/design";
 import { useRepo, mutate, confirm } from "../state";
 import { Alert } from "../platform/alert";
 import { forgePaths } from "../domain/paths/catalog";
 import {
+  ENGINE_VERSION,
   generatePath,
-  compatibleMovements,
-  roleReasons,
   structure,
   type PathDraft,
   type PathDay,
@@ -53,7 +52,7 @@ import {
   workloadGuidance,
   type PathSession,
 } from "../data/paths";
-import { localDate, type Exercise, type Prescription } from "../domain/types";
+import { localDate, type Prescription } from "../domain/types";
 import {
   calendarWeek,
   weekDates,
@@ -62,7 +61,8 @@ import {
 } from "../domain/paths/calendar";
 import { workloadReview, trainingGuidance } from "../domain/paths/review";
 import { auditWeek } from "../domain/paths/weekAudit";
-import { kgToLb, lbToKg } from "../domain/metrics";
+import { assessProgram, programErrors } from "../domain/paths/programQuality";
+import { stallGuidance } from "../domain/paths/policy";
 
 const workingSets = (items: Prescription[]) =>
   items.reduce((n, e) => n + e.sets, 0);
@@ -121,134 +121,7 @@ function ChoiceList<T extends string | number>({
   );
 }
 
-export function PathDayEditor({
-  day,
-  preferences,
-  catalog,
-  onChange,
-}: {
-  day: PathDay;
-  preferences: PathPreferences;
-  catalog: Exercise[];
-  onChange: (day: PathDay) => void;
-}) {
-  const units = useRepo().profile().units;
-  const [choosing, setChoosing] = useState<number>();
-  function update(index: number, patch: Partial<Prescription>) {
-    onChange({
-      ...day,
-      exercises: day.exercises.map((e, i) =>
-        i === index ? { ...e, ...patch } : e,
-      ),
-    });
-  }
-  return (
-    <View style={{ gap: 16 }}>
-      <Label bold size={22}>
-        {day.name}
-      </Label>
-      <Label muted>
-        {day.exercises.length} exercises · {workingSets(day.exercises)} working
-        sets · train at your own pace with the listed rests
-      </Label>
-      <Label muted size={13}>
-        Reps is the lower target; maximum reps is the upper target. Use equal
-        values for a fixed prescription.
-      </Label>
-      {day.exercises.map((item, index) => (
-        <Card key={`${day.key}-${index}`}>
-          <Label bold size={18}>
-            {catalog.find((e) => e.id === item.exerciseId)?.name ??
-              "Movement unavailable"}
-          </Label>
-          <Label muted size={13}>
-            {roleReasons[day.roles[index]!]}
-          </Label>
-          <Button
-            title={
-              choosing === index
-                ? "Close movement choices"
-                : `Change movement ${index + 1}`
-            }
-            secondary
-            onPress={() => setChoosing(choosing === index ? undefined : index)}
-          />
-          {choosing === index &&
-            compatibleMovements(preferences, day.roles[index]!, catalog)
-              .filter(
-                (move) =>
-                  !day.exercises.some(
-                    (e, i) => i !== index && e.exerciseId === move.id,
-                  ),
-              )
-              .map((move) => (
-                <Button
-                  key={move.id}
-                  title={`Choose ${catalog.find((e) => e.id === move.id)!.name}`}
-                  secondary
-                  onPress={() => {
-                    update(index, { exerciseId: move.id });
-                    setChoosing(undefined);
-                  }}
-                />
-              ))}
-          <Row>
-            <NumberField
-              label={`${day.name} exercise ${index + 1} sets`}
-              value={item.sets}
-              integer
-              min={1}
-              max={5}
-              onSave={(sets) => update(index, { sets: sets! })}
-            />
-            <NumberField
-              label={`${day.name} exercise ${index + 1} reps`}
-              value={item.reps}
-              integer
-              min={1}
-              max={20}
-              onSave={(reps) =>
-                update(index, {
-                  reps: reps!,
-                  ...(item.repMax != null
-                    ? { repMax: Math.max(reps!, item.repMax) }
-                    : {}),
-                })
-              }
-            />
-            <NumberField
-              label={`${day.name} exercise ${index + 1} maximum reps`}
-              value={item.repMax ?? item.reps}
-              integer
-              min={item.reps}
-              max={20}
-              onSave={(repMax) => update(index, { repMax: repMax! })}
-            />
-            <NumberField
-              label={`${day.name} exercise ${index + 1} load (${units})`}
-              value={units === "lb" ? kgToLb(item.weight) : item.weight}
-              min={0}
-              max={units === "lb" ? kgToLb(2000) : 2000}
-              onSave={(weight) =>
-                update(index, {
-                  weight: units === "lb" ? lbToKg(weight!) : weight!,
-                })
-              }
-            />
-            <NumberField
-              label={`${day.name} exercise ${index + 1} rest (seconds)`}
-              value={item.rest}
-              integer
-              min={45}
-              max={3600}
-              onSave={(rest) => update(index, { rest: rest! })}
-            />
-          </Row>
-        </Card>
-      ))}
-    </View>
-  );
-}
+export { PathDayEditor };
 
 export default function Paths() {
   const r = useRepo();
@@ -256,7 +129,6 @@ export default function Paths() {
   const [details, setDetails] = useState(false);
   const [manage, setManage] = useState(false);
   const [sessionActions, setSessionActions] = useState(false);
-  const [previewIndex, setPreviewIndex] = useState(0);
   const [focusedSessionId, setFocusedSessionId] = useState<string>();
   const [selectedDate, setSelectedDate] = useState<string>();
   const params = useLocalSearchParams<{ programId?: string; week?: string }>();
@@ -329,7 +201,6 @@ export default function Paths() {
   const [preferences, setPreferences] = useState<PathPreferences>();
   const [draft, setDraft] = useState<PathDraft>();
   const [query, setQuery] = useState("");
-  const [expanded, setExpanded] = useState<string>();
   const [editing, setEditing] = useState<{ index: number; day: PathDay }>();
   const [moving, setMoving] = useState<PathSession>();
   const [moveDate, setMoveDate] = useState(localDate());
@@ -344,8 +215,35 @@ export default function Paths() {
         ? savedDraft(r, selected)
         : undefined;
   const review = reviewDraft ? workloadReview(reviewDraft, catalog) : undefined;
-  const previewDay = draft?.days[Math.min(previewIndex, draft.days.length - 1)];
+  const previewFindings =
+    view === "preview" && draft ? assessProgram(draft, catalog) : [];
+  // Live findings while editing a saved current-engine day; earlier engines
+  // keep their own saved-plan rules.
+  const editFindings =
+    editing && selected && selected.data.engineVersion >= ENGINE_VERSION
+      ? assessProgram(
+          {
+            preferences: selected.data.preferences,
+            days: savedDraft(r, selected).days.map((d, i) =>
+              i === editing.index ? editing.day : d,
+            ),
+          },
+          catalog,
+        )
+      : [];
   const definition = forgePaths.find((p) => p.key === preferences?.pathKey);
+  const today = localDate();
+  const startChoices = [
+    { label: "Today", date: today },
+    { label: "Tomorrow", date: addDays(today, 1) },
+    {
+      label: "Next Monday",
+      date: addDays(
+        today,
+        7 - ((new Date(`${today}T12:00:00`).getDay() + 6) % 7),
+      ),
+    },
+  ];
   function choose(path: PathDefinition) {
     const p = r.profile();
     const experience = ["Beginner", "Intermediate", "Advanced"].includes(
@@ -384,8 +282,6 @@ export default function Paths() {
     setStep(0);
     setView("setup");
     setDraft(undefined);
-    setPreviewIndex(0);
-    setExpanded(undefined);
   }
   function patch(patch: Partial<PathPreferences>) {
     setPreferences((p) => (p ? { ...p, ...patch } : p));
@@ -394,7 +290,6 @@ export default function Paths() {
     try {
       const result = generatePath(preferences!, catalog);
       setDraft(result);
-      setExpanded(result.days[0]?.key);
       setView("preview");
     } catch (error) {
       Alert.alert(
@@ -532,6 +427,20 @@ export default function Paths() {
                 selected={preferences.weekdays}
                 names={weekdayNames}
                 onChange={(weekdays) => patch({ weekdays })}
+              />
+              <Label muted>Start</Label>
+              <Chips
+                values={startChoices.map((c) => c.label)}
+                value={
+                  startChoices.find((c) => c.date === preferences.startDate)
+                    ?.label ?? ""
+                }
+                onChange={(label) =>
+                  patch({
+                    startDate: startChoices.find((c) => c.label === label)!
+                      .date,
+                  })
+                }
               />
               <Field
                 label="Path start date (YYYY-MM-DD)"
@@ -678,99 +587,45 @@ export default function Paths() {
         </>
       )}
 
-      {view === "preview" && draft && previewDay && (
-        <>
-          <SectionHeader
-            title="Your plan, before you commit."
-            detail={definition!.name}
-          />
-          <Card>
-            <Label bold size={23}>
-              {draft.preferences.frequency} days a week. Eight weeks.
-            </Label>
-            <Label muted>
-              Starts {draft.preferences.startDate} · Built around your equipment
-            </Label>
-            <Chips
-              values={draft.days.map(
-                (day, i) =>
-                  `${weekdayNames[(new Date(`${addDays(draft.preferences.startDate, day.offset)}T12:00:00`).getDay() + 6) % 7]} · ${i + 1}`,
-              )}
-              value={`${weekdayNames[(new Date(`${addDays(draft.preferences.startDate, previewDay.offset)}T12:00:00`).getDay() + 6) % 7]} · ${Math.min(previewIndex, draft.days.length - 1) + 1}`}
-              onChange={(v) => {
-                setPreviewIndex(Number(v.split(" · ")[1]) - 1);
-                setExpanded(undefined);
-              }}
-            />
-            <Label bold size={20}>
-              {previewDay.name}
-            </Label>
-            <Label muted size={13}>
-              {previewDay.exercises.length} exercises ·{" "}
-              {workingSets(previewDay.exercises)} working sets
-            </Label>
-            <PathWorkoutList items={previewDay.exercises} catalog={catalog} />
-            <Button
-              title="Customize this workout"
-              secondary
-              onPress={() => setExpanded(expanded ? undefined : previewDay.key)}
-            />
-            {expanded === previewDay.key && (
-              <PathDayEditor
-                day={previewDay}
-                preferences={draft.preferences}
-                catalog={catalog}
-                onChange={(day) =>
-                  setDraft({
-                    ...draft,
-                    days: draft.days.map((d) => (d.key === day.key ? day : d)),
-                  })
-                }
-              />
-            )}
-          </Card>
-          <Button
-            title={
-              review?.warnings.length ||
-              review?.balance.diagnostics.some(
-                (item) => item.kind !== "intentional",
-              )
-                ? "Review coverage & adjustments"
-                : "Why this plan?"
-            }
-            secondary
-            onPress={() => setDetails(true)}
-          />
-          <Button
-            title="Start this Path"
-            icon="trail-sign-outline"
-            onPress={() =>
-              confirm(
-                active
-                  ? "Replace your current Path?"
-                  : "Start this eight-week Path?",
-                active
-                  ? "Your previous Path will be archived. Its calendar and every recorded workout are preserved. This adds the previewed plan to your calendar."
-                  : "This saves the previewed workouts and all eight weeks to your calendar. Your existing workouts are preserved.",
-                () => {
-                  const record = acceptPath(r, draft, !!active);
-                  setSelectedId(record.id);
-                  setSelectedDate(undefined);
-                  setWeek(1);
-                  setView("dashboard");
-                },
-              )
-            }
-          />
-          <Button
-            title="Back to personalization"
-            secondary
-            onPress={() => {
-              setStep(0);
-              setView("setup");
-            }}
-          />
-        </>
+      {view === "preview" && draft && (
+        <PlanPreview
+          draft={draft}
+          catalog={catalog}
+          pathName={definition!.name}
+          findings={previewFindings}
+          detailsTitle={
+            review?.warnings.length ||
+            review?.balance.diagnostics.some(
+              (item) => item.kind !== "intentional",
+            )
+              ? "Review coverage & adjustments"
+              : "Why this plan?"
+          }
+          onChange={setDraft}
+          onDetails={() => setDetails(true)}
+          onBack={() => {
+            setStep(0);
+            setView("setup");
+          }}
+          onStart={() =>
+            confirm(
+              active
+                ? "Replace your current Path?"
+                : "Start this eight-week Path?",
+              active
+                ? "Your previous Path will be archived. Its calendar and every recorded workout are preserved. This adds the previewed plan to your calendar."
+                : "This saves the previewed workouts and all eight weeks to your calendar. Your existing workouts are preserved.",
+              () => {
+                const record = mutate(() => acceptPath(r, draft, !!active));
+                if (!record) return;
+                setSelectedId(record.id);
+                setSelectedDate(undefined);
+                setWeek(1);
+                setView("dashboard");
+              },
+            )
+          }
+        />
       )}
 
       {view === "dashboard" &&
@@ -1153,7 +1008,6 @@ export default function Paths() {
                     setStep(0);
                     setView("setup");
                     setDraft(undefined);
-                    setPreviewIndex(0);
                   }}
                 />
               </>
@@ -1261,12 +1115,12 @@ export default function Paths() {
         {reviewDraft && review && (
           <>
             {selected &&
-              selected.data.engineVersion < 7 &&
+              selected.data.engineVersion < ENGINE_VERSION &&
               view !== "preview" && (
                 <Label muted>
                   This saved plan uses an earlier planner. Use Manage Path →
-                  Rebuild this Path to preview balanced training days without
-                  time limits. Logged workouts stay unchanged.
+                  Rebuild this Path to preview the current evidence-based
+                  programming. Logged workouts stay unchanged.
                 </Label>
               )}
             <Label bold>Foundation · Weeks 1–4</Label>
@@ -1276,6 +1130,16 @@ export default function Paths() {
               rotation.
             </Label>
             <Label>{trainingGuidance(reviewDraft.preferences.pathKey)}</Label>
+            <Label bold>How progression works</Label>
+            <Label muted size={13}>
+              Each exercise has a rep range and an effort target. Keep one load
+              for all working sets and add reps across sessions. When every set
+              reaches the top of the range at the target effort, add the
+              smallest available load and build back up.
+            </Label>
+            <Label muted size={13}>
+              {stallGuidance}
+            </Label>
             <Label muted>{weekIntention(trainingWeeks[0] ?? 1)}</Label>
             <Label bold>Weekly session balance</Label>
             <Label muted size={12}>
@@ -1308,21 +1172,29 @@ export default function Paths() {
               ))}
             <Label bold>Weekly muscle coverage</Label>
             <Label muted size={12}>
-              Direct working sets and supporting work are separate. A compound
-              set can target more than one muscle; weekly total counts each set
-              once. Allocation ceilings count the primary target of each
-              movement; co-target and supporting exposure still matter for
-              recovery. These counts are not a measured fatigue score.
+              Direct sets are exercises aimed at that muscle and are what the
+              weekly targets count. Compound lifts that also train a muscle
+              (such as glutes in a squat) are shown as secondary; Forge
+              estimates them at half a set each for its fatigue ceilings. That
+              is a planning convention, not a measured conversion. Supporting
+              work (for example triceps in a press) is listed for context only.
+              Weekly total counts each set once.
             </Label>
             {Array.from(
               new Set([
                 ...Object.keys(review.sets),
+                ...Object.keys(review.secondary),
                 ...Object.keys(review.assistance),
               ]),
             ).map((muscle) => (
               <Label key={muscle}>
-                {muscle}: {review.sets[muscle] ?? 0} direct ·{" "}
-                {review.assistance[muscle] ?? 0} supporting
+                {muscle}: {review.sets[muscle] ?? 0} direct
+                {review.secondary[muscle]
+                  ? ` · ${review.secondary[muscle]} secondary`
+                  : ""}
+                {review.assistance[muscle]
+                  ? ` · ${review.assistance[muscle]} supporting`
+                  : ""}
               </Label>
             ))}
             {review.warnings.map((w) => (
@@ -1334,7 +1206,14 @@ export default function Paths() {
             <PathWorkoutList
               items={
                 view === "preview"
-                  ? (previewDay?.exercises ?? [])
+                  ? (reviewDraft.days
+                      .flatMap((d) => d.exercises)
+                      .filter(
+                        (e, i, all) =>
+                          all.findIndex(
+                            (x) => x.exerciseId === e.exerciseId,
+                          ) === i,
+                      ) ?? [])
                   : (template?.exercises ?? [])
               }
               catalog={catalog}
@@ -1343,8 +1222,8 @@ export default function Paths() {
             <Label muted>
               Load fields start at zero. Choose your own working load.
               Repetitions are per side for single-arm, single-leg and
-              alternating core movements. Estimates include a short warm-up;
-              allow extra preparation for heavy lifts.
+              alternating core movements. Warm-up sets are additional to the
+              listed working sets; allow extra preparation for heavy lifts.
             </Label>
           </>
         )}
@@ -1361,22 +1240,28 @@ export default function Paths() {
               day={editing.day}
               preferences={selected.data.preferences}
               catalog={catalog}
+              findings={editFindings}
               onChange={(day) => setEditing({ ...editing, day })}
             />
             <Button
               title="Save Path workout"
+              disabled={programErrors(editFindings).length > 0}
               onPress={() =>
                 confirm(
                   "Save this workout for future starts?",
                   "Both phases use this prescription. Existing recorded sets and any active workout are preserved.",
                   () => {
-                    editPathDay(
-                      r,
-                      selected.record.id,
-                      editing.index,
-                      editing.day.exercises,
-                    );
-                    setEditing(undefined);
+                    let saved = false;
+                    mutate(() => {
+                      editPathDay(
+                        r,
+                        selected.record.id,
+                        editing.index,
+                        editing.day.exercises,
+                      );
+                      saved = true;
+                    });
+                    if (saved) setEditing(undefined);
                   },
                 )
               }

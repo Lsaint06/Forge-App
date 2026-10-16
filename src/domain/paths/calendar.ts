@@ -16,7 +16,7 @@ export const weekIntentions = [
   "Foundation · Repeat clean technique. Add a repetition where you can without shortening your range or rushing your rest.",
   "Foundation · Build consistency. When every working set reaches its target with control and around two repetitions left, consider the smallest available load increase.",
   "Foundation · Review your log and recovery. Repeat successful loads; reduce effort if fatigue is accumulating. A personal record is not required.",
-  "Evolution · Keep the same exercises and compare with your Foundation records. Use small load or repetition improvements when earned; nothing rotates automatically.",
+  "Evolution · Keep the same exercises and compare with your Foundation records. Experienced plans may add a set to accessory work or set a slightly heavier target on main lifts; follow today's workout. Use small load or repetition improvements when earned; nothing rotates automatically.",
   "Evolution · Aim for quality working sets. For muscle-building work, about one to three repetitions left is a practical guide; stop earlier if technique deteriorates.",
   "Evolution · Consolidate progress. Keep strength lifts controlled, with about two repetitions left, and take the full rest. Avoid grinding or chasing failure.",
   "Evolution · Finish and review. Compare your own loads, repetitions and consistency. Recover missed sessions at a suitable time; unfinished sessions never become completed automatically.",

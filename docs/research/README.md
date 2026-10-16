@@ -12,3 +12,4 @@ For future work, read both documents before proposing programming changes. Check
 Record what was actually accessed: full text/relevant sections, abstract, public official feed, secondary account, or inaccessible. A fetched page or a search snippet is not sufficient verification of its claims. Do not reproduce entire copyrighted articles in this repository.
 
 - [Planner 3 programming audit](PROGRAMMING_AUDIT_2026_10_15.md): confirmed implementation defects, corrections, actual default prescriptions, evidence rationale and verification limits.
+- [Programming specification (Planner 8)](PROGRAMMING_SPEC_V2.md): the current, implemented rules. Covers the sources actually reviewed, rule-by-rule evidence and strength of support, the prescription and volume tables, an audit of Planner 7, and before/after weekly programs. This supersedes earlier audits for current behaviour; earlier documents remain as history.

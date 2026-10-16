@@ -6,6 +6,7 @@ import { exerciseStimulus } from "../src/domain/paths/stimulus";
 import { generatePath } from "../src/domain/paths/generator";
 import { generatePath as previousPlanner } from "../src/domain/paths/versionTwoGenerator";
 import { workloadReview } from "../src/domain/paths/review";
+import { prescriptionPolicy } from "../src/domain/paths/policy";
 import { pathPreferences, pathRepository } from "./path-fixture";
 import {
   acceptPath,
@@ -53,8 +54,17 @@ test("default weekly plans cover major muscle groups through deliberate direct o
     const review = workloadReview(plan, exercises);
     for (const muscle of muscles)
       assert.ok(
-        (review.sets[muscle] ?? 0) + (review.assistance[muscle] ?? 0) > 0,
+        (review.sets[muscle] ?? 0) +
+          (review.secondary[muscle] ?? 0) +
+          (review.assistance[muscle] ?? 0) >
+          0,
         `${path.key}: ${muscle}`,
+      );
+    // Secondary involvement is reported separately, never as direct sets.
+    if (review.secondary.Glutes)
+      assert.ok(
+        (review.sets.Glutes ?? 0) < review.secondary.Glutes,
+        "squat/hinge glute work is secondary, not direct",
       );
     assert.equal(
       review.total,
@@ -104,8 +114,11 @@ test("isolation prescriptions follow the selected exercise rather than a generic
   const fly = plan.days
     .flatMap((d) => d.exercises)
     .find((e) => e.exerciseId === "standing-cable-fly")!;
-  assert.equal(fly.reps, 12);
-  assert.equal(fly.rest, 75);
+  const policy = prescriptionPolicy(plan.preferences, "isolation", false);
+  assert.deepEqual(
+    [fly.reps, fly.repMax, fly.rest],
+    [policy.reps, policy.repMax, policy.rest],
+  );
   assert.deepEqual(exerciseStimulus(fly.exerciseId).assistance, []);
 });
 

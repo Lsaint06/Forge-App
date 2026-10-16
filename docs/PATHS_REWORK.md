@@ -41,6 +41,22 @@ Target-based suggestions use complete, comparable finished sessions. A load incr
 
 Programming version 5 is opt-in through accepting or rebuilding a Path; existing versions 1–4 are not regenerated. SQLite schema 2 adds nullable range/snapshot fields. Backups remain envelope version 1 with optional fields, and cloud workout aggregates carry those fields without changing the remote SQL schema. Old fixed-target backups remain readable; importing new backups into older app builds is not supported.
 
+### Planner 8: evidence-based prescriptions and customization
+
+Every prescription now comes from a central policy (`src/domain/paths/policy.ts`), based on the movement's purpose (heavy main lift, session-anchor compound, other compound, machine/cable, isolation, core), the Path's goal and the lifter's experience. Sets are no longer filled up to a session cap. Each muscle is brought into an evidence-informed weekly range instead, and advanced lifters get closer proximity to failure and more targeted exercises rather than more sets per lift. Every non-strength exercise has a rep range and an effort target (reps in reserve), so double progression applies. Load increases now require about one rep in reserve (logged RPE ≤ 9 or RIR ≥ 1), matching the prescribed effort. The rules, sources and before/after programs are in the [programming specification](research/PROGRAMMING_SPEC_V2.md).
+
+`src/domain/paths/programQuality.ts` is the single validation engine for generation, saved-plan validation and live customization. Errors (integrity rules) block starting or saving a plan; warnings (for example a fifth set, volume modestly above a ceiling, short rest on a heavy lift, or a fixed rep target) inform without overriding the user.
+
+The pre-commitment preview is a week overview: one collapsible card per day with its focus, exercise count, sets and main muscles. Exercises are compact rows that expand to set and rep steppers, rest chips, effort and progression guidance, a ranked swap list that preserves the slot's purpose, and an optional starting load. Findings update as the user edits, and **Start this Path** is disabled until errors are resolved. The dashboard's workout editor uses the same components and checks. Saved plans from Planners 1–7 keep their own rules and stay usable.
+
+A final quality audit (spec §3a, §3b and §7) made the following changes:
+- Direct sets are now separated from estimated secondary involvement. Only direct sets count toward floors; the 0.5 secondary weight feeds ceilings and fatigue warnings and is labelled as a heuristic in the plan details.
+- Weekly floors are capped by training frequency. Three-day plans are designed for three days, with seven exercises and about 21 sets per full-body session.
+- Generated defaults stop at about 60% of each weekly range.
+- Load-limited lifts keep 6+ reps and hinges 5+.
+- Repeated core work is removed from 4-day athletic and recomposition splits.
+- Foundation (weeks 1–4) and Evolution (weeks 5–8) now differ. Evolution keeps the same exercises; experienced hypertrophy, recomposition and athletic plans add bounded accessory volume, and strength main lifts move one rep heavier. Beginners repeat Foundation. Edits to a current plan re-derive Evolution.
+
 ### Planner 7: balanced weeks without time limits
 
 The 30/60/90-minute duration selection, duration-based generation and the session-time estimator are removed. Saved programs and backups that still contain a `duration` preference load normally; the value is ignored. The profile's former "preferred workout duration" field is no longer shown but stays stored for older backups. Rest timers and recorded workout durations are unchanged.

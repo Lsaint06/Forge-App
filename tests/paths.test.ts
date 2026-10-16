@@ -10,6 +10,8 @@ import {
   validateDraft,
   scheduledDates,
   compatibleMovements,
+  evolutionDays,
+  EVOLUTION_VOLUME_INCREASE,
 } from "../src/domain/paths/generator";
 import { addDays, defaultWeekdays } from "../src/domain/paths/model";
 import {
@@ -161,7 +163,10 @@ test("preview overrides remain constrained and do not mutate generator inputs", 
   assert.doesNotThrow(() => validateDraft(copy, exercises));
   assert.equal(JSON.stringify(draft), before);
   copy.days[0]!.exercises[0]!.exerciseId = "pistol-squat";
-  assert.throws(() => validateDraft(copy, exercises), /restrictions/);
+  assert.throws(
+    () => validateDraft(copy, exercises),
+    /restrictions|conflicts with your equipment/,
+  );
   copy.days[0]!.exercises[0]!.exerciseId =
     draft.days[0]!.exercises[0]!.exerciseId;
   copy.days[0]!.exercises[0]!.sets = 30;
@@ -181,26 +186,80 @@ function finish(r: ReturnType<typeof pathRepository>["r"], sessionId: string) {
   r.finishWorkout(w.id);
   return w;
 }
-test("acceptance persists independent phase references and identical Phase A selections", () => {
+test("acceptance persists independent phase references; Evolution keeps the exercises and adds bounded accessory volume", () => {
   const { r, program } = accepted();
   assert.equal(pathSessions(r, program).length, 32);
   assert.equal(program.data.phases[0].from, 1);
   assert.equal(program.data.phases[0].to, 4);
   assert.equal(program.data.phases[1].from, 5);
   assert.equal(program.data.phases[1].to, 8);
+  const foundation = savedDraft(r, program, 0);
+  const evolution = savedDraft(r, program, 1);
+  const sets = (d: typeof foundation) =>
+    d.days.flatMap((x) => x.exercises).reduce((n, e) => n + e.sets, 0);
   for (let i = 0; i < 4; i++) {
     assert.notEqual(
       program.data.phases[0].templateIds[i],
       program.data.phases[1].templateIds[i],
     );
+    // Same exercises, order, rest and rep targets: progress stays comparable.
     assert.deepEqual(
-      savedDraft(r, program, 0).days[i]!.exercises,
-      savedDraft(r, program, 1).days[i]!.exercises,
+      evolution.days[i]!.exercises.map(({ sets, ...rest }) => {
+        void sets;
+        return rest;
+      }),
+      foundation.days[i]!.exercises.map(({ sets, ...rest }) => {
+        void sets;
+        return rest;
+      }),
+    );
+    evolution.days[i]!.exercises.forEach((e, j) =>
+      assert.ok(e.sets - foundation.days[i]!.exercises[j]!.sets <= 1),
     );
   }
+  assert.ok(sets(evolution) > sets(foundation));
+  assert.ok(
+    sets(evolution) <=
+      sets(foundation) +
+        Math.floor(sets(foundation) * EVOLUTION_VOLUME_INCREASE),
+  );
+  assert.doesNotThrow(() => validateDraft(evolution, exercises));
   const backup = r.exportBackup();
   r.migrate();
   assert.deepEqual(r.exportBackup().journals, backup.journals);
+});
+test("beginner Paths repeat Foundation in Evolution and strength Paths move main lifts heavier", () => {
+  const beginner = generatePath(
+    pathPreferences({
+      pathKey: "start-strong",
+      experience: "Beginner",
+      frequency: 3,
+    }),
+    exercises,
+  );
+  assert.deepEqual(evolutionDays(beginner, exercises), beginner.days);
+  const strength = generatePath(
+    pathPreferences({ pathKey: "get-strong", frequency: 3 }),
+    exercises,
+  );
+  const later = evolutionDays(strength, exercises);
+  const squat = (days: typeof later) =>
+    days[0]!.exercises.find((e) => e.exerciseId === "back-squat")!;
+  assert.deepEqual(
+    [squat(strength.days).reps, squat(strength.days).repMax],
+    [4, 6],
+  );
+  assert.deepEqual([squat(later).reps, squat(later).repMax], [3, 5]);
+  assert.equal(squat(later).sets, squat(strength.days).sets);
+});
+test("editing a current Path day re-derives Evolution from the edited Foundation", () => {
+  const { r, program } = accepted();
+  const day = savedDraft(r, program, 0).days[1]!;
+  const items = day.exercises.map((e, i) => (i === 0 ? { ...e, reps: 7 } : e));
+  editPathDay(r, program.record.id, 1, items);
+  const refreshed = pathPrograms(r)[0]!;
+  assert.equal(savedDraft(r, refreshed, 0).days[1]!.exercises[0]!.reps, 7);
+  assert.equal(savedDraft(r, refreshed, 1).days[1]!.exercises[0]!.reps, 7);
 });
 test("only explicitly linked completed workouts count, with no duplicate session credit", () => {
   const { r, program } = accepted();

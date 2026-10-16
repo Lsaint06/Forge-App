@@ -4,10 +4,13 @@ import type { PathDraft } from "./generator";
 import { structure } from "./generator";
 import { weeklySessionBalance } from "./balance";
 
-// Reviewed direct targets and assistance remain separate. A compound set may
-// directly target two muscles, but total workout sets count it only once.
+// Direct sets count where a muscle is the movement's primary target. Other
+// listed targets of a compound (for example glutes in a squat) are reported
+// separately as secondary involvement, and assistance separately again.
+// Total workout sets count each set once.
 export function workloadReview(draft: PathDraft, catalog: Exercise[]) {
   const sets: Record<string, number> = {};
+  const secondary: Record<string, number> = {};
   const assistance: Record<string, number> = {};
   const patterns = new Set<string>();
   let total = 0;
@@ -24,8 +27,10 @@ export function workloadReview(draft: PathDraft, catalog: Exercise[]) {
       const stimulus = exerciseStimulus(e.id);
       total += p.sets;
       if (!stimulus.reviewed) unreviewed = true;
-      for (const muscle of stimulus.direct)
-        sets[muscle] = (sets[muscle] ?? 0) + p.sets;
+      const [primary, ...others] = stimulus.direct;
+      if (primary) sets[primary] = (sets[primary] ?? 0) + p.sets;
+      for (const muscle of others)
+        secondary[muscle] = (secondary[muscle] ?? 0) + p.sets;
       for (const muscle of stimulus.assistance)
         assistance[muscle] = (assistance[muscle] ?? 0) + p.sets;
     }
@@ -71,6 +76,7 @@ export function workloadReview(draft: PathDraft, catalog: Exercise[]) {
   }
   return {
     sets,
+    secondary,
     warnings,
     total,
     assistance,

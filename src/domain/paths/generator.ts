@@ -3,14 +3,30 @@ import { prescriptionSchema } from "../validation";
 import { forgePaths } from "./catalog";
 import { validateDraft as validateVersionTwo } from "./versionTwoGenerator";
 import { exerciseStimulus } from "./stimulus";
-import { compoundRepRange } from "./repRanges";
-import { redistributeWeeklySets, redistributeFocusSets } from "./balance";
 import {
   assertBalancedWeek,
   effectiveSets,
   MAX_EXERCISE_SPREAD,
   MAX_SAME_TARGET_PER_DAY,
 } from "./weekAudit";
+import {
+  directExposures,
+  directSets,
+  exerciseTier,
+  generationCeiling,
+  goalOf,
+  isHeavyStrength,
+  maxSetsPerExercise,
+  muscleLoad,
+  SECONDARY_WEIGHT,
+  prescriptionPolicy,
+  PULL_TO_PUSH,
+  sessionExerciseCap,
+  sessionMuscleCap,
+  sessionSetLimit,
+  weeklyVolumeTarget,
+} from "./policy";
+import { assessProgram } from "./programQuality";
 import {
   pathPreferencesSchema,
   machineRequirement,
@@ -37,10 +53,11 @@ export {
 } from "./legacyGenerator";
 export type { PathDay, PathDraft } from "./legacyGenerator";
 
-// Version 7 builds each week as one balanced split without session-time
-// budgets. Versions 3–6 remain readable so saved programs keep working.
-export const ENGINE_VERSION = 7 as const;
-const SUPPORTED_ENGINES = [3, 4, 5, 6, ENGINE_VERSION];
+// Version 8 derives every prescription from the central programming policy
+// (purpose, goal and experience) and checks plans with the program-quality
+// engine. Versions 3–7 remain readable so saved programs keep working.
+export const ENGINE_VERSION = 8 as const;
+const SUPPORTED_ENGINES = [3, 4, 5, 6, 7, ENGINE_VERSION];
 
 type Slot = {
   optional?: boolean;
@@ -49,6 +66,8 @@ type Slot = {
   preferred?: string[];
   isolation?: boolean;
   ids?: string[];
+  // A strength main lift (engine 8): heavy, low-rep, long-rest practice.
+  main?: boolean;
 };
 const slot = (
   role: PathRole,
@@ -129,12 +148,278 @@ const tri = slot(
 );
 const calf = slot("calf", undefined, undefined, true);
 const core = slot("core", undefined, undefined, true);
+// Engine 8 variants: second-day pulls favour a different implement so a
+// muscle meets a new stimulus within the week without in-session redundancy.
+const rowAlt = slot(
+  "pull",
+  ["horizontal pull"],
+  [
+    "dumbbell-bent-over-row",
+    "machine-row",
+    "kettlebell-row",
+    "seated-cable-row",
+    "barbell-bent-over-row",
+  ],
+);
+const verticalAlt = slot(
+  "pull",
+  ["vertical pull"],
+  ["pull-up", "lat-pulldown"],
+);
+const fly: Slot = {
+  ...slot(
+    "push",
+    ["horizontal push"],
+    ["pec-deck-fly", "standing-cable-fly"],
+    true,
+  ),
+  ids: ["pec-deck-fly", "standing-cable-fly"],
+};
+const main = (s: Slot): Slot => ({ ...s, main: true });
 
 type Session = { name: string; slots: Slot[]; focusRoles?: PathRole[] };
+type Blueprint = { name: string; base: Slot[]; extras?: Slot[] };
+
+// Engine 8 weekly blueprints. Each session lists its essential movements and
+// optional extras; extras are only added while the experience level's
+// exercise ceiling allows, so beginners get fewer, simpler sessions and
+// advanced lifters get targeted detail work rather than more sets per lift.
+function blueprint(p: PathPreferences): Session[] {
+  const goal = goalOf(p);
+  const limit = Math.min(
+    sessionExerciseCap(p),
+    p.pathKey === "build-muscle" ? 7 : 8,
+  );
+  const build = (days: Blueprint[]): Session[] =>
+    days.map((d) => ({
+      name: d.name,
+      slots: [
+        ...d.base,
+        ...(d.extras ?? []).slice(0, Math.max(0, limit - d.base.length)),
+      ],
+    }));
+  const pick = <T>(items: T[]) => items.slice(0, p.frequency);
+  if (goal === "foundation")
+    return build(
+      pick([
+        {
+          name: "Learn your foundations",
+          base: [squat, press, row, hinge, core],
+        },
+        {
+          name: "Build movement confidence",
+          base: [unilateral, press, row, hinge, calf],
+        },
+        { name: "Practice & progress", base: [squat, press, row, hinge, side] },
+      ]),
+    );
+  if (goal === "strength") {
+    if (p.frequency <= 3)
+      return build(
+        pick([
+          {
+            name: "Squat & bench strength",
+            base: [main(squat), main(press), row, curl, core],
+          },
+          {
+            name: "Deadlift & overhead strength",
+            base: [
+              main(hinge),
+              main(shoulderPress),
+              vertical,
+              unilateral,
+              calf,
+            ],
+          },
+          {
+            name: "Bench & squat strength",
+            base: [main(press), main(squat), rowAlt, rear, core],
+          },
+        ]),
+      );
+    return build([
+      {
+        name: "Upper body · bench strength",
+        base: [main(press), row, shoulderPress, vertical],
+      },
+      {
+        name: "Lower body · squat strength",
+        base: [main(squat), curl, calf, core],
+      },
+      {
+        name: "Upper body · overhead strength",
+        base: [main(shoulderPress), verticalAlt, press, rowAlt],
+      },
+      {
+        name: "Lower body · deadlift strength",
+        base: [main(hinge), unilateral, calf, core],
+      },
+    ]);
+  }
+  if (goal === "athletic") {
+    if (p.frequency <= 3)
+      return build(
+        pick([
+          {
+            name: "Single-leg strength & control",
+            base: [unilateral, hinge, row, press, core, calf],
+            extras: [side],
+          },
+          {
+            name: "Posterior chain & stability",
+            base: [unilateral, hinge, vertical, press, core, calf],
+          },
+          {
+            name: "Whole-body movement practice",
+            base: [unilateral, hinge, row, press, core, calf],
+            extras: [side],
+          },
+        ]),
+      );
+    // Trunk work sits on the lower-body days only, rather than repeating the
+    // same core exercise in every session.
+    return build([
+      {
+        name: "Upper body · controlled force",
+        base: [press, row, shoulderPress, vertical],
+      },
+      {
+        name: "Lower body · single-leg control",
+        base: [unilateral, hinge, calf, core],
+      },
+      {
+        name: "Upper body · balanced capacity",
+        base: [incline, vertical, row, side],
+      },
+      {
+        name: "Lower body · posterior control",
+        base: [hinge, unilateral, curl, calf, core],
+      },
+    ]);
+  }
+  if (goal === "recomp") {
+    if (p.frequency <= 3)
+      return build(
+        pick([
+          {
+            name: "Full body · strength retention",
+            base: [squat, press, row, hinge, core, side],
+          },
+          {
+            name: "Full body · balanced resistance",
+            base: [unilateral, incline, vertical, curl, core, calf],
+          },
+          {
+            name: "Full body · repeat quality",
+            base: [squat, press, rowAlt, hinge, core, side],
+          },
+        ]),
+      );
+    return build([
+      {
+        name: "Upper body · retain strength",
+        base: [press, row, shoulderPress, vertical],
+      },
+      { name: "Lower body · quad focus", base: [squat, hinge, calf, core] },
+      {
+        name: "Upper body · balanced capacity",
+        base: [incline, vertical, row, side],
+      },
+      {
+        name: "Lower body · posterior control",
+        base: [hinge, unilateral, curl, calf, core],
+      },
+    ]);
+  }
+  // Hypertrophy (Build Muscle, Advanced Physique). Advanced Physique's
+  // shoulders-and-arms emphasis takes the optional full-body slots; Build
+  // Muscle uses them for calves and trunk.
+  const physique = p.pathKey === "advanced-physique";
+  if (p.frequency <= 3)
+    return build(
+      pick([
+        {
+          name: "Full body · chest & quads",
+          base: [squat, press, row, hinge, side, tri],
+          extras: physique ? [bi, calf] : [calf, core],
+        },
+        {
+          name: "Full body · back & hamstrings",
+          base: [vertical, unilateral, incline, curl, rear, bi],
+          extras: physique ? [tri, side] : [calf, side],
+        },
+        {
+          name: "Full body · balanced growth",
+          base: [squat, press, rowAlt, hinge, side, bi],
+          extras: physique ? [tri, rear] : [tri, calf],
+        },
+      ]),
+    );
+  const upperA: Blueprint = {
+    name: "Upper body · chest & back",
+    base: [press, row, vertical, side, tri, bi],
+    extras: [fly],
+  };
+  const upperB: Blueprint = {
+    name: "Upper body · back & shoulders",
+    base: [verticalAlt, incline, rowAlt, side, rear, bi],
+    extras: [tri],
+  };
+  const lowerA: Blueprint = {
+    name: "Legs · quad focus",
+    base: [squat, hinge, quad, curl, calf],
+    extras: [core],
+  };
+  const lowerB: Blueprint = {
+    name: "Legs · posterior focus",
+    base: [hinge, unilateral, curl, quad, calf],
+    extras: [core],
+  };
+  const push: Blueprint = {
+    name: "Chest, shoulders & triceps",
+    base: [press, incline, shoulderPress, side, tri],
+    extras: [fly],
+  };
+  const pull: Blueprint = {
+    name: "Back, rear delts & biceps",
+    base: [row, vertical, rear, bi, core],
+  };
+  if (p.frequency === 4) return build([upperA, lowerA, upperB, lowerB]);
+  if (p.frequency === 5)
+    return build([
+      { ...upperA, extras: [] },
+      lowerA,
+      push,
+      { ...pull, base: [verticalAlt, rowAlt, rear, bi, core] },
+      lowerB,
+    ]);
+  return build([
+    push,
+    { ...pull, base: [row, vertical, rowAlt, rear, bi] },
+    lowerA,
+    {
+      ...push,
+      name: "Chest & shoulder detail",
+      base: [incline, press, shoulderPress, side, tri],
+    },
+    {
+      ...pull,
+      name: "Back width & arm detail",
+      base: [verticalAlt, rowAlt, row, rear, bi],
+    },
+    lowerB,
+  ]);
+}
+
 function sessions(
   p: PathPreferences,
   version: number = ENGINE_VERSION,
 ): Session[] {
+  return version >= 8 ? blueprint(p) : legacySessions(p, version);
+}
+
+// Engine 3–7 session structures, retained so saved plans keep validating.
+function legacySessions(p: PathPreferences, version: number): Session[] {
   const novice = p.pathKey === "start-strong";
   const strength = p.pathKey === "get-strong";
   const athlete = p.pathKey === "athlete-mode";
@@ -616,14 +901,13 @@ const PULL_EQUIPMENT: {
 
 function buildPath(p: PathPreferences, catalog: Exercise[]): PathDraft {
   const offsets = dates(p);
-  const physique = p.pathKey === "advanced-physique",
-    strength = p.pathKey === "get-strong",
-    novice = p.pathKey === "start-strong";
+  const goal = goalOf(p);
   const plan = planWeek(p, catalog);
   const days = sessions(p).map((s, i): PathDay => {
     const exercises: Prescription[] = [];
     const roles: PathRole[] = [];
     const picks = plan[i]!;
+    let anchored = false;
     for (const { slot: j, id } of picks) {
       const target = s.slots[j]!;
       const stimulus = exerciseStimulus(id);
@@ -631,57 +915,45 @@ function buildPath(p: PathPreferences, catalog: Exercise[]): PathDraft {
         throw new Error(
           "A selected movement needs a reviewed training purpose.",
         );
-      const primaryStrength = strength && j < 2 && !stimulus.isolation;
-      const strengthAssistance = strength && !primaryStrength;
-      const sets = strengthAssistance
-        ? 2
-        : novice
-          ? 2
-          : stimulus.isolation
-            ? physique
-              ? 3
-              : 2
-            : p.experience === "Beginner"
-              ? strength
-                ? 3
-                : 2
-              : strength || (physique && j < 2)
-                ? 4
-                : 3;
+      const mainLift =
+        goal === "strength" && !!target.main && !stimulus.isolation;
+      const tier = exerciseTier(id, catalog, mainLift);
+      // The session's first loaded compound is its heavy anchor. On strength
+      // days only a designated main lift can take that role; the second main
+      // lift and assistance work follow at lower volume.
+      const loaded = tier !== "isolation" && tier !== "core";
+      const lead = loaded && !anchored && (goal !== "strength" || mainLift);
+      if (lead) anchored = true;
+      const policy = prescriptionPolicy(p, tier, lead);
+      // Heavy targets are reserved for lifts that can be loaded precisely.
+      // Dumbbell, kettlebell and bodyweight lifts are limited by grip,
+      // stability and setup rather than the target muscles, so they keep six
+      // or more reps; hip hinges keep five or more for technique and
+      // lower-back fatigue.
+      const exercise = catalog.find((e) => e.id === id);
+      const heavyAllowed = /barbell|machine|cable|smith|leg press/i.test(
+        `${exercise?.equipment ?? ""} ${id}`,
+      );
+      const floor =
+        (lead || mainLift) && !stimulus.isolation
+          ? !heavyAllowed
+            ? 6
+            : exercise?.pattern === "hinge"
+              ? 5
+              : 0
+          : 0;
+      const reps = Math.max(policy.reps, floor);
+      const repMax =
+        floor > policy.reps
+          ? Math.max(policy.repMax ?? policy.reps, reps + (floor >= 6 ? 2 : 1))
+          : policy.repMax;
       exercises.push({
         exerciseId: id,
-        sets,
-        reps:
-          target.role === "core"
-            ? 8
-            : primaryStrength
-              ? p.experience === "Beginner"
-                ? 6
-                : 5
-              : stimulus.isolation
-                ? 12
-                : strengthAssistance
-                  ? 8
-                  : p.pathKey === "athlete-mode"
-                    ? 6
-                    : novice
-                      ? 10
-                      : 8,
+        sets: policy.sets,
+        reps,
+        ...(repMax ? { repMax } : {}),
         weight: 0,
-        rest: primaryStrength
-          ? 180
-          : stimulus.isolation
-            ? 75
-            : strengthAssistance
-              ? 120
-              : novice
-                ? 75
-                : 120,
-        ...compoundRepRange(
-          p,
-          catalog.find((e) => e.id === id)!,
-          !exercises.some((e) => !exerciseStimulus(e.exerciseId).isolation),
-        ),
+        rest: policy.rest,
       });
       roles.push(target.role);
     }
@@ -704,82 +976,205 @@ function buildPath(p: PathPreferences, catalog: Exercise[]): PathDraft {
       exercises,
     };
   });
-  // Priorities redistribute a fixed session set budget rather than increasing everything.
-  for (const [dayIndex, day] of days.entries()) {
-    const isTarget = (role: PathRole, index: number) =>
-      isPriorityTarget(
-        p,
-        role,
-        catalog.find((e) => e.id === day.exercises[index]!.exerciseId),
-      );
-    const candidates = day.roles
-      .map((role, index) => (isTarget(role, index) ? index : -1))
-      .filter((index) => index >= 0);
-    const targetIndex =
-      candidates[dayIndex % Math.max(1, candidates.length)] ?? -1;
-    const donor = day.exercises.findIndex(
-      (e, i) => !isTarget(day.roles[i]!, i) && e.sets > 2,
-    );
-    if (
-      targetIndex >= 0 &&
-      donor >= 0 &&
-      day.exercises[targetIndex]!.sets < (p.experience === "Beginner" ? 3 : 5)
-    ) {
-      day.exercises[targetIndex]!.sets++;
-      day.exercises[donor]!.sets--;
-    }
-  }
-  // Volume is set at the program level, never by session time: add working
-  // sets up to the goal's per-session cap, a per-exercise cap and a muscle's
-  // weekly direct-set ceiling. Filling all days together with a running weekly
-  // tally keeps high-frequency weeks from overloading a single muscle. Beginner
-  // and start-strong plans keep their deliberate, manageable templates; strength
-  // is filled into the main lifts first.
-  const fillable = !novice && p.experience !== "Beginner";
-  if (fillable) {
-    // The pre-balance allocation supplies an upper budget, not a target, so
-    // focus redistribution cannot turn into additional weekly sets.
-    const reference = days.map((day) => ({
-      ...day,
-      exercises: day.exercises.map((item) => ({ ...item })),
-    }));
-    fillProgram(reference, p, catalog, strength, { preserveOrder: true });
-    const weeklyBudget = reference.reduce((n, day) => n + sessionSets(day), 0);
-    for (const [index, day] of days.entries())
-      day.exercises = redistributeFocusSets(
-        day,
-        p,
-        catalog,
-        sessions(p)[index]!.focusRoles ?? [],
-      ).exercises;
-    fillProgram(days, p, catalog, strength, { weeklyBudget });
-  }
-  const draft: PathDraft = {
-    engineVersion: ENGINE_VERSION,
-    preferences: p,
-    days,
-  };
-  const balanced = redistributeWeeklySets(draft, catalog, structure(p));
-  balanceVolume(balanced.days, p, catalog);
-  return validateDraft({ ...draft, days: balanced.days }, catalog);
+  adjustWeeklyVolume(days, p);
+  balancePushPull(days, p, catalog);
+  balanceVolume(days, p);
+  return validateDraft(
+    { engineVersion: ENGINE_VERSION, preferences: p, days },
+    catalog,
+  );
 }
 
-// Keeps weekly working-set load evenly spread: the lightest day gains a set on
-// its least-loaded movement within every goal cap, otherwise the heaviest day
-// gives up a set from its most-loaded movement (never below two sets).
-function balanceVolume(
+// Evolution (weeks 5–8) keeps every Foundation exercise, its order and rest so
+// performance stays directly comparable. Beginners and the foundation Path
+// keep the same prescription and progress through reps and load. Experienced
+// hypertrophy, recomposition and athletic plans add one set to accessory
+// (isolation or machine) work, limited to about 15% more weekly sets and every
+// ceiling. Experienced strength plans move main lifts one rep heavier. If the
+// result would break any integrity rule, Evolution repeats Foundation.
+export const EVOLUTION_VOLUME_INCREASE = 0.15;
+export function evolutionDays(
+  draft: PathDraft,
+  catalog: Exercise[],
+): PathDay[] {
+  const p = draft.preferences;
+  const days = draft.days.map((d) => ({
+    ...d,
+    exercises: d.exercises.map((e) => ({ ...e })),
+  }));
+  if (draft.engineVersion !== ENGINE_VERSION) return days;
+  const goal = goalOf(p);
+  if (goal === "foundation" || p.experience === "Beginner") return days;
+  if (goal === "strength") {
+    for (const item of days.flatMap((d) => d.exercises)) {
+      if (!isHeavyStrength(item) || item.repMax == null) continue;
+      const hinge =
+        catalog.find((e) => e.id === item.exerciseId)?.pattern === "hinge";
+      if (hinge) continue;
+      item.reps = Math.max(3, item.reps - 1);
+      item.repMax = Math.max(item.reps + 1, item.repMax - 1);
+    }
+  } else {
+    const budget = Math.floor(
+      days.reduce((n, d) => n + sessionSets(d), 0) * EVOLUTION_VOLUME_INCREASE,
+    );
+    let added = 0;
+    for (const day of days) {
+      const seen = new Set<string>();
+      for (const item of day.exercises) {
+        if (added >= budget) break;
+        const tier = exerciseTier(item.exerciseId, catalog);
+        const muscle = exerciseStimulus(item.exerciseId).direct[0];
+        if ((tier !== "isolation" && tier !== "machine") || !muscle) continue;
+        if (seen.has(muscle) || !canAddSet(days, day, item, p, "full"))
+          continue;
+        seen.add(muscle);
+        item.sets++;
+        added++;
+      }
+    }
+  }
+  return assessProgram({ preferences: p, days }, catalog).some(
+    (f) => f.severity === "error",
+  )
+    ? draft.days.map((d) => ({
+        ...d,
+        exercises: d.exercises.map((e) => ({ ...e })),
+      }))
+    : days;
+}
+
+function sessionSets(day: PathDay): number {
+  return day.exercises.reduce((n, e) => n + e.sets, 0);
+}
+
+// Pulling should keep pace with pressing (at least two thirds of its sets).
+// Adds sets to existing pulls within every limit; never adds exercises.
+function balancePushPull(
   days: PathDay[],
   p: PathPreferences,
   catalog: Exercise[],
 ) {
+  const pattern = (item: Prescription) =>
+    catalog.find((e) => e.id === item.exerciseId)?.pattern ?? "";
+  const pressing = (item: Prescription) =>
+    ["horizontal push", "vertical push"].includes(pattern(item));
+  const pulling = (item: Prescription) =>
+    ["horizontal pull", "vertical pull"].includes(pattern(item));
+  const total = (test: (item: Prescription) => boolean) =>
+    days
+      .flatMap((d) => d.exercises)
+      .filter(test)
+      .reduce((n, e) => n + e.sets, 0);
+  for (let guard = 0; guard < 100; guard++) {
+    if (total(pulling) >= total(pressing) * PULL_TO_PUSH) return;
+    const choice = days
+      .flatMap((day) => day.exercises.map((item) => ({ day, item })))
+      .filter(({ day, item }) => pulling(item) && canAddSet(days, day, item, p))
+      .sort((a, b) => a.item.sets - b.item.sets)[0];
+    if (!choice) return;
+    choice.item.sets++;
+  }
+}
+
+// Would one more set on `item` keep every muscle it trains within its weekly
+// ceiling and the session's per-muscle and set limits? Ceilings use the
+// estimated load (direct plus weighted secondary involvement). Generated
+// defaults stop at the default ceiling; Evolution may use the full ceiling.
+function canAddSet(
+  days: PathDay[],
+  day: PathDay,
+  item: Prescription,
+  p: PathPreferences,
+  ceiling: "default" | "full" = "default",
+) {
+  if (item.sets >= maxSetsPerExercise(p, true)) return false;
+  if (sessionSets(day) >= sessionSetLimit(p)) return false;
+  const weekly = muscleLoad(days.flatMap((d) => d.exercises));
+  const session = muscleLoad(day.exercises);
+  const [primary, ...secondary] = exerciseStimulus(item.exerciseId).direct;
+  return [primary, ...secondary].every((muscle, index) => {
+    if (!muscle) return true;
+    const step = index === 0 ? 1 : SECONDARY_WEIGHT;
+    const limit =
+      ceiling === "full"
+        ? weeklyVolumeTarget(p, muscle).max
+        : generationCeiling(p, muscle);
+    return (
+      (weekly[muscle] ?? 0) + step <= limit &&
+      (session[muscle] ?? 0) + step <= sessionMuscleCap(p)
+    );
+  });
+}
+
+// Brings each trained muscle into its weekly range for this Path and level:
+// trims accessory sets where a muscle's estimated load is over its ceiling,
+// then (except for the fixed-dose foundation Path) adds sets to that muscle's
+// own exercises where its direct sets are under its floor. Floors are capped
+// by how many sessions train the muscle. Priorities shift the range; they
+// never remove the ceiling. No exercises are added or removed here.
+function adjustWeeklyVolume(days: PathDay[], p: PathPreferences) {
+  const all = () => days.flatMap((d) => d.exercises);
+  const primary = (item: Prescription) =>
+    exerciseStimulus(item.exerciseId).direct[0];
+  const isolation = (item: Prescription) =>
+    exerciseStimulus(item.exerciseId).isolation;
+  for (let guard = 0; guard < 400; guard++) {
+    const totals = muscleLoad(all());
+    const over = Object.keys(totals).find(
+      (m) => totals[m]! > generationCeiling(p, m),
+    );
+    if (!over) break;
+    const donor = all()
+      .filter(
+        (e) =>
+          exerciseStimulus(e.exerciseId).direct.includes(over) && e.sets > 1,
+      )
+      .sort(
+        (a, b) =>
+          Number(primary(b) === over) - Number(primary(a) === over) ||
+          Number(b.sets > 2) - Number(a.sets > 2) ||
+          Number(isolation(b)) - Number(isolation(a)) ||
+          b.sets - a.sets,
+      )[0];
+    if (!donor) break;
+    donor.sets--;
+  }
+  if (goalOf(p) === "foundation") return;
+  for (let guard = 0; guard < 400; guard++) {
+    const totals = directSets(all());
+    const exposures = directExposures(days);
+    let added = false;
+    for (const muscle of Object.keys(totals)) {
+      if (
+        totals[muscle]! >= weeklyVolumeTarget(p, muscle, exposures[muscle]).min
+      )
+        continue;
+      const choice = days
+        .flatMap((day) => day.exercises.map((item) => ({ day, item })))
+        .filter(
+          ({ day, item }) =>
+            primary(item) === muscle && canAddSet(days, day, item, p),
+        )
+        .sort(
+          (a, b) =>
+            Number(isolation(b.item)) - Number(isolation(a.item)) ||
+            a.item.sets - b.item.sets,
+        )[0];
+      if (!choice) continue;
+      choice.item.sets++;
+      added = true;
+      break;
+    }
+    if (!added) break;
+  }
+}
+
+// Keeps weekly working-set load evenly spread: the lightest day gains a set on
+// its least-loaded movement within every limit, otherwise the heaviest day
+// gives up a set from its most-loaded movement (never below two sets).
+function balanceVolume(days: PathDay[], p: PathPreferences) {
   if (days.length < 2) return;
-  const strength = p.pathKey === "get-strong";
-  const find = (id: string) => catalog.find((e) => e.id === id);
-  const mainStrength = (item: Prescription) =>
-    strength &&
-    item.reps <= 6 &&
-    item.rest >= 180 &&
-    !exerciseStimulus(item.exerciseId).isolation;
   for (let guard = 0; guard < 200; guard++) {
     const sorted = [...days].sort(
       (a, b) => effectiveSets(a) - effectiveSets(b),
@@ -788,29 +1183,9 @@ function balanceVolume(
       high = sorted[sorted.length - 1]!;
     if (!effectiveSets(low) || effectiveSets(high) < 2 * effectiveSets(low))
       return;
-    const weekly: Record<string, number> = {};
-    for (const day of days)
-      for (const item of day.exercises) {
-        const muscle = exerciseStimulus(item.exerciseId).direct[0];
-        if (muscle) weekly[muscle] = (weekly[muscle] ?? 0) + item.sets;
-      }
-    const receiver =
-      sessionSets(low) < sessionSetCap(p)
-        ? low.exercises
-            .filter((item) => {
-              const muscle = exerciseStimulus(item.exerciseId).direct[0];
-              return (
-                item.sets <
-                  exerciseSetCap(
-                    p,
-                    find(item.exerciseId),
-                    mainStrength(item),
-                  ) &&
-                (!muscle || (weekly[muscle] ?? 0) < weeklyMuscleCap(p, muscle))
-              );
-            })
-            .sort((a, b) => a.sets - b.sets)[0]
-        : undefined;
+    const receiver = low.exercises
+      .filter((item) => canAddSet(days, low, item, p))
+      .sort((a, b) => a.sets - b.sets)[0];
     if (receiver) {
       receiver.sets++;
       continue;
@@ -821,97 +1196,6 @@ function balanceVolume(
   }
 }
 
-function sessionSets(day: PathDay): number {
-  return day.exercises.reduce((n, e) => n + e.sets, 0);
-}
-
-// Distributes extra working sets across the whole week. Strength channels fill
-// into the main lifts first; other goals fill priority slots first, then
-// evenly. Bounded by goal session/exercise caps and weekly per-muscle
-// ceilings. Pure and deterministic.
-function fillProgram(
-  days: PathDay[],
-  p: PathPreferences,
-  catalog: Exercise[],
-  strength: boolean,
-  {
-    preserveOrder = false,
-    weeklyBudget = Infinity,
-  }: { preserveOrder?: boolean; weeklyBudget?: number } = {},
-) {
-  const weekly: Record<string, number> = {};
-  // Gate weekly volume on each movement's primary target muscle only. Compounds
-  // co-target other muscles (a squat also works glutes), but gating on those
-  // co-targets would wrongly let a byproduct muscle block legitimate filling of
-  // the prime mover. Co-targets still accrue coverage in the user-facing review.
-  const primaryMuscle = (id: string) => exerciseStimulus(id).direct[0];
-  for (const day of days)
-    for (const pr of day.exercises) {
-      const muscle = primaryMuscle(pr.exerciseId);
-      if (muscle) weekly[muscle] = (weekly[muscle] ?? 0) + pr.sets;
-    }
-
-  const isPrimaryStrength = (day: PathDay, i: number) => {
-    const ex = catalog.find((e) => e.id === day.exercises[i]!.exerciseId);
-    const item = day.exercises[i]!;
-    return (
-      strength &&
-      (preserveOrder ? i < 2 : item.reps <= 6 && item.rest >= 180) &&
-      !(ex && exerciseStimulus(ex.id).isolation)
-    );
-  };
-  const orderFor = (day: PathDay) => {
-    const rank = (i: number) =>
-      (isPrimaryStrength(day, i) ? 2 : 0) +
-      (isPriorityTarget(
-        p,
-        day.roles[i]!,
-        catalog.find((e) => e.id === day.exercises[i]!.exerciseId),
-      )
-        ? 1
-        : 0) +
-      (!preserveOrder &&
-      sessions(p)[days.indexOf(day)]!.focusRoles?.includes(day.roles[i]!)
-        ? 1
-        : 0);
-    return day.exercises
-      .map((_, i) => i)
-      .sort(
-        (a, b) =>
-          rank(b) - rank(a) ||
-          (preserveOrder
-            ? 0
-            : day.exercises[a]!.sets - day.exercises[b]!.sets) ||
-          a - b,
-      );
-  };
-
-  const cap = sessionSetCap(p);
-  let allocated = days.reduce((n, day) => n + sessionSets(day), 0);
-  let added = true;
-  while (added) {
-    added = false;
-    for (const day of days) {
-      for (const i of orderFor(day)) {
-        if (allocated >= weeklyBudget) return;
-        if (sessionSets(day) >= cap) break;
-        const ex = catalog.find((e) => e.id === day.exercises[i]!.exerciseId);
-        if (
-          day.exercises[i]!.sets >=
-          exerciseSetCap(p, ex, isPrimaryStrength(day, i))
-        )
-          continue;
-        const muscle = primaryMuscle(day.exercises[i]!.exerciseId);
-        if (muscle && (weekly[muscle] ?? 0) >= weeklyMuscleCap(p, muscle))
-          continue;
-        day.exercises[i]!.sets++;
-        if (muscle) weekly[muscle] = (weekly[muscle] ?? 0) + 1;
-        allocated++;
-        added = true;
-      }
-    }
-  }
-}
 export function validateDraft(
   draft: PathDraft,
   catalog: Exercise[],
@@ -926,7 +1210,9 @@ export function validateDraft(
     throw new Error("Plan days do not match your weekly availability.");
   const offsets = dates(p);
   const specs = sessions(p, draft.engineVersion);
-  const volumeRules = (draft.engineVersion ?? 1) >= 6;
+  // Engine 8 prescription and volume rules live in the program-quality engine.
+  const current = draft.engineVersion === ENGINE_VERSION;
+  const volumeRules = (draft.engineVersion ?? 1) >= 6 && !current;
   const weekly: Record<string, number> = {};
   draft.days.forEach((day, i) => {
     if (
@@ -962,6 +1248,7 @@ export function validateDraft(
       throw new Error("Keep the balanced movement structure of this Path.");
     day.exercises.forEach((raw, j) => {
       const item = prescriptionSchema.parse(raw);
+      if (current) return;
       if (
         !compatibleMovements(p, day.roles[j]!, catalog).some(
           (e) => e.id === item.exerciseId,
@@ -997,8 +1284,9 @@ export function validateDraft(
       }
     });
     if (
+      !current &&
       day.exercises.reduce((n, e) => n + e.sets, 0) >
-      (volumeRules ? sessionSetCap(p) : 28)
+        (volumeRules ? sessionSetCap(p) : 28)
     )
       throw new Error("Keep working sets within this Path's session limit.");
   });
@@ -1011,6 +1299,12 @@ export function validateDraft(
   recovery(draft.days);
   // Saved plans from earlier engines stay usable; the review flags imbalance
   // and offers a rebuild instead of blocking recorded training.
-  if (draft.engineVersion === ENGINE_VERSION) assertBalancedWeek(draft.days);
+  if (draft.engineVersion === 7) assertBalancedWeek(draft.days);
+  if (current) {
+    const error = assessProgram(draft, catalog).find(
+      (f) => f.severity === "error",
+    );
+    if (error) throw new Error(error.message);
+  }
   return JSON.parse(JSON.stringify(draft)) as PathDraft;
 }

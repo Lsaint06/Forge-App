@@ -2,6 +2,7 @@ import React from "react";
 import { render, fireEvent, act } from "@testing-library/react-native";
 import WorkoutExerciseCard from "../../src/components/WorkoutExerciseCard";
 import Paths, { PathDayEditor } from "../../src/screens/Paths";
+import { PlanPreview } from "../../src/components/PathPlanEditor";
 import { PathWorkoutList } from "../../src/components/PathWorkoutList";
 import Templates from "../../app/templates";
 import { useRepo, confirm } from "../../src/state";
@@ -15,6 +16,7 @@ import {
   startPathSession,
 } from "../../src/data/paths";
 import { generatePath } from "../../src/domain/paths/generator";
+import { generatePath as legacyPath } from "../../src/domain/paths/legacyGenerator";
 import { exercises } from "../../src/data/catalog";
 import { forgePaths } from "../../src/domain/paths/catalog";
 
@@ -182,9 +184,10 @@ test("Path personalization previews real workouts without saving until acceptanc
   await fireEvent.press(view.getByLabelText("Next step"));
   await fireEvent.press(view.getByLabelText("Preview my eight-week plan"));
   expect(view.getByText("Your plan, before you commit.")).toBeTruthy();
+  expect(view.getAllByText(/5 exercises · 10 sets/).length).toBeGreaterThan(0);
   expect(
-    view.getAllByText(/5 exercises · 10 working sets/).length,
-  ).toBeGreaterThan(0);
+    view.getByText(/Balanced week, within recommended volume/),
+  ).toBeTruthy();
   expect(view.queryByText(/\d+ min\b/)).toBeNull();
   expect(r.journal("program")).toHaveLength(0);
   expect(r.journal("schedule")).toHaveLength(0);
@@ -205,6 +208,95 @@ test("Path personalization previews real workouts without saving until acceptanc
   db.close();
 }, 20_000);
 
+test("live validation flags customizations immediately and blocks starting an invalid week", async () => {
+  const { r, db } = pathRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<Paths />);
+    await fireEvent.press(view.getByLabelText("Choose START STRONG"));
+    await fireEvent.press(view.getByLabelText("Next step"));
+    await fireEvent.press(view.getByLabelText("Next step"));
+    await fireEvent.press(view.getByLabelText("Preview my eight-week plan"));
+    const start = () => view.getByRole("button", { name: "Start this Path" });
+    expect(start().props.accessibilityState.disabled).toBe(false);
+    const day = "Learn your foundations";
+    // A fourth set is accepted with a warning for this beginner plan.
+    await fireEvent.press(view.getAllByLabelText(/\. (Edit|Hide) /)[0]!);
+    await fireEvent.press(
+      view.getByLabelText(`Increase ${day} exercise 1 sets`),
+    );
+    await fireEvent.press(
+      view.getByLabelText(`Increase ${day} exercise 1 sets`),
+    );
+    expect(view.getAllByText("Worth reviewing").length).toBeGreaterThan(0);
+    expect(start().props.accessibilityState.disabled).toBe(false);
+    // Cutting the first day to single sets halves its load: an integrity error.
+    for (let i = 0; i < 3; i++)
+      await fireEvent.press(
+        view.getByLabelText(`Decrease ${day} exercise 1 sets`),
+      );
+    for (let n = 2; n <= 5; n++) {
+      await fireEvent.press(view.getAllByLabelText(/\. (Edit|Hide) /)[n - 1]!);
+      await fireEvent.press(
+        view.getByLabelText(`Decrease ${day} exercise ${n} sets`),
+      );
+    }
+    expect(view.getAllByText("Fix before starting").length).toBeGreaterThan(0);
+    expect(
+      view.getAllByText(/twice the working-set load/).length,
+    ).toBeGreaterThan(0);
+    expect(start().props.accessibilityState.disabled).toBe(true);
+    // Restoring one exercise is enough to bring the week back into balance.
+    await fireEvent.press(view.getAllByLabelText(/\. (Edit|Hide) /)[0]!);
+    await fireEvent.press(
+      view.getByLabelText(`Increase ${day} exercise 1 sets`),
+    );
+    expect(view.queryAllByText("Fix before starting")).toHaveLength(0);
+    expect(start().props.accessibilityState.disabled).toBe(false);
+    expect(r.journal("program")).toHaveLength(0);
+  } finally {
+    db.close();
+  }
+}, 20_000);
+
+test("plan preview shows weeks 5-8 changes and groups volume findings into one line", async () => {
+  const { r, db } = pathRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const draft = generatePath(pathPreferences(), exercises);
+    const findings = [
+      ...["Chest", "Back"].map((muscle) => ({
+        severity: "warning" as const,
+        code: "weekly-volume-low" as const,
+        dayKeys: [],
+        message: `${muscle} detail`,
+        volume: { muscle, sets: 5, target: 10 },
+      })),
+    ];
+    const view = await render(
+      <PlanPreview
+        draft={draft}
+        catalog={exercises}
+        pathName="BUILD MUSCLE"
+        findings={findings}
+        detailsTitle="Why this plan?"
+        onChange={jest.fn()}
+        onStart={jest.fn()}
+        onDetails={jest.fn()}
+        onBack={jest.fn()}
+      />,
+    );
+    expect(view.getByText(/weekly sets, weeks 1–4 → 5–8/)).toBeTruthy();
+    expect(view.getByText(/Weeks 5–8 · Evolution/)).toBeTruthy();
+    expect(view.getByText(/Chest 5 of 10, Back 5 of 10/)).toBeTruthy();
+    expect(view.queryByText("Chest detail")).toBeNull();
+    await fireEvent.press(view.getByRole("button", { name: /Tue · Day 2/ }));
+    expect(view.getAllByText(/wk 5–8: 4 ×/).length).toBeGreaterThan(0);
+  } finally {
+    db.close();
+  }
+});
+
 test("Path preview honors imperial preferences while saving canonical kilograms", async () => {
   const { r, db } = pathRepository();
   r.saveProfile({ units: "lb" });
@@ -219,6 +311,8 @@ test("Path preview honors imperial preferences while saving canonical kilograms"
       onChange={onChange}
     />,
   );
+  await fireEvent.press(view.getByLabelText(/Edit Barbell Bench Press$/));
+  await fireEvent.press(view.getByLabelText("Set starting load"));
   await fireEvent.changeText(
     view.getByLabelText(`${draft.days[0]!.name} exercise 1 load (lb)`),
     "44.092",
@@ -249,7 +343,7 @@ test("weekly session balance stays in optional plan details and shows balanced d
       view.getByText(/Upper body · chest & back: 6 exercises/),
     ).toBeTruthy();
     expect(
-      view.getByText(/Chest, shoulders & triceps: 5 exercises/),
+      view.getByText(/Chest, shoulders & triceps: 6 exercises/),
     ).toBeTruthy();
     expect(view.getByText(/within two exercises of the others/)).toBeTruthy();
     expect(view.queryByText(/ min\b/)).toBeNull();
@@ -261,20 +355,14 @@ test("weekly session balance stays in optional plan details and shows balanced d
 test("an earlier-engine saved Path with unbalanced days shows a rebuild notice", async () => {
   const { r, db } = pathRepository();
   try {
-    const draft = generatePath(pathPreferences(), exercises);
-    acceptPath(r, {
-      ...draft,
-      engineVersion: 6,
-      days: draft.days.map((d, i) =>
-        i === 1
-          ? {
-              ...d,
-              roles: d.roles.slice(0, 3),
-              exercises: d.exercises.slice(0, 3),
-            }
-          : d,
+    // A genuine first-engine Advanced Physique plan: 6/3/6/3 exercises.
+    acceptPath(
+      r,
+      legacyPath(
+        pathPreferences({ pathKey: "advanced-physique", frequency: 4 }),
+        exercises,
       ),
-    });
+    );
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Paths />);
     expect(view.getByText("Unbalanced training days")).toBeTruthy();
@@ -284,7 +372,7 @@ test("an earlier-engine saved Path with unbalanced days shows a rebuild notice",
   }
 });
 
-test("hypertrophy preview displays rep ranges and its editor preserves both boundaries", async () => {
+test("hypertrophy preview displays rep ranges and its compact editor adjusts both boundaries with steppers", async () => {
   const { r, db } = pathRepository();
   try {
     jest.mocked(useRepo).mockReturnValue(r);
@@ -294,7 +382,7 @@ test("hypertrophy preview displays rep ranges and its editor preserves both boun
       <PathWorkoutList items={day.exercises} catalog={exercises} />,
     );
     expect(list.getByText(/× 6-8/)).toBeTruthy();
-    expect(list.getByText(/× 10-12/)).toBeTruthy();
+    expect(list.getAllByText(/× 10-15/).length).toBeGreaterThan(0);
     await list.unmount();
     const onChange = jest.fn();
     const view = await render(
@@ -305,22 +393,35 @@ test("hypertrophy preview displays rep ranges and its editor preserves both boun
         onChange={onChange}
       />,
     );
-    await fireEvent.changeText(
-      view.getByLabelText(`${day.name} exercise 1 maximum reps`),
-      "10",
+    // Rows stay compact until opened; no permanent input fields.
+    expect(
+      view.queryByLabelText(`Increase ${day.name} exercise 1 sets`),
+    ).toBeNull();
+    await fireEvent.press(view.getByLabelText(/Edit Barbell Bench Press$/));
+    expect(view.getAllByText(/reps in reserve/).length).toBeGreaterThan(0);
+    await fireEvent.press(
+      view.getByLabelText(`Increase ${day.name} exercise 1 maximum reps`),
     );
     expect(onChange.mock.calls.at(-1)![0].exercises[0]).toMatchObject({
       reps: 6,
-      repMax: 10,
-    });
-    await fireEvent.changeText(
-      view.getByLabelText(`${day.name} exercise 1 reps`),
-      "9",
-    );
-    expect(onChange.mock.calls.at(-1)![0].exercises[0]).toMatchObject({
-      reps: 9,
       repMax: 9,
     });
+    await fireEvent.press(
+      view.getByLabelText(`Decrease ${day.name} exercise 1 reps`),
+    );
+    expect(onChange.mock.calls.at(-1)![0].exercises[0]).toMatchObject({
+      reps: 5,
+      repMax: 8,
+    });
+    await fireEvent.press(
+      view.getByLabelText(`Increase ${day.name} exercise 1 sets`),
+    );
+    expect(onChange.mock.calls.at(-1)![0].exercises[0].sets).toBe(4);
+    await fireEvent.press(view.getByLabelText("Swap Barbell Bench Press"));
+    await fireEvent.press(view.getByLabelText("Choose Dumbbell Bench Press"));
+    expect(onChange.mock.calls.at(-1)![0].exercises[0].exerciseId).toBe(
+      "dumbbell-bench-press",
+    );
   } finally {
     db.close();
   }
@@ -618,12 +719,13 @@ test("Path workouts progress against the Path's prescribed rep target, not the g
       />,
     );
     await fireEvent.press(view.getByLabelText("Exercise options"));
-    // The first Get Strong lift is prescribed 5 reps; the suggestion is driven
-    // by that target (not the profile's 8-12 range) and stays user-applied.
+    // The first Get Strong lift is prescribed a heavy 4-6 range; the
+    // suggestion is driven by that target (not the profile's 8-12 range) and
+    // stays user-applied.
     const row = r.workoutExercises(workout.id)[0]!;
     expect(
       view.getByText(
-        `Path target: ${row.target!.sets} × 5 reps · ${row.rest}s rest`,
+        `Path target: ${row.target!.sets} × 4-6 reps · ${row.rest}s rest`,
       ),
     ).toBeTruthy();
     expect(view.getByLabelText("Apply suggested load")).toBeTruthy();

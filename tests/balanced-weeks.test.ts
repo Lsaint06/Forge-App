@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { exercises } from "../src/data/catalog";
 import { forgePaths } from "../src/domain/paths/catalog";
-import { generatePath, validateDraft } from "../src/domain/paths/generator";
+import {
+  ENGINE_VERSION,
+  generatePath,
+  validateDraft,
+} from "../src/domain/paths/generator";
+import { generatePath as legacyPath } from "../src/domain/paths/legacyGenerator";
 import { auditWeek, MAX_EXERCISE_SPREAD } from "../src/domain/paths/weekAudit";
 import { workloadReview } from "../src/domain/paths/review";
 import type { PathDay } from "../src/domain/paths/generator";
@@ -147,7 +152,7 @@ test("every supported Path × experience × frequency × equipment kit yields a 
             continue;
           }
           generated++;
-          assert.equal(draft.engineVersion, 7, label);
+          assert.equal(draft.engineVersion, ENGINE_VERSION, label);
           assert.deepEqual(auditWeek(draft.days), [], label);
           const counts = draft.days.map((d) => d.exercises.length);
           assert.ok(
@@ -207,7 +212,7 @@ test("a no-equipment week that cannot be balanced names working frequencies and 
   };
   assert.equal(
     message({ frequency: 5 }),
-    "Your upper-body days need a pulling exercise to stay balanced, and none is possible with your current equipment and exclusions. Choose 2, 3 or 4 training days, or add a resistance band with a door anchor or a doorway pull-up bar to train 5 days a week.",
+    "Your upper-body days need a pulling exercise to stay balanced, and none is possible with your current equipment and exclusions. Choose 2 or 3 training days, or add a resistance band with a door anchor or a doorway pull-up bar to train 5 days a week.",
   );
   // Pull-ups are not unlocked for beginners, so only the band is suggested.
   assert.match(
@@ -269,23 +274,14 @@ test("an unbalanced current-engine program cannot be validated, assigned or save
 test("saved earlier-engine plans stay usable and are flagged for a rebuild, with history intact", () => {
   const { r, db } = pathRepository();
   try {
-    const draft = generatePath(pathPreferences(), exercises);
-    const old = {
-      ...draft,
-      engineVersion: 6 as const,
-      days: draft.days.map((d, i) =>
-        i === 1
-          ? {
-              ...d,
-              roles: d.roles.slice(0, 3),
-              exercises: d.exercises.slice(0, 3),
-            }
-          : d,
-      ),
-    };
+    // A genuine first-engine Advanced Physique plan: 6/3/6/3 exercises.
+    const old = legacyPath(
+      pathPreferences({ pathKey: "advanced-physique", frequency: 4 }),
+      exercises,
+    );
     acceptPath(r, old);
     const program = pathPrograms(r)[0]!;
-    assert.equal(program.data.engineVersion, 6);
+    assert.equal(program.data.engineVersion, 1);
     const workout = startPathSession(r, pathSessions(r, program)[0]!.record.id);
     r.editSet(r.workoutSets(workout.id)[0]!.id, { reps: 8, completed: true });
     r.finishWorkout(workout.id);

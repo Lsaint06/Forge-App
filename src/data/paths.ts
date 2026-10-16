@@ -3,7 +3,9 @@ import type { Journal, Prescription } from "../domain/types";
 import { localDate } from "../domain/types";
 import { forgePaths } from "../domain/paths/catalog";
 import {
+  ENGINE_VERSION,
   validateDraft,
+  evolutionDays,
   scheduledDates,
   type PathDraft,
 } from "../domain/paths/generator";
@@ -55,6 +57,7 @@ function encode(data: PathProgramData): Journal["data"] {
 }
 export function acceptPath(r: Repository, draft: PathDraft, replace = false) {
   const checked = validateDraft(draft, r.exercises());
+  const evolution = evolutionDays(checked, r.exercises());
   const previous = pathPrograms(r).filter((p) => p.data.status !== "archived");
   if (previous.length && !replace)
     throw new Error(
@@ -66,8 +69,8 @@ export function acceptPath(r: Repository, draft: PathDraft, replace = false) {
         old.record.id,
         encode({ ...old.data, status: "archived", pausedOn: "" }),
       );
-    const templates = ["Foundation", "Evolution"].map((phase) =>
-      checked.days.map((day) =>
+    const templates = (["Foundation", "Evolution"] as const).map((phase) =>
+      (phase === "Foundation" ? checked.days : evolution).map((day) =>
         r.saveTemplate(
           `${forgePaths.find((p) => p.key === checked.preferences.pathKey)!.name} · ${day.name}`,
           day.exercises,
@@ -357,19 +360,34 @@ export function editPathDay(
   if (!draft.days[index]) throw new Error("Training day not found.");
   draft.days[index]!.exercises = items;
   validateDraft(draft, r.exercises());
+  // Current plans re-derive the whole Evolution week from the edited
+  // Foundation week, so phase differences stay consistent with user edits.
+  // Earlier engines apply the edit identically to both phases.
+  const evolution =
+    draft.engineVersion === ENGINE_VERSION
+      ? evolutionDays(draft, r.exercises())
+      : undefined;
   r.transaction(() => {
-    // Separate phase references already exist. Phase B can edit only Evolution;
-    // Phase A deliberately applies user edits consistently across both phases.
-    for (const phase of program.data.phases) {
-      const templateId = phase.templateIds[index]!;
+    const save = (
+      templateId: string,
+      exercises: Prescription[],
+      day: number,
+    ) => {
       const existing = r.templates().find((t) => t.id === templateId);
       r.saveTemplate(
-        existing?.name ?? `${program.data.name} · ${draft.days[index]!.name}`,
-        items,
+        existing?.name ?? `${program.data.name} · ${draft.days[day]!.name}`,
+        exercises,
         templateId,
         existing?.notes ?? "FORGE PATHS",
       );
-    }
+    };
+    const [foundation, evolutionPhase] = program.data.phases;
+    save(foundation.templateIds[index]!, items, index);
+    if (!evolution) save(evolutionPhase.templateIds[index]!, items, index);
+    else
+      evolution.forEach((day, i) =>
+        save(evolutionPhase.templateIds[i]!, day.exercises, i),
+      );
   });
 }
 export function pausePath(

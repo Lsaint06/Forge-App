@@ -7,14 +7,21 @@ import {
   structure,
   validateDraft,
 } from "../src/domain/paths/generator";
+import { generatePath as legacyPath } from "../src/domain/paths/legacyGenerator";
 import {
   weeklySessionBalance,
-  redistributeWeeklySets,
   sessionWorkload,
 } from "../src/domain/paths/balance";
-import { workloadReview } from "../src/domain/paths/review";
-import { exerciseStimulus } from "../src/domain/paths/stimulus";
-import { sessionSetCap, weeklyMuscleCap } from "../src/domain/paths/volume";
+import {
+  directSets,
+  sessionExerciseCap,
+  weeklyVolumeTarget,
+} from "../src/domain/paths/policy";
+import {
+  assessProgram,
+  programErrors,
+  programWarnings,
+} from "../src/domain/paths/programQuality";
 import { auditWeek } from "../src/domain/paths/weekAudit";
 import type { PathPreferences } from "../src/domain/paths/model";
 import { pathPreferences, pathRepository } from "./path-fixture";
@@ -27,56 +34,88 @@ import {
   editPathDay,
 } from "../src/data/paths";
 
-test("new-plan edits cannot exceed a goal session cap even when each exercise stays within its own cap", () => {
+function assertConstraints(draft: ReturnType<typeof generatePath>) {
+  const p = draft.preferences;
+  assert.deepEqual(auditWeek(draft.days), []);
+  assert.deepEqual(programErrors(assessProgram(draft, exercises)), []);
+  const sessions = weeklySessionBalance(
+    draft,
+    exercises,
+    structure(p),
+  ).sessions;
+  for (const session of sessions) {
+    assert.ok(session.exerciseCount >= 1);
+    assert.ok(session.exerciseCount <= sessionExerciseCap(p), session.name);
+    assert.equal(
+      session.compoundSets + session.isolationSets,
+      session.workingSets,
+    );
+  }
+  for (const [muscle, sets] of Object.entries(
+    directSets(draft.days.flatMap((d) => d.exercises)),
+  ))
+    assert.ok(sets <= weeklyVolumeTarget(p, muscle).max, muscle);
+}
+
+test("customization above a recommendation warns, while breaking an integrity rule blocks", () => {
   const draft = generatePath(pathPreferences(), exercises);
-  const day = draft.days[0]!;
-  assert.equal(
-    day.exercises.reduce((n, e) => n + e.sets, 0),
-    24,
-  );
-  const edited = {
+  const withSets = (sets: number) => ({
     ...draft,
     days: draft.days.map((d, i) =>
       i === 0
         ? {
             ...d,
             exercises: d.exercises.map((e, j) =>
-              j === 0 ? { ...e, sets: e.sets + 1 } : e,
+              j === 0 ? { ...e, sets } : e,
             ),
           }
         : d,
     ),
-  };
-  assert.throws(() => validateDraft(edited, exercises), /session limit/);
-  assert.doesNotThrow(() =>
-    validateDraft({ ...edited, engineVersion: 5 }, exercises),
+  });
+  // Five sets is a user choice the engine flags but accepts.
+  const five = assessProgram(withSets(5), exercises);
+  assert.deepEqual(programErrors(five), []);
+  assert.ok(programWarnings(five).some((f) => f.code === "set-count"));
+  assert.doesNotThrow(() => validateDraft(withSets(5), exercises));
+  // Six sets on one exercise breaks the per-exercise integrity rule.
+  assert.throws(
+    () => validateDraft(withSets(6), exercises),
+    /1–5 working sets/,
   );
 });
 
-test("weekly primary-target ceilings are checked independently of session and exercise caps", () => {
+test("weekly volume far beyond a muscle's ceiling is an error; modestly above is a warning", () => {
   const draft = generatePath(pathPreferences({ frequency: 6 }), exercises);
-  assert.equal(
-    workloadReview(draft, exercises).sets.Core,
-    weeklyMuscleCap(draft.preferences, "Core"),
-  );
+  const ceiling = weeklyVolumeTarget(draft.preferences, "Chest").max;
+  const chest = (d: typeof draft) =>
+    directSets(d.days.flatMap((x) => x.exercises)).Chest ?? 0;
   const edited = structuredClone(draft);
-  const day = edited.days.find((d) =>
-    d.exercises.some(
-      (e) => exerciseStimulus(e.exerciseId).direct[0] === "Core" && e.sets < 4,
+  const chestItems = edited.days.flatMap((d) =>
+    d.exercises.filter(
+      (e) =>
+        exercises.find((x) => x.id === e.exerciseId)?.pattern ===
+        "horizontal push",
     ),
-  )!;
-  const core = day.exercises.find(
-    (e) => exerciseStimulus(e.exerciseId).direct[0] === "Core",
-  )!;
-  const donor = day.exercises.find(
-    (e) => exerciseStimulus(e.exerciseId).direct[0] !== "Core" && e.sets > 1,
-  )!;
-  core.sets++;
-  donor.sets--;
-  assert.throws(() => validateDraft(edited, exercises), /Core.*ceiling/);
+  );
+  // Add chest sets one at a time until just above the ceiling.
+  for (let i = 0; chest(edited) <= ceiling; i = (i + 1) % chestItems.length)
+    chestItems[i]!.sets++;
+  assert.ok(chest(edited) <= ceiling * 1.25);
+  const mild = assessProgram(edited, exercises);
+  assert.ok(programWarnings(mild).some((f) => f.code === "weekly-volume-high"));
+  assert.ok(!programErrors(mild).some((f) => f.code === "weekly-volume-high"));
+  for (const item of chestItems) item.sets = 5;
+  assert.ok(chest(edited) > ceiling * 1.25);
+  assert.ok(
+    programErrors(assessProgram(edited, exercises)).some(
+      (f) =>
+        f.code === "weekly-volume-high" && /Chest.*well above/.test(f.message),
+    ),
+  );
+  assert.throws(() => validateDraft(edited, exercises));
 });
 
-test("omitting strength main lifts does not promote higher-rep assistance to five-set main work", () => {
+test("omitting strength main lifts does not promote higher-rep assistance to heavy main work", () => {
   const draft = generatePath(
     pathPreferences({
       pathKey: "get-strong",
@@ -87,41 +126,8 @@ test("omitting strength main lifts does not promote higher-rep assistance to fiv
   );
   for (const day of draft.days)
     for (const item of day.exercises)
-      if (item.reps >= 8) assert.ok(item.sets <= 3, item.exerciseId);
-});
-
-function assertConstraints(draft: ReturnType<typeof generatePath>) {
-  const sessions = weeklySessionBalance(
-    draft,
-    exercises,
-    structure(draft.preferences),
-  ).sessions;
-  const weekly: Record<string, number> = {};
-  assert.deepEqual(auditWeek(draft.days), []);
-  for (const session of sessions) {
-    assert.ok(
-      session.workingSets <= sessionSetCap(draft.preferences),
-      session.name,
-    );
-    assert.ok(session.exerciseCount >= 1);
-    assert.equal(
-      session.compoundSets + session.isolationSets,
-      session.workingSets,
-    );
-    for (const [muscle, sets] of Object.entries(session.primary))
-      weekly[muscle] = (weekly[muscle] ?? 0) + sets;
-  }
-  for (const [muscle, sets] of Object.entries(weekly))
-    assert.ok(sets <= weeklyMuscleCap(draft.preferences, muscle), muscle);
-}
-
-test("without a time budget, weekly volume is bounded only by goal session and muscle caps", () => {
-  const draft = generatePath(pathPreferences({ frequency: 6 }), exercises);
-  assert.ok(
-    workloadReview(draft, exercises).total <=
-      draft.days.length * sessionSetCap(draft.preferences),
-  );
-  assertConstraints(draft);
+      if (item.reps >= 8)
+        assert.ok(item.sets <= 4 && item.rest < 180, item.exerciseId);
 });
 
 test("every supported Advanced Physique and Build Muscle frequency has purpose-aware session review", () => {
@@ -144,7 +150,7 @@ test("every supported Advanced Physique and Build Muscle frequency has purpose-a
           (s) => s.patterns.length && Object.keys(s.direct).length,
         ),
       );
-      assert.ok(!review.diagnostics.some((d) => d.kind === "review"));
+      assert.deepEqual(review.issues, []);
     }
   }
 });
@@ -173,72 +179,7 @@ test("broad upper and focused push/pull days keep their purposes with balanced e
       entry.dayKeys.includes("day-0") && entry.dayKeys.includes("day-2"),
   )!;
   assert.ok(overlap.directMuscles.includes("Chest"));
-  assert.ok(overlap.supportingMuscles.includes("Triceps"));
   assert.ok(overlap.daysApart >= 2);
-});
-
-test("redistribution balances comparable days without adding weekly sets, changing coverage or moving recovery exposures", () => {
-  const draft = generatePath(pathPreferences(), exercises);
-  const changed = {
-    ...draft,
-    days: draft.days.map((d, i) => ({
-      ...d,
-      exercises: d.exercises.map((e) => ({
-        ...e,
-        sets:
-          i === 0
-            ? exerciseStimulus(e.exerciseId).isolation
-              ? 2
-              : 4
-            : i === 2
-              ? 2
-              : e.sets,
-      })),
-    })),
-  };
-  const original = JSON.stringify(changed);
-  const before = workloadReview(changed, exercises);
-  assert.ok(before.balance.diagnostics.some((d) => d.kind === "review"));
-  const result = redistributeWeeklySets(
-    changed,
-    exercises,
-    structure(changed.preferences),
-  );
-  const afterDraft = { ...changed, days: result.days };
-  const after = workloadReview(afterDraft, exercises);
-  assert.ok(result.transfers.length > 0);
-  assert.equal(after.total, before.total);
-  assert.deepEqual(after.sets, before.sets);
-  assert.deepEqual(after.assistance, before.assistance);
-  assert.equal(JSON.stringify(changed), original);
-  assert.deepEqual(
-    result.days.map((d) => [
-      d.roles,
-      d.offset,
-      d.exercises.map((e) => e.exerciseId),
-    ]),
-    changed.days.map((d) => [
-      d.roles,
-      d.offset,
-      d.exercises.map((e) => e.exerciseId),
-    ]),
-  );
-  const daySets = (d: (typeof draft.days)[number]) =>
-    d.exercises.reduce((n, e) => n + e.sets, 0);
-  assert.ok(
-    Math.abs(daySets(result.days[0]!) - daySets(result.days[2]!)) <
-      Math.abs(daySets(changed.days[0]!) - daySets(changed.days[2]!)),
-  );
-  assertConstraints(afterDraft);
-  assert.ok(Math.abs(daySets(result.days[0]!) - daySets(result.days[2]!)) <= 3);
-  assert.equal(
-    redistributeWeeklySets(
-      afterDraft,
-      exercises,
-      structure(changed.preferences),
-    ).transfers.length,
-    0,
-  );
 });
 
 test("restrictions create coverage diagnostics, not unrelated filler or restored excluded exercises", () => {
@@ -265,7 +206,7 @@ test("restrictions create coverage diagnostics, not unrelated filler or restored
   }
 });
 
-test("goal caps hold for every supported Path, frequency and experience without a time budget", () => {
+test("goal limits hold for every supported Path, frequency and experience", () => {
   for (const path of forgePaths)
     for (const experience of ["Beginner", "Intermediate", "Advanced"] as const)
       for (
@@ -284,7 +225,7 @@ test("goal caps hold for every supported Path, frequency and experience without 
       }
 });
 
-test("strength and beginner work is not padded to match advanced hypertrophy exercise counts", () => {
+test("strength and beginner work is not padded to match hypertrophy exercise counts", () => {
   const strength = generatePath(
     pathPreferences({ pathKey: "get-strong", frequency: 4 }),
     exercises,
@@ -306,25 +247,9 @@ test("strength and beginner work is not padded to match advanced hypertrophy exe
   );
   assert.ok(review.sessions.some((s) => s.heavyCompoundSets > 0));
   assert.equal(sessionWorkload(strength.days[0]!, exercises).exerciseCount, 4);
-  assert.deepEqual(
-    redistributeWeeklySets(strength, exercises).days,
-    strength.days,
-  );
-  for (const path of forgePaths.filter((p) => p.key !== "advanced-physique"))
-    for (let frequency = path.minDays; frequency <= path.maxDays; frequency++)
-      assertConstraints(
-        generatePath(
-          pathPreferences({
-            pathKey: path.key,
-            frequency,
-            experience: "Beginner",
-          }),
-          exercises,
-        ),
-      );
 });
 
-test("a named back-and-hamstrings focus allocates main work to those roles, not simply the first two slots", () => {
+test("a named back-and-hamstrings day opens with its back work, not a leg movement", () => {
   const draft = generatePath(
     pathPreferences({
       pathKey: "advanced-physique",
@@ -333,56 +258,19 @@ test("a named back-and-hamstrings focus allocates main work to those roles, not 
     exercises,
   );
   const day = draft.days[1]!;
-  const sets = (id: string) =>
-    day.exercises.find((e) => e.exerciseId === id)!.sets;
-  assert.ok(sets("lat-pulldown") > sets("incline-dumbbell-bench-press"));
-  assert.ok(sets("seated-leg-curl") >= sets("dumbbell-split-squat"));
-});
-
-test("new-plan validation enforces goal-specific session and weekly primary-target limits after edits", () => {
-  const strength = generatePath(
-    pathPreferences({ pathKey: "get-strong", frequency: 3 }),
-    exercises,
-  );
-  assert.throws(
-    () =>
-      validateDraft(
-        {
-          ...strength,
-          days: strength.days.map((d) => ({
-            ...d,
-            exercises: d.exercises.map((e) => ({ ...e, sets: 5 })),
-          })),
-        },
-        exercises,
-      ),
-    /limit|ceiling/,
-  );
-  const muscle = generatePath(pathPreferences({ frequency: 6 }), exercises);
-  assert.throws(
-    () =>
-      validateDraft(
-        {
-          ...muscle,
-          days: muscle.days.map((d) => ({
-            ...d,
-            exercises: d.exercises.map((e) => ({
-              ...e,
-              sets: Math.min(5, e.sets + 1),
-            })),
-          })),
-        },
-        exercises,
-      ),
-    /limit|ceiling/,
+  assert.equal(day.roles[0], "pull");
+  const lead = day.exercises[0]!;
+  assert.equal(lead.exerciseId, "lat-pulldown");
+  assert.ok(
+    lead.rest >= 180 && lead.reps <= 8,
+    "back work is the heavy anchor",
   );
 });
 
-test("saved pre-balance plans and logged targets are not regenerated on load or edits", () => {
+test("saved earlier-engine plans and logged targets are not regenerated on load or edits", () => {
   const { r, db } = pathRepository();
   try {
-    const draft = generatePath(pathPreferences(), exercises);
-    acceptPath(r, { ...draft, engineVersion: 5 });
+    acceptPath(r, legacyPath(pathPreferences(), exercises));
     const program = pathPrograms(r)[0]!;
     const before = savedDraft(r, program);
     const workout = startPathSession(r, pathSessions(r, program)[0]!.record.id);
@@ -393,7 +281,7 @@ test("saved pre-balance plans and logged targets are not regenerated on load or 
       0,
       before.days[0]!.exercises.map((e) => ({ ...e, weight: 10 })),
     );
-    assert.equal(savedDraft(r, pathPrograms(r)[0]!).engineVersion, 5);
+    assert.equal(savedDraft(r, pathPrograms(r)[0]!).engineVersion, 1);
     assert.deepEqual(r.workoutExercises(workout.id), targets);
   } finally {
     db.close();

@@ -1,8 +1,7 @@
-import type { Exercise, Prescription } from "../types";
+import type { Exercise } from "../types";
 import type { PathDay, PathDraft } from "./legacyGenerator";
 import type { PathRole } from "./model";
 import { exerciseStimulus } from "./stimulus";
-import { exerciseSetCap, sessionSetCap, isPriorityTarget } from "./volume";
 import { auditWeek } from "./weekAudit";
 
 export type SessionPurpose =
@@ -77,49 +76,6 @@ export function sessionWorkload(
   };
 }
 export type SessionWorkload = ReturnType<typeof sessionWorkload>;
-
-export function redistributeFocusSets(
-  day: PathDay,
-  preferences: PathDraft["preferences"],
-  catalog: Exercise[],
-  focusRoles: PathRole[],
-): PathDay {
-  const result = { ...day, exercises: day.exercises.map((e) => ({ ...e })) };
-  if (preferences.pathKey !== "advanced-physique" || !focusRoles.length)
-    return result;
-  // Reassign the existing main-slot bonus, rather than increasing the session
-  // budget when its declared focus is not in the first two exercise slots.
-  for (const [index, donor] of result.exercises.entries()) {
-    if (
-      focusRoles.includes(day.roles[index]!) ||
-      donor.sets <= 3 ||
-      isPriorityTarget(
-        preferences,
-        day.roles[index]!,
-        catalog.find((e) => e.id === donor.exerciseId),
-      )
-    )
-      continue;
-    const recipients = result.exercises
-      .map((item, i) => ({ item, i }))
-      .filter(
-        ({ item, i }) =>
-          focusRoles.includes(day.roles[i]!) &&
-          item.sets <
-            exerciseSetCap(
-              preferences,
-              catalog.find((e) => e.id === item.exerciseId),
-              false,
-            ),
-      )
-      .sort((a, b) => a.item.sets - b.item.sets || a.i - b.i);
-    const receiver = recipients[0]?.item;
-    if (!receiver) continue;
-    donor.sets--;
-    receiver.sets++;
-  }
-  return result;
-}
 
 function difference(a: SessionWorkload, b: SessionWorkload) {
   // Review heuristics, not validated fatigue thresholds. Counts alone never
@@ -222,112 +178,4 @@ export function weeklySessionBalance(
       });
     }
   return { sessions, diagnostics, overlaps, issues: auditWeek(draft.days) };
-}
-
-// Move existing sets only between already-programmed, identical movements on
-// comparable days. This preserves every weekly direct/supporting muscle count,
-// exclusions, split, exercise order, and training-day recovery spacing.
-export function redistributeWeeklySets(
-  draft: PathDraft,
-  catalog: Exercise[],
-  blueprints?: SessionBlueprint[],
-) {
-  const days = draft.days.map((d) => ({
-    ...d,
-    exercises: d.exercises.map((e) => ({ ...e })),
-  }));
-  const transfers: { from: string; to: string; exerciseId: string }[] = [];
-  if (
-    draft.preferences.experience === "Beginner" ||
-    !["build-muscle", "advanced-physique"].includes(draft.preferences.pathKey)
-  )
-    return { days, transfers };
-  const metrics = () =>
-    days.map((d, i) => sessionWorkload(d, catalog, blueprints?.[i]));
-  const score = (sessions: SessionWorkload[]) =>
-    sessions.reduce(
-      (sum, a, i) =>
-        sum +
-        sessions
-          .slice(i + 1)
-          .reduce(
-            (n, b) => n + (a.purpose === b.purpose ? difference(a, b) : 0),
-            0,
-          ),
-      0,
-    );
-  const budget = days.reduce(
-    (n, d) => n + d.exercises.reduce((s, e) => s + e.sets, 0),
-    0,
-  );
-  for (let step = 0; step < budget; step++) {
-    const current = metrics(),
-      before = score(current);
-    let best:
-      | {
-          from: number;
-          to: number;
-          donor: Prescription;
-          receiver: Prescription;
-          score: number;
-        }
-      | undefined;
-    for (let from = 0; from < days.length; from++)
-      for (let to = 0; to < days.length; to++) {
-        if (
-          from === to ||
-          current[from]!.purpose !== current[to]!.purpose ||
-          !difference(current[from]!, current[to]!) ||
-          current[from]!.workingSets <= current[to]!.workingSets ||
-          current[to]!.workingSets >= sessionSetCap(draft.preferences)
-        )
-          continue;
-        for (const [index, donor] of days[from]!.exercises.entries()) {
-          const floor = blueprints?.[from]?.focusRoles?.includes(
-            days[from]!.roles[index]!,
-          )
-            ? 3
-            : 2;
-          if (donor.sets <= floor) continue;
-          const receiver = days[to]!.exercises.find(
-            (e) => e.exerciseId === donor.exerciseId,
-          );
-          const receiverIndex = days[to]!.exercises.findIndex(
-            (e) => e === receiver,
-          );
-          if (
-            blueprints?.[from]?.focusRoles?.includes(
-              days[from]!.roles[index]!,
-            ) &&
-            !blueprints?.[to]?.focusRoles?.includes(
-              days[to]!.roles[receiverIndex]!,
-            )
-          )
-            continue;
-          const ex = catalog.find((e) => e.id === donor.exerciseId);
-          if (
-            !receiver ||
-            receiver.sets >= exerciseSetCap(draft.preferences, ex, false)
-          )
-            continue;
-          donor.sets--;
-          receiver.sets++;
-          const candidate = metrics(),
-            candidateScore = score(candidate);
-          if (candidateScore < before && (!best || candidateScore < best.score))
-            best = { from, to, donor, receiver, score: candidateScore };
-          donor.sets++;
-          receiver.sets--;
-        }
-      }
-    if (!best) break;
-    best.donor.sets--;
-    best.receiver.sets++;
-    transfers.push({
-      from: days[best.from]!.key,
-      to: days[best.to]!.key,
-      exerciseId: best.donor.exerciseId,
-    });
-  }
-  return { days, transfers };
 }

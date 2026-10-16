@@ -4,6 +4,7 @@ import { exercises } from "../src/data/catalog";
 import { generatePath } from "../src/domain/paths/generator";
 import { generatePath as legacyPath } from "../src/domain/paths/legacyGenerator";
 import { workloadReview } from "../src/domain/paths/review";
+import { PRIORITY_BONUS, weeklyVolumeTarget } from "../src/domain/paths/policy";
 import {
   calendarWeek,
   weekDates,
@@ -32,7 +33,7 @@ test("muscle-building defaults include complementary back, leg, calf and arm wor
       exercises,
     );
     const review = workloadReview(draft, exercises);
-    assert.equal(draft.engineVersion, 7);
+    assert.equal(draft.engineVersion, 8);
     assert.deepEqual(review.warnings, []);
     assert.ok(review.sets.Chest! >= 10);
     assert.ok(review.sets.Back! >= 10);
@@ -70,17 +71,21 @@ test("sessions are no longer built to a time target: volume comes from goal caps
   }
 });
 
-test("priorities redistribute the same set budget and limited equipment exposes coverage gaps", () => {
+test("priorities raise a muscle's weekly range within its ceiling and limited equipment exposes coverage gaps", () => {
   const p = pathPreferences();
   const base = generatePath(p, exercises);
   const emphasis = generatePath({ ...p, priorities: ["Chest"] }, exercises);
-  assert.equal(
-    workloadReview(base, exercises).total,
-    workloadReview(emphasis, exercises).total,
-  );
+  const chest = (d: typeof base) => workloadReview(d, exercises).sets.Chest!;
+  assert.ok(chest(emphasis) > chest(base));
   assert.ok(
-    workloadReview(emphasis, exercises).sets.Chest! >
-      workloadReview(base, exercises).sets.Chest!,
+    chest(emphasis) <=
+      weeklyVolumeTarget({ ...p, priorities: ["Chest"] }, "Chest").max,
+  );
+  // Specialization adds focused work; it does not inflate the whole week.
+  assert.ok(
+    workloadReview(emphasis, exercises).total -
+      workloadReview(base, exercises).total <=
+      PRIORITY_BONUS,
   );
   const home = generatePath({ ...p, equipment: ["Dumbbell"] }, exercises);
   assert.ok(
@@ -105,17 +110,21 @@ test("strength emphasises heavy main-lift practice over assistance volume", () =
     const assistance = d.exercises.slice(2);
     assert.ok(
       primary.every(
-        (e) => e.reps === 5 && e.rest === 180 && e.sets >= 4 && e.sets <= 5,
+        (e) =>
+          (e.repMax ?? e.reps) <= 6 &&
+          e.rest >= 180 &&
+          e.sets >= 3 &&
+          e.sets <= 4,
       ),
+      d.name,
     );
     assert.ok(
-      assistance.every(
-        (e) => [8, 12].includes(e.reps) && e.sets >= 2 && e.sets <= 3,
-      ),
+      assistance.every((e) => e.reps >= 6 && e.sets >= 2 && e.sets <= 3),
+      d.name,
     );
     const primarySets = primary.reduce((n, e) => n + e.sets, 0);
     const assistanceSets = assistance.reduce((n, e) => n + e.sets, 0);
-    assert.ok(primarySets >= assistanceSets);
+    assert.ok(primarySets >= assistanceSets, d.name);
   }
   const beginner = generatePath(
     pathPreferences({ experience: "Beginner" }),
