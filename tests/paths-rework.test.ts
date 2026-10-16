@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { exercises } from "../src/data/catalog";
-import { generatePath, estimatedMinutes } from "../src/domain/paths/generator";
+import { generatePath } from "../src/domain/paths/generator";
 import { generatePath as legacyPath } from "../src/domain/paths/legacyGenerator";
 import { workloadReview } from "../src/domain/paths/review";
 import {
@@ -28,12 +28,11 @@ test("muscle-building defaults include complementary back, leg, calf and arm wor
       pathPreferences({
         pathKey: key,
         frequency: path.frequency,
-        duration: path.duration,
       }),
       exercises,
     );
     const review = workloadReview(draft, exercises);
-    assert.equal(draft.engineVersion, 6);
+    assert.equal(draft.engineVersion, 7);
     assert.deepEqual(review.warnings, []);
     assert.ok(review.sets.Chest! >= 10);
     assert.ok(review.sets.Back! >= 10);
@@ -47,35 +46,28 @@ test("muscle-building defaults include complementary back, leg, calf and arm wor
       ),
     );
     assert.ok(draft.days.every((d) => !/\b[AB]$/.test(d.name)));
-    assert.ok(
-      draft.days.every(
-        (d) => estimatedMinutes(d.exercises, exercises) <= path.duration,
-      ),
-    );
   }
 });
 
-test("duration is a real target: more time adds productive volume up to a goal cap, never junk", () => {
-  // A base session that cannot fit the request is explained, not silently cut.
-  assert.throws(
-    () => generatePath(pathPreferences({ duration: 30 }), exercises),
-    /will not silently cut/,
-  );
+test("sessions are no longer built to a time target: volume comes from goal caps, never junk", () => {
   const totalSets = (draft: ReturnType<typeof generatePath>) =>
     draft.days.reduce(
       (n, day) => n + day.exercises.reduce((m, e) => m + e.sets, 0),
       0,
     );
-  const short = generatePath(pathPreferences({ duration: 50 }), exercises);
-  const mid = generatePath(pathPreferences({ duration: 60 }), exercises);
-  const long = generatePath(pathPreferences({ duration: 90 }), exercises);
-  // A tighter time budget yields fewer working sets; more time adds volume.
-  assert.ok(totalSets(short) < totalSets(mid));
-  // Past the goal's volume cap, extra time adds nothing: no junk padding.
-  assert.deepEqual(mid.days, long.days);
-  // Every filled session still fits within its requested duration.
-  for (const day of long.days)
-    assert.ok(estimatedMinutes(day.exercises, exercises) <= 90);
+  const draft = generatePath(pathPreferences(), exercises);
+  // Regenerating the same request yields the same volume; no hidden budget.
+  assert.equal(
+    totalSets(generatePath(pathPreferences(), exercises)),
+    totalSets(draft),
+  );
+  for (const day of draft.days) {
+    assert.ok(day.exercises.reduce((n, e) => n + e.sets, 0) <= 24);
+    assert.equal(
+      new Set(day.exercises.map((e) => e.exerciseId)).size,
+      day.exercises.length,
+    );
+  }
 });
 
 test("priorities redistribute the same set budget and limited equipment exposes coverage gaps", () => {
@@ -90,10 +82,7 @@ test("priorities redistribute the same set budget and limited equipment exposes 
     workloadReview(emphasis, exercises).sets.Chest! >
       workloadReview(base, exercises).sets.Chest!,
   );
-  const home = generatePath(
-    { ...p, equipment: ["Dumbbell"], duration: 90 },
-    exercises,
-  );
+  const home = generatePath({ ...p, equipment: ["Dumbbell"] }, exercises);
   assert.ok(
     workloadReview(home, exercises).warnings.some((w) =>
       w.includes("vertical pull"),
@@ -185,7 +174,6 @@ test("every advertised frequency generates a recoverable experienced-lifter plan
         pathPreferences({
           pathKey: path.key,
           frequency,
-          duration: 90,
           experience: "Advanced",
         }),
         exercises,
@@ -220,7 +208,6 @@ test("specific machines are independent and legacy full-gym programs remain comp
     const onlyChest = generatePath(
       pathPreferences({
         equipment: ["Dumbbell", "Chest press machine"],
-        duration: 90,
       }),
       exercises,
     );
@@ -248,7 +235,6 @@ test("no Path requires squatting when the user excludes that movement", () => {
     const p = pathPreferences({
       pathKey: path.key,
       frequency: path.frequency,
-      duration: 90,
       avoidPatterns: ["squat"],
     });
     const draft = generatePath(p, exercises);
@@ -290,7 +276,7 @@ test("no Path requires squatting when the user excludes that movement", () => {
 });
 
 test("all other movement exclusions and individual exercise exclusions are respected", () => {
-  const base = pathPreferences({ frequency: 3, duration: 90 });
+  const base = pathPreferences({ frequency: 3 });
   for (const pattern of [
     "horizontal push",
     "horizontal pull",
@@ -331,7 +317,6 @@ test("a single permitted movement survives saving and backup without restoring e
     pathPreferences({
       pathKey: "start-strong",
       frequency: 1,
-      duration: 90,
       equipment: ["Dumbbell"],
       excluded: ["dead-bug", "bird-dog", "reverse-crunch"],
       avoidPatterns: ["squat", "horizontal push", "hinge", "hip extension"],

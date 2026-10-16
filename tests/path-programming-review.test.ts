@@ -46,7 +46,6 @@ test("default weekly plans cover major muscle groups through deliberate direct o
       pathPreferences({
         pathKey: path.key,
         frequency: path.frequency,
-        duration: path.duration,
         experience: path.key === "start-strong" ? "Beginner" : "Advanced",
       }),
       exercises,
@@ -67,7 +66,7 @@ test("default weekly plans cover major muscle groups through deliberate direct o
 
 test("limited equipment does not turn curls into hinges, overhead presses into raises, or rows into face pulls", () => {
   const plan = generatePath(
-    pathPreferences({ equipment: ["Dumbbell"], duration: 90 }),
+    pathPreferences({ equipment: ["Dumbbell"] }),
     exercises,
   );
   for (const day of plan.days) {
@@ -85,7 +84,6 @@ test("limited equipment does not turn curls into hinges, overhead presses into r
       pathKey: "get-strong",
       frequency: 3,
       equipment: ["Dumbbell"],
-      duration: 90,
     }),
     exercises,
   );
@@ -114,10 +112,7 @@ test("isolation prescriptions follow the selected exercise rather than a generic
 test("version-two three-day programs remain startable and editable with their original snapshots", () => {
   const { r, db } = pathRepository();
   try {
-    const old = previousPlanner(
-      pathPreferences({ frequency: 3, duration: 90 }),
-      exercises,
-    );
+    const old = previousPlanner(pathPreferences({ frequency: 3 }), exercises);
     assert.equal(old.engineVersion, 2);
     acceptPath(r, old);
     const program = pathPrograms(r)[0]!;

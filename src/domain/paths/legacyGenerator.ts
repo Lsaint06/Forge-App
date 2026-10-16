@@ -1,6 +1,5 @@
 import type { Exercise, Prescription } from "../types";
 import { prescriptionSchema } from "../validation";
-import { estimatedMinutes } from "./duration";
 import { forgePaths, movementMenu } from "./catalog";
 import {
   pathPreferencesSchema,
@@ -12,11 +11,9 @@ import {
   type PathDayStructure,
 } from "./model";
 
-export { estimatedMinutes };
-
 export type PathDay = PathDayStructure & { exercises: Prescription[] };
 export type PathDraft = {
-  engineVersion?: 1 | 2 | 3 | 4 | 5 | 6;
+  engineVersion?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   preferences: PathPreferences;
   days: PathDay[];
 };
@@ -243,19 +240,6 @@ export function generatePath(
       roles.push(role);
     };
     day.roles.forEach((role) => add(role, false));
-    // Respect session length before adding accessories, never silently remove a
-    // required movement. Two main sets remain the minimum foundation dose.
-    while (
-      estimatedMinutes(exercises, catalog) > p.duration &&
-      exercises.some((e) => e.sets > 2)
-    )
-      exercises.forEach((e) => {
-        if (e.sets > 2) e.sets--;
-      });
-    if (estimatedMinutes(exercises, catalog) > p.duration)
-      throw new Error(
-        `${day.name} needs about ${estimatedMinutes(exercises, catalog)} minutes including rests. Increase the session duration or adjust training days.`,
-      );
     const extras = p.priorities.flatMap((name) => priorityRole[name] ?? []);
     if (physique) extras.push("shoulder", "biceps", "triceps");
     else if (p.pathKey === "lean-strong" || p.pathKey === "athlete-mode")
@@ -278,10 +262,7 @@ export function generatePath(
       if (exercises.length >= (beginner ? 5 : 6)) break;
       const length = exercises.length;
       add(role, true);
-      if (
-        estimatedMinutes(exercises, catalog) > p.duration ||
-        exercises.reduce((n, e) => n + e.sets, 0) > (physique ? 20 : 18)
-      ) {
+      if (exercises.reduce((n, e) => n + e.sets, 0) > (physique ? 20 : 18)) {
         exercises.splice(length);
         roles.splice(length);
       }
@@ -357,10 +338,6 @@ export function validateDraft(
       (p.pathKey === "advanced-physique" ? 20 : 18)
     )
       throw new Error("Keep working sets within this Path's session limit.");
-    if (estimatedMinutes(day.exercises, catalog) > p.duration)
-      throw new Error(
-        "This edit exceeds your preferred session duration. Reduce sets or increase duration in setup.",
-      );
   });
   checkRecovery(draft.days);
   return JSON.parse(JSON.stringify(draft)) as PathDraft;

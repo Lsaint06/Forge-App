@@ -1,9 +1,9 @@
 import type { Exercise, Prescription } from "../types";
 import type { PathDay, PathDraft } from "./legacyGenerator";
 import type { PathRole } from "./model";
-import { estimateSession } from "./duration";
 import { exerciseStimulus } from "./stimulus";
 import { exerciseSetCap, sessionSetCap, isPriorityTarget } from "./volume";
+import { auditWeek } from "./weekAudit";
 
 export type SessionPurpose =
   "full-body" | "upper" | "lower" | "push" | "pull" | "focused";
@@ -68,7 +68,6 @@ export function sessionWorkload(
     isolationSets,
     heavyCompoundSets,
     unilateralSets,
-    duration: estimateSession(day.exercises, catalog),
     patterns: [...patterns],
     direct,
     supporting,
@@ -118,12 +117,6 @@ export function redistributeFocusSets(
     if (!receiver) continue;
     donor.sets--;
     receiver.sets++;
-    if (
-      estimateSession(result.exercises, catalog).expected > preferences.duration
-    ) {
-      donor.sets++;
-      receiver.sets--;
-    }
   }
   return result;
 }
@@ -132,11 +125,7 @@ function difference(a: SessionWorkload, b: SessionWorkload) {
   // Review heuristics, not validated fatigue thresholds. Counts alone never
   // trigger redistribution; the sessions must also differ materially in work.
   const sets = Math.max(0, Math.abs(a.workingSets - b.workingSets) - 3);
-  const minutes = Math.max(
-    0,
-    Math.abs(a.duration.expected - b.duration.expected) - 10,
-  );
-  return sets * sets + (minutes * minutes) / 4;
+  return sets * sets;
 }
 
 export function weeklySessionBalance(
@@ -209,15 +198,7 @@ export function weeklySessionBalance(
           dayKeys: [a.key, b.key],
           message: `${a.name} / ${b.name}: adjacent direct work overlaps for ${loadedOverlap.join(", ")}. Review recovery and effort; these exposure counts are not a measured fatigue score.`,
         });
-      if (a.purpose !== b.purpose) {
-        if (Math.abs(a.exerciseCount - b.exerciseCount) >= 3)
-          diagnostics.push({
-            kind: "intentional",
-            dayKeys: [a.key, b.key],
-            message: `${a.name} and ${b.name} cover different scopes (${a.purpose} versus ${b.purpose}); ${a.exerciseCount} versus ${b.exerciseCount} exercises need not match.`,
-          });
-        continue;
-      }
+      if (a.purpose !== b.purpose) continue;
       if (!difference(a, b)) continue;
       const restricted = a.missingRoles.length || b.missingRoles.length;
       const demandDiffers =
@@ -231,16 +212,16 @@ export function weeklySessionBalance(
             ? "intentional"
             : "review",
         dayKeys: [a.key, b.key],
-        message: `${a.name} / ${b.name}: ${a.workingSets}/${b.workingSets} sets, about ${a.duration.expected}/${b.duration.expected} min. ${
+        message: `${a.name} / ${b.name}: ${a.workingSets}/${b.workingSets} sets. ${
           restricted
             ? "Available movements differ; inspect the omitted coverage."
             : demandDiffers
-              ? "Heavy or unilateral work differs; equal counts or duration are not required."
+              ? "Heavy or unilateral work differs; equal set counts are not required."
               : "Comparable session purposes have uneven workloads; review allocation and muscle emphasis."
         }`,
       });
     }
-  return { sessions, diagnostics, overlaps };
+  return { sessions, diagnostics, overlaps, issues: auditWeek(draft.days) };
 }
 
 // Move existing sets only between already-programmed, identical movements on
@@ -333,11 +314,7 @@ export function redistributeWeeklySets(
           receiver.sets++;
           const candidate = metrics(),
             candidateScore = score(candidate);
-          if (
-            candidate[to]!.duration.expected <= draft.preferences.duration &&
-            candidateScore < before &&
-            (!best || candidateScore < best.score)
-          )
+          if (candidateScore < before && (!best || candidateScore < best.score))
             best = { from, to, donor, receiver, score: candidateScore };
           donor.sets++;
           receiver.sets--;

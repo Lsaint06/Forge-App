@@ -37,10 +37,7 @@ jest.mock("../../src/state", () => ({
 test("switching from a saved Path retains its supported training frequency", async () => {
   const { r, db } = pathRepository();
   try {
-    acceptPath(
-      r,
-      generatePath(pathPreferences({ frequency: 2, duration: 90 }), exercises),
-    );
+    acceptPath(r, generatePath(pathPreferences({ frequency: 2 }), exercises));
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Paths />);
     await fireEvent.press(view.getByLabelText("Manage Path"));
@@ -147,7 +144,6 @@ test.each(forgePaths)(
             pathKey: path.key,
             experience: "Advanced",
             frequency: path.frequency,
-            duration: 90,
           }),
           exercises,
         ),
@@ -179,10 +175,17 @@ test("Path personalization previews real workouts without saving until acceptanc
   jest.mocked(useRepo).mockReturnValue(r);
   const view = await render(<Paths />);
   await fireEvent.press(view.getByLabelText("Choose START STRONG"));
+  expect(view.queryByText(/minutes per workout/i)).toBeNull();
+  for (const minutes of ["30", "45", "60", "75", "90"])
+    expect(view.queryByRole("button", { name: minutes })).toBeNull();
   await fireEvent.press(view.getByLabelText("Next step"));
   await fireEvent.press(view.getByLabelText("Next step"));
   await fireEvent.press(view.getByLabelText("Preview my eight-week plan"));
   expect(view.getByText("Your plan, before you commit.")).toBeTruthy();
+  expect(
+    view.getAllByText(/5 exercises · 10 working sets/).length,
+  ).toBeGreaterThan(0);
+  expect(view.queryByText(/\d+ min\b/)).toBeNull();
   expect(r.journal("program")).toHaveLength(0);
   expect(r.journal("schedule")).toHaveLength(0);
   await fireEvent.press(view.getByLabelText("Start this Path"));
@@ -225,14 +228,13 @@ test("Path preview honors imperial preferences while saving canonical kilograms"
   db.close();
 });
 
-test("weekly session balance stays in optional plan details and explains broad versus focused days", async () => {
+test("weekly session balance stays in optional plan details and shows balanced day counts", async () => {
   const { r, db } = pathRepository();
   try {
     const draft = generatePath(
       pathPreferences({
         pathKey: "advanced-physique",
         frequency: 5,
-        duration: 90,
       }),
       exercises,
     );
@@ -240,17 +242,43 @@ test("weekly session balance stays in optional plan details and explains broad v
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Paths />);
     expect(view.queryByText("Weekly session balance")).toBeNull();
+    expect(view.queryByText("Unbalanced training days")).toBeNull();
     await fireEvent.press(view.getByLabelText("Plan details"));
     expect(view.getByText("Weekly session balance")).toBeTruthy();
     expect(
-      view.getByText(/Upper body · chest & back: 8 exercises/),
+      view.getByText(/Upper body · chest & back: 6 exercises/),
     ).toBeTruthy();
     expect(
       view.getByText(/Chest, shoulders & triceps: 5 exercises/),
     ).toBeTruthy();
-    expect(
-      view.getByText(/different scopes \(upper versus push\)/),
-    ).toBeTruthy();
+    expect(view.getByText(/within two exercises of the others/)).toBeTruthy();
+    expect(view.queryByText(/ min\b/)).toBeNull();
+  } finally {
+    db.close();
+  }
+});
+
+test("an earlier-engine saved Path with unbalanced days shows a rebuild notice", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const draft = generatePath(pathPreferences(), exercises);
+    acceptPath(r, {
+      ...draft,
+      engineVersion: 6,
+      days: draft.days.map((d, i) =>
+        i === 1
+          ? {
+              ...d,
+              roles: d.roles.slice(0, 3),
+              exercises: d.exercises.slice(0, 3),
+            }
+          : d,
+      ),
+    });
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<Paths />);
+    expect(view.getByText("Unbalanced training days")).toBeTruthy();
+    expect(view.getByText(/twice as many exercises/)).toBeTruthy();
   } finally {
     db.close();
   }

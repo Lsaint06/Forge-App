@@ -78,7 +78,7 @@ export function workloadReview(draft: PathDraft, catalog: Exercise[]) {
       draft,
       catalog,
       (draft.engineVersion ?? 1) >= 6
-        ? structure(draft.preferences)
+        ? structure(draft.preferences, draft.engineVersion)
         : undefined,
     ),
   };

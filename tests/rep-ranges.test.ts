@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { exercises } from "../src/data/catalog";
 import { generatePath, validateDraft } from "../src/domain/paths/generator";
-import { estimateSession } from "../src/domain/paths/duration";
 import { compoundRepRange } from "../src/domain/paths/repRanges";
 import { repRangeLabel } from "../src/domain/prescriptions";
 import { targetProgression } from "../src/domain/progression";
@@ -11,7 +10,7 @@ import { pathPreferences } from "./path-fixture";
 
 test("hypertrophy compounds have role-based ranges, not arbitrary exercise variation", () => {
   const draft = generatePath(pathPreferences(), exercises);
-  assert.equal(draft.engineVersion, 6);
+  assert.equal(draft.engineVersion, 7);
   const upper = draft.days[0]!.exercises;
   const expected = [
     ["barbell-bench-press", 6, 8],
@@ -40,7 +39,7 @@ test("foundation, strength, athletic and recomposition prescriptions keep their 
     "lean-strong",
   ] as const) {
     const draft = generatePath(
-      pathPreferences({ pathKey, frequency: 3, duration: 90 }),
+      pathPreferences({ pathKey, frequency: 3 }),
       exercises,
     );
     assert.ok(
@@ -56,29 +55,7 @@ test("foundation, strength, athletic and recomposition prescriptions keep their 
   );
 });
 
-test("duration uses the upper rep boundary, not the lower target", () => {
-  const item = {
-    exerciseId: "barbell-bench-press",
-    sets: 4,
-    reps: 6,
-    repMax: 12,
-    weight: 0,
-    rest: 120,
-  };
-  const range = estimateSession([item], exercises);
-  const fixedUpper = estimateSession(
-    [{ ...item, reps: 12, repMax: undefined }],
-    exercises,
-  );
-  const fixedLower = estimateSession(
-    [{ ...item, repMax: undefined }],
-    exercises,
-  );
-  assert.deepEqual(range, fixedUpper);
-  assert.ok(range.expected > fixedLower.expected);
-});
-
-test("new ranges retain time and weekly safeguards across supported hypertrophy frequencies", () => {
+test("new ranges retain session and weekly safeguards across supported hypertrophy frequencies", () => {
   for (const pathKey of ["build-muscle", "advanced-physique"] as const) {
     for (
       let frequency = pathKey === "build-muscle" ? 2 : 3;
@@ -86,11 +63,10 @@ test("new ranges retain time and weekly safeguards across supported hypertrophy 
       frequency++
     ) {
       const draft = generatePath(
-        pathPreferences({ pathKey, frequency, duration: 90 }),
+        pathPreferences({ pathKey, frequency }),
         exercises,
       );
       for (const day of draft.days) {
-        assert.ok(estimateSession(day.exercises, exercises).expected <= 90);
         assert.ok(day.exercises.reduce((n, p) => n + p.sets, 0) <= 28);
         assert.ok(day.exercises.every((p) => p.reps <= (p.repMax ?? p.reps)));
       }

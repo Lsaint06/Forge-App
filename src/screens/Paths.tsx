@@ -27,7 +27,6 @@ import {
   type PathDraft,
   type PathDay,
 } from "../domain/paths/generator";
-import { durationRangeLabel } from "../domain/paths/duration";
 import {
   equipmentOptions,
   expandEquipment,
@@ -51,6 +50,7 @@ import {
   startPathSession,
   reschedulePathSession,
   skipPathSession,
+  workloadGuidance,
   type PathSession,
 } from "../data/paths";
 import { localDate, type Exercise, type Prescription } from "../domain/types";
@@ -61,7 +61,11 @@ import {
   weekFocus,
 } from "../domain/paths/calendar";
 import { workloadReview, trainingGuidance } from "../domain/paths/review";
+import { auditWeek } from "../domain/paths/weekAudit";
 import { kgToLb, lbToKg } from "../domain/metrics";
+
+const workingSets = (items: Prescription[]) =>
+  items.reduce((n, e) => n + e.sets, 0);
 
 function toggle<T>(values: T[], value: T): T[] {
   return values.includes(value)
@@ -144,8 +148,8 @@ export function PathDayEditor({
         {day.name}
       </Label>
       <Label muted>
-        {durationRangeLabel(day.exercises, catalog)} estimated · including
-        rests, warm-up and transitions
+        {day.exercises.length} exercises · {workingSets(day.exercises)} working
+        sets · train at your own pace with the listed rests
       </Label>
       <Label muted size={13}>
         Reps is the lower target; maximum reps is the upper target. Use equal
@@ -266,6 +270,15 @@ export default function Paths() {
   const selected =
     pathPrograms(r).find((p) => p.record.id === selectedId) ?? active;
   const stats = selected ? pathSummary(r, selected) : undefined;
+  // Earlier-engine plans remain usable; imbalance is surfaced, not enforced.
+  const savedIssues =
+    selected && selected.data.engineVersion < 7
+      ? auditWeek(savedDraft(r, selected).days)
+      : [];
+  const guidance =
+    selected && selected.data.status !== "archived"
+      ? workloadGuidance(r, selected)
+      : undefined;
   const sessionName = (index: number, fallback: string) =>
     selected?.data.engineVersion === 1
       ? (structure(selected.data.preferences)[index]?.name ?? fallback)
@@ -351,7 +364,6 @@ export default function Paths() {
       pathKey: path.key,
       experience,
       ...schedule,
-      duration: path.duration,
       equipment: expandEquipment([
         ...equipmentOptions.filter((e) =>
           p.equipment.toLowerCase().includes(e.toLowerCase()),
@@ -442,7 +454,7 @@ export default function Paths() {
               <Label muted>{path.description}</Label>
               <Label muted size={13}>
                 {path.experience} · {path.minDays}–{path.maxDays} days / week ·
-                around {path.duration} min · 8 weeks
+                8 weeks
               </Label>
               <Label size={13}>{path.muscles}</Label>
               <Label muted size={13}>
@@ -520,12 +532,6 @@ export default function Paths() {
                 selected={preferences.weekdays}
                 names={weekdayNames}
                 onChange={(weekdays) => patch({ weekdays })}
-              />
-              <Label muted>Preferred minutes per workout</Label>
-              <Chips
-                values={["30", "45", "60", "75", "90"]}
-                value={String(preferences.duration)}
-                onChange={(v) => patch({ duration: Number(v) })}
               />
               <Field
                 label="Path start date (YYYY-MM-DD)"
@@ -700,9 +706,8 @@ export default function Paths() {
               {previewDay.name}
             </Label>
             <Label muted size={13}>
-              {durationRangeLabel(previewDay.exercises, catalog)} ·{" "}
-              {previewDay.exercises.reduce((n, e) => n + e.sets, 0)} working
-              sets
+              {previewDay.exercises.length} exercises ·{" "}
+              {workingSets(previewDay.exercises)} working sets
             </Label>
             <PathWorkoutList items={previewDay.exercises} catalog={catalog} />
             <Button
@@ -800,6 +805,24 @@ export default function Paths() {
                 {stats.completed} / {stats.expected} workouts completed
               </Label>
             </View>
+            {selected.data.status !== "archived" && savedIssues.length > 0 && (
+              <Card>
+                <Label bold>Unbalanced training days</Label>
+                <Label muted size={13}>
+                  {savedIssues[0]!.message} This plan was built before balanced
+                  weeks were required. Rebuild it from Manage Path; recorded
+                  workouts are kept.
+                </Label>
+              </Card>
+            )}
+            {guidance && (
+              <Card>
+                <Label bold>Workload check</Label>
+                <Label muted size={13}>
+                  {guidance.message}
+                </Label>
+              </Card>
+            )}
             {selectedDate && !session ? (
               <Card>
                 <Label bold size={23}>
@@ -831,7 +854,7 @@ export default function Paths() {
                 </Label>
                 <Label muted size={13}>
                   {template?.exercises.length ?? 0} exercises ·{" "}
-                  {durationRangeLabel(template?.exercises ?? [], catalog)}
+                  {workingSets(template?.exercises ?? [])} working sets
                 </Label>
                 {session.state === "completed" ? (
                   <Button
@@ -1125,10 +1148,6 @@ export default function Paths() {
                         selected.data.preferences.experience,
                       ),
                       startDate: localDate(),
-                      duration: Math.max(
-                        selected.data.preferences.duration,
-                        definition.duration,
-                      ),
                     });
                     setManage(false);
                     setStep(0);
@@ -1242,12 +1261,12 @@ export default function Paths() {
         {reviewDraft && review && (
           <>
             {selected &&
-              selected.data.engineVersion < 6 &&
+              selected.data.engineVersion < 7 &&
               view !== "preview" && (
                 <Label muted>
                   This saved plan uses an earlier planner. Use Manage Path →
-                  Rebuild this Path to preview the reviewed programming. Logged
-                  workouts stay unchanged.
+                  Rebuild this Path to preview balanced training days without
+                  time limits. Logged workouts stay unchanged.
                 </Label>
               )}
             <Label bold>Foundation · Weeks 1–4</Label>
@@ -1260,17 +1279,21 @@ export default function Paths() {
             <Label muted>{weekIntention(trainingWeeks[0] ?? 1)}</Label>
             <Label bold>Weekly session balance</Label>
             <Label muted size={12}>
-              Compare training purpose and workload, not exercise count alone.
-              Different muscle-group scopes and heavy lifts can justify
-              different session lengths.
+              Every training day stays within two exercises of the others, and
+              no day carries twice the exercises or working-set load of another.
+              Heavy compound sets count for more than light ones.
             </Label>
             {review.balance.sessions.map((session) => (
               <Label key={session.key} size={13}>
                 {session.name}: {session.exerciseCount} exercises ·{" "}
-                {session.workingSets} sets · about {session.duration.expected}{" "}
-                min
+                {session.workingSets} sets
                 {" · "}
                 {session.purpose}
+              </Label>
+            ))}
+            {review.balance.issues.map((item, index) => (
+              <Label key={`issue-${index}`} bold size={12}>
+                {item.message}
               </Label>
             ))}
             {review.balance.diagnostics

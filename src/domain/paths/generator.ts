@@ -6,14 +6,20 @@ import { exerciseStimulus } from "./stimulus";
 import { compoundRepRange } from "./repRanges";
 import { redistributeWeeklySets, redistributeFocusSets } from "./balance";
 import {
+  assertBalancedWeek,
+  effectiveSets,
+  MAX_EXERCISE_SPREAD,
+  MAX_SAME_TARGET_PER_DAY,
+} from "./weekAudit";
+import {
   pathPreferencesSchema,
   machineRequirement,
+  defaultWeekdays,
   type PathPreferences,
   type PathRole,
 } from "./model";
 import {
   compatibleMovements,
-  estimatedMinutes,
   validateDraft as validateLegacy,
   type PathDay,
   type PathDraft,
@@ -26,11 +32,15 @@ import {
 } from "./volume";
 export {
   compatibleMovements,
-  estimatedMinutes,
   roleReasons,
   scheduledDates,
 } from "./legacyGenerator";
 export type { PathDay, PathDraft } from "./legacyGenerator";
+
+// Version 7 builds each week as one balanced split without session-time
+// budgets. Versions 3–6 remain readable so saved programs keep working.
+export const ENGINE_VERSION = 7 as const;
+const SUPPORTED_ENGINES = [3, 4, 5, 6, ENGINE_VERSION];
 
 type Slot = {
   optional?: boolean;
@@ -121,7 +131,10 @@ const calf = slot("calf", undefined, undefined, true);
 const core = slot("core", undefined, undefined, true);
 
 type Session = { name: string; slots: Slot[]; focusRoles?: PathRole[] };
-function sessions(p: PathPreferences): Session[] {
+function sessions(
+  p: PathPreferences,
+  version: number = ENGINE_VERSION,
+): Session[] {
   const novice = p.pathKey === "start-strong";
   const strength = p.pathKey === "get-strong";
   const athlete = p.pathKey === "athlete-mode";
@@ -278,7 +291,20 @@ function sessions(p: PathPreferences): Session[] {
     slots: [row, vertical, rear, bi, core],
   };
   if (p.frequency === 5)
-    return [upper(false), lower(false), chest, back, lower(true)];
+    return [
+      // Chest/shoulder and back days carry incline and rear-delt work, so the
+      // opening upper day stays within the week's exercise-count spread.
+      version >= 7
+        ? {
+            ...upper(false),
+            slots: [press, row, vertical, side, bi, tri],
+          }
+        : upper(false),
+      lower(false),
+      chest,
+      back,
+      lower(true),
+    ];
   return [
     chest,
     back,
@@ -297,8 +323,11 @@ function sessions(p: PathPreferences): Session[] {
   ];
 }
 
-export function structure(p: PathPreferences) {
-  return sessions(p).map((s) => ({
+export function structure(
+  p: PathPreferences,
+  version: number = ENGINE_VERSION,
+) {
+  return sessions(p, version).map((s) => ({
     name: s.name,
     roles: s.slots.map((s) => s.role),
     focusRoles: s.focusRoles ?? [],
@@ -377,31 +406,227 @@ function recovery(days: PathDay[]) {
       );
   }
 }
+type Pick = { slot: number; id: string; substituted?: boolean };
+// Balancing never trims a lifting day below this many exercises; if that
+// would be required, the week is rejected with guidance instead.
+const TRIM_FLOOR = 3;
+class WeekBalanceError extends Error {}
+
+// Plans the whole week before any prescriptions are written: every day takes
+// its reviewed slot choices, then the week is compared as one split. Short days
+// first receive a same-role alternative for a planned slot their equipment
+// could not fill; otherwise the longest days lose their least essential
+// movement. Nothing is added beyond the session's designed slots.
+function planWeek(p: PathPreferences, catalog: Exercise[]): Pick[][] {
+  const specs = sessions(p);
+  const offsets = dates(p);
+  const plan = specs.map((s, i) => {
+    const picks: Pick[] = [];
+    s.slots.forEach((_, j) => {
+      const choice = slotMovements(p, i, j, catalog).find(
+        (m) => !picks.some((x) => x.id === m.id),
+      );
+      if (choice) picks.push({ slot: j, id: choice.id });
+    });
+    return picks;
+  });
+  const primary = (id: string) => exerciseStimulus(id).direct[0];
+  const roleAt = (i: number, pick: Pick) => specs[i]!.slots[pick.slot]!.role;
+  const recoverable = () => {
+    try {
+      recovery(
+        plan.map((picks, i) => ({
+          key: `day-${i}`,
+          name: specs[i]!.name,
+          offset: offsets[i]!,
+          roles: picks.map((x) => roleAt(i, x)),
+          exercises: [],
+        })),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const lifting = () => plan.map((_, i) => i);
+  const range = () => {
+    const counts = lifting().map((i) => plan[i]!.length);
+    return { low: Math.min(...counts), high: Math.max(...counts), counts };
+  };
+  const imbalanced = () => {
+    const { low, high, counts } = range();
+    return (
+      counts.length > 1 && (high >= 2 * low || high - low > MAX_EXERCISE_SPREAD)
+    );
+  };
+  const substitute = (i: number) => {
+    const picks = plan[i]!;
+    for (const [j, target] of specs[i]!.slots.entries()) {
+      if (picks.some((x) => x.slot === j)) continue;
+      const pattern = (id: string) =>
+        !!target.patterns?.includes(
+          catalog.find((e) => e.id === id)?.pattern ?? "",
+        );
+      const options = compatibleMovements(p, target.role, catalog)
+        .filter((m) => !picks.some((x) => x.id === m.id))
+        .filter(
+          (m) =>
+            (target !== press && target !== squat) ||
+            !exerciseStimulus(m.id).isolation,
+        )
+        .filter((m) => {
+          const muscle = primary(m.id);
+          return (
+            !muscle ||
+            picks.filter((x) => primary(x.id) === muscle).length <
+              MAX_SAME_TARGET_PER_DAY
+          );
+        })
+        .sort((a, b) => Number(pattern(b.id)) - Number(pattern(a.id)));
+      for (const option of options) {
+        const pick: Pick = { slot: j, id: option.id, substituted: true };
+        const at = picks.findIndex((x) => x.slot > j);
+        picks.splice(at < 0 ? picks.length : at, 0, pick);
+        if (recoverable()) return true;
+        picks.splice(picks.indexOf(pick), 1);
+      }
+    }
+    return false;
+  };
+  const trim = (i: number) => {
+    const picks = plan[i]!;
+    if (picks.length <= TRIM_FLOOR) return false;
+    const focus = specs[i]!.focusRoles ?? [];
+    const elsewhere = (id: string) =>
+      plan.some(
+        (other, k) =>
+          k !== i && other.some((x) => primary(x.id) === primary(id)),
+      );
+    const victim = picks
+      .map((pick, index) => ({ pick, index }))
+      .filter(
+        ({ pick }) =>
+          pick.slot >= 2 &&
+          !focus.includes(roleAt(i, pick)) &&
+          !isPriorityTarget(
+            p,
+            roleAt(i, pick),
+            catalog.find((e) => e.id === pick.id),
+          ),
+      )
+      .sort(
+        (a, b) =>
+          Number(elsewhere(b.pick.id)) - Number(elsewhere(a.pick.id)) ||
+          Number(exerciseStimulus(b.pick.id).isolation) -
+            Number(exerciseStimulus(a.pick.id).isolation) ||
+          b.index - a.index,
+      )[0];
+    if (!victim) return false;
+    picks.splice(victim.index, 1);
+    return true;
+  };
+  for (let guard = 0; guard < 64 && imbalanced(); guard++) {
+    const { low, high } = range();
+    const days = lifting();
+    if (days.filter((i) => plan[i]!.length === low).some(substitute)) continue;
+    if (days.filter((i) => plan[i]!.length === high).some(trim)) continue;
+    break;
+  }
+  if (imbalanced()) {
+    const { low, high } = range();
+    const short = lifting().find((i) => plan[i]!.length === low)!;
+    const long = lifting().find((i) => plan[i]!.length === high)!;
+    throw new WeekBalanceError(
+      `With your equipment and exclusions, ${specs[short]!.name} can only include ${low} exercise${low === 1 ? "" : "s"} while ${specs[long]!.name} needs ${high}. Forge will not assign unbalanced training days.`,
+    );
+  }
+  return plan;
+}
+
 export function generatePath(
   input: PathPreferences,
   catalog: Exercise[],
 ): PathDraft {
   const p = pathPreferencesSchema.parse(input);
   checkPreferences(p);
+  try {
+    return buildPath(p, catalog);
+  } catch (error) {
+    if (!(error instanceof WeekBalanceError)) throw error;
+    const builds = (q: PathPreferences) => {
+      try {
+        buildPath(q, catalog);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    const path = forgePaths.find((x) => x.key === p.pathKey)!;
+    const balanced: number[] = [];
+    for (let f = path.minDays; f <= path.maxDays; f++)
+      if (
+        f !== p.frequency &&
+        builds({ ...p, frequency: f, weekdays: defaultWeekdays(f) })
+      )
+        balanced.push(f);
+    const list = (items: (string | number)[]) =>
+      items.length > 1
+        ? `${items.slice(0, -1).join(", ")} or ${items[items.length - 1]}`
+        : String(items[0]);
+    // Without any permitted pull, upper-body days cannot be balanced. Only
+    // affordable home equipment that actually resolves this week is suggested.
+    if (!compatibleMovements(p, "pull", catalog).length) {
+      const fixes = PULL_EQUIPMENT.filter(
+        ({ needs }) =>
+          !needs.every((n) => p.equipment.includes(n)) &&
+          builds({ ...p, equipment: [...new Set([...p.equipment, ...needs])] }),
+      ).map(({ label }) => label);
+      const choices = [
+        ...(balanced.length ? [`choose ${list(balanced)} training days`] : []),
+        ...(fixes.length
+          ? [`add ${list(fixes)} to train ${p.frequency} days a week`]
+          : []),
+      ];
+      const next = choices.length
+        ? ` ${choices.join(", or ").replace(/^./, (c) => c.toUpperCase())}.`
+        : " Adjust your equipment or exclusions to allow a pulling exercise.";
+      throw new Error(
+        `Your upper-body days need a pulling exercise to stay balanced, and none is possible with your current equipment and exclusions.${next}`,
+      );
+    }
+    const options = balanced.length
+      ? ` A balanced week is available at ${list(balanced)} training days per week.`
+      : "";
+    throw new Error(
+      `${error.message}${options} Adding equipment or removing exclusions also widens your movement choices.`,
+    );
+  }
+}
+
+const PULL_EQUIPMENT: {
+  label: string;
+  needs: PathPreferences["equipment"];
+}[] = [
+  {
+    label: "a resistance band with a door anchor",
+    needs: ["Resistance band", "Band anchor"],
+  },
+  { label: "a doorway pull-up bar", needs: ["Pull-up bar"] },
+];
+
+function buildPath(p: PathPreferences, catalog: Exercise[]): PathDraft {
   const offsets = dates(p);
   const physique = p.pathKey === "advanced-physique",
     strength = p.pathKey === "get-strong",
     novice = p.pathKey === "start-strong";
+  const plan = planWeek(p, catalog);
   const days = sessions(p).map((s, i): PathDay => {
     const exercises: Prescription[] = [];
     const roles: PathRole[] = [];
-    let adapted = false;
-    s.slots.forEach((target, j) => {
-      const choices = slotMovements(p, i, j, catalog).filter(
-        (m) => !exercises.some((e) => e.exerciseId === m.id),
-      );
-      // Every movement slot is optional. Never override exclusions or assume
-      // missing equipment simply to fill a predetermined session structure.
-      if (!choices.length) {
-        adapted = true;
-        return;
-      }
-      const stimulus = exerciseStimulus(choices[0]!.id);
+    const picks = plan[i]!;
+    for (const { slot: j, id } of picks) {
+      const target = s.slots[j]!;
+      const stimulus = exerciseStimulus(id);
       if (!stimulus.reviewed)
         throw new Error(
           "A selected movement needs a reviewed training purpose.",
@@ -424,7 +649,7 @@ export function generatePath(
                 ? 4
                 : 3;
       exercises.push({
-        exerciseId: choices[0]!.id,
+        exerciseId: id,
         sets,
         reps:
           target.role === "core"
@@ -454,20 +679,18 @@ export function generatePath(
                 : 120,
         ...compoundRepRange(
           p,
-          catalog.find((e) => e.id === choices[0]!.id)!,
+          catalog.find((e) => e.id === id)!,
           !exercises.some((e) => !exerciseStimulus(e.exerciseId).isolation),
         ),
       });
       roles.push(target.role);
-    });
+    }
     if (!exercises.length)
       throw new Error(
         "No exercises match your choices for this session. Try another Path, fewer training days or different equipment. Excluded movements will not be added back.",
       );
-    if (estimatedMinutes(exercises, catalog) > p.duration)
-      throw new Error(
-        `${s.name} needs about ${estimatedMinutes(exercises, catalog)} minutes with its working sets and rests. Choose a longer duration or a different training frequency; Forge will not silently cut your workload.`,
-      );
+    const adapted =
+      picks.length !== s.slots.length || picks.some((x) => x.substituted);
     return {
       key: `day-${i}`,
       name: adapted
@@ -502,25 +725,20 @@ export function generatePath(
       donor >= 0 &&
       day.exercises[targetIndex]!.sets < (p.experience === "Beginner" ? 3 : 5)
     ) {
-      const before = day.exercises.map((e) => ({ ...e }));
       day.exercises[targetIndex]!.sets++;
       day.exercises[donor]!.sets--;
-      if (estimatedMinutes(day.exercises, catalog) > p.duration)
-        day.exercises = before;
     }
   }
-  // Duration-aware filling at the program level: approach each session's
-  // requested length by adding working sets, but never past the session time
-  // target, the goal's per-session volume cap, a per-exercise cap, or a muscle's
+  // Volume is set at the program level, never by session time: add working
+  // sets up to the goal's per-session cap, a per-exercise cap and a muscle's
   // weekly direct-set ceiling. Filling all days together with a running weekly
   // tally keeps high-frequency weeks from overloading a single muscle. Beginner
   // and start-strong plans keep their deliberate, manageable templates; strength
-  // is filled into the main lifts first. Shorter productive sessions stay
-  // shorter and report the honest estimate.
+  // is filled into the main lifts first.
   const fillable = !novice && p.experience !== "Beginner";
   if (fillable) {
-    // The pre-balance allocation supplies an upper budget, not a target. A
-    // cheaper allocation must not turn saved time into additional weekly sets.
+    // The pre-balance allocation supplies an upper budget, not a target, so
+    // focus redistribution cannot turn into additional weekly sets.
     const reference = days.map((day) => ({
       ...day,
       exercises: day.exercises.map((item) => ({ ...item })),
@@ -536,20 +754,81 @@ export function generatePath(
       ).exercises;
     fillProgram(days, p, catalog, strength, { weeklyBudget });
   }
-  const draft: PathDraft = { engineVersion: 6, preferences: p, days };
+  const draft: PathDraft = {
+    engineVersion: ENGINE_VERSION,
+    preferences: p,
+    days,
+  };
   const balanced = redistributeWeeklySets(draft, catalog, structure(p));
+  balanceVolume(balanced.days, p, catalog);
   return validateDraft({ ...draft, days: balanced.days }, catalog);
+}
+
+// Keeps weekly working-set load evenly spread: the lightest day gains a set on
+// its least-loaded movement within every goal cap, otherwise the heaviest day
+// gives up a set from its most-loaded movement (never below two sets).
+function balanceVolume(
+  days: PathDay[],
+  p: PathPreferences,
+  catalog: Exercise[],
+) {
+  if (days.length < 2) return;
+  const strength = p.pathKey === "get-strong";
+  const find = (id: string) => catalog.find((e) => e.id === id);
+  const mainStrength = (item: Prescription) =>
+    strength &&
+    item.reps <= 6 &&
+    item.rest >= 180 &&
+    !exerciseStimulus(item.exerciseId).isolation;
+  for (let guard = 0; guard < 200; guard++) {
+    const sorted = [...days].sort(
+      (a, b) => effectiveSets(a) - effectiveSets(b),
+    );
+    const low = sorted[0]!,
+      high = sorted[sorted.length - 1]!;
+    if (!effectiveSets(low) || effectiveSets(high) < 2 * effectiveSets(low))
+      return;
+    const weekly: Record<string, number> = {};
+    for (const day of days)
+      for (const item of day.exercises) {
+        const muscle = exerciseStimulus(item.exerciseId).direct[0];
+        if (muscle) weekly[muscle] = (weekly[muscle] ?? 0) + item.sets;
+      }
+    const receiver =
+      sessionSets(low) < sessionSetCap(p)
+        ? low.exercises
+            .filter((item) => {
+              const muscle = exerciseStimulus(item.exerciseId).direct[0];
+              return (
+                item.sets <
+                  exerciseSetCap(
+                    p,
+                    find(item.exerciseId),
+                    mainStrength(item),
+                  ) &&
+                (!muscle || (weekly[muscle] ?? 0) < weeklyMuscleCap(p, muscle))
+              );
+            })
+            .sort((a, b) => a.sets - b.sets)[0]
+        : undefined;
+    if (receiver) {
+      receiver.sets++;
+      continue;
+    }
+    const donor = [...high.exercises].sort((a, b) => b.sets - a.sets)[0];
+    if (!donor || donor.sets <= 2) return;
+    donor.sets--;
+  }
 }
 
 function sessionSets(day: PathDay): number {
   return day.exercises.reduce((n, e) => n + e.sets, 0);
 }
 
-// Distributes extra working sets across the whole week to approach each
-// session's duration target. Strength channels fill into the main lifts first;
-// other goals fill priority slots first, then evenly. Bounded by the time
-// target, goal session/exercise caps and weekly per-muscle ceilings. Pure and
-// deterministic.
+// Distributes extra working sets across the whole week. Strength channels fill
+// into the main lifts first; other goals fill priority slots first, then
+// evenly. Bounded by goal session/exercise caps and weekly per-muscle
+// ceilings. Pure and deterministic.
 function fillProgram(
   days: PathDay[],
   p: PathPreferences,
@@ -626,10 +905,6 @@ function fillProgram(
         if (muscle && (weekly[muscle] ?? 0) >= weeklyMuscleCap(p, muscle))
           continue;
         day.exercises[i]!.sets++;
-        if (estimatedMinutes(day.exercises, catalog) > p.duration) {
-          day.exercises[i]!.sets--;
-          continue;
-        }
         if (muscle) weekly[muscle] = (weekly[muscle] ?? 0) + 1;
         allocated++;
         added = true;
@@ -643,14 +918,15 @@ export function validateDraft(
 ): PathDraft {
   if ((draft.engineVersion ?? 1) === 1) return validateLegacy(draft, catalog);
   if (draft.engineVersion === 2) return validateVersionTwo(draft, catalog);
-  if (![3, 4, 5, 6].includes(draft.engineVersion ?? 1))
+  if (!SUPPORTED_ENGINES.includes(draft.engineVersion ?? 1))
     throw new Error("Unsupported programming version.");
   const p = pathPreferencesSchema.parse(draft.preferences);
   checkPreferences(p);
   if (draft.days.length !== p.frequency)
     throw new Error("Plan days do not match your weekly availability.");
   const offsets = dates(p);
-  const specs = sessions(p);
+  const specs = sessions(p, draft.engineVersion);
+  const volumeRules = (draft.engineVersion ?? 1) >= 6;
   const weekly: Record<string, number> = {};
   draft.days.forEach((day, i) => {
     if (
@@ -705,7 +981,7 @@ export function validateDraft(
         throw new Error(
           "Use 1–3 sets for beginners (1–5 for experienced lifters), 1–20 reps and at least 45 seconds rest.",
         );
-      if (draft.engineVersion === 6) {
+      if (volumeRules) {
         const ex = catalog.find((e) => e.id === item.exerciseId);
         const mainStrength =
           p.pathKey === "get-strong" &&
@@ -722,20 +998,19 @@ export function validateDraft(
     });
     if (
       day.exercises.reduce((n, e) => n + e.sets, 0) >
-      (draft.engineVersion === 6 ? sessionSetCap(p) : 28)
+      (volumeRules ? sessionSetCap(p) : 28)
     )
       throw new Error("Keep working sets within this Path's session limit.");
-    if (estimatedMinutes(day.exercises, catalog) > p.duration)
-      throw new Error(
-        "This edit exceeds your preferred session duration. Reduce sets or increase duration in setup.",
-      );
   });
-  if (draft.engineVersion === 6)
+  if (volumeRules)
     for (const [muscle, sets] of Object.entries(weekly))
       if (sets > weeklyMuscleCap(p, muscle))
         throw new Error(
           `${muscle} exceeds this Path's weekly primary-target set ceiling.`,
         );
   recovery(draft.days);
+  // Saved plans from earlier engines stay usable; the review flags imbalance
+  // and offers a rebuild instead of blocking recorded training.
+  if (draft.engineVersion === ENGINE_VERSION) assertBalancedWeek(draft.days);
   return JSON.parse(JSON.stringify(draft)) as PathDraft;
 }

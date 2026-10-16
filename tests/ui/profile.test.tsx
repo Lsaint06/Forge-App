@@ -54,6 +54,7 @@ test("weight units update the label and display without changing the stored weig
   const onDone = jest.fn();
   const view = await render(<ProfileForm onDone={onDone} />);
   expect(view.queryByLabelText("Available equipment")).toBeNull();
+  expect(view.queryByLabelText(/workout duration/i)).toBeNull();
   await fireEvent.press(view.getByText("lb", { exact: true }));
   expect(
     view.getByLabelText("Starting weight (lbs, required)").props.value,
@@ -71,6 +72,8 @@ test("weight units update the label and display without changing the stored weig
   await waitFor(() => expect(onDone).toHaveBeenCalled());
   expect(repo.current().weight).toBeCloseTo(80, 3);
   expect(repo.current().units).toBe("lb");
+  // The retired duration preference is kept for older backups, not edited.
+  expect(repo.current().duration).toBe(45);
 });
 
 test("height uses feet and inches while keeping existing metric records intact", async () => {

@@ -13,7 +13,6 @@ export function pathPreferences(
     pathKey: "build-muscle",
     experience: "Intermediate",
     frequency: 4,
-    duration: 75,
     equipment: [...equipmentOptions],
     gymAccess: true,
     excluded: [],

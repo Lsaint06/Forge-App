@@ -35,7 +35,6 @@ test("all six Paths use distinct, valid goal prescriptions and their own frequen
       pathKey: path.key,
       frequency: path.frequency,
       experience: path.key === "start-strong" ? "Beginner" : "Advanced",
-      duration: path.duration,
       weekdays: defaultWeekdays(path.frequency),
     });
     const draft = generatePath(p, exercises);
@@ -71,7 +70,6 @@ test("six goals remain different when availability and equipment are identical",
         pathKey: path.key,
         frequency: 3,
         experience: "Advanced",
-        duration: 90,
       }),
       exercises,
     );
@@ -85,7 +83,6 @@ test("beginner constraints, equipment prerequisites and exercise exclusions are 
     pathKey: "start-strong",
     experience: "Beginner",
     frequency: 3,
-    duration: 45,
     equipment: ["Dumbbell"],
     excluded: ["goblet-squat", "dumbbell-floor-press"],
     avoidPatterns: ["hinge"],

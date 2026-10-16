@@ -3,7 +3,7 @@ import { exerciseStimulus } from "./stimulus";
 import type { PathPreferences, PathRole } from "./model";
 
 // Goal-specific working-set ceilings, not per-person optimum doses.
-// Duration remains a budget; these bounds alone do not justify adding work.
+// These caps, not session time, bound how much work a Path prescribes.
 // Every cap stays within the planner's hard limits
 // (<= 28 working sets per session, <= 5 sets per exercise, <= 3 for beginners).
 
@@ -39,7 +39,7 @@ export function exerciseSetCap(
 }
 
 // Upper bound on primary-target weekly working sets for a single muscle, so that
-// duration-aware filling across a high-frequency week does not pile excessive
+// set filling across a high-frequency week does not pile excessive
 // volume onto one primary target. Co-targets and assistance remain visible in
 // the review, not converted into equivalent sets or a fatigue score. Smaller muscles and
 // accessories get a lower ceiling than the large prime movers.
@@ -65,7 +65,7 @@ export function weeklyMuscleCap(p: PathPreferences, muscle: string): number {
 }
 
 // Shared mapping from a user's muscle priorities to the roles/patterns that
-// train them. Used by both set redistribution and duration-aware filling.
+// train them. Used by both set redistribution and set filling.
 const priorityRoles: Record<string, PathRole[]> = {
   Chest: ["push"],
   Back: ["pull"],

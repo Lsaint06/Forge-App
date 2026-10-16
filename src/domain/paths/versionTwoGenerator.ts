@@ -9,14 +9,12 @@ import {
 } from "./model";
 import {
   compatibleMovements,
-  estimatedMinutes,
   validateDraft as validateLegacy,
   type PathDay,
   type PathDraft,
 } from "./legacyGenerator";
 export {
   compatibleMovements,
-  estimatedMinutes,
   roleReasons,
   scheduledDates,
 } from "./legacyGenerator";
@@ -429,10 +427,6 @@ export function generatePath(
       throw new Error(
         "No exercises match your choices for this session. Try another Path, fewer training days or different equipment. Excluded movements will not be added back.",
       );
-    if (estimatedMinutes(exercises, catalog) > p.duration)
-      throw new Error(
-        `${s.name} needs about ${estimatedMinutes(exercises, catalog)} minutes with its working sets and rests. Choose a longer duration or a different training frequency; Forge will not silently cut your workload.`,
-      );
     return {
       key: `day-${i}`,
       name: adapted
@@ -483,11 +477,8 @@ export function generatePath(
       donor >= 0 &&
       day.exercises[targetIndex]!.sets < (p.experience === "Beginner" ? 3 : 5)
     ) {
-      const before = day.exercises.map((e) => ({ ...e }));
       day.exercises[targetIndex]!.sets++;
       day.exercises[donor]!.sets--;
-      if (estimatedMinutes(day.exercises, catalog) > p.duration)
-        day.exercises = before;
     }
   }
   return validateDraft({ engineVersion: 2, preferences: p, days }, catalog);
@@ -560,10 +551,6 @@ export function validateDraft(
     });
     if (day.exercises.reduce((n, e) => n + e.sets, 0) > 28)
       throw new Error("Keep working sets within this Path's session limit.");
-    if (estimatedMinutes(day.exercises, catalog) > p.duration)
-      throw new Error(
-        "This edit exceeds your preferred session duration. Reduce sets or increase duration in setup.",
-      );
   });
   recovery(draft.days);
   return JSON.parse(JSON.stringify(draft)) as PathDraft;

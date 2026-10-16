@@ -12,7 +12,6 @@ export const forgePaths: PathDefinition[] = [
     frequency: 3,
     minDays: 1,
     maxDays: 3,
-    duration: 30,
     muscles: "Full body",
     benefits:
       "Two working sets, straightforward rep targets and spaced training days.",
@@ -30,7 +29,6 @@ export const forgePaths: PathDefinition[] = [
     frequency: 4,
     minDays: 2,
     maxDays: 6,
-    duration: 75,
     muscles: "Full body, with optional emphasis",
     benefits:
       "Moderate repetitions, upper/lower or push/pull/legs splits as availability grows.",
@@ -47,7 +45,6 @@ export const forgePaths: PathDefinition[] = [
     frequency: 3,
     minDays: 2,
     maxDays: 4,
-    duration: 75,
     muscles: "Legs, chest, back and shoulders",
     benefits:
       "Retained main lifts, fewer accessories and generous rest between working sets.",
@@ -58,13 +55,12 @@ export const forgePaths: PathDefinition[] = [
     name: "LEAN & STRONG",
     subtitle: "Body Recomposition",
     description:
-      "Time-conscious resistance training to support muscle retention and development.",
+      "Efficient full-body resistance training to support muscle retention and development.",
     experience: "All levels",
     objective: "Consistent resistance training",
     frequency: 3,
     minDays: 2,
     maxDays: 4,
-    duration: 60,
     muscles: "Full body & core",
     benefits:
       "Moderate-volume sessions and room for optional easy walking on rest days. No promised fat-loss result.",
@@ -81,7 +77,6 @@ export const forgePaths: PathDefinition[] = [
     frequency: 3,
     minDays: 2,
     maxDays: 4,
-    duration: 60,
     muscles: "Full body, single-leg control & core",
     benefits:
       "Controlled repetitions and movement practice. This foundation does not prescribe ballistic lifts or sport-specific conditioning.",
@@ -98,7 +93,6 @@ export const forgePaths: PathDefinition[] = [
     frequency: 5,
     minDays: 3,
     maxDays: 6,
-    duration: 90,
     muscles: "Full body, shoulders & arms",
     benefits:
       "Upper/lower or push/pull/legs structure, focused accessories and higher rep isolation work.",

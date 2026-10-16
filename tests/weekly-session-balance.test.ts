@@ -15,6 +15,7 @@ import {
 import { workloadReview } from "../src/domain/paths/review";
 import { exerciseStimulus } from "../src/domain/paths/stimulus";
 import { sessionSetCap, weeklyMuscleCap } from "../src/domain/paths/volume";
+import { auditWeek } from "../src/domain/paths/weekAudit";
 import type { PathPreferences } from "../src/domain/paths/model";
 import { pathPreferences, pathRepository } from "./path-fixture";
 import {
@@ -27,7 +28,7 @@ import {
 } from "../src/data/paths";
 
 test("new-plan edits cannot exceed a goal session cap even when each exercise stays within its own cap", () => {
-  const draft = generatePath(pathPreferences({ duration: 90 }), exercises);
+  const draft = generatePath(pathPreferences(), exercises);
   const day = draft.days[0]!;
   assert.equal(
     day.exercises.reduce((n, e) => n + e.sets, 0),
@@ -53,10 +54,7 @@ test("new-plan edits cannot exceed a goal session cap even when each exercise st
 });
 
 test("weekly primary-target ceilings are checked independently of session and exercise caps", () => {
-  const draft = generatePath(
-    pathPreferences({ frequency: 6, duration: 90 }),
-    exercises,
-  );
+  const draft = generatePath(pathPreferences({ frequency: 6 }), exercises);
   assert.equal(
     workloadReview(draft, exercises).sets.Core,
     weeklyMuscleCap(draft.preferences, "Core"),
@@ -83,7 +81,6 @@ test("omitting strength main lifts does not promote higher-rep assistance to fiv
     pathPreferences({
       pathKey: "get-strong",
       frequency: 3,
-      duration: 90,
       avoidPatterns: ["squat", "horizontal push"],
     }),
     exercises,
@@ -100,11 +97,8 @@ function assertConstraints(draft: ReturnType<typeof generatePath>) {
     structure(draft.preferences),
   ).sessions;
   const weekly: Record<string, number> = {};
+  assert.deepEqual(auditWeek(draft.days), []);
   for (const session of sessions) {
-    assert.ok(
-      session.duration.expected <= draft.preferences.duration,
-      session.name,
-    );
     assert.ok(
       session.workingSets <= sessionSetCap(draft.preferences),
       session.name,
@@ -121,13 +115,12 @@ function assertConstraints(draft: ReturnType<typeof generatePath>) {
     assert.ok(sets <= weeklyMuscleCap(draft.preferences, muscle), muscle);
 }
 
-test("more efficient balancing cannot turn saved time into extra weekly volume", () => {
-  const draft = generatePath(
-    pathPreferences({ frequency: 6, duration: 45 }),
-    exercises,
+test("without a time budget, weekly volume is bounded only by goal session and muscle caps", () => {
+  const draft = generatePath(pathPreferences({ frequency: 6 }), exercises);
+  assert.ok(
+    workloadReview(draft, exercises).total <=
+      draft.days.length * sessionSetCap(draft.preferences),
   );
-  // Measured Planner 5 baseline for the same full-equipment request.
-  assert.ok(workloadReview(draft, exercises).total <= 107);
   assertConstraints(draft);
 });
 
@@ -136,7 +129,7 @@ test("every supported Advanced Physique and Build Muscle frequency has purpose-a
     const path = forgePaths.find((p) => p.key === pathKey)!;
     for (let frequency = path.minDays; frequency <= path.maxDays; frequency++) {
       const draft = generatePath(
-        pathPreferences({ pathKey, frequency, duration: 90 }),
+        pathPreferences({ pathKey, frequency }),
         exercises,
       );
       assertConstraints(draft);
@@ -156,12 +149,11 @@ test("every supported Advanced Physique and Build Muscle frequency has purpose-a
   }
 });
 
-test("broad upper and focused push/pull days retain different exercise counts with explicit explanations", () => {
+test("broad upper and focused push/pull days keep their purposes with balanced exercise counts", () => {
   const draft = generatePath(
     pathPreferences({
       pathKey: "advanced-physique",
       frequency: 5,
-      duration: 90,
     }),
     exercises,
   );
@@ -173,17 +165,9 @@ test("broad upper and focused push/pull days retain different exercise counts wi
   assert.equal(review.sessions[0]!.purpose, "upper");
   assert.equal(review.sessions[2]!.purpose, "push");
   assert.equal(review.sessions[3]!.purpose, "pull");
-  assert.ok(
-    review.sessions[0]!.exerciseCount > review.sessions[2]!.exerciseCount,
-  );
-  assert.ok(
-    review.diagnostics.some(
-      (d) =>
-        d.kind === "intentional" &&
-        d.dayKeys.includes("day-0") &&
-        d.dayKeys.includes("day-2"),
-    ),
-  );
+  const counts = review.sessions.map((s) => s.exerciseCount);
+  assert.ok(Math.max(...counts) - Math.min(...counts) <= 2, String(counts));
+  assert.deepEqual(review.issues, []);
   const overlap = review.overlaps.find(
     (entry) =>
       entry.dayKeys.includes("day-0") && entry.dayKeys.includes("day-2"),
@@ -194,7 +178,7 @@ test("broad upper and focused push/pull days retain different exercise counts wi
 });
 
 test("redistribution balances comparable days without adding weekly sets, changing coverage or moving recovery exposures", () => {
-  const draft = generatePath(pathPreferences({ duration: 90 }), exercises);
+  const draft = generatePath(pathPreferences(), exercises);
   const changed = {
     ...draft,
     days: draft.days.map((d, i) => ({
@@ -267,7 +251,6 @@ test("restrictions create coverage diagnostics, not unrelated filler or restored
     const p = pathPreferences({
       frequency: 5,
       pathKey: "advanced-physique",
-      duration: 90,
       ...patch,
     });
     const draft = generatePath(p, exercises);
@@ -282,37 +265,28 @@ test("restrictions create coverage diagnostics, not unrelated filler or restored
   }
 });
 
-test("budget sweeps preserve fitting sessions or explicitly reject an infeasible base prescription", () => {
+test("goal caps hold for every supported Path, frequency and experience without a time budget", () => {
   for (const path of forgePaths)
-    for (const duration of [30, 45, 60, 75, 90])
+    for (const experience of ["Beginner", "Intermediate", "Advanced"] as const)
       for (
         let frequency = path.minDays;
         frequency <= path.maxDays;
         frequency++
       ) {
-        const p = pathPreferences({
-          pathKey: path.key,
-          frequency,
-          duration,
-          experience: path.key === "start-strong" ? "Beginner" : "Intermediate",
-        });
-        let draft;
-        try {
-          draft = generatePath(p, exercises);
-        } catch (error) {
-          assert.ok(
-            error instanceof Error && /minutes|duration/.test(error.message),
-            String(error),
-          );
+        if (path.key === "advanced-physique" && experience === "Beginner")
           continue;
-        }
-        assertConstraints(draft);
+        assertConstraints(
+          generatePath(
+            pathPreferences({ pathKey: path.key, frequency, experience }),
+            exercises,
+          ),
+        );
       }
 });
 
 test("strength and beginner work is not padded to match advanced hypertrophy exercise counts", () => {
   const strength = generatePath(
-    pathPreferences({ pathKey: "get-strong", frequency: 4, duration: 90 }),
+    pathPreferences({ pathKey: "get-strong", frequency: 4 }),
     exercises,
   );
   const beginner = generatePath(
@@ -320,7 +294,6 @@ test("strength and beginner work is not padded to match advanced hypertrophy exe
       pathKey: "start-strong",
       experience: "Beginner",
       frequency: 3,
-      duration: 30,
     }),
     exercises,
   );
@@ -344,7 +317,6 @@ test("strength and beginner work is not padded to match advanced hypertrophy exe
           pathPreferences({
             pathKey: path.key,
             frequency,
-            duration: 90,
             experience: "Beginner",
           }),
           exercises,
@@ -357,7 +329,6 @@ test("a named back-and-hamstrings focus allocates main work to those roles, not 
     pathPreferences({
       pathKey: "advanced-physique",
       frequency: 3,
-      duration: 90,
     }),
     exercises,
   );
@@ -370,7 +341,7 @@ test("a named back-and-hamstrings focus allocates main work to those roles, not 
 
 test("new-plan validation enforces goal-specific session and weekly primary-target limits after edits", () => {
   const strength = generatePath(
-    pathPreferences({ pathKey: "get-strong", frequency: 3, duration: 90 }),
+    pathPreferences({ pathKey: "get-strong", frequency: 3 }),
     exercises,
   );
   assert.throws(
@@ -387,10 +358,7 @@ test("new-plan validation enforces goal-specific session and weekly primary-targ
       ),
     /limit|ceiling/,
   );
-  const muscle = generatePath(
-    pathPreferences({ frequency: 6, duration: 90 }),
-    exercises,
-  );
+  const muscle = generatePath(pathPreferences({ frequency: 6 }), exercises);
   assert.throws(
     () =>
       validateDraft(
@@ -413,7 +381,7 @@ test("new-plan validation enforces goal-specific session and weekly primary-targ
 test("saved pre-balance plans and logged targets are not regenerated on load or edits", () => {
   const { r, db } = pathRepository();
   try {
-    const draft = generatePath(pathPreferences({ duration: 90 }), exercises);
+    const draft = generatePath(pathPreferences(), exercises);
     acceptPath(r, { ...draft, engineVersion: 5 });
     const program = pathPrograms(r)[0]!;
     const before = savedDraft(r, program);

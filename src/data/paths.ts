@@ -224,6 +224,55 @@ export function pathSummary(
     missing: Math.max(0, expected - sessions.length),
   };
 }
+
+// Recent completed sessions where fewer than this share of prescribed working
+// sets were completed at or above their lower rep target count as a shortfall.
+const WORKLOAD_SHORTFALL = 0.75;
+const lowerExperience = {
+  Advanced: "Intermediate",
+  Intermediate: "Beginner",
+} as const;
+
+// Suggests, never applies, a lower experience level when the prescribed
+// workload is consistently not completed. Session duration plays no part.
+export function workloadGuidance(r: Repository, program: SavedPath) {
+  const experience = program.data.preferences.experience;
+  if (experience === "Beginner") return undefined;
+  const templates = r.templates();
+  const recent = pathSessions(r, program)
+    .filter((s) => s.state === "completed")
+    .map((s) => ({ s, workout: r.workout(s.data.workoutId)! }))
+    .sort((a, b) => (b.workout.finishedAt ?? 0) - (a.workout.finishedAt ?? 0))
+    .slice(0, 4);
+  if (recent.length < 3) return undefined;
+  const shortfalls = recent.filter(({ s, workout }) => {
+    const prescribed =
+      templates.find((t) => t.id === s.data.templateId)?.exercises ?? [];
+    const planned = prescribed.reduce((n, e) => n + e.sets, 0);
+    if (!planned) return false;
+    let met = 0;
+    for (const row of r.workoutExercises(workout.id)) {
+      const target = prescribed.find((e) => e.exerciseId === row.exerciseId);
+      if (!target) continue;
+      met += Math.min(
+        target.sets,
+        r
+          .sets(row.id)
+          .filter(
+            (set) =>
+              set.completed && set.kind !== "warmup" && set.reps >= target.reps,
+          ).length,
+      );
+    }
+    return met / planned < WORKLOAD_SHORTFALL;
+  }).length;
+  if (shortfalls < 3) return undefined;
+  const suggested = lowerExperience[experience];
+  return {
+    suggested,
+    message: `${shortfalls} of your last ${recent.length} Path workouts finished well short of the prescribed sets and reps. Consider rebuilding this Path at the ${suggested} level. Forge will not change your level automatically.`,
+  };
+}
 function findSession(r: Repository, sessionId: string) {
   const raw = r
     .journal("schedule")

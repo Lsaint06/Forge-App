@@ -69,7 +69,8 @@ export const pathPreferencesSchema = z
     pathKey: z.enum(pathKeys),
     experience: z.enum(["Beginner", "Intermediate", "Advanced"]),
     frequency: z.number().int().min(1).max(6),
-    duration: z.number().int().min(30).max(90),
+    // Saved programs and backups may still carry a legacy `duration` key. It is
+    // stripped on parse: Paths no longer budget workouts by time.
     equipment: z
       .array(z.enum([...equipmentOptions, "Full gym machines"]))
       .max(16),
@@ -101,7 +102,6 @@ export type PathDefinition = {
   frequency: number;
   minDays: number;
   maxDays: number;
-  duration: number;
   muscles: string;
   benefits: string;
   equipment: string;
@@ -153,6 +153,7 @@ export const pathProgramDataSchema = z
       z.literal(4),
       z.literal(5),
       z.literal(6),
+      z.literal(7),
     ]),
     pathKey: z.enum(pathKeys),
     name: z.string().min(1).max(120),

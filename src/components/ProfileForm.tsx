@@ -14,7 +14,6 @@ const numeric = new Set([
   "height",
   "weight",
   "frequency",
-  "duration",
   "bodyFat",
   "rest",
   "increment",
@@ -58,7 +57,6 @@ const sections: {
     title: "Your training",
     fields: [
       { key: "frequency", label: "Workouts per week (1–7)" },
-      { key: "duration", label: "Preferred workout duration (minutes)" },
       { key: "muscles", label: "Target muscle groups" },
       { key: "rest", label: "Default rest (seconds)" },
       { key: "increment", label: "Progression increment (kg)" },
