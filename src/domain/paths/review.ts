@@ -80,10 +80,12 @@ export function workloadReview(draft: PathDraft, catalog: Exercise[]) {
     warnings,
     total,
     assistance,
+    // Engine 8+ plans may be customized, so they are not compared with a
+    // fixed blueprint; restricted generated days are named "Adapted".
     balance: weeklySessionBalance(
       draft,
       catalog,
-      (draft.engineVersion ?? 1) >= 6
+      (draft.engineVersion ?? 1) >= 6 && (draft.engineVersion ?? 1) < 8
         ? structure(draft.preferences, draft.engineVersion)
         : undefined,
     ),

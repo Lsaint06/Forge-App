@@ -339,8 +339,9 @@ test("weekly session balance stays in optional plan details and shows balanced d
     expect(view.queryByText("Unbalanced training days")).toBeNull();
     await fireEvent.press(view.getByLabelText("Plan details"));
     expect(view.getByText("Weekly session balance")).toBeTruthy();
+    // Intermediate sessions: essentials plus one targeted movement.
     expect(
-      view.getByText(/Upper body · chest & back: 6 exercises/),
+      view.getByText(/Upper body · chest & back: 7 exercises/),
     ).toBeTruthy();
     expect(
       view.getByText(/Chest, shoulders & triceps: 6 exercises/),
@@ -422,6 +423,83 @@ test("hypertrophy preview displays rep ranges and its compact editor adjusts bot
     expect(onChange.mock.calls.at(-1)![0].exercises[0].exerciseId).toBe(
       "dumbbell-bench-press",
     );
+  } finally {
+    db.close();
+  }
+});
+
+test("a day can be rearranged: move, remove and add reviewed exercises with matching slots", async () => {
+  const { r, db } = pathRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const draft = generatePath(pathPreferences(), exercises);
+    const full = draft.days[0]!;
+    // One exercise below the intermediate session cap, leaving room to add.
+    const day = {
+      ...full,
+      exercises: full.exercises.slice(0, -1),
+      roles: full.roles.slice(0, -1),
+    };
+    const onChange = jest.fn();
+    const view = await render(
+      <PathDayEditor
+        day={day}
+        preferences={draft.preferences}
+        catalog={exercises}
+        onChange={onChange}
+      />,
+    );
+    await fireEvent.press(view.getByLabelText(/Edit Barbell Bench Press$/));
+    expect(
+      view.getByLabelText("Move Barbell Bench Press earlier in the workout"),
+    ).toBeDisabled();
+    await fireEvent.press(
+      view.getByLabelText("Move Barbell Bench Press later in the workout"),
+    );
+    let next = onChange.mock.calls.at(-1)![0];
+    expect(next.exercises[1].exerciseId).toBe("barbell-bench-press");
+    expect(next.roles.slice(0, 2)).toEqual([day.roles[1], day.roles[0]]);
+    // The editor follows the moved exercise; this mock keeps the original day.
+    await fireEvent.press(view.getByLabelText(/Edit Barbell Bench Press$/));
+    await fireEvent.press(view.getByLabelText("Remove Barbell Bench Press"));
+    next = onChange.mock.calls.at(-1)![0];
+    expect(next.exercises).toHaveLength(day.exercises.length - 1);
+    expect(next.roles).toHaveLength(day.roles.length - 1);
+    await fireEvent.press(view.getByLabelText("Add exercise"));
+    await fireEvent.press(view.getByLabelText("Biceps exercises"));
+    await fireEvent.press(view.getByLabelText("Add Dumbbell Preacher Curl"));
+    next = onChange.mock.calls.at(-1)![0];
+    expect(next.exercises.at(-1)).toMatchObject({
+      exerciseId: "dumbbell-preacher-curl",
+      weight: 0,
+    });
+    expect(next.roles.at(-1)).toBe("biceps");
+    await view.unmount();
+    // A full session explains its cap instead of adding beyond it.
+    const capped = await render(
+      <PathDayEditor
+        day={full}
+        preferences={draft.preferences}
+        catalog={exercises}
+        onChange={onChange}
+      />,
+    );
+    expect(capped.getByLabelText("Add exercise")).toBeDisabled();
+    expect(capped.getByText(/hold up to 7 exercises/)).toBeTruthy();
+    await capped.unmount();
+    // Plans from earlier planners keep their fixed slots.
+    const fixed = await render(
+      <PathDayEditor
+        day={day}
+        preferences={draft.preferences}
+        catalog={exercises}
+        onChange={onChange}
+        customizable={false}
+      />,
+    );
+    await fireEvent.press(fixed.getByLabelText(/Edit Barbell Bench Press$/));
+    expect(fixed.queryByLabelText("Remove Barbell Bench Press")).toBeNull();
+    expect(fixed.queryByLabelText("Add exercise")).toBeNull();
   } finally {
     db.close();
   }

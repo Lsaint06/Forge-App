@@ -1,6 +1,6 @@
-# Forge Paths programming specification (Planner 8)
+# Forge Paths programming specification (Planners 8–9)
 
-Status: implemented in `src/domain/paths/policy.ts` (prescriptions and volume), `src/domain/paths/generator.ts` (weekly blueprints and generation) and `src/domain/paths/programQuality.ts` (validation). Written 2026-10-16.
+Status: implemented in `src/domain/paths/policy.ts` (prescriptions and volume), `src/domain/paths/catalog.ts` (reviewed movement library), `src/domain/paths/generator.ts` (weekly blueprints and selection) and `src/domain/paths/programQuality.ts` (validation). Written 2026-10-16; Planner 9 additions in §8.
 
 This is Forge's own programming system. Its primary philosophical influence is Jeff Nippard's **publicly documented**, science-based approach to training. Forge is not affiliated with or endorsed by Jeff Nippard. No proprietary program content (exercise tables or set/rep tables from paid programs) was accessed or reproduced. Numeric rules are anchored to the peer-reviewed sources listed below. Where the evidence does not settle a value, the rule is labelled **provisional**, and the chosen value is a conservative coaching default.
 
@@ -147,3 +147,66 @@ Fixed during the review:
 - Content stretched across wide screens; it now has a 760 px reading column.
 
 Not verified: on-device rendering (iOS/Android fonts, Ionicons, safe areas, haptics, keyboard behaviour), because no device or simulator was available in this environment.
+
+## 8. Planner 9: library, selection and customization (Forge Paths 3.0)
+
+### 8.1 Library audit
+
+The catalog holds 366 exercises (338 strength). Paths could only use the 48 hand-reviewed movements in `movementMenu`, and only 24 of those ever appeared across the 59 full-gym plans. Almost every movement an experienced lifter expects was already in the catalog but excluded, because the menu, the fixed equipment options and the reviewed stimulus map were all limited to those 48 IDs. Catalog label errors were corrected:
+- `machine-lat-pulldown` is a vertical pull.
+- `reverse-pec-deck` trains the shoulders (rear delts) as an isolation movement.
+- `machine-shoulder-press` and `cable-shoulder-press` are vertical presses.
+- The single-leg calf raise and single-leg glute bridge need no equipment.
+- Glute bridges are Beginner level.
+
+The menu now holds **118 reviewed movements**. Each records its needs, its minimum experience level and one of 28 **movement families** (for example `incline-press`, `lat-isolation`, `curl-lengthened`, `curl-supported`, `triceps-lying`, `deadlift`, `hip-thrust`, `calf-bent-knee`, `core-flexion`). Existing entries keep their role, needs and level, so saved plans stay valid. Every movement has a reviewed stimulus, and purposes describe mechanics, not magnitudes; for example, "seated calf raises shift emphasis toward the soleus". Ten equipment options were added: Smith machine, hack squat, shoulder press, lateral raise, hip thrust, calf raise and assisted pull-up machines, an EZ bar, a dip station and a preacher bench.
+
+### 8.2 Selection rules
+
+| # | Rule | Rationale | Strength |
+|---|---|---|---|
+| 19 | Slots accept reviewed movement families in fallback order (an incline slot uses an incline press before a fly). | Keeps a slot's purpose when equipment varies | Context |
+| 20 | Accessory slots prefer a movement not yet used this week. Arm, calf and trunk slots also prefer an unused family, so curls rotate between standard, stretched, supported and neutral-grip variations. Main lifts and Start Strong do not rotate. Beginners keep the same compounds and rotate only accessories. | Variety across exercises can distribute stimulus across regions of a muscle; consistent main lifts make progress measurable. The magnitude of regional effects is uncertain (Pedrosa 2026; Larsen 2025). | Context; provisional for rotation details |
+| 21 | Hypertrophy exercise counts scale with experience: Beginners train the essentials (about 5–6), intermediates add one targeted movement and advanced lifters two, capped at 7 (Build Muscle) or 8 (Advanced Physique). Strength and foundation plans are not padded. | Rule 4: more targeted movements rather than more sets per lift | Provisional |
+| 22 | At most two movements from one family per session; a third is reported as redundancy. | Overlap rather than a new stimulus | Provisional |
+| 23 | Second compounds for trained lifters must be externally loaded (no bodyweight squat as a second quad compound). | Insufficient load for trained lifters | Context |
+| 24 | Only a conventional deadlift makes a "deadlift" day; otherwise the day is named a hinge day. A conventional deadlift is not interchangeable with a Romanian deadlift. | Naming must match the lift | Strong (naming) |
+| 25 | Advanced pull days include a vertical pull, a row, lat isolation, rear delts, two curl families and hanging or cable trunk flexion, with at most three back movements. | Specialization without exceeding the per-muscle session rule (rule 9) | Provisional |
+| 26 | Advanced Physique gives its extra upper-body slots to arms rather than more chest or back isolation. | Matches the Path's stated emphasis | Provisional |
+
+### 8.3 Customization
+
+Engine 8+ plans are validated by `assessProgram` rather than a fixed slot order. Lifters can:
+- add a movement (muscle group, then a compatible reviewed movement, with a policy default prescription),
+- remove a movement or move it up and down,
+- before starting, swap whole workouts between training days.
+
+Errors still block (equipment or level conflicts, set and exercise limits, week balance, duplication). New warnings report:
+- compound work for the same muscle on consecutive days (generation still forbids it),
+- three movements from one family in a session.
+
+Earlier planners keep their fixed slots.
+
+### 8.4 Results (59 full-gym plans and 4 restricted kits, every Path × experience × frequency)
+
+| Kit | Distinct movements used (before → after) | Repeated exercise slots | Warnings | Errors |
+|---|---|---|---|---|
+| Full gym | 24 → 54 | 360 → 82 | 2 → 2 | 0 → 0 |
+| Dumbbells + bench | 14 → 35 | 334 → 120 | 74 → 33 | 0 → 0 |
+| Home (dumbbells, bench, bar, bands) | 17 → 40 | 356 → 109 | 35 → 16 | 0 → 0 |
+| Barbell, rack, dumbbells, bar | 20 → 45 | 356 → 104 | 35 → 16 | 0 → 0 |
+| Bodyweight only | 5 → 11 | 116 → 73 | 21 → 21 | 24 → 24 (no pulling option; unchanged guidance) |
+
+The two full-gym warnings are the honest "beginners usually progress well on two to four sessions" notes for Build Muscle at 5 and 6 days.
+
+Build Muscle, 4 days, full gym. Exercises per day, with weekly sets:
+- **Beginner** (6/5/6/5, 49 sets). Dumbbell bench, cable row, pulldown, lateral raise, overhead triceps extension, curl. Hack squat, dumbbell RDL, leg extension, seated leg curl, standing calf raise. Neutral-grip pulldown, incline dumbbell press, chest-supported row, cable lateral raise, reverse fly, incline curl. Hip-thrust machine, split squat, lying leg curl, leg extension, seated calf raise.
+- **Intermediate** (7/6/7/6, 78 sets). Adds a pec deck and a rope pushdown on the upper days and cable crunches on the quad day. Barbell bench and back squat lead the sessions, and Bulgarian split squats and a single-leg RDL replace the beginner versions.
+- **Advanced** (7/7/7/7, 91 sets). Adds a hack squat after the back squat and a Pallof press on the posterior day. Accessories take a fourth set within the weekly ceilings.
+
+### 8.5 Remaining uncertainties
+
+1. Movement-family rotation assumes variety helps more than it costs in skill practice. Evidence for regional hypertrophy is mixed and exercise-specific.
+2. Exercise-count tiers and the two-per-family limit are coaching conventions.
+3. Some equipment is approximated. A reverse pec deck is assumed available wherever a chest fly machine is; both calf raises share one "calf raise machine" option.
+4. Restricted kits still produce honest warnings (no knee-flexion option for beginners without a leg curl machine, and no pulling for bodyweight-only plans). They are not hidden by filler.

@@ -1,6 +1,7 @@
 import type { Exercise } from "../types";
 import type { PathDay, PathDraft } from "./legacyGenerator";
 import { compatibleMovements } from "./legacyGenerator";
+import { menuMovement } from "./catalog";
 import type { PathPreferences } from "./model";
 import { exerciseStimulus } from "./stimulus";
 import { auditWeek } from "./weekAudit";
@@ -41,6 +42,8 @@ export type Finding = {
     | "weekly-volume-low"
     | "pattern-balance"
     | "lower-back"
+    | "recovery"
+    | "redundancy"
     | "experience"
     | "progression";
   dayKeys: string[];
@@ -55,6 +58,10 @@ const WEEKLY_EXCESS_ERROR = 1.25;
 const SESSION_SET_HARD_LIMIT = 30;
 
 const round = (n: number) => Math.round(n * 10) / 10;
+const list = (items: string[]) =>
+  items.length > 1
+    ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`
+    : (items[0] ?? "");
 
 export function assessProgram(
   draft: Pick<PathDraft, "preferences" | "days">,
@@ -288,6 +295,42 @@ export function assessProgram(
         [a.key, b.key],
         `${a.name} and ${b.name} both include hip hinges on consecutive days. Consider spacing them to let the lower back recover.`,
       );
+    // Compound work for the same muscle on back-to-back days (possible after
+    // customization; generated weeks avoid it).
+    const compound = (day: PathDay) =>
+      new Set(
+        day.exercises
+          .map((e) => exerciseStimulus(e.exerciseId))
+          .filter((s) => s.reviewed && !s.isolation)
+          .map((s) => s.direct[0])
+          .filter((m): m is string => !!m && m !== "Core"),
+      );
+    const shared = [...compound(a)].filter((m) => compound(b).has(m));
+    if (gap === 1 && shared.length)
+      add(
+        "warning",
+        "recovery",
+        [a.key, b.key],
+        `${a.name} and ${b.name} train ${list(shared.map((m) => m.toLowerCase()))} with compound lifts on consecutive days. Most lifters recover and perform better with a day between.`,
+      );
+  }
+
+  // Several movements from one family in a session overlap heavily; a
+  // different family (angle, grip or joint action) usually adds more.
+  for (const day of draft.days) {
+    const families: Record<string, string[]> = {};
+    for (const item of day.exercises) {
+      const kind = menuMovement(item.exerciseId)?.kind;
+      if (kind) (families[kind] ??= []).push(name(item.exerciseId));
+    }
+    for (const names of Object.values(families))
+      if (names.length >= 3)
+        add(
+          "warning",
+          "redundancy",
+          [day.key],
+          `${list(names)} are very similar movements in one session. Swapping one for a different angle or movement usually adds more than repeating the same pattern.`,
+        );
   }
 
   if (p.experience === "Beginner" && p.frequency > 4)

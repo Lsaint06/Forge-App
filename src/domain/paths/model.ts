@@ -15,17 +15,27 @@ export const machineEquipment = [
   "Leg extension machine",
   "Chest fly machine",
   "Seated row machine",
+  "Shoulder press machine",
+  "Lateral raise machine",
+  "Hack squat machine",
+  "Hip thrust machine",
+  "Calf raise machine",
+  "Assisted pull-up machine",
+  "Smith machine",
 ] as const;
 export const equipmentOptions = [
   "Dumbbell",
   "Barbell",
+  "EZ bar",
   "Kettlebell",
   "Cable",
   ...machineEquipment,
   "Resistance band",
   "Band anchor",
   "Pull-up bar",
+  "Dip station",
   "Bench",
+  "Preacher curl bench",
   "Squat rack",
 ] as const;
 export const roleKeys = [
@@ -73,7 +83,7 @@ export const pathPreferencesSchema = z
     // stripped on parse: Paths no longer budget workouts by time.
     equipment: z
       .array(z.enum([...equipmentOptions, "Full gym machines"]))
-      .max(16),
+      .max(32),
     gymAccess: z.boolean(),
     excluded: z.array(z.string().min(1).max(100)).max(30),
     avoidPatterns: z.array(z.enum(movementOptions)).max(11),
@@ -155,6 +165,7 @@ export const pathProgramDataSchema = z
       z.literal(6),
       z.literal(7),
       z.literal(8),
+      z.literal(9),
     ]),
     pathKey: z.enum(pathKeys),
     name: z.string().min(1).max(120),

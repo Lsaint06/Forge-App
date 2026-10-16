@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { exercises } from "../src/data/catalog";
-import { generatePath } from "../src/domain/paths/generator";
+import { ENGINE_VERSION, generatePath } from "../src/domain/paths/generator";
 import { generatePath as legacyPath } from "../src/domain/paths/legacyGenerator";
 import { workloadReview } from "../src/domain/paths/review";
 import { PRIORITY_BONUS, weeklyVolumeTarget } from "../src/domain/paths/policy";
@@ -11,7 +11,7 @@ import {
   mondayOf,
   weekIntention,
 } from "../src/domain/paths/calendar";
-import { forgePaths } from "../src/domain/paths/catalog";
+import { forgePaths, movementMenu } from "../src/domain/paths/catalog";
 import { pathPreferences, pathRepository } from "./path-fixture";
 import {
   acceptPath,
@@ -33,7 +33,7 @@ test("muscle-building defaults include complementary back, leg, calf and arm wor
       exercises,
     );
     const review = workloadReview(draft, exercises);
-    assert.equal(draft.engineVersion, 8);
+    assert.equal(draft.engineVersion, ENGINE_VERSION);
     assert.deepEqual(review.warnings, []);
     assert.ok(review.sets.Chest! >= 10);
     assert.ok(review.sets.Back! >= 10);
@@ -327,7 +327,8 @@ test("a single permitted movement survives saving and backup without restoring e
       pathKey: "start-strong",
       frequency: 1,
       equipment: ["Dumbbell"],
-      excluded: ["dead-bug", "bird-dog", "reverse-crunch"],
+      // Every reviewed trunk movement is excluded, so only the pull remains.
+      excluded: movementMenu.filter((m) => m.role === "core").map((m) => m.id),
       avoidPatterns: ["squat", "horizontal push", "hinge", "hip extension"],
     }),
     exercises,

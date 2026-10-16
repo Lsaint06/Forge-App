@@ -1851,7 +1851,7 @@
     "muscle": "Back",
     "secondary": ["Biceps"],
     "equipment": "Cable",
-    "pattern": "horizontal pull",
+    "pattern": "vertical pull",
     "difficulty": "Beginner",
     "instructions": [
       "Adjust pads to support the torso and align the handles. Pull the elbows back or down smoothly and return with control.",
@@ -1884,13 +1884,13 @@
   {
     "id": "reverse-pec-deck",
     "name": "Reverse Pec Deck",
-    "muscle": "Back",
-    "secondary": ["Biceps"],
+    "muscle": "Shoulders",
+    "secondary": ["Back"],
     "equipment": "Machine",
-    "pattern": "horizontal pull",
+    "pattern": "shoulder isolation",
     "difficulty": "Beginner",
     "instructions": [
-      "Adjust pads to support the torso and align the handles. Pull the elbows back or down smoothly and return with control.",
+      "Set the seat so the handles are at shoulder height and face the pad. With a slight elbow bend, sweep the arms back until they line up with the torso, then return with control.",
       "Use a load or variation that allows controlled technique. Exhale during effort and record only the work you perform."
     ],
     "mistakes": "Rushing repetitions, using momentum, or exceeding a controllable range.",
@@ -2463,7 +2463,7 @@
     "muscle": "Shoulders",
     "secondary": ["Triceps"],
     "equipment": "Cable",
-    "pattern": "shoulder isolation",
+    "pattern": "vertical push",
     "difficulty": "Beginner",
     "instructions": [
       "Choose a light load and a stable stance. Raise the arm in the intended plane without trunk momentum. Keep range comfortable and lower slowly.",
@@ -2481,7 +2481,7 @@
     "muscle": "Shoulders",
     "secondary": ["Triceps"],
     "equipment": "Machine",
-    "pattern": "shoulder isolation",
+    "pattern": "vertical push",
     "difficulty": "Beginner",
     "instructions": [
       "Choose a light load and a stable stance. Raise the arm in the intended plane without trunk momentum. Keep range comfortable and lower slowly.",
@@ -4983,7 +4983,7 @@
     "secondary": [],
     "equipment": "Bodyweight",
     "pattern": "hip extension",
-    "difficulty": "Intermediate",
+    "difficulty": "Beginner",
     "instructions": [
       "Brace your trunk, drive through heels and extend hips without arching the lower back. Keep the chin gently tucked for bridges and hip thrusts.",
       "Use a load or variation that allows controlled technique. Exhale during effort and record only the work you perform."
@@ -4999,9 +4999,9 @@
     "name": "Single-Leg Glute Bridge",
     "muscle": "Glutes",
     "secondary": [],
-    "equipment": "Barbell",
+    "equipment": "Bodyweight",
     "pattern": "hip extension",
-    "difficulty": "Intermediate",
+    "difficulty": "Beginner",
     "instructions": [
       "Brace your trunk, drive through heels and extend hips without arching the lower back. Keep the chin gently tucked for bridges and hip thrusts.",
       "Use a load or variation that allows controlled technique. Exhale during effort and record only the work you perform."
@@ -5413,7 +5413,7 @@
     "name": "Single-Leg Calf Raise",
     "muscle": "Calves",
     "secondary": [],
-    "equipment": "Machine",
+    "equipment": "Bodyweight",
     "pattern": "ankle plantarflexion",
     "difficulty": "Beginner",
     "instructions": [

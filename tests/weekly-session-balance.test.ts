@@ -183,9 +183,18 @@ test("broad upper and focused push/pull days keep their purposes with balanced e
 });
 
 test("restrictions create coverage diagnostics, not unrelated filler or restored excluded exercises", () => {
+  // Exclusions with remaining alternatives are simply substituted; the
+  // diagnostic appears when a planned movement family has no option left.
   const restrictions: Partial<PathPreferences>[] = [
-    { equipment: ["Dumbbell", "Bench", "Pull-up bar"] },
-    { excluded: ["barbell-bench-press", "seated-leg-curl"] },
+    { equipment: ["Dumbbell"] },
+    {
+      excluded: [
+        "barbell-bench-press",
+        "seated-leg-curl",
+        "lying-leg-curl",
+        "sliding-leg-curl",
+      ],
+    },
     { avoidPatterns: ["vertical pull", "elbow flexion"] },
   ];
   for (const patch of restrictions) {

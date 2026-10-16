@@ -217,10 +217,10 @@ export default function Paths() {
   const review = reviewDraft ? workloadReview(reviewDraft, catalog) : undefined;
   const previewFindings =
     view === "preview" && draft ? assessProgram(draft, catalog) : [];
-  // Live findings while editing a saved current-engine day; earlier engines
-  // keep their own saved-plan rules.
+  // Live findings while editing a saved engine-8+ day; earlier engines keep
+  // their own saved-plan rules.
   const editFindings =
-    editing && selected && selected.data.engineVersion >= ENGINE_VERSION
+    editing && selected && selected.data.engineVersion >= 8
       ? assessProgram(
           {
             preferences: selected.data.preferences,
@@ -1241,6 +1241,7 @@ export default function Paths() {
               preferences={selected.data.preferences}
               catalog={catalog}
               findings={editFindings}
+              customizable={selected.data.engineVersion >= 8}
               onChange={(day) => setEditing({ ...editing, day })}
             />
             <Button
@@ -1249,7 +1250,7 @@ export default function Paths() {
               onPress={() =>
                 confirm(
                   "Save this workout for future starts?",
-                  "Both phases use this prescription. Existing recorded sets and any active workout are preserved.",
+                  "Future sessions use this workout. Existing recorded sets and any active workout are preserved.",
                   () => {
                     let saved = false;
                     mutate(() => {
@@ -1258,6 +1259,9 @@ export default function Paths() {
                         selected.record.id,
                         editing.index,
                         editing.day.exercises,
+                        selected.data.engineVersion >= 8
+                          ? editing.day.roles
+                          : undefined,
                       );
                       saved = true;
                     });

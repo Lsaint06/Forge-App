@@ -113,7 +113,7 @@ test("isolation prescriptions follow the selected exercise rather than a generic
   const plan = generatePath(pathPreferences({ style: "Machines" }), exercises);
   const fly = plan.days
     .flatMap((d) => d.exercises)
-    .find((e) => e.exerciseId === "standing-cable-fly")!;
+    .find((e) => /fly/.test(e.exerciseId) && !/reverse/.test(e.exerciseId))!;
   const policy = prescriptionPolicy(plan.preferences, "isolation", false);
   assert.deepEqual(
     [fly.reps, fly.repMax, fly.rest],

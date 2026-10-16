@@ -3,7 +3,6 @@ import type { Journal, Prescription } from "../domain/types";
 import { localDate } from "../domain/types";
 import { forgePaths } from "../domain/paths/catalog";
 import {
-  ENGINE_VERSION,
   validateDraft,
   evolutionDays,
   scheduledDates,
@@ -15,6 +14,7 @@ import {
   addDays,
   daysBetween,
   type PathProgramData,
+  type PathRole,
   type PathSessionData,
 } from "../domain/paths/model";
 
@@ -347,24 +347,34 @@ export function savedDraft(
     })),
   };
 }
+// Saves a Foundation day. Engine 8+ plans may also change the day's movement
+// slots (adding, removing or reordering exercises): pass `roles` aligned with
+// `items`. Earlier engines keep their fixed slot structure.
 export function editPathDay(
   r: Repository,
   programId: string,
   index: number,
   items: Prescription[],
+  roles?: PathRole[],
 ) {
   const program = findPath(r, programId);
   if (program.data.status === "archived")
     throw new Error("Archived Paths cannot be edited.");
   const draft = savedDraft(r, program);
   if (!draft.days[index]) throw new Error("Training day not found.");
+  const customizable = (draft.engineVersion ?? 1) >= 8;
+  if (roles && !customizable)
+    throw new Error(
+      "This saved plan uses an earlier planner. Rebuild the Path to add, remove or reorder exercises.",
+    );
   draft.days[index]!.exercises = items;
+  if (roles) draft.days[index]!.roles = roles;
   validateDraft(draft, r.exercises());
   // Current plans re-derive the whole Evolution week from the edited
   // Foundation week, so phase differences stay consistent with user edits.
   // Earlier engines apply the edit identically to both phases.
   const evolution =
-    draft.engineVersion === ENGINE_VERSION
+    (draft.engineVersion ?? 1) >= 8
       ? evolutionDays(draft, r.exercises())
       : undefined;
   r.transaction(() => {
@@ -382,6 +392,16 @@ export function editPathDay(
       );
     };
     const [foundation, evolutionPhase] = program.data.phases;
+    if (roles)
+      r.updateJournal(
+        programId,
+        encode({
+          ...program.data,
+          days: program.data.days.map((d, i) =>
+            i === index ? { ...d, roles } : d,
+          ),
+        }),
+      );
     save(foundation.templateIds[index]!, items, index);
     if (!evolution) save(evolutionPhase.templateIds[index]!, items, index);
     else

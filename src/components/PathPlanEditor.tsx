@@ -18,14 +18,18 @@ import {
 } from "../domain/paths/generator";
 import {
   addDays,
+  roleKeys,
   weekdayNames,
   type PathPreferences,
   type PathRole,
 } from "../domain/paths/model";
 import {
   directSets,
+  exerciseTier,
   maxSetsPerExercise,
   prescriptionGuidance,
+  prescriptionPolicy,
+  sessionExerciseCap,
 } from "../domain/paths/policy";
 import type { Finding } from "../domain/paths/programQuality";
 
@@ -154,6 +158,217 @@ function Stepper({
   );
 }
 
+// A compact secondary action (arranging exercises and days).
+function IconAction({
+  icon,
+  text,
+  label,
+  disabled = false,
+  danger = false,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  text: string;
+  label: string;
+  disabled?: boolean;
+  danger?: boolean;
+  onPress: () => void;
+}) {
+  const c = useColors();
+  const color = disabled ? c.muted : danger ? c.error : c.text;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: 40,
+        paddingHorizontal: 12,
+        borderRadius: theme.radii.control,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        backgroundColor: c.elevated,
+        opacity: disabled ? 0.45 : pressed ? 0.7 : 1,
+      })}
+    >
+      <Ionicons name={icon} size={16} color={color} />
+      <Text style={{ color, fontWeight: "600", fontSize: 13 }}>{text}</Text>
+    </Pressable>
+  );
+}
+
+const roleLabels: Record<PathRole, string> = {
+  push: "Chest",
+  pull: "Back",
+  squat: "Quads",
+  posterior: "Hamstrings & glutes",
+  shoulder: "Shoulders",
+  rear: "Rear delts",
+  biceps: "Biceps",
+  triceps: "Triceps",
+  calf: "Calves",
+  core: "Core",
+};
+
+// A default prescription for an added exercise, from the same policy that
+// generated the rest of the plan.
+export function addedPrescription(
+  preferences: PathPreferences,
+  exerciseId: string,
+  catalog: Exercise[],
+): Prescription {
+  const policy = prescriptionPolicy(
+    preferences,
+    exerciseTier(exerciseId, catalog),
+    false,
+  );
+  return {
+    exerciseId,
+    sets: policy.sets,
+    reps: policy.reps,
+    ...(policy.repMax ? { repMax: policy.repMax } : {}),
+    weight: 0,
+    rest: policy.rest,
+  };
+}
+
+// Adds a reviewed movement: pick the muscle group, then a movement your
+// equipment, exclusions and level allow.
+function AddExercise({
+  day,
+  preferences,
+  catalog,
+  onAdd,
+}: {
+  day: PathDay;
+  preferences: PathPreferences;
+  catalog: Exercise[];
+  onAdd: (role: PathRole, exerciseId: string) => void;
+}) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const [role, setRole] = useState<PathRole>();
+  const limit = sessionExerciseCap(preferences);
+  const full = day.exercises.length >= limit;
+  const groups = roleKeys.filter((r) =>
+    compatibleMovements(preferences, r, catalog).some(
+      (m) => !day.exercises.some((e) => e.exerciseId === m.id),
+    ),
+  );
+  const options = role
+    ? compatibleMovements(preferences, role, catalog).filter(
+        (m) => !day.exercises.some((e) => e.exerciseId === m.id),
+      )
+    : [];
+  if (!open)
+    return (
+      <View style={{ gap: 4 }}>
+        <Button
+          title="Add exercise"
+          icon="add"
+          secondary
+          disabled={full}
+          onPress={() => setOpen(true)}
+        />
+        {full && (
+          <Label muted size={12}>
+            {preferences.experience} sessions hold up to {limit} exercises.
+            Remove or swap one to make room.
+          </Label>
+        )}
+      </View>
+    );
+  return (
+    <View
+      style={{
+        gap: 10,
+        padding: theme.spacing.sm,
+        borderRadius: theme.radii.control,
+        borderWidth: 1,
+        borderColor: c.border,
+      }}
+    >
+      <Label bold size={14}>
+        Add an exercise
+      </Label>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {groups.map((r) => {
+          const selected = r === role;
+          return (
+            <Pressable
+              key={r}
+              accessibilityRole="button"
+              accessibilityLabel={`${roleLabels[r]} exercises`}
+              accessibilityState={{ selected }}
+              onPress={() => setRole(r)}
+              style={{
+                minHeight: 40,
+                paddingHorizontal: 12,
+                borderRadius: theme.radii.control,
+                justifyContent: "center",
+                backgroundColor: selected ? c.accent : c.elevated,
+              }}
+            >
+              <Text
+                style={{
+                  color: selected ? c.background : c.text,
+                  fontWeight: "600",
+                }}
+              >
+                {roleLabels[r]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {role && (
+        <View style={{ gap: 4 }}>
+          {options.map((m) => {
+            const exercise = catalog.find((e) => e.id === m.id)!;
+            return (
+              <Pressable
+                key={m.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Add ${exercise.name}`}
+                onPress={() => {
+                  onAdd(role, m.id);
+                  setRole(undefined);
+                  setOpen(false);
+                }}
+                style={({ pressed }) => ({
+                  padding: 10,
+                  borderRadius: theme.radii.control,
+                  backgroundColor: pressed ? c.elevated : "transparent",
+                  borderWidth: 1,
+                  borderColor: c.border,
+                })}
+              >
+                <Label bold size={14}>
+                  {exercise.name}
+                </Label>
+                <Label muted size={12}>
+                  {exerciseStimulus(m.id).purpose}
+                </Label>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+      <Button
+        title="Cancel"
+        secondary
+        onPress={() => {
+          setRole(undefined);
+          setOpen(false);
+        }}
+      />
+    </View>
+  );
+}
+
 function ExerciseRow({
   dayName,
   index,
@@ -167,6 +382,8 @@ function ExerciseRow({
   open,
   onToggle,
   onChange,
+  onMove,
+  onRemove,
 }: {
   dayName: string;
   index: number;
@@ -180,6 +397,9 @@ function ExerciseRow({
   open: boolean;
   onToggle: () => void;
   onChange: (patch: Partial<Prescription>) => void;
+  // Arrangement controls, when the plan allows customization.
+  onMove?: (delta: -1 | 1) => void;
+  onRemove?: () => void;
 }) {
   const c = useColors();
   const units = useRepo().profile().units;
@@ -342,7 +562,8 @@ function ExerciseRow({
               {guidance.progression}
             </Label>
           </View>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {/* Stacked full-width so long exercise names wrap inside the card. */}
+          <View style={{ gap: 8 }}>
             <Button
               title={swapping ? "Keep this exercise" : `Swap ${name}`}
               icon="swap-horizontal"
@@ -355,6 +576,38 @@ function ExerciseRow({
               onPress={() => setMore(!more)}
             />
           </View>
+          {(onMove || onRemove) && (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {onMove && (
+                <>
+                  <IconAction
+                    icon="arrow-up"
+                    text="Earlier"
+                    label={`Move ${name} earlier in the workout`}
+                    disabled={index === 0}
+                    onPress={() => onMove(-1)}
+                  />
+                  <IconAction
+                    icon="arrow-down"
+                    text="Later"
+                    label={`Move ${name} later in the workout`}
+                    disabled={index === siblings.length - 1}
+                    onPress={() => onMove(1)}
+                  />
+                </>
+              )}
+              {onRemove && (
+                <IconAction
+                  icon="trash-outline"
+                  text="Remove"
+                  label={`Remove ${name}`}
+                  disabled={siblings.length <= 1}
+                  danger
+                  onPress={onRemove}
+                />
+              )}
+            </View>
+          )}
           {swapping && (
             <View style={{ gap: 4 }}>
               <Label muted size={12}>
@@ -493,6 +746,7 @@ export function PathDayEditor({
   findings = [],
   showHeader = true,
   laterDay,
+  customizable = true,
 }: {
   day: PathDay;
   preferences: PathPreferences;
@@ -502,6 +756,8 @@ export function PathDayEditor({
   showHeader?: boolean;
   // The same day's weeks 5–8 prescription, when it is known.
   laterDay?: PathDay;
+  // Plans from earlier planners keep their fixed exercise slots.
+  customizable?: boolean;
 }) {
   const [open, setOpen] = useState<number>();
   const leadIndex = day.exercises.findIndex((e) => {
@@ -517,6 +773,41 @@ export function PathDayEditor({
         i === index ? { ...e, ...patch } : e,
       ),
     });
+  }
+  // Exercises and their movement slots always move together.
+  function move(index: number, delta: -1 | 1) {
+    const to = index + delta;
+    if (to < 0 || to >= day.exercises.length) return;
+    const swap = <T,>(items: T[]) => {
+      const next = [...items];
+      [next[index], next[to]] = [next[to]!, next[index]!];
+      return next;
+    };
+    onChange({
+      ...day,
+      exercises: swap(day.exercises),
+      roles: swap(day.roles),
+    });
+    setOpen(to);
+  }
+  function remove(index: number) {
+    onChange({
+      ...day,
+      exercises: day.exercises.filter((_, i) => i !== index),
+      roles: day.roles.filter((_, i) => i !== index),
+    });
+    setOpen(undefined);
+  }
+  function add(role: PathRole, exerciseId: string) {
+    onChange({
+      ...day,
+      exercises: [
+        ...day.exercises,
+        addedPrescription(preferences, exerciseId, catalog),
+      ],
+      roles: [...day.roles, role],
+    });
+    setOpen(day.exercises.length);
   }
   return (
     <View style={{ gap: 10 }}>
@@ -537,7 +828,7 @@ export function PathDayEditor({
       <View>
         {day.exercises.map((item, index) => (
           <ExerciseRow
-            key={`${day.key}-${index}`}
+            key={`${day.key}-${item.exerciseId}`}
             dayName={day.name}
             index={index}
             item={item}
@@ -554,9 +845,19 @@ export function PathDayEditor({
             open={open === index}
             onToggle={() => setOpen(open === index ? undefined : index)}
             onChange={(patch) => update(index, patch)}
+            onMove={customizable ? (delta) => move(index, delta) : undefined}
+            onRemove={customizable ? () => remove(index) : undefined}
           />
         ))}
       </View>
+      {customizable && (
+        <AddExercise
+          day={day}
+          preferences={preferences}
+          catalog={catalog}
+          onAdd={add}
+        />
+      )}
     </View>
   );
 }
@@ -568,6 +869,7 @@ export function WeekOverview({
   catalog,
   findings,
   onChangeDay,
+  onMoveDay,
   evolution,
 }: {
   days: PathDay[];
@@ -576,6 +878,8 @@ export function WeekOverview({
   catalog: Exercise[];
   findings: Finding[];
   onChangeDay: (day: PathDay) => void;
+  // Swaps a workout with its neighbour; calendar slots stay where they are.
+  onMoveDay?: (index: number, delta: -1 | 1) => void;
   evolution?: PathDay[];
 }) {
   const c = useColors();
@@ -631,6 +935,30 @@ export function WeekOverview({
                 color={c.muted}
               />
             </Pressable>
+            {expanded && onMoveDay && days.length > 1 && (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                <IconAction
+                  icon="arrow-up"
+                  text="Earlier in the week"
+                  label={`Move ${day.name} earlier in the week`}
+                  disabled={index === 0}
+                  onPress={() => {
+                    onMoveDay(index, -1);
+                    setOpen(days[index - 1]!.key);
+                  }}
+                />
+                <IconAction
+                  icon="arrow-down"
+                  text="Later in the week"
+                  label={`Move ${day.name} later in the week`}
+                  disabled={index === days.length - 1}
+                  onPress={() => {
+                    onMoveDay(index, 1);
+                    setOpen(days[index + 1]!.key);
+                  }}
+                />
+              </View>
+            )}
             {expanded && (
               <PathDayEditor
                 day={day}
@@ -752,7 +1080,8 @@ export function PlanPreview({
       </Card>
       <Label muted size={13}>
         Tap a day to review it. Open an exercise to adjust sets, reps or rest,
-        or swap it for an alternative. Every change is checked as you go.
+        swap, reorder or remove it, or add one to the day. Every change is
+        checked as you go.
       </Label>
       <WeekOverview
         days={draft.days}
@@ -770,6 +1099,25 @@ export function PlanPreview({
             days: draft.days.map((d) => (d.key === day.key ? day : d)),
           })
         }
+        onMoveDay={(index, delta) => {
+          const a = draft.days[index]!,
+            b = draft.days[index + delta]!;
+          const content = (d: PathDay) => ({
+            name: d.name,
+            roles: d.roles,
+            exercises: d.exercises,
+          });
+          onChange({
+            ...draft,
+            days: draft.days.map((d) =>
+              d === a
+                ? { ...a, ...content(b) }
+                : d === b
+                  ? { ...b, ...content(a) }
+                  : d,
+            ),
+          });
+        }}
       />
       <Button
         title="Start this Path"

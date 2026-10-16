@@ -1,6 +1,6 @@
 import type { Exercise, Prescription } from "../types";
 import { prescriptionSchema } from "../validation";
-import { forgePaths } from "./catalog";
+import { forgePaths, menuMovement, type MovementKind } from "./catalog";
 import { validateDraft as validateVersionTwo } from "./versionTwoGenerator";
 import { exerciseStimulus } from "./stimulus";
 import {
@@ -53,164 +53,396 @@ export {
 } from "./legacyGenerator";
 export type { PathDay, PathDraft } from "./legacyGenerator";
 
-// Version 8 derives every prescription from the central programming policy
-// (purpose, goal and experience) and checks plans with the program-quality
-// engine. Versions 3–7 remain readable so saved programs keep working.
-export const ENGINE_VERSION = 8 as const;
-const SUPPORTED_ENGINES = [3, 4, 5, 6, 7, ENGINE_VERSION];
+// Version 9 selects from the expanded reviewed movement menu by movement
+// family, varies accessory work across the week and scales exercise count
+// with experience. Version 8 introduced the central programming policy and
+// program-quality engine; plans from engine 8 onward are validated by that
+// engine rather than a fixed slot structure, so lifters may add, remove and
+// reorder exercises. Versions 3–7 remain readable so saved programs work.
+export const ENGINE_VERSION = 9 as const;
+const SUPPORTED_ENGINES = [3, 4, 5, 6, 7, 8, ENGINE_VERSION];
 
 type Slot = {
   optional?: boolean;
   role: PathRole;
-  patterns?: string[];
+  // Reviewed movement families (see movementMenu) this slot accepts, in
+  // fallback order.
+  kinds: MovementKind[];
   preferred?: string[];
   isolation?: boolean;
-  ids?: string[];
-  // A strength main lift (engine 8): heavy, low-rep, long-rest practice.
+  // Substitutes for this slot must also be compound lifts.
+  compound?: boolean;
+  // Only externally loaded movements: an unloaded bodyweight drill is not a
+  // useful second compound for a trained lifter.
+  loaded?: boolean;
+  // Rotate movement families across the week (arms, calves, trunk) rather
+  // than repeating one exercise every session.
+  vary?: boolean;
+  // A strength main lift (engine 8+): heavy, low-rep, long-rest practice.
   main?: boolean;
+  // Lowest experience level (0 Beginner, 1 Intermediate, 2 Advanced) that
+  // receives this slot. Experienced lifters get more targeted exercises, not
+  // more sets on the same lift.
+  from?: number;
+  // Highest experience level that receives this slot.
+  to?: number;
 };
 const slot = (
   role: PathRole,
-  patterns?: string[],
+  kinds: MovementKind[],
   preferred?: string[],
   isolation = false,
-): Slot => ({ role, patterns, preferred, isolation });
-const press = slot(
-  "push",
-  ["horizontal push"],
-  ["barbell-bench-press", "dumbbell-bench-press", "machine-chest-press"],
-);
-const incline: Slot = {
+): Slot => ({ role, kinds, preferred, isolation });
+const press: Slot = {
   ...slot(
     "push",
-    ["horizontal push"],
-    ["incline-dumbbell-bench-press", "standing-cable-fly", "pec-deck-fly"],
+    ["press"],
+    [
+      "barbell-bench-press",
+      "dumbbell-bench-press",
+      "machine-chest-press",
+      "smith-machine-bench-press",
+    ],
   ),
-  ids: ["incline-dumbbell-bench-press", "standing-cable-fly", "pec-deck-fly"],
+  compound: true,
 };
+const incline = slot(
+  "push",
+  ["incline-press", "fly"],
+  [
+    "incline-dumbbell-bench-press",
+    "incline-barbell-bench-press",
+    "incline-machine-chest-press",
+    "smith-machine-incline-press",
+    "standing-cable-fly",
+    "pec-deck-fly",
+  ],
+);
+const fly = slot(
+  "push",
+  ["fly"],
+  ["pec-deck-fly", "standing-cable-fly", "low-to-high-cable-fly"],
+  true,
+);
 const row = slot(
   "pull",
-  ["horizontal pull"],
-  ["seated-cable-row", "dumbbell-bent-over-row", "barbell-bent-over-row"],
+  ["row"],
+  [
+    "seated-cable-row",
+    "dumbbell-bent-over-row",
+    "barbell-bent-over-row",
+    "chest-supported-machine-row",
+  ],
+);
+// Second-day and second-slot pulls favour a different implement so the back
+// meets a new stimulus within the week without in-session redundancy.
+const rowAlt = slot(
+  "pull",
+  ["row"],
+  [
+    "chest-supported-dumbbell-row",
+    "one-arm-dumbbell-row",
+    "dumbbell-bent-over-row",
+    "machine-row",
+    "single-arm-cable-row",
+    "kettlebell-row",
+    "seated-cable-row",
+    "barbell-bent-over-row",
+    "inverted-row",
+  ],
 );
 const vertical: Slot = {
-  ...slot("pull", ["vertical pull"], ["lat-pulldown", "pull-up"]),
+  ...slot(
+    "pull",
+    ["vertical-pull"],
+    ["lat-pulldown", "pull-up", "assisted-pull-up"],
+  ),
   optional: true,
 };
-const squat = slot(
-  "squat",
-  ["squat"],
-  ["back-squat", "goblet-squat", "leg-press"],
+const verticalAlt = slot(
+  "pull",
+  ["vertical-pull"],
+  [
+    "pull-up",
+    "neutral-grip-lat-pulldown",
+    "chin-up",
+    "assisted-pull-up",
+    "lat-pulldown",
+  ],
 );
-const unilateral: Slot = {
+const latIso = slot(
+  "pull",
+  ["lat-isolation"],
+  ["straight-arm-pulldown", "dumbbell-pullover"],
+  true,
+);
+const squat: Slot = {
   ...slot(
     "squat",
     ["squat"],
-    ["dumbbell-split-squat", "bodyweight-split-squat"],
+    [
+      "back-squat",
+      "hack-squat",
+      "leg-press",
+      "smith-machine-squat",
+      "goblet-squat",
+    ],
   ),
-  ids: ["dumbbell-split-squat", "bodyweight-split-squat"],
+  compound: true,
 };
+// Foundation and strength plans practise one free-weight squat pattern
+// (barbell, or goblet before barbell lifts unlock) rather than machines.
+const learnSquat: Slot = {
+  ...squat,
+  preferred: ["back-squat", "goblet-squat", "leg-press"],
+};
+const unilateral = slot(
+  "squat",
+  ["single-leg"],
+  [
+    "bulgarian-split-squat",
+    "dumbbell-split-squat",
+    "dumbbell-reverse-lunge",
+    "dumbbell-walking-lunge",
+    "dumbbell-step-up",
+    "bodyweight-split-squat",
+  ],
+);
 const quad: Slot = {
-  ...slot("squat", ["squat"], ["leg-extension", "leg-press"], true),
-  ids: ["leg-extension", "leg-press"],
+  ...slot(
+    "squat",
+    ["knee-extension", "squat"],
+    ["leg-extension", "leg-press", "hack-squat"],
+    true,
+  ),
+  loaded: true,
 };
+// A second knee-dominant compound for advanced quad days.
+const quadAlt: Slot = {
+  ...slot(
+    "squat",
+    ["squat"],
+    ["hack-squat", "leg-press", "smith-machine-squat"],
+  ),
+  loaded: true,
+};
+// Without any hinge option (bodyweight only), a glute bridge keeps hip
+// extension in the session.
 const hinge = slot(
   "posterior",
-  ["hinge"],
-  ["romanian-deadlift", "dumbbell-romanian-deadlift", "kettlebell-deadlift"],
+  ["hinge", "hip-thrust"],
+  [
+    "romanian-deadlift",
+    "single-leg-dumbbell-romanian-deadlift",
+    "dumbbell-romanian-deadlift",
+    "kettlebell-deadlift",
+    "cable-pull-through",
+    "band-good-morning",
+  ],
 );
-const curl = slot("posterior", ["knee flexion"], ["seated-leg-curl"], true);
-const side: Slot = {
-  ...slot("shoulder", ["shoulder isolation"], ["dumbbell-lateral-raise"], true),
-  ids: ["dumbbell-lateral-raise"],
-};
+// Strength plans train the conventional deadlift when a barbell is
+// available; otherwise the day is named as a hinge day, never a deadlift.
+const deadlift = slot(
+  "posterior",
+  ["deadlift", "hinge"],
+  [
+    "conventional-deadlift",
+    "romanian-deadlift",
+    "dumbbell-romanian-deadlift",
+    "kettlebell-deadlift",
+  ],
+);
+const hipThrust = slot(
+  "posterior",
+  ["hip-thrust", "hinge"],
+  [
+    "barbell-hip-thrust",
+    "machine-hip-thrust",
+    "dumbbell-hip-thrust",
+    "cable-pull-through",
+    "single-leg-glute-bridge",
+    "bodyweight-glute-bridge",
+  ],
+);
+const curl = slot(
+  "posterior",
+  ["knee-flexion"],
+  ["seated-leg-curl", "lying-leg-curl", "sliding-leg-curl"],
+  true,
+);
+const side = slot(
+  "shoulder",
+  ["lateral-raise"],
+  [
+    "dumbbell-lateral-raise",
+    "cable-lateral-raise",
+    "machine-lateral-raise",
+    "seated-lateral-raise",
+  ],
+  true,
+);
 const rear = slot(
   "rear",
-  ["shoulder isolation"],
-  ["bent-over-reverse-fly", "cable-reverse-fly"],
+  ["rear-delt"],
+  [
+    "bent-over-reverse-fly",
+    "cable-reverse-fly",
+    "reverse-pec-deck",
+    "face-pull",
+    "chest-supported-reverse-fly",
+  ],
   true,
 );
 const shoulderPress = slot(
   "shoulder",
-  ["vertical push"],
-  ["overhead-press", "dumbbell-shoulder-press"],
-);
-const bi = slot("biceps", undefined, undefined, true);
-const tri = slot(
-  "triceps",
-  undefined,
+  ["overhead-press"],
   [
-    "overhead-cable-triceps-extension",
-    "two-hand-overhead-triceps-extension",
-    "triceps-rope-pushdown",
-  ],
-  true,
-);
-const calf = slot("calf", undefined, undefined, true);
-const core = slot("core", undefined, undefined, true);
-// Engine 8 variants: second-day pulls favour a different implement so a
-// muscle meets a new stimulus within the week without in-session redundancy.
-const rowAlt = slot(
-  "pull",
-  ["horizontal pull"],
-  [
-    "dumbbell-bent-over-row",
-    "machine-row",
-    "kettlebell-row",
-    "seated-cable-row",
-    "barbell-bent-over-row",
+    "overhead-press",
+    "dumbbell-shoulder-press",
+    "machine-shoulder-press",
+    "seated-dumbbell-shoulder-press",
+    "arnold-press",
   ],
 );
-const verticalAlt = slot(
-  "pull",
-  ["vertical pull"],
-  ["pull-up", "lat-pulldown"],
-);
-const fly: Slot = {
+const bi: Slot = {
   ...slot(
-    "push",
-    ["horizontal push"],
-    ["pec-deck-fly", "standing-cable-fly"],
+    "biceps",
+    ["curl", "curl-lengthened", "curl-supported", "curl-neutral"],
+    [
+      "dumbbell-curl",
+      "ez-bar-curl",
+      "cable-curl",
+      "incline-dumbbell-curl",
+      "dumbbell-preacher-curl",
+      "hammer-curl",
+    ],
     true,
   ),
-  ids: ["pec-deck-fly", "standing-cable-fly"],
+  vary: true,
 };
+// A complementary elbow flexor beside the main curl (advanced arm work).
+const biAlt: Slot = {
+  ...slot(
+    "biceps",
+    ["curl-neutral", "curl-supported", "curl-lengthened"],
+    ["hammer-curl", "rope-hammer-curl", "dumbbell-preacher-curl"],
+    true,
+  ),
+  vary: true,
+};
+const tri: Slot = {
+  ...slot(
+    "triceps",
+    ["triceps-overhead", "triceps-pushdown", "triceps-lying"],
+    [
+      "overhead-cable-triceps-extension",
+      "two-hand-overhead-triceps-extension",
+      "triceps-rope-pushdown",
+      "ez-bar-skull-crusher",
+    ],
+    true,
+  ),
+  vary: true,
+};
+const calf: Slot = {
+  ...slot(
+    "calf",
+    ["calf", "calf-bent-knee"],
+    [
+      "standing-calf-raise",
+      "dumbbell-calf-raise",
+      "leg-press-calf-raise",
+      "seated-calf-raise",
+    ],
+    true,
+  ),
+  vary: true,
+};
+// Foundation, strength and athletic plans favour bracing; hypertrophy plans
+// favour loadable trunk flexion.
+const brace: Slot = {
+  ...slot("core", ["core-stability", "core-flexion"], undefined, true),
+  vary: true,
+};
+const core: Slot = {
+  ...slot(
+    "core",
+    ["core-flexion", "core-stability"],
+    [
+      "cable-crunch",
+      "hanging-leg-raise",
+      "hanging-knee-raise",
+      "reverse-crunch",
+      "pallof-press",
+    ],
+    true,
+  ),
+  vary: true,
+};
+// Pull days finish with hanging or cable trunk flexion, not floor drills.
+const hangingCore = slot(
+  "core",
+  ["core-flexion"],
+  ["hanging-leg-raise", "cable-crunch", "hanging-knee-raise", "reverse-crunch"],
+  true,
+);
 const main = (s: Slot): Slot => ({ ...s, main: true });
+// Experience tiers: intermediate-and-up and advanced-only slots.
+const mid = (s: Slot): Slot => ({ ...s, from: 1 });
+const adv = (s: Slot): Slot => ({ ...s, from: 2 });
+const midOnly = (s: Slot): Slot => ({ ...s, from: 1, to: 1 });
+const novice = (s: Slot): Slot => ({ ...s, to: 0 });
 
 type Session = { name: string; slots: Slot[]; focusRoles?: PathRole[] };
 type Blueprint = { name: string; base: Slot[]; extras?: Slot[] };
 
-// Engine 8 weekly blueprints. Each session lists its essential movements and
-// optional extras; extras are only added while the experience level's
-// exercise ceiling allows, so beginners get fewer, simpler sessions and
-// advanced lifters get targeted detail work rather than more sets per lift.
+// Engine 9 weekly blueprints. Each session lists its movements in training
+// order; slots marked for intermediate or advanced lifters are included only
+// at that level, and optional extras are added only while the level's
+// exercise ceiling allows. Beginners get fewer, simpler sessions; experienced
+// lifters get more targeted movements rather than more sets per lift.
 function blueprint(p: PathPreferences): Session[] {
   const goal = goalOf(p);
+  const level =
+    p.experience === "Beginner" ? 0 : p.experience === "Intermediate" ? 1 : 2;
   const limit = Math.min(
     sessionExerciseCap(p),
     p.pathKey === "build-muscle" ? 7 : 8,
   );
   const build = (days: Blueprint[]): Session[] =>
-    days.map((d) => ({
-      name: d.name,
-      slots: [
-        ...d.base,
-        ...(d.extras ?? []).slice(0, Math.max(0, limit - d.base.length)),
-      ],
-    }));
+    days.map((d) => {
+      const slots = d.base.filter(
+        (s) => (s.from ?? 0) <= level && level <= (s.to ?? 2),
+      );
+      // Over the ceiling, drop the most experience-specific slots first.
+      while (slots.length > limit) {
+        const tiers = slots.map((s) => s.from ?? 0);
+        slots.splice(tiers.lastIndexOf(Math.max(...tiers)), 1);
+      }
+      return {
+        name: d.name,
+        slots: [
+          ...slots,
+          ...(d.extras ?? []).slice(0, Math.max(0, limit - slots.length)),
+        ],
+      };
+    });
   const pick = <T>(items: T[]) => items.slice(0, p.frequency);
   if (goal === "foundation")
     return build(
       pick([
         {
           name: "Learn your foundations",
-          base: [squat, press, row, hinge, core],
+          base: [learnSquat, press, row, hinge, brace],
         },
         {
           name: "Build movement confidence",
           base: [unilateral, press, row, hinge, calf],
         },
-        { name: "Practice & progress", base: [squat, press, row, hinge, side] },
+        {
+          name: "Practice & progress",
+          base: [learnSquat, press, row, hinge, side],
+        },
       ]),
     );
   if (goal === "strength") {
@@ -219,12 +451,12 @@ function blueprint(p: PathPreferences): Session[] {
         pick([
           {
             name: "Squat & bench strength",
-            base: [main(squat), main(press), row, curl, core],
+            base: [main(learnSquat), main(press), row, curl, brace],
           },
           {
             name: "Deadlift & overhead strength",
             base: [
-              main(hinge),
+              main(deadlift),
               main(shoulderPress),
               vertical,
               unilateral,
@@ -233,26 +465,26 @@ function blueprint(p: PathPreferences): Session[] {
           },
           {
             name: "Bench & squat strength",
-            base: [main(press), main(squat), rowAlt, rear, core],
+            base: [main(press), main(learnSquat), rowAlt, rear, brace],
           },
         ]),
       );
     return build([
       {
         name: "Upper body · bench strength",
-        base: [main(press), row, shoulderPress, vertical],
+        base: [main(press), row, shoulderPress, vertical, adv(tri)],
       },
       {
         name: "Lower body · squat strength",
-        base: [main(squat), curl, calf, core],
+        base: [main(learnSquat), curl, calf, brace],
       },
       {
         name: "Upper body · overhead strength",
-        base: [main(shoulderPress), verticalAlt, press, rowAlt],
+        base: [main(shoulderPress), verticalAlt, press, rowAlt, adv(bi)],
       },
       {
         name: "Lower body · deadlift strength",
-        base: [main(hinge), unilateral, calf, core],
+        base: [main(deadlift), unilateral, calf, brace],
       },
     ]);
   }
@@ -262,16 +494,24 @@ function blueprint(p: PathPreferences): Session[] {
         pick([
           {
             name: "Single-leg strength & control",
-            base: [unilateral, hinge, row, press, core, calf],
+            base: [unilateral, hinge, row, press, brace, calf],
             extras: [side],
           },
           {
             name: "Posterior chain & stability",
-            base: [unilateral, hinge, vertical, press, core, calf],
+            base: [
+              unilateral,
+              novice(hinge),
+              mid(hipThrust),
+              vertical,
+              press,
+              brace,
+              calf,
+            ],
           },
           {
             name: "Whole-body movement practice",
-            base: [unilateral, hinge, row, press, core, calf],
+            base: [unilateral, hinge, row, press, brace, calf],
             extras: [side],
           },
         ]),
@@ -285,7 +525,7 @@ function blueprint(p: PathPreferences): Session[] {
       },
       {
         name: "Lower body · single-leg control",
-        base: [unilateral, hinge, calf, core],
+        base: [unilateral, hinge, calf, brace],
       },
       {
         name: "Upper body · balanced capacity",
@@ -293,7 +533,7 @@ function blueprint(p: PathPreferences): Session[] {
       },
       {
         name: "Lower body · posterior control",
-        base: [hinge, unilateral, curl, calf, core],
+        base: [hinge, unilateral, curl, calf, brace],
       },
     ]);
   }
@@ -303,15 +543,15 @@ function blueprint(p: PathPreferences): Session[] {
         pick([
           {
             name: "Full body · strength retention",
-            base: [squat, press, row, hinge, core, side],
+            base: [squat, press, row, hinge, brace, side],
           },
           {
             name: "Full body · balanced resistance",
-            base: [unilateral, incline, vertical, curl, core, calf],
+            base: [unilateral, incline, vertical, curl, brace, calf],
           },
           {
             name: "Full body · repeat quality",
-            base: [squat, press, rowAlt, hinge, core, side],
+            base: [squat, press, rowAlt, hinge, brace, side],
           },
         ]),
       );
@@ -320,20 +560,23 @@ function blueprint(p: PathPreferences): Session[] {
         name: "Upper body · retain strength",
         base: [press, row, shoulderPress, vertical],
       },
-      { name: "Lower body · quad focus", base: [squat, hinge, calf, core] },
+      { name: "Lower body · quad focus", base: [squat, hinge, calf, brace] },
       {
         name: "Upper body · balanced capacity",
         base: [incline, vertical, row, side],
       },
       {
         name: "Lower body · posterior control",
-        base: [hinge, unilateral, curl, calf, core],
+        base: [hinge, unilateral, curl, calf, brace],
       },
     ]);
   }
-  // Hypertrophy (Build Muscle, Advanced Physique). Advanced Physique's
-  // shoulders-and-arms emphasis takes the optional full-body slots; Build
-  // Muscle uses them for calves and trunk.
+  // Hypertrophy (Build Muscle, Advanced Physique). Beginners train the
+  // essential movements (5–6 per session); intermediates add one targeted
+  // movement and advanced lifters two, within the session ceiling (Build
+  // Muscle 7, Advanced Physique 8). Advanced Physique's shoulders-and-arms
+  // emphasis takes the optional full-body slots; Build Muscle uses them for
+  // calves and trunk.
   const physique = p.pathKey === "advanced-physique";
   if (p.frequency <= 3)
     return build(
@@ -349,63 +592,80 @@ function blueprint(p: PathPreferences): Session[] {
           extras: physique ? [tri, side] : [calf, side],
         },
         {
-          name: "Full body · balanced growth",
-          base: [squat, press, rowAlt, hinge, side, bi],
+          name: "Full body · glutes & shoulders",
+          base: [squat, press, rowAlt, novice(hinge), mid(hipThrust), side, bi],
           extras: physique ? [tri, rear] : [tri, calf],
         },
       ]),
     );
+  // Advanced Physique spends its extra upper-body slots on arms rather than
+  // more chest and back isolation.
   const upperA: Blueprint = {
     name: "Upper body · chest & back",
-    base: [press, row, vertical, side, tri, bi],
-    extras: [fly],
+    base: physique
+      ? [press, row, vertical, mid(fly), side, tri, bi, adv(biAlt)]
+      : [press, row, vertical, mid(fly), side, adv(rear), tri, bi],
   };
   const upperB: Blueprint = {
     name: "Upper body · back & shoulders",
-    base: [verticalAlt, incline, rowAlt, side, rear, bi],
-    extras: [tri],
+    base: physique
+      ? [verticalAlt, incline, rowAlt, side, rear, bi, mid(tri), adv(tri)]
+      : [verticalAlt, incline, rowAlt, adv(latIso), side, rear, bi, mid(tri)],
   };
   const lowerA: Blueprint = {
     name: "Legs · quad focus",
-    base: [squat, hinge, quad, curl, calf],
-    extras: [core],
+    base: [squat, hinge, adv(quadAlt), quad, curl, calf, mid(core)],
   };
   const lowerB: Blueprint = {
     name: "Legs · posterior focus",
-    base: [hinge, unilateral, curl, quad, calf],
-    extras: [core],
+    base: [hipThrust, mid(hinge), unilateral, curl, quad, calf, adv(core)],
   };
   const push: Blueprint = {
     name: "Chest, shoulders & triceps",
-    base: [press, incline, shoulderPress, side, tri],
-    extras: [fly],
+    base: [press, incline, shoulderPress, mid(fly), side, tri, adv(tri)],
   };
+  // Pull days: vertical pull and row for everyone; intermediates add a
+  // second row and a complementary curl; advanced lifters swap the second
+  // row for lat isolation and add trunk work (at most three back movements).
+  const pullSlots = (first: Slot, second: Slot, third: Slot) => [
+    first,
+    second,
+    midOnly(third),
+    adv(latIso),
+    rear,
+    bi,
+    biAlt,
+    adv(hangingCore),
+  ];
   const pull: Blueprint = {
     name: "Back, rear delts & biceps",
-    base: [row, vertical, rear, bi, core],
+    base: pullSlots(verticalAlt, rowAlt, row),
   };
   if (p.frequency === 4) return build([upperA, lowerA, upperB, lowerB]);
   if (p.frequency === 5)
     return build([
-      { ...upperA, extras: [] },
+      {
+        ...upperA,
+        base: [press, row, vertical, side, adv(rear), tri, bi, mid(biAlt)],
+      },
       lowerA,
       push,
-      { ...pull, base: [verticalAlt, rowAlt, rear, bi, core] },
+      pull,
       lowerB,
     ]);
   return build([
     push,
-    { ...pull, base: [row, vertical, rowAlt, rear, bi] },
+    { ...pull, base: pullSlots(row, vertical, rowAlt) },
     lowerA,
     {
       ...push,
       name: "Chest & shoulder detail",
-      base: [incline, press, shoulderPress, side, tri],
+      base: [incline, press, shoulderPress, mid(fly), side, tri, adv(tri)],
     },
     {
       ...pull,
       name: "Back width & arm detail",
-      base: [verticalAlt, rowAlt, row, rear, bi],
+      base: pullSlots(verticalAlt, rowAlt, row),
     },
     lowerB,
   ]);
@@ -618,47 +878,72 @@ export function structure(
     focusRoles: s.focusRoles ?? [],
   }));
 }
-// A matching pattern is preferred, never invented when equipment cannot support it.
-// Alternatives remain visible in the workload review rather than masquerading as equivalent coverage.
+// Movements already chosen this week, by exercise and movement family.
+type Usage = { ids: Map<string, number>; kinds: Map<string, number> };
+const bump = (map: Map<string, number>, key: string | undefined) => {
+  if (key) map.set(key, (map.get(key) ?? 0) + 1);
+};
+// A slot only accepts its reviewed movement families; nothing is invented
+// when equipment cannot support it. Alternatives remain visible in the
+// workload review rather than masquerading as equivalent coverage. With week
+// usage, accessory slots prefer a movement (and for arms, calves and trunk a
+// movement family) not yet used this week, so variety comes from distinct
+// stimuli rather than random swaps. Main lifts and the beginner foundation
+// Path stay consistent for practice and progressive overload.
 export function slotMovements(
   p: PathPreferences,
   dayIndex: number,
   index: number,
   catalog: Exercise[],
+  usage?: Usage,
 ) {
   const target = sessions(p)[dayIndex]?.slots[index];
-  if (!target) return [];
+  return target ? rankSlot(p, target, catalog, usage) : [];
+}
+function rankSlot(
+  p: PathPreferences,
+  target: Slot,
+  catalog: Exercise[],
+  usage?: Usage,
+) {
   const choices = compatibleMovements(p, target.role, catalog);
   const available = choices.filter(
-    (m) =>
-      (!target.patterns ||
-        target.patterns.includes(
-          catalog.find((e) => e.id === m.id)!.pattern,
-        )) &&
-      (!target.ids || target.ids.includes(m.id)) &&
-      (target !== row || exerciseStimulus(m.id).direct.includes("Back")) &&
-      ((target !== press && target !== squat) ||
-        !exerciseStimulus(m.id).isolation),
+    (m) => target.kinds.includes(m.kind) && (!target.loaded || m.needs.length),
   );
+  const varied =
+    !!usage &&
+    goalOf(p) !== "foundation" &&
+    !target.main &&
+    (p.experience !== "Beginner" || !!target.isolation);
   return [...available].sort((a, b) => {
+    const family = (m: (typeof available)[number]) =>
+      target.vary ? 0 : target.kinds.indexOf(m.kind);
     const rank = (id: string) => {
       const i = target.preferred?.indexOf(id) ?? -1;
       return i < 0 ? 100 : i;
     };
     // Keep explicit machine/free-weight preferences ahead of the default examples.
-    const style = (id: string) => {
-      const e = choices.find((c) => c.id === id)!;
-      return p.style === "Machines"
-        ? Number(e.needs.some((n) => n === "Cable" || machineRequirement(n)))
+    const style = (m: (typeof available)[number]) =>
+      p.style === "Machines"
+        ? Number(m.needs.some((n) => n === "Cable" || machineRequirement(n)))
         : p.style === "Free weights"
           ? Number(
-              e.needs.some((n) =>
+              m.needs.some((n) =>
                 ["Barbell", "Dumbbell", "Kettlebell"].includes(n),
               ),
             )
           : 0;
-    };
-    return style(b.id) - style(a.id) || rank(a.id) - rank(b.id);
+    const repeat = (m: (typeof available)[number]) =>
+      varied
+        ? (usage.ids.get(m.id) ?? 0) * 10 +
+          (target.vary ? (usage.kinds.get(m.kind) ?? 0) : 0)
+        : 0;
+    return (
+      family(a) - family(b) ||
+      style(b) - style(a) ||
+      repeat(a) - repeat(b) ||
+      rank(a.id) - rank(b.id)
+    );
   });
 }
 function checkPreferences(p: PathPreferences) {
@@ -695,6 +980,7 @@ type Pick = { slot: number; id: string; substituted?: boolean };
 // Balancing never trims a lifting day below this many exercises; if that
 // would be required, the week is rejected with guidance instead.
 const TRIM_FLOOR = 3;
+const MAX_SAME_FAMILY_PER_DAY = 2;
 class WeekBalanceError extends Error {}
 
 // Plans the whole week before any prescriptions are written: every day takes
@@ -705,14 +991,23 @@ class WeekBalanceError extends Error {}
 function planWeek(p: PathPreferences, catalog: Exercise[]): Pick[][] {
   const specs = sessions(p);
   const offsets = dates(p);
-  const plan = specs.map((s, i) => {
+  const usage: Usage = { ids: new Map(), kinds: new Map() };
+  // At most two movements from one family per session (three squats or
+  // three flat presses add overlap, not stimulus).
+  const room = (picks: Pick[], id: string) =>
+    picks.filter((x) => menuMovement(x.id)?.kind === menuMovement(id)?.kind)
+      .length < MAX_SAME_FAMILY_PER_DAY;
+  const plan = specs.map((s) => {
     const picks: Pick[] = [];
-    s.slots.forEach((_, j) => {
-      const choice = slotMovements(p, i, j, catalog).find(
-        (m) => !picks.some((x) => x.id === m.id),
+    for (const [j, target] of s.slots.entries()) {
+      const choice = rankSlot(p, target, catalog, usage).find(
+        (m) => !picks.some((x) => x.id === m.id) && room(picks, m.id),
       );
-      if (choice) picks.push({ slot: j, id: choice.id });
-    });
+      if (!choice) continue;
+      picks.push({ slot: j, id: choice.id });
+      bump(usage.ids, choice.id);
+      bump(usage.kinds, choice.kind);
+    }
     return picks;
   });
   const primary = (id: string) => exerciseStimulus(id).direct[0];
@@ -748,17 +1043,15 @@ function planWeek(p: PathPreferences, catalog: Exercise[]): Pick[][] {
     const picks = plan[i]!;
     for (const [j, target] of specs[i]!.slots.entries()) {
       if (picks.some((x) => x.slot === j)) continue;
-      const pattern = (id: string) =>
-        !!target.patterns?.includes(
-          catalog.find((e) => e.id === id)?.pattern ?? "",
-        );
+      const pattern = (id: string) => {
+        const kind = menuMovement(id)?.kind;
+        return !!kind && target.kinds.includes(kind);
+      };
       const options = compatibleMovements(p, target.role, catalog)
         .filter((m) => !picks.some((x) => x.id === m.id))
-        .filter(
-          (m) =>
-            (target !== press && target !== squat) ||
-            !exerciseStimulus(m.id).isolation,
-        )
+        .filter((m) => !target.compound || !exerciseStimulus(m.id).isolation)
+        .filter((m) => !target.loaded || m.needs.length)
+        .filter((m) => room(picks, m.id))
         .filter((m) => {
           const muscle = primary(m.id);
           return (
@@ -899,6 +1192,29 @@ const PULL_EQUIPMENT: {
   { label: "a doorway pull-up bar", needs: ["Pull-up bar"] },
 ];
 
+// Days whose planned movements equipment could not supply are named for what
+// they actually train: the first three distinct targets, in session order.
+function adaptedName(roles: PathRole[]) {
+  const labels: Record<PathRole, string> = {
+    push: "chest",
+    pull: "back",
+    squat: "quads",
+    posterior: "posterior chain",
+    shoulder: "shoulders",
+    rear: "rear delts",
+    biceps: "biceps",
+    triceps: "triceps",
+    calf: "calves",
+    core: "core",
+  };
+  const names = [...new Set(roles.map((role) => labels[role]))].slice(0, 3);
+  const list =
+    names.length > 1
+      ? `${names.slice(0, -1).join(", ")} & ${names[names.length - 1]}`
+      : (names[0] ?? "");
+  return `Adapted · ${list}`;
+}
+
 function buildPath(p: PathPreferences, catalog: Exercise[]): PathDraft {
   const offsets = dates(p);
   const goal = goalOf(p);
@@ -963,14 +1279,13 @@ function buildPath(p: PathPreferences, catalog: Exercise[]): PathDraft {
       );
     const adapted =
       picks.length !== s.slots.length || picks.some((x) => x.substituted);
+    // Only a conventional deadlift is presented as a deadlift.
+    const name = picks.some((x) => menuMovement(x.id)?.kind === "deadlift")
+      ? s.name
+      : s.name.replace("Deadlift", "Hinge").replace("deadlift", "hinge");
     return {
       key: `day-${i}`,
-      name: adapted
-        ? `Adapted · ${[...new Set(roles)].map((role) => ({ push: "chest", pull: "back", squat: "quads", posterior: "posterior chain", shoulder: "shoulders", rear: "rear delts", biceps: "biceps", triceps: "triceps", calf: "calves", core: "core" })[role]).join(" & ")}`.slice(
-            0,
-            80,
-          )
-        : s.name,
+      name: adapted ? adaptedName(roles) : name,
       offset: offsets[i]!,
       roles,
       exercises,
@@ -979,6 +1294,7 @@ function buildPath(p: PathPreferences, catalog: Exercise[]): PathDraft {
   adjustWeeklyVolume(days, p);
   balancePushPull(days, p, catalog);
   balanceVolume(days, p);
+  recovery(days);
   return validateDraft(
     { engineVersion: ENGINE_VERSION, preferences: p, days },
     catalog,
@@ -1002,7 +1318,7 @@ export function evolutionDays(
     ...d,
     exercises: d.exercises.map((e) => ({ ...e })),
   }));
-  if (draft.engineVersion !== ENGINE_VERSION) return days;
+  if ((draft.engineVersion ?? 1) < 8) return days;
   const goal = goalOf(p);
   if (goal === "foundation" || p.experience === "Beginner") return days;
   if (goal === "strength") {
@@ -1210,8 +1526,10 @@ export function validateDraft(
     throw new Error("Plan days do not match your weekly availability.");
   const offsets = dates(p);
   const specs = sessions(p, draft.engineVersion);
-  // Engine 8 prescription and volume rules live in the program-quality engine.
-  const current = draft.engineVersion === ENGINE_VERSION;
+  // Engine 8+ plans are judged by the program-quality engine (equipment,
+  // prescriptions, balance, volume and recovery) rather than a fixed slot
+  // order, so customized plans validate on their merits.
+  const current = (draft.engineVersion ?? 1) >= 8;
   const volumeRules = (draft.engineVersion ?? 1) >= 6 && !current;
   const weekly: Record<string, number> = {};
   draft.days.forEach((day, i) => {
@@ -1244,7 +1562,7 @@ export function validateDraft(
         matches(slotIndex + 1, roleIndex)
       );
     };
-    if (!matches(0, 0))
+    if (!current && !matches(0, 0))
       throw new Error("Keep the balanced movement structure of this Path.");
     day.exercises.forEach((raw, j) => {
       const item = prescriptionSchema.parse(raw);
@@ -1296,7 +1614,10 @@ export function validateDraft(
         throw new Error(
           `${muscle} exceeds this Path's weekly primary-target set ceiling.`,
         );
-  recovery(draft.days);
+  // Generated weeks never repeat demanding movement groups on adjacent days;
+  // engine 8+ plans report it as a program-quality finding instead, so a
+  // lifter's own changes are reviewed rather than silently rejected.
+  if (!current) recovery(draft.days);
   // Saved plans from earlier engines stay usable; the review flags imbalance
   // and offers a rebuild instead of blocking recorded training.
   if (draft.engineVersion === 7) assertBalancedWeek(draft.days);
