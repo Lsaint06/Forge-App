@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { pathProgramDataSchema, pathSessionDataSchema } from "./paths/model";
+import {
+  enrollmentDataSchema,
+  programSessionLogSchema,
+} from "./programs/enrollment";
 const nonnegative = z.number().finite().min(0);
 export const profileSchema = z
   .object({
@@ -128,6 +132,16 @@ export function validateJournal(
   kind: string,
   data: Record<string, string | number | boolean>,
 ) {
+  if ("forgeProgram" in data) {
+    if (data.forgeProgram !== 1)
+      throw new Error("Unsupported Forge program metadata version");
+    if (kind === "program") enrollmentDataSchema.parse(data);
+    else if (kind === "schedule") programSessionLogSchema.parse(data);
+    else
+      throw new Error(
+        "Forge program metadata belongs to program or schedule records",
+      );
+  }
   if ("forgePath" in data) {
     if (data.forgePath !== 1)
       throw new Error("Unsupported Forge Path metadata version");

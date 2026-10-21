@@ -11,6 +11,7 @@ import {
 import { useRepo, mutate, confirm } from "../../src/state";
 import { SectionHeader, WorkoutCard } from "../../src/components/design";
 import { PathSummary } from "../../src/components/PathSummary";
+import { ProgramSummary } from "../../src/components/ProgramSummary";
 import { standaloneTemplates } from "../../src/data/paths";
 import { volume, elapsedSeconds, kgToLb } from "../../src/domain/metrics";
 export default function Train() {
@@ -21,8 +22,9 @@ export default function Train() {
       <Button
         title="Forge Paths"
         icon="trail-sign-outline"
-        onPress={() => router.push("/paths")}
+        onPress={() => router.push("/forge-paths")}
       />
+      <ProgramSummary />
       <PathSummary />
       {r.active() && (
         <WorkoutCard

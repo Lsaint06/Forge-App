@@ -235,7 +235,10 @@ export default function Progress() {
       </Card>
       {r
         .journal("program")
-        .filter((program) => program.data.forgePath !== 1)
+        .filter(
+          (program) =>
+            program.data.forgePath !== 1 && program.data.forgeProgram !== 1,
+        )
         .map((program) => {
           const schedule = r
             .journal("schedule")

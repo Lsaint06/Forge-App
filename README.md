@@ -8,7 +8,7 @@ Open **Train → Forge Paths**. See the current [phone-first Paths rework](docs/
 
 Optional **Plan details** reviews weekly session balance, including intentional differences between broad and focused days. New plans redistribute existing work without increasing the previous weekly set budget; see the [weekly balance audit](docs/research/WEEKLY_SESSION_BALANCE.md) for measured before/after programs and limitations. Rebuild explicitly to update an existing Path.
 
-**Forge Paths 4.0 is in progress:** Forge Paths is moving to human-authored, versioned programs. Onboarding now asks for experience, goal and preferred rest day, and the curated program data model is in place. The program library is still empty, so generated Paths remain the active flow. See [docs/CURATED_PROGRAMS.md](docs/CURATED_PROGRAMS.md) for the authoring format and transition plan.
+**Forge Paths 4.0 is in progress:** Forge Paths is moving to human-authored, versioned programs. Onboarding asks for experience, goal and preferred rest day. **Train → Forge Paths** now shows a recommended program, a browsable program library, program details, enrollment and session tracking. The program library is still empty, and the generated Path builder remains available. See [docs/CURATED_PROGRAMS.md](docs/CURATED_PROGRAMS.md) for the authoring format and transition plan.
 
 This is a substantial first implementation, **not completion of every requirement in the product brief**. Read [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for exact coverage and verification limits. The supplied brief is preserved in [docs/PRODUCT_SPEC.txt](docs/PRODUCT_SPEC.txt).
 

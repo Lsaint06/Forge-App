@@ -20,6 +20,7 @@ import { repRangeLabel } from "../domain/prescriptions";
 import type { WorkoutExercise, WorkoutSet } from "../domain/types";
 import { restNotification } from "../notifications";
 import { IconButton } from "./design";
+import { programWorkoutContext } from "../data/programs";
 export function SetRow({
   set: s,
   category,
@@ -207,6 +208,12 @@ export default function WorkoutExerciseCard({
       (entry) =>
         entry.data.forgePath === 1 && entry.data.workoutId === e.workoutId,
     );
+  // Curated program workouts follow the author's progression, never an
+  // automatic load suggestion.
+  const programContext = programWorkoutContext(r, e.workoutId);
+  const programItem = programContext?.slot?.session.exercises.find(
+    (item) => item.exerciseId === e.exerciseId,
+  );
   const target = e.target;
   const recommendation = target
     ? targetProgression(
@@ -249,7 +256,7 @@ export default function WorkoutExerciseCard({
       </Pressable>
       {target ? (
         <Label size={12} muted>
-          {`${pathWorkout ? "Path" : "Template"} target: ${target.sets} × ${repRangeLabel({ reps: target.min, repMax: target.max })} reps · ${e.rest}s rest`}
+          {`${programContext ? "Program" : pathWorkout ? "Path" : "Template"} target: ${target.sets} × ${repRangeLabel({ reps: target.min, repMax: target.max })} reps · ${e.rest}s rest`}
         </Label>
       ) : (
         <Label size={12} muted>
@@ -311,7 +318,23 @@ export default function WorkoutExerciseCard({
                   when recovery calls for it.
                 </Label>
               )}
-              {(!pathWorkout || target) &&
+              {programContext && (
+                <View style={{ gap: 6 }}>
+                  {programItem?.notes && (
+                    <Label size={12} muted>
+                      Program note: {programItem.notes}
+                    </Label>
+                  )}
+                  {programContext.enrollment.program && (
+                    <Label size={12} muted>
+                      Program progression:{" "}
+                      {programContext.enrollment.program.progression}
+                    </Label>
+                  )}
+                </View>
+              )}
+              {!programContext &&
+                (!pathWorkout || target) &&
                 exercise?.category === "strength" && (
                   <View style={{ gap: 6 }}>
                     {recommendation.weight != null && (

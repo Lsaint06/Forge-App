@@ -11,11 +11,11 @@ Forge Paths is moving from automatically generated workouts to **human-authored 
 | 1. Codebase audit | Done |
 | 2. Onboarding foundation | Done — experience, goal and preferred rest day |
 | 3. Program data architecture | Done — schema, validation, version lock, recommendation, weekday placement |
-| 4. Paths interface (recommended program + library) | Not started |
-| 5. Workout tracking integration (enrollment, session start) | Not started |
+| 4. Paths interface (recommended program + library) | Done — Train → Forge Paths |
+| 5. Workout tracking integration (enrollment, session start) | Done |
 | 6. Legacy generator retirement | Not started — generator remains fully in use |
 
-The bundled library is currently **empty**. No program has been published, so nothing is shown to users yet. The generated Paths flow and all saved generated plans are unchanged.
+The bundled library is currently **empty**, so Forge Paths shows an honest empty state. The generated Path builder remains available from the same screen, and saved generated plans are unchanged.
 
 ## Training profile
 
@@ -92,11 +92,32 @@ Only the latest published version of each program is listed. Drafts are never li
 - `recommendProgram` (`src/domain/programs/recommend.ts`) recommends only published programs whose experience and goal match the lifter's own choices. The settings weekly workout goal breaks ties, then the program with fewer days. It returns `incomplete` when experience or goal is missing, and `none` when no program matches. Nothing is generated to fill a gap.
 - `trainingWeekdays` (`src/domain/programs/schedule.ts`) maps the author's weekly pattern onto weekdays. Spacing between sessions stays exactly as authored. Only the starting day rotates, so the preferred rest day falls on a rest slot. It is a suggestion; lifters can still train or reschedule on any day.
 
+## Forge Paths screen (Phase 4)
+
+**Train → Forge Paths** and **Home → Choose a Forge Path** open `app/forge-paths.tsx`, implemented in `src/screens/ForgePaths.tsx`.
+
+- **Recommended for you:** shows the recommended program and why it matches. If experience or goal is missing, it asks the user to complete the profile. If no program matches, it says so; nothing is generated to fill the gap.
+- **Program library:** shows every published program, with optional experience and goal filters. Users can choose any program, regardless of the recommendation.
+- **Program details:** shows experience, goal, days per week, duration, equipment, description, suggested training days, progression, and every phase, session, and exercise with sets, reps, rest, and notes. Users choose a start date: Today, Tomorrow, or Next Monday.
+- **Generated Paths:** the current generated Path summary and **Open the Path builder** remain available.
+
+## Enrollment and tracking (Phase 5)
+
+Implemented in `src/data/programs.ts`, with record schemas in `src/domain/programs/enrollment.ts`.
+
+- **Enrollment:** a `program` journal record marked `forgeProgram: 1` stores the program ID, exact version, start date, status, and suggested weekdays. The authored program is referenced, never copied or edited. Records sync and back up like other journal entries. They are kept separate from generated Path records and the ordinary calendar.
+- **Replacing a plan:** starting a program asks for confirmation if another curated program or a generated Path is active. The previous plan is archived; its schedules, templates, and workouts are preserved.
+- **Session order:** sessions follow the authored order. The next session is the first one not completed or skipped. Suggested dates come from the author's weekly pattern and the user's rest day. Missing a day does not mark the session missed, add makeup work, or change the program.
+- **Starting a session:** Forge creates a workout from that session, copying exercises, sets, rep targets, and rest into the workout. Later program versions cannot rewrite it. The user enters working loads. The workout card shows **Program target**, the author's exercise note, and the program's progression text. Forge does not add automatic load suggestions to program workouts.
+- **Logging and history:** each started or skipped session gets one log record. A completed workout counts as completed. If the user deletes or discards the workout, the session returns to the queue. Users can skip a session and restore it later. Program history links to completed workouts.
+- **Completion:** a fixed-length program completes after every session is done. Ending a program archives it, and all workouts remain in history. If an enrolled version is no longer bundled, history is kept and new starts are blocked.
+- **Home and Train:** the **Your program** card shows the next session with **Start** or **Resume**.
+
+Personal customization still edits only the started workout. Saved personal changes to a program are not implemented yet; the enrollment model leaves room for them without changing authored content.
+
 ## Transition plan for later phases
 
-- **Enrollment (Phase 5):** store a separate record with the program ID, version, start date and personal schedule changes. The authored program is never modified. Each workout keeps the existing snapshot of exercises, rest and rep targets, so later changes cannot rewrite history.
-- **Missed sessions:** keep history accurate, with no makeup or punishment workouts and no prescription changes.
-- **Generator and legacy Paths:** generated plans stay fully usable. Generator-only behavior—validation, Evolution re-derivation, role-based reschedule checks and workload-level suggestions—must not apply to curated programs. Creating new generated Paths stays available until the curated flow is verified. Removing generator code requires a separate migration and test review.
+- **Generator and legacy Paths:** generated plans stay fully usable. Generator-only behavior—validation, Evolution re-derivation, role-based reschedule checks and workload-level suggestions—does not apply to curated programs. Creating new generated Paths stays available until the curated flow is verified on devices. Removing generator code requires a separate migration and test review.
 
 ## Known pre-existing check failures
 

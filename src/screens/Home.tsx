@@ -12,6 +12,7 @@ import {
 import { summary, readiness, volume, kgToLb } from "../domain/metrics";
 import { localDate } from "../domain/types";
 import { PathSummary } from "../components/PathSummary";
+import { ProgramSummary } from "../components/ProgramSummary";
 import { visibleSchedules, startScheduledSession } from "../data/paths";
 export default function Home() {
   const r = useRepo();
@@ -85,10 +86,11 @@ export default function Home() {
           <Button
             title="Choose a Forge Path"
             secondary
-            onPress={() => router.push("/paths")}
+            onPress={() => router.push("/forge-paths")}
           />
         )}
       </Card>
+      <ProgramSummary />
       <PathSummary />
       <Card>
         <Row>

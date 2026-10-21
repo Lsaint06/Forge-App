@@ -53,7 +53,7 @@ test("Train keeps Paths, custom templates and freestyle without the separate pro
     expect(view.queryByLabelText("Training programs")).toBeNull();
     expect(view.queryByLabelText("Templates & programs")).toBeNull();
     await fireEvent.press(view.getByLabelText("Forge Paths"));
-    expect(router.push).toHaveBeenLastCalledWith("/paths");
+    expect(router.push).toHaveBeenLastCalledWith("/forge-paths");
     await fireEvent.press(view.getByLabelText("Workout templates"));
     expect(router.push).toHaveBeenLastCalledWith("/templates");
     await fireEvent.press(view.getByLabelText("Start freestyle workout"));
@@ -72,7 +72,7 @@ test("Home directs new guided-plan selection to Forge Paths", async () => {
     const view = await render(<Home />);
     expect(view.queryByLabelText("Choose a program")).toBeNull();
     await fireEvent.press(view.getByLabelText("Choose a Forge Path"));
-    expect(router.push).toHaveBeenLastCalledWith("/paths");
+    expect(router.push).toHaveBeenLastCalledWith("/forge-paths");
   } finally {
     db.close();
   }

@@ -26,6 +26,7 @@ import {
   exerciseSchema,
   validateJournal,
   repTargetSchema,
+  prescriptionSchema,
 } from "../domain/validation";
 export interface SqlDatabase {
   exec(sql: string): void;
@@ -317,45 +318,67 @@ export class Repository {
     const active = this.active();
     if (active) return active;
     return this.transaction(() => {
-      const now = Date.now();
-      const w: Workout = {
-        id: id(),
-        name,
-        status: "active",
-        startedAt: now,
-        finishedAt: null,
-        pausedAt: null,
-        pausedMs: 0,
-        notes: "",
-        templateId: templateId ?? null,
-        updatedAt: now,
-      };
-      this.putWorkout(w);
+      const w = this.createWorkout(name, templateId ?? null);
       if (templateId) {
         const t = this.templates().find((t) => t.id === templateId);
         if (!t) throw new Error("Template no longer exists");
-        for (const p of t.exercises) {
-          const e = this.addExercise(w.id, p.exerciseId);
-          this.putExercise({
-            ...e,
-            rest: p.rest,
-            ...(p.reps > 0
-              ? {
-                  target: {
-                    min: p.reps,
-                    max: p.repMax ?? p.reps,
-                    sets: p.sets,
-                  },
-                }
-              : {}),
-          });
-          for (let i = 0; i < p.sets; i++)
-            this.addSet(e.id, { reps: p.reps, weight: p.weight, rest: p.rest });
-        }
+        this.prescribe(w.id, t.exercises);
       }
       this.queueWorkout(w.id);
       return w;
     });
+  }
+  // Starts a workout from a prescription that is not a saved template, such as
+  // a curated program session. Targets are snapshotted like template workouts.
+  startPrescribedWorkout(name: string, items: Prescription[]) {
+    if (this.active())
+      throw new Error(
+        "Finish or discard your current workout before starting another.",
+      );
+    items.forEach((item) => prescriptionSchema.parse(item));
+    return this.transaction(() => {
+      const w = this.createWorkout(name, null);
+      this.prescribe(w.id, items);
+      this.queueWorkout(w.id);
+      return w;
+    });
+  }
+  private createWorkout(name: string, templateId: string | null) {
+    const now = Date.now();
+    const w: Workout = {
+      id: id(),
+      name,
+      status: "active",
+      startedAt: now,
+      finishedAt: null,
+      pausedAt: null,
+      pausedMs: 0,
+      notes: "",
+      templateId,
+      updatedAt: now,
+    };
+    this.putWorkout(w);
+    return w;
+  }
+  private prescribe(workoutId: string, items: Prescription[]) {
+    for (const p of items) {
+      const e = this.addExercise(workoutId, p.exerciseId);
+      this.putExercise({
+        ...e,
+        rest: p.rest,
+        ...(p.reps > 0
+          ? {
+              target: {
+                min: p.reps,
+                max: p.repMax ?? p.reps,
+                sets: p.sets,
+              },
+            }
+          : {}),
+      });
+      for (let i = 0; i < p.sets; i++)
+        this.addSet(e.id, { reps: p.reps, weight: p.weight, rest: p.rest });
+    }
   }
   updateWorkout(
     workoutId: string,

@@ -410,6 +410,16 @@ export function editPathDay(
       );
   });
 }
+// Archives a generated Path when the lifter starts a curated program. Its
+// schedule, templates and recorded workouts are kept, as when replacing a Path.
+export function archivePath(r: Repository, programId: string) {
+  const program = findPath(r, programId);
+  if (program.data.status === "archived") return;
+  r.updateJournal(
+    programId,
+    encode({ ...program.data, status: "archived", pausedOn: "" }),
+  );
+}
 export function pausePath(
   r: Repository,
   programId: string,
@@ -544,7 +554,7 @@ export function visibleSchedules(r: Repository) {
     .journal("schedule")
     .filter(
       (j) =>
-        j.data.forgePath !== 1 ||
+        (j.data.forgePath !== 1 && j.data.forgeProgram !== 1) ||
         (activeIds.has(String(j.data.programId)) &&
           !j.data.skipped &&
           !completedIds.has(String(j.data.workoutId))),
