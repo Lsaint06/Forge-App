@@ -14,10 +14,20 @@ import {
 import { ProfileForm } from "../../src/components/ProfileForm";
 import { useRepo, confirm } from "../../src/state";
 import { SectionHeader } from "../../src/components/design";
+import {
+  experienceLevel,
+  missingTrainingProfile,
+  restDayName,
+  trainingGoal,
+} from "../../src/domain/profile";
 export default function Profile() {
   const r = useRepo();
   const p = r.profile();
   const [edit, setEdit] = useState(false);
+  const missing = missingTrainingProfile(p);
+  const goal = trainingGoal(p);
+  const experience = experienceLevel(p);
+  const restDay = restDayName(p);
   async function exportData() {
     try {
       await downloadBackup(JSON.stringify(r.exportBackup(), null, 2));
@@ -41,12 +51,39 @@ export default function Profile() {
   return (
     <Screen title="You" eyebrow={p.name}>
       <SectionHeader title="Personal" />
+      {p.onboarded && missing.length > 0 && (
+        <Card>
+          <Label bold size={20}>
+            Complete your training profile
+          </Label>
+          <Label muted>
+            Choose your{" "}
+            {missing
+              .map((m) =>
+                m === "experience"
+                  ? "training experience"
+                  : m === "goal"
+                    ? "training goal"
+                    : "preferred rest day",
+              )
+              .join(", ")}{" "}
+            so Forge can recommend a program. Optional — you can browse every
+            program either way.
+          </Label>
+          <Button
+            title="Complete training profile"
+            icon="create-outline"
+            onPress={() => setEdit(true)}
+          />
+        </Card>
+      )}
       <Card>
         <Label size={24} bold>
-          {p.goal}
+          {goal ?? "Training goal not set"}
         </Label>
         <Label muted>
-          {p.experience} · {p.frequency} sessions / week ·{" "}
+          {experience ?? "Experience not set"} ·{" "}
+          {restDay ? `Rests ${restDay}` : "No rest day chosen"} ·{" "}
           {p.units.toUpperCase()}
         </Label>
         <Button

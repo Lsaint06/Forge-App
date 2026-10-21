@@ -428,6 +428,68 @@ export function Chips({
     </ScrollView>
   );
 }
+export function Choices({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: string; title?: string; detail?: string }[];
+  value: string | undefined;
+  onChange: (value: string) => void;
+}) {
+  const c = useColors();
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={label}
+      style={{ gap: 8 }}
+    >
+      <Label bold>{label}</Label>
+      {options.map((o) => {
+        const selected = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="radio"
+            accessibilityLabel={o.title ?? o.value}
+            accessibilityHint={o.detail}
+            accessibilityState={{ selected, checked: selected }}
+            onPress={() => onChange(o.value)}
+            style={({ pressed }) => ({
+              minHeight: 48,
+              paddingVertical: 12,
+              paddingHorizontal: 14,
+              borderRadius: theme.radii.control,
+              borderWidth: theme.border.width,
+              borderColor: selected ? c.accent : c.border,
+              backgroundColor: c.elevated,
+              opacity: pressed ? 0.85 : 1,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+            })}
+          >
+            <Ionicons
+              name={selected ? "radio-button-on" : "radio-button-off"}
+              size={20}
+              color={selected ? c.accent : c.muted}
+            />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ color: c.text, fontWeight: "700", fontSize: 15 }}>
+                {o.title ?? o.value}
+              </Text>
+              {o.detail && (
+                <Text style={{ color: c.muted, fontSize: 13 }}>{o.detail}</Text>
+              )}
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
 export function Stat({
   value,
   label,

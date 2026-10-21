@@ -92,6 +92,71 @@ test("height uses feet and inches while keeping existing metric records intact",
   expect(repo.current().height).toBeCloseTo(187.96, 5);
 });
 
+test("onboarding asks the training journey questions and saves each choice", async () => {
+  const repo = mockProfile({ height: 180, weight: 80 });
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onboarding onDone={onDone} />);
+  await fireEvent.press(view.getByText("Next", { exact: true }));
+  await waitFor(() => expect(view.getByText(/STEP 2 \/ 4/)).toBeTruthy());
+  expect(
+    view.getByText("Where are you in your training journey?"),
+  ).toBeTruthy();
+  expect(view.getByText("What are you training toward?")).toBeTruthy();
+  expect(view.getByText("Which day would you prefer to rest?")).toBeTruthy();
+  expect(
+    view.getByText("Building my foundation in resistance training."),
+  ).toBeTruthy();
+  // Forge does not preselect an experience level or goal.
+  expect(
+    view.getByLabelText("Beginner").props.accessibilityState.selected,
+  ).toBe(false);
+  await fireEvent.press(view.getByLabelText("Intermediate"));
+  await fireEvent.press(view.getByLabelText("Muscle Building"));
+  await fireEvent.press(view.getByLabelText("Sunday"));
+  expect(repo.current()).toMatchObject({
+    experience: "Intermediate",
+    goal: "Muscle Building",
+    restDay: 6,
+  });
+  await fireEvent.press(view.getByText("Next", { exact: true }));
+  await waitFor(() => expect(view.getByText(/STEP 3 \/ 4/)).toBeTruthy());
+  // Weekly frequency is a settings preference, not a first-time question.
+  expect(view.queryByLabelText(/Weekly workout goal/)).toBeNull();
+  await fireEvent.press(view.getByText("Skip remaining optional setup"));
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+  expect(repo.current()).toMatchObject({
+    onboarded: true,
+    experience: "Intermediate",
+    goal: "Muscle Building",
+    restDay: 6,
+  });
+});
+
+test("settings edit the journey choices and show legacy goals honestly", async () => {
+  const repo = mockProfile({
+    onboarded: true,
+    height: 180,
+    weight: 80,
+    experience: "Advanced",
+    goal: "Build muscle",
+  });
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onDone={onDone} />);
+  expect(
+    view.getByLabelText("Muscle Building").props.accessibilityState.selected,
+  ).toBe(true);
+  expect(view.getByLabelText(/Weekly workout goal/)).toBeTruthy();
+  await fireEvent.press(view.getByLabelText("Strength"));
+  await fireEvent.press(view.getByLabelText("Wednesday"));
+  await fireEvent.press(view.getByText("Save settings"));
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+  expect(repo.current()).toMatchObject({
+    experience: "Advanced",
+    goal: "Strength",
+    restDay: 2,
+  });
+});
+
 test("required height and weight cannot be bypassed by Next or skipping optional setup", async () => {
   const repo = mockProfile();
   const onDone = jest.fn();

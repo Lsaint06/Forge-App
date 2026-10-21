@@ -5,6 +5,8 @@ export type Profile = {
   theme: "dark" | "light" | "system";
   experience: string;
   goal: string;
+  // Preferred rest weekday, 0 = Monday … 6 = Sunday. Absent on older profiles.
+  restDay?: number;
   height: number;
   weight: number;
   frequency: number;
@@ -122,8 +124,9 @@ export const defaults: Profile = {
   onboarded: false,
   units: "kg",
   theme: "dark",
-  experience: "Beginner",
-  goal: "Build strength",
+  // Experience and goal start unset: the lifter chooses them.
+  experience: "",
+  goal: "",
   height: 0,
   weight: 0,
   frequency: 3,

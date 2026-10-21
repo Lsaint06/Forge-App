@@ -9,6 +9,7 @@ export const profileSchema = z
     theme: z.enum(["dark", "light", "system"]),
     experience: z.string(),
     goal: z.string(),
+    restDay: z.number().int().min(0).max(6).optional(),
     height: nonnegative.max(300),
     weight: nonnegative.max(700),
     frequency: z.number().int().min(1).max(7),
