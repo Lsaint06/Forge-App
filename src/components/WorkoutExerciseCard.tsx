@@ -16,11 +16,32 @@ import {
 import { ExercisePicker } from "./ExercisePicker";
 import { overload, kgToLb, lbToKg } from "../domain/metrics";
 import { targetProgression } from "../domain/progression";
-import { repRangeLabel } from "../domain/prescriptions";
+import { repRangeLabel, restGuidanceLabel } from "../domain/prescriptions";
 import type { WorkoutExercise, WorkoutSet } from "../domain/types";
 import { restNotification } from "../notifications";
 import { IconButton } from "./design";
-import { programWorkoutContext } from "../data/programs";
+import { programExerciseAdvice, programWorkoutContext } from "../data/programs";
+import type { ProgramExercise } from "../domain/programs/model";
+
+// "Program target: 3 × 8 reps per side · 2–3 RIR · rest 2–3 min".
+export function programTargetLabel(
+  target: { sets: number; min: number; max: number },
+  item: ProgramExercise | undefined,
+  rir: { min: number; max: number } | undefined,
+  restSeconds: number,
+) {
+  const parts = [
+    `Program target: ${target.sets} × ${repRangeLabel({ reps: target.min, repMax: target.max })} reps${item?.perSide ? " per side" : ""}`,
+  ];
+  if (rir)
+    parts.push(
+      rir.min === rir.max ? `${rir.min} RIR` : `${rir.min}–${rir.max} RIR`,
+    );
+  parts.push(
+    item?.rest ? restGuidanceLabel(item.rest) : `${restSeconds}s rest`,
+  );
+  return parts.join(" · ");
+}
 export function SetRow({
   set: s,
   category,
@@ -208,24 +229,42 @@ export default function WorkoutExerciseCard({
       (entry) =>
         entry.data.forgePath === 1 && entry.data.workoutId === e.workoutId,
     );
-  // Curated program workouts follow the author's progression, never an
-  // automatic load suggestion.
+  // Curated program workouts follow the author's progression, never the
+  // generic load suggestion.
   const programContext = programWorkoutContext(r, e.workoutId);
   const programItem = programContext?.slot?.session.exercises.find(
     (item) => item.exerciseId === e.exerciseId,
   );
+  const programAdvice = programContext
+    ? programExerciseAdvice(r, e.workoutId, e.exerciseId)?.advice
+    : undefined;
   const target = e.target;
-  const recommendation = target
-    ? targetProgression(
-        r.targetHistory(e.exerciseId, target),
-        target,
-        p.increment,
-      )
-    : overload(r.history(e.exerciseId), {
-        min: p.repMin,
-        max: p.repMax,
-        increment: p.increment,
-      });
+  const recommendation = programContext
+    ? undefined
+    : target
+      ? targetProgression(
+          r.targetHistory(e.exerciseId, target),
+          target,
+          p.increment,
+        )
+      : overload(r.history(e.exerciseId), {
+          min: p.repMin,
+          max: p.repMax,
+          increment: p.increment,
+        });
+  const shownLoad = (kg: number) =>
+    `${Math.round((p.units === "lb" ? kgToLb(kg) : kg) * 100) / 100} ${p.units}`;
+  const applyLoad = (weight: number | null) =>
+    mutate(() => {
+      if (weight == null)
+        throw new Error(
+          "Choose a working load manually until comparable performance is available.",
+        );
+      for (const s of sets.filter(
+        (s) => !s.completed && (!target || s.kind === "working"),
+      ))
+        r.editSet(s.id, { weight });
+    });
   return (
     <Card>
       <Pressable
@@ -256,11 +295,26 @@ export default function WorkoutExerciseCard({
       </Pressable>
       {target ? (
         <Label size={12} muted>
-          {`${programContext ? "Program" : pathWorkout ? "Path" : "Template"} target: ${target.sets} × ${repRangeLabel({ reps: target.min, repMax: target.max })} reps · ${e.rest}s rest`}
+          {programContext
+            ? programTargetLabel(
+                target,
+                programItem,
+                programAdvice?.rir,
+                e.rest,
+              )
+            : `${pathWorkout ? "Path" : "Template"} target: ${target.sets} × ${repRangeLabel({ reps: target.min, repMax: target.max })} reps · ${e.rest}s rest`}
         </Label>
       ) : (
         <Label size={12} muted>
           {`${working.length} working ${working.length === 1 ? "set" : "sets"} · ${e.rest}s rest`}
+        </Label>
+      )}
+      {programItem?.notes && (
+        <Label size={12}>Program note: {programItem.notes}</Label>
+      )}
+      {programAdvice?.action === "lower-fatigue" && (
+        <Label size={12} muted>
+          Lower-fatigue session · authored baseline {programItem?.sets} sets
         </Label>
       )}
       <Label
@@ -274,6 +328,29 @@ export default function WorkoutExerciseCard({
               ? `Previous: ${previous.map((s) => `${Math.round((p.units === "lb" ? kgToLb(s.weight) : s.weight) * 10) / 10} ${p.units} × ${s.reps}`).join(" · ")}`
               : "No previous working sets"}
           </Label>
+          {programContext && programAdvice && (
+            <View style={{ gap: 6 }}>
+              {programAdvice && (
+                <>
+                  {programAdvice.weight != null && (
+                    <Label size={12} muted>
+                      NEXT LOAD · {shownLoad(programAdvice.weight)}
+                    </Label>
+                  )}
+                  <Label size={12} muted>
+                    {programAdvice.reason}
+                  </Label>
+                  {programAdvice.weight != null && (
+                    <Button
+                      title="Apply suggested load"
+                      secondary
+                      onPress={() => applyLoad(programAdvice.weight)}
+                    />
+                  )}
+                </>
+              )}
+            </View>
+          )}
           <Button
             title={details ? "Hide exercise options" : "Exercise options"}
             secondary
@@ -318,34 +395,19 @@ export default function WorkoutExerciseCard({
                   when recovery calls for it.
                 </Label>
               )}
-              {programContext && (
-                <View style={{ gap: 6 }}>
-                  {programItem?.notes && (
-                    <Label size={12} muted>
-                      Program note: {programItem.notes}
-                    </Label>
-                  )}
-                  {programContext.enrollment.program && (
-                    <Label size={12} muted>
-                      Program progression:{" "}
-                      {programContext.enrollment.program.progression}
-                    </Label>
-                  )}
-                </View>
+              {programContext?.enrollment.program && (
+                <Label size={12} muted>
+                  Program progression:{" "}
+                  {programContext.enrollment.program.progression}
+                </Label>
               )}
-              {!programContext &&
+              {recommendation &&
                 (!pathWorkout || target) &&
                 exercise?.category === "strength" && (
                   <View style={{ gap: 6 }}>
                     {recommendation.weight != null && (
                       <Label size={12} muted>
-                        NEXT LOAD ·{" "}
-                        {Math.round(
-                          (p.units === "lb"
-                            ? kgToLb(recommendation.weight)
-                            : recommendation.weight) * 100,
-                        ) / 100}{" "}
-                        {p.units}
+                        NEXT LOAD · {shownLoad(recommendation.weight)}
                       </Label>
                     )}
                     <Label size={12} muted>
@@ -355,20 +417,7 @@ export default function WorkoutExerciseCard({
                       title="Apply suggested load"
                       secondary
                       disabled={recommendation.weight == null}
-                      onPress={() =>
-                        mutate(() => {
-                          const weight = recommendation.weight;
-                          if (weight == null)
-                            throw new Error(
-                              "Choose a working load manually until comparable performance is available.",
-                            );
-                          for (const s of sets.filter(
-                            (s) =>
-                              !s.completed && (!target || s.kind === "working"),
-                          ))
-                            r.editSet(s.id, { weight });
-                        })
-                      }
+                      onPress={() => applyLoad(recommendation.weight)}
                     />
                   </View>
                 )}

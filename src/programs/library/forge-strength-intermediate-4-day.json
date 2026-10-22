@@ -1,0 +1,1578 @@
+{
+  "id": "forge-strength-intermediate-4-day",
+  "version": 1,
+  "status": "draft",
+  "name": "Intermediate Strength · 4 Days",
+  "summary": "Forge Strength V2 (I-S4): four strength sessions a week for intermediate lifters.",
+  "description": "Forge Strength V2 program I-S4. Sessions: Lower A (Squat Strength); Upper A (Bench Strength); Lower B (Deadlift Strength); Upper B (Bench Volume). Listed sets are working sets; warm-up sets are separate. Unilateral prescriptions are per side. Rest about 3–5 minutes after primary lifts, 2–3 minutes after secondary compound lifts and 1–2 minutes after accessory work.",
+  "experience": "Intermediate",
+  "goal": "Strength",
+  "daysPerWeek": 4,
+  "durationWeeks": 8,
+  "equipment": ["Barbell", "Cable", "Dumbbell", "Machine", "Pull-up bar"],
+  "weeklyPattern": ["train", "train", "rest", "train", "train", "rest", "rest"],
+  "progression": "Eight-week structured progression. Weeks 1–3 accumulate quality work: primary lifts at 2–3 RIR, secondary lifts at about 3 RIR, and load rises only when every working set reaches the top of the range at the target effort. Week 4 is a planned lower-fatigue week: about 35% fewer working sets at 3–4 RIR, adjustable to your recovery. Weeks 5–7 resume heavier strength work with primary lifts at 1–2 RIR. Week 8 is a reduced-volume performance check: about 30% fewer working sets, primary lifts at 1–3 RIR, no load increase and no required maximal attempts. Load changes follow your recorded performance, never the calendar. If reps are missed, keep or reduce the load.",
+  "progressionModel": "structured",
+  "lowerFatigue": {
+    "setReduction": 0.35,
+    "rir": {
+      "min": 3,
+      "max": 4
+    }
+  },
+  "phases": [
+    {
+      "name": "Weeks 1–3 · Accumulation",
+      "weeks": 3,
+      "notes": "Accumulate quality work and increase load only where your recorded sets earn it.",
+      "block": "accumulation",
+      "rir": {
+        "primary": {
+          "min": 2,
+          "max": 3
+        },
+        "secondary": {
+          "min": 3,
+          "max": 3
+        },
+        "accessory": {
+          "min": 2,
+          "max": 3
+        }
+      },
+      "sessions": [
+        {
+          "id": "day-1",
+          "name": "Lower A (Squat Strength)",
+          "exercises": [
+            {
+              "exerciseId": "back-squat",
+              "sets": 4,
+              "reps": {
+                "min": 3,
+                "max": 5
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "romanian-deadlift",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 8
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "leg-press",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-leg-curl",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "standing-calf-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "cable-crunch",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-2",
+          "name": "Upper A (Bench Strength)",
+          "exercises": [
+            {
+              "exerciseId": "barbell-bench-press",
+              "sets": 4,
+              "reps": {
+                "min": 3,
+                "max": 5
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "pull-up",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 8
+              },
+              "restSeconds": 120,
+              "notes": "Pull-up or assisted pull-up: use assistance as needed.",
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              },
+              "loading": "bodyweight-or-assisted"
+            },
+            {
+              "exerciseId": "overhead-press",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 7
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "chest-supported-dumbbell-row",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "triceps-rope-pushdown",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "dumbbell-curl",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-3",
+          "name": "Lower B (Deadlift Strength)",
+          "exercises": [
+            {
+              "exerciseId": "conventional-deadlift",
+              "sets": 3,
+              "reps": {
+                "min": 3,
+                "max": 5
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "paused-squat",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 6
+              },
+              "restSeconds": 120,
+              "notes": "Paused barbell back squat.",
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "dumbbell-split-squat",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 8
+              },
+              "restSeconds": 120,
+              "notes": "Supported split squat: hold a stable support for balance. Dumbbells are optional when appropriate.",
+              "role": "secondary",
+              "perSide": true,
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-leg-curl",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "seated-calf-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "pallof-press",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 10
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "perSide": true,
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-4",
+          "name": "Upper B (Bench Volume)",
+          "exercises": [
+            {
+              "exerciseId": "barbell-bench-press",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 8
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "seated-cable-row",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "incline-dumbbell-bench-press",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "lat-pulldown",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "dumbbell-lateral-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "overhead-cable-triceps-extension",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Week 4 · Lower fatigue",
+      "weeks": 1,
+      "notes": "Planned lower-fatigue week: about 35% fewer working sets at 3–4 RIR. The sets shown are the normal baseline. Train normally instead if your recovery is good.",
+      "block": "lower-fatigue",
+      "rir": {
+        "primary": {
+          "min": 3,
+          "max": 4
+        },
+        "secondary": {
+          "min": 3,
+          "max": 4
+        },
+        "accessory": {
+          "min": 3,
+          "max": 4
+        }
+      },
+      "sessions": [
+        {
+          "id": "day-1",
+          "name": "Lower A (Squat Strength)",
+          "exercises": [
+            {
+              "exerciseId": "back-squat",
+              "sets": 4,
+              "reps": {
+                "min": 3,
+                "max": 5
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "romanian-deadlift",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 8
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "leg-press",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-leg-curl",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "standing-calf-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "cable-crunch",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-2",
+          "name": "Upper A (Bench Strength)",
+          "exercises": [
+            {
+              "exerciseId": "barbell-bench-press",
+              "sets": 4,
+              "reps": {
+                "min": 3,
+                "max": 5
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "pull-up",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 8
+              },
+              "restSeconds": 120,
+              "notes": "Pull-up or assisted pull-up: use assistance as needed.",
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              },
+              "loading": "bodyweight-or-assisted"
+            },
+            {
+              "exerciseId": "overhead-press",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 7
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "chest-supported-dumbbell-row",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "triceps-rope-pushdown",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "dumbbell-curl",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-3",
+          "name": "Lower B (Deadlift Strength)",
+          "exercises": [
+            {
+              "exerciseId": "conventional-deadlift",
+              "sets": 3,
+              "reps": {
+                "min": 3,
+                "max": 5
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "paused-squat",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 6
+              },
+              "restSeconds": 120,
+              "notes": "Paused barbell back squat.",
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "dumbbell-split-squat",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 8
+              },
+              "restSeconds": 120,
+              "notes": "Supported split squat: hold a stable support for balance. Dumbbells are optional when appropriate.",
+              "role": "secondary",
+              "perSide": true,
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-leg-curl",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "seated-calf-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "pallof-press",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 10
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "perSide": true,
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-4",
+          "name": "Upper B (Bench Volume)",
+          "exercises": [
+            {
+              "exerciseId": "barbell-bench-press",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 8
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "seated-cable-row",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "incline-dumbbell-bench-press",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "lat-pulldown",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "dumbbell-lateral-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "overhead-cable-triceps-extension",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Weeks 5–7 · Strength",
+      "weeks": 3,
+      "notes": "Resume heavier, strength-focused progression where your recorded sets earn it.",
+      "block": "intensification",
+      "rir": {
+        "primary": {
+          "min": 1,
+          "max": 2
+        },
+        "secondary": {
+          "min": 3,
+          "max": 3
+        },
+        "accessory": {
+          "min": 1,
+          "max": 3
+        }
+      },
+      "sessions": [
+        {
+          "id": "day-1",
+          "name": "Lower A (Squat Strength)",
+          "exercises": [
+            {
+              "exerciseId": "back-squat",
+              "sets": 4,
+              "reps": {
+                "min": 3,
+                "max": 5
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "romanian-deadlift",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 8
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "leg-press",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-leg-curl",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "standing-calf-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "cable-crunch",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-2",
+          "name": "Upper A (Bench Strength)",
+          "exercises": [
+            {
+              "exerciseId": "barbell-bench-press",
+              "sets": 4,
+              "reps": {
+                "min": 3,
+                "max": 5
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "pull-up",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 8
+              },
+              "restSeconds": 120,
+              "notes": "Pull-up or assisted pull-up: use assistance as needed.",
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              },
+              "loading": "bodyweight-or-assisted"
+            },
+            {
+              "exerciseId": "overhead-press",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 7
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "chest-supported-dumbbell-row",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "triceps-rope-pushdown",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "dumbbell-curl",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-3",
+          "name": "Lower B (Deadlift Strength)",
+          "exercises": [
+            {
+              "exerciseId": "conventional-deadlift",
+              "sets": 3,
+              "reps": {
+                "min": 3,
+                "max": 5
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "paused-squat",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 6
+              },
+              "restSeconds": 120,
+              "notes": "Paused barbell back squat.",
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "dumbbell-split-squat",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 8
+              },
+              "restSeconds": 120,
+              "notes": "Supported split squat: hold a stable support for balance. Dumbbells are optional when appropriate.",
+              "role": "secondary",
+              "perSide": true,
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-leg-curl",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "seated-calf-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "pallof-press",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 10
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "perSide": true,
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-4",
+          "name": "Upper B (Bench Volume)",
+          "exercises": [
+            {
+              "exerciseId": "barbell-bench-press",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 8
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "seated-cable-row",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "incline-dumbbell-bench-press",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "lat-pulldown",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "dumbbell-lateral-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "overhead-cable-triceps-extension",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Week 8 · Performance check",
+      "weeks": 1,
+      "notes": "Reduced-volume performance check: about 30% fewer working sets than shown, at the target effort. No load increase, maximal attempts or grinding reps; no 1RM test is required.",
+      "block": "assessment",
+      "rir": {
+        "primary": {
+          "min": 1,
+          "max": 3
+        },
+        "secondary": {
+          "min": 3,
+          "max": 3
+        },
+        "accessory": {
+          "min": 2,
+          "max": 3
+        }
+      },
+      "setReduction": 0.3,
+      "sessions": [
+        {
+          "id": "day-1",
+          "name": "Lower A (Squat Strength)",
+          "exercises": [
+            {
+              "exerciseId": "back-squat",
+              "sets": 4,
+              "reps": {
+                "min": 3,
+                "max": 5
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "romanian-deadlift",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 8
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "leg-press",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-leg-curl",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "standing-calf-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "cable-crunch",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-2",
+          "name": "Upper A (Bench Strength)",
+          "exercises": [
+            {
+              "exerciseId": "barbell-bench-press",
+              "sets": 4,
+              "reps": {
+                "min": 3,
+                "max": 5
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "pull-up",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 8
+              },
+              "restSeconds": 120,
+              "notes": "Pull-up or assisted pull-up: use assistance as needed.",
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              },
+              "loading": "bodyweight-or-assisted"
+            },
+            {
+              "exerciseId": "overhead-press",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 7
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "chest-supported-dumbbell-row",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "triceps-rope-pushdown",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "dumbbell-curl",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-3",
+          "name": "Lower B (Deadlift Strength)",
+          "exercises": [
+            {
+              "exerciseId": "conventional-deadlift",
+              "sets": 3,
+              "reps": {
+                "min": 3,
+                "max": 5
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "paused-squat",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 6
+              },
+              "restSeconds": 120,
+              "notes": "Paused barbell back squat.",
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "dumbbell-split-squat",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 8
+              },
+              "restSeconds": 120,
+              "notes": "Supported split squat: hold a stable support for balance. Dumbbells are optional when appropriate.",
+              "role": "secondary",
+              "perSide": true,
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-leg-curl",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "seated-calf-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "pallof-press",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 10
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "perSide": true,
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-4",
+          "name": "Upper B (Bench Volume)",
+          "exercises": [
+            {
+              "exerciseId": "barbell-bench-press",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 8
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "seated-cable-row",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "incline-dumbbell-bench-press",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "lat-pulldown",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "dumbbell-lateral-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "overhead-cable-triceps-extension",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

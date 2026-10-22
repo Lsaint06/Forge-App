@@ -27,6 +27,9 @@ export const programSessionLogSchema = z
     position: z.number().int().min(0).max(10000),
     workoutId: z.string().max(100),
     skipped: z.boolean(),
+    // The session was started as a lower-fatigue session (reduced sets).
+    // Absent on records written before Strength V2.
+    lowerFatigue: z.boolean().optional(),
   })
   .refine((s) => (s.skipped ? s.workoutId === "" : s.workoutId !== ""), {
     message: "A program session is either linked to a workout or skipped",

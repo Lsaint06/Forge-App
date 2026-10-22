@@ -11,6 +11,7 @@ import { currentEnrollment } from "../../src/data/programs";
 import { generatePath } from "../../src/domain/paths/generator";
 import { exercises } from "../../src/data/catalog";
 import type { CuratedProgram } from "../../src/domain/programs/model";
+import strengthDraft from "../../src/programs/library/forge-strength-intermediate-3-day.json";
 
 // Test-only published copies of the development placeholder.
 const mockLibrary: CuratedProgram[] = [];
@@ -27,6 +28,12 @@ jest.mock("../../src/programs", () => {
       model.findProgramVersion(mockLibrary, id, version),
   };
 });
+const mockPreview = { enabled: true };
+jest.mock("../../src/programs/preview", () => ({
+  get draftPreviewEnabled() {
+    return mockPreview.enabled;
+  },
+}));
 jest.mock("expo-router", () => ({
   router: { push: jest.fn(), replace: jest.fn() },
   useLocalSearchParams: () => ({}),
@@ -58,6 +65,7 @@ const muscle = placeholderProgram({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockPreview.enabled = true;
   mockLibrary.splice(0, mockLibrary.length, strength, muscle);
 });
 
@@ -146,6 +154,57 @@ test("replacing a generated Path asks first and archives it on confirmation", as
     expect(currentEnrollment(r, mockLibrary)?.data.programId).toBe(
       "test-strength",
     );
+  } finally {
+    db.close();
+  }
+});
+
+test("development builds can preview and train a draft program through the real flow", async () => {
+  const draft = strengthDraft as CuratedProgram;
+  mockLibrary.splice(0, mockLibrary.length, draft);
+  const { r, db } = pathRepository();
+  try {
+    r.saveProfile({ experience: "Intermediate", goal: "Strength" });
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<ForgePaths />);
+    // Drafts are never listed or recommended, even in development.
+    expect(view.getByText("No match yet")).toBeTruthy();
+    expect(view.getByText("Programs are on the way")).toBeTruthy();
+    expect(view.getByText("DEVELOPMENT BUILD ONLY")).toBeTruthy();
+    expect(view.queryByText(draft.name)).toBeNull();
+    await fireEvent.press(view.getByLabelText("Preview draft programs (1)"));
+    await fireEvent.press(view.getByLabelText(`Preview draft ${draft.name}`));
+    expect(view.getByText(/DRAFT PREVIEW/)).toBeTruthy();
+    expect(view.getByText("Weeks 1–3 · Accumulation")).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Start this program"));
+    expect(currentEnrollment(r, mockLibrary)?.data.programId).toBe(draft.id);
+    const dashboard = await render(<ForgePaths />);
+    expect(
+      dashboard.getByText("DRAFT PREVIEW · DEVELOPMENT BUILD ONLY"),
+    ).toBeTruthy();
+    expect(dashboard.getByText("Squat + Bench Strength")).toBeTruthy();
+    await fireEvent.press(dashboard.getByLabelText("Start session"));
+    expect(router.push).toHaveBeenLastCalledWith("/workout");
+    expect(r.active()?.name).toBe(`${draft.name} · Squat + Bench Strength`);
+    expect(
+      r.workoutExercises(r.active()!.id).map((row) => row.exerciseId),
+    ).toEqual(draft.phases[0]!.sessions[0]!.exercises.map((e) => e.exerciseId));
+  } finally {
+    db.close();
+  }
+});
+
+test("without a development build drafts stay hidden and cannot be resolved", async () => {
+  mockPreview.enabled = false;
+  const draft = strengthDraft as CuratedProgram;
+  mockLibrary.splice(0, mockLibrary.length, draft);
+  const { r, db } = pathRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<ForgePaths />);
+    expect(view.queryByText("DEVELOPMENT BUILD ONLY")).toBeNull();
+    expect(view.queryByLabelText(/Preview draft/)).toBeNull();
+    expect(view.queryByText(draft.name)).toBeNull();
   } finally {
     db.close();
   }

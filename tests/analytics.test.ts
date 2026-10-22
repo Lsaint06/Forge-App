@@ -7,6 +7,7 @@ import {
   programAdherence,
 } from "../src/domain/analytics";
 import type { Workout, WorkoutSet } from "../src/domain/types";
+import { localDate } from "../src/domain/types";
 const w: Workout = {
   id: "w",
   name: "Test",
@@ -73,9 +74,12 @@ test("goal ratios are bounded and target bodyweight uses distance from start", (
   assert.equal(goalProgress(85, 80, 90).ratio, 0.5);
 });
 test("program adherence cannot count one workout against multiple planned sessions", () => {
+  // Plan both sessions on the workout's local date so the check holds in every
+  // time zone (a fixed "1970-01-01" is the previous day west of UTC).
+  const date = localDate(w.finishedAt!);
   const schedule = [
-    { date: "1970-01-01", templateId: "t" },
-    { date: "1970-01-01", templateId: "t" },
+    { date, templateId: "t" },
+    { date, templateId: "t" },
   ];
   assert.deepEqual(programAdherence(schedule, [w], 700000), {
     completed: 1,

@@ -695,6 +695,28 @@ test("applying a target recommendation changes only unfinished working sets", as
 });
 
 test("weekly calendar navigates Monday–Sunday, shows rest days and recovers a moved session", async () => {
+  // The Path starts on 2026-10-19; pin "today" before it so the first
+  // session is still upcoming ("scheduled") whatever the real date is. Only
+  // Date is faked; rendering timers stay real.
+  jest.useFakeTimers({
+    now: new Date("2026-10-15T12:00:00"),
+    doNotFake: [
+      "hrtime",
+      "nextTick",
+      "performance",
+      "queueMicrotask",
+      "requestAnimationFrame",
+      "cancelAnimationFrame",
+      "requestIdleCallback",
+      "cancelIdleCallback",
+      "setImmediate",
+      "clearImmediate",
+      "setInterval",
+      "clearInterval",
+      "setTimeout",
+      "clearTimeout",
+    ],
+  });
   const { r, db } = pathRepository();
   try {
     acceptPath(r, generatePath(pathPreferences(), exercises));
@@ -719,6 +741,7 @@ test("weekly calendar navigates Monday–Sunday, shows rest days and recovers a 
     expect(view.getByText("0 / 32 workouts completed")).toBeTruthy();
   } finally {
     db.close();
+    jest.useRealTimers();
   }
 }, 20_000);
 

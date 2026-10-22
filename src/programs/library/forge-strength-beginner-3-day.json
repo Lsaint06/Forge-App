@@ -1,0 +1,273 @@
+{
+  "id": "forge-strength-beginner-3-day",
+  "version": 1,
+  "status": "draft",
+  "name": "Beginner Strength · 3 Days",
+  "summary": "Forge Strength V2 (B-S3): three strength sessions a week for beginner lifters.",
+  "description": "Forge Strength V2 program B-S3. Sessions: Full Body A (Squat Priority); Full Body B (Hinge Priority); Full Body C (Bench Priority). Listed sets are working sets; warm-up sets are separate. Unilateral prescriptions are per side. Rest about 3–5 minutes after primary lifts, 2–3 minutes after secondary compound lifts and 1–2 minutes after accessory work.",
+  "experience": "Beginner",
+  "goal": "Strength",
+  "daysPerWeek": 3,
+  "equipment": ["Barbell", "Cable", "Dumbbell", "Machine"],
+  "weeklyPattern": ["train", "rest", "train", "rest", "train", "rest", "rest"],
+  "progression": "Double progression. Start each lift with a manageable working weight at about 2–3 reps in reserve (RIR). Add reps within the range while technique stays solid. When every working set reaches the top of the range at the target effort, with effort logged, add one small load increment and build back up from the lower end. If reps are missed, keep the load or reduce it; never increase. No maximal lifts are required, and exercise variations never advance on elapsed time alone. When fatigue or stalled performance builds up, choose a lower-fatigue session: about 35% fewer working sets at 3–4 RIR.",
+  "progressionModel": "double-progression",
+  "lowerFatigue": {
+    "setReduction": 0.35,
+    "rir": {
+      "min": 3,
+      "max": 4
+    }
+  },
+  "phases": [
+    {
+      "name": "Ongoing",
+      "notes": "Repeat the week and progress each lift with double progression. Listed sets are working sets; warm-ups are separate.",
+      "block": "standard",
+      "rir": {
+        "primary": {
+          "min": 2,
+          "max": 3
+        },
+        "secondary": {
+          "min": 2,
+          "max": 3
+        },
+        "accessory": {
+          "min": 2,
+          "max": 3
+        }
+      },
+      "sessions": [
+        {
+          "id": "day-1",
+          "name": "Full Body A (Squat Priority)",
+          "exercises": [
+            {
+              "exerciseId": "goblet-squat",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "barbell-bench-press",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 8
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "chest-supported-dumbbell-row",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-leg-curl",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "standing-calf-raise",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-2",
+          "name": "Full Body B (Hinge Priority)",
+          "exercises": [
+            {
+              "exerciseId": "trap-bar-deadlift",
+              "sets": 3,
+              "reps": {
+                "min": 5,
+                "max": 6
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "machine-shoulder-press",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "lat-pulldown",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "leg-extension",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "triceps-rope-pushdown",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-3",
+          "name": "Full Body C (Bench Priority)",
+          "exercises": [
+            {
+              "exerciseId": "barbell-bench-press",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 8
+              },
+              "restSeconds": 180,
+              "role": "primary",
+              "rest": {
+                "min": 180,
+                "max": 300
+              }
+            },
+            {
+              "exerciseId": "leg-press",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "dumbbell-romanian-deadlift",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-cable-row",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "dumbbell-curl",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

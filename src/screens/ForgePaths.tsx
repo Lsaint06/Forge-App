@@ -19,11 +19,18 @@ import { addDays } from "../domain/paths/model";
 import { restDayName, restDayNames } from "../domain/profile";
 import type { CuratedProgram } from "../domain/programs/model";
 import { sessionAt } from "../domain/programs/enrollment";
+import {
+  reducedSets,
+  sessionSetReduction,
+} from "../domain/programs/progression";
+import { restGuidanceLabel } from "../domain/prescriptions";
 import { recommendProgram } from "../domain/programs/recommend";
 import { trainingWeekdays } from "../domain/programs/schedule";
 import { libraryPrograms, programLibrary } from "../programs";
+import { draftPreviewEnabled } from "../programs/preview";
 import {
   currentEnrollment,
+  defaultLowerFatigue,
   endProgram,
   enrollProgram,
   programProgress,
@@ -49,12 +56,22 @@ export const dayLabel = (date: string) =>
   });
 const shortDay = (i: number) => restDayNames[i]!.slice(0, 3);
 
+const roleLabel = {
+  primary: "Primary",
+  secondary: "Secondary",
+  accessory: "Accessory",
+} as const;
+const rirText = (r: { min: number; max: number }) =>
+  r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`;
+
 function SessionExercises({
   r,
   session,
+  setReduction,
 }: {
   r: Repository;
   session: CuratedProgram["phases"][number]["sessions"][number];
+  setReduction?: number;
 }) {
   return (
     <View style={{ gap: 6 }}>
@@ -64,7 +81,15 @@ function SessionExercises({
             {i + 1}. {r.exercise(item.exerciseId)?.name ?? item.exerciseId}
           </Label>
           <Label muted size={13}>
-            {item.sets} × {reps(item.reps)} reps · {item.restSeconds}s rest
+            {[
+              `${setReduction === undefined ? item.sets : reducedSets(item.sets, setReduction)} × ${reps(item.reps)} reps${item.perSide ? " per side" : ""}`,
+              item.role && roleLabel[item.role],
+              item.rest
+                ? restGuidanceLabel(item.rest)
+                : `${item.restSeconds}s rest`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </Label>
           {item.notes && (
             <Label muted size={12}>
@@ -74,6 +99,17 @@ function SessionExercises({
         </View>
       ))}
     </View>
+  );
+}
+
+function PhaseEffort({ phase }: { phase: CuratedProgram["phases"][number] }) {
+  if (!phase.rir) return null;
+  return (
+    <Label muted size={13}>
+      Target effort (reps in reserve): primary {rirText(phase.rir.primary)} ·
+      secondary {rirText(phase.rir.secondary)} · accessory{" "}
+      {rirText(phase.rir.accessory)}
+    </Label>
   );
 }
 
@@ -129,6 +165,7 @@ function ProgramDetails({
       <Card>
         <Label muted size={11}>
           FORGE PROGRAM · VERSION {program.version}
+          {program.status === "draft" ? " · DRAFT PREVIEW" : ""}
         </Label>
         <Label bold size={26}>
           {program.name}
@@ -171,6 +208,7 @@ function ProgramDetails({
             }
           />
           {phase.notes && <Label muted>{phase.notes}</Label>}
+          <PhaseEffort phase={phase} />
           {phase.sessions.map((session) => (
             <Card key={session.id}>
               <Label bold size={18}>
@@ -227,9 +265,22 @@ function ProgramDashboard({
   const progress = programProgress(r, enrollment);
   const next = progress.next;
   const upcoming = progress.upcoming;
+  const lowerFatigueAvailable =
+    !!program?.lowerFatigue && next?.state === "ready";
+  const plannedLowerFatigue = next ? defaultLowerFatigue(next) : false;
+  const [lowerFatigue, setLowerFatigue] = useState<boolean>();
+  const chosenLowerFatigue =
+    lowerFatigueAvailable && (lowerFatigue ?? plannedLowerFatigue);
   function start() {
-    const workout = mutate(() => startProgramSession(r, enrollment.record.id));
-    if (workout) router.push("/workout");
+    const workout = mutate(() =>
+      startProgramSession(r, enrollment.record.id, undefined, {
+        lowerFatigue: chosenLowerFatigue,
+      }),
+    );
+    if (workout) {
+      setLowerFatigue(undefined);
+      router.push("/workout");
+    }
   }
   return (
     <>
@@ -240,6 +291,11 @@ function ProgramDashboard({
         <Label bold size={26}>
           {enrollment.data.name}
         </Label>
+        {program?.status === "draft" && (
+          <Label muted size={11}>
+            DRAFT PREVIEW · DEVELOPMENT BUILD ONLY
+          </Label>
+        )}
         {program ? (
           <Label muted size={13}>
             {progress.complete
@@ -278,7 +334,40 @@ function ProgramDashboard({
             </Label>
           )}
           {next.session.notes && <Label muted>{next.session.notes}</Label>}
-          <SessionExercises r={r} session={next.session} />
+          {lowerFatigueAvailable && (
+            <View style={{ gap: 6 }}>
+              <Chips
+                values={["Standard session", "Lower-fatigue session"]}
+                value={
+                  chosenLowerFatigue
+                    ? "Lower-fatigue session"
+                    : "Standard session"
+                }
+                onChange={(v) => setLowerFatigue(v === "Lower-fatigue session")}
+              />
+              <Label muted size={12}>
+                {chosenLowerFatigue
+                  ? `About ${Math.round(program!.lowerFatigue!.setReduction * 100)}% fewer working sets at ${rirText(program!.lowerFatigue!.rir)} RIR, with no load increase.${plannedLowerFatigue ? " Planned for this week." : ""} The program itself is unchanged.`
+                  : plannedLowerFatigue
+                    ? "This is a planned lower-fatigue week. Train normally only if your recovery is good."
+                    : "Choose a lower-fatigue session when fatigue or stalled performance builds up."}
+              </Label>
+            </View>
+          )}
+          {!chosenLowerFatigue && next.phase.setReduction !== undefined && (
+            <Label muted size={12}>
+              {`This week uses about ${Math.round(next.phase.setReduction * 100)}% fewer working sets. The program itself is unchanged.`}
+            </Label>
+          )}
+          <SessionExercises
+            r={r}
+            session={next.session}
+            setReduction={
+              program
+                ? sessionSetReduction(program, next.phase, chosenLowerFatigue)
+                : undefined
+            }
+          />
           <Button
             title={
               next.state === "in-progress" ? "Resume session" : "Start session"
@@ -399,6 +488,52 @@ function ProgramDashboard({
   );
 }
 const ALL = "All";
+
+// Development builds only: preview draft programs through the real details,
+// enrollment and workout flow. Never rendered in production bundles.
+function DraftPreview({
+  onSelect,
+}: {
+  onSelect: (program: CuratedProgram) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const drafts = programLibrary.filter((p) => p.status === "draft");
+  if (!drafts.length) return null;
+  return (
+    <Card>
+      <Label muted size={11}>
+        DEVELOPMENT BUILD ONLY
+      </Label>
+      <Label muted size={13}>
+        Draft programs are hidden from users. Preview them here to test
+        enrollment and workouts on this device.
+      </Label>
+      <Button
+        title={
+          open
+            ? "Hide draft programs"
+            : `Preview draft programs (${drafts.length})`
+        }
+        secondary
+        onPress={() => setOpen(!open)}
+      />
+      {open &&
+        drafts.map((program) => (
+          <View key={`${program.id}@${program.version}`} style={{ gap: 4 }}>
+            <Label bold>{program.name}</Label>
+            <Label muted size={13}>
+              {programMeta(program)}
+            </Label>
+            <Button
+              title={`Preview draft ${program.name}`}
+              secondary
+              onPress={() => onSelect(program)}
+            />
+          </View>
+        ))}
+    </Card>
+  );
+}
 export default function ForgePaths() {
   const r = useRepo();
   const profile = r.profile();
@@ -542,6 +677,9 @@ export default function ForgePaths() {
                   title="Programs are on the way"
                   detail="Forge programs are written and reviewed by hand. None are published yet — your workouts, templates and generated Paths keep working in the meantime."
                 />
+              )}
+              {draftPreviewEnabled && (
+                <DraftPreview onSelect={(program) => setSelected(program)} />
               )}
             </>
           )}

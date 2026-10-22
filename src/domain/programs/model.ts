@@ -12,20 +12,60 @@ const slug = z
   .max(80);
 const text = (max: number) => z.string().trim().min(1).max(max);
 
-export const programExerciseSchema = z.strictObject({
-  exerciseId: z.string().min(1),
-  sets: z.number().int().min(1).max(10),
-  reps: z
+const range = (min: number, max: number, label: string) =>
+  z
     .strictObject({
-      min: z.number().int().min(1).max(100),
-      max: z.number().int().min(1).max(100),
+      min: z.number().int().min(min).max(max),
+      max: z.number().int().min(min).max(max),
     })
     .refine((r) => r.min <= r.max, {
-      message: "Minimum reps must not exceed maximum reps",
-    }),
-  restSeconds: z.number().int().min(0).max(600),
-  notes: text(500).optional(),
+      message: `Minimum ${label} must not exceed maximum ${label}`,
+    });
+
+// Author-assigned role of an exercise within its session. Progression effort
+// targets and rest guidance follow the role.
+export const exerciseRoles = ["primary", "secondary", "accessory"] as const;
+export type ExerciseRole = (typeof exerciseRoles)[number];
+
+// Target reps in reserve by role. RIR is an estimated effort target.
+export const rirTargetsSchema = z.strictObject({
+  primary: range(0, 5, "RIR"),
+  secondary: range(0, 5, "RIR"),
+  accessory: range(0, 5, "RIR"),
 });
+export type RirTargets = z.infer<typeof rirTargetsSchema>;
+
+// How a training block is used by the progression rules.
+export const phaseBlocks = [
+  "standard",
+  "accumulation",
+  "lower-fatigue",
+  "intensification",
+  "assessment",
+] as const;
+export type PhaseBlock = (typeof phaseBlocks)[number];
+
+export const programExerciseSchema = z
+  .strictObject({
+    exerciseId: z.string().min(1),
+    sets: z.number().int().min(1).max(10),
+    reps: range(1, 100, "reps"),
+    restSeconds: z.number().int().min(0).max(600),
+    notes: text(500).optional(),
+    role: z.enum(exerciseRoles).optional(),
+    // Sets and reps are prescribed per side (e.g. "8/leg", "10/side").
+    perSide: z.boolean().optional(),
+    // Rest guidance range; restSeconds is the timer default within it.
+    rest: range(0, 600, "rest").optional(),
+    // Bodyweight movements whose logged load cannot be read as plain external
+    // resistance. Forge does not suggest loads for them.
+    loading: z.enum(["bodyweight-or-assisted", "added-load"]).optional(),
+  })
+  .refine(
+    (e) =>
+      !e.rest || (e.restSeconds >= e.rest.min && e.restSeconds <= e.rest.max),
+    { message: "restSeconds must fall within the rest guidance range" },
+  );
 export const programSessionSchema = z.strictObject({
   id: slug,
   name: text(80),
@@ -37,6 +77,12 @@ export const programPhaseSchema = z.strictObject({
   // Omitted only for an open-ended, single-phase program.
   weeks: z.number().int().min(1).max(52).optional(),
   notes: text(1000).optional(),
+  block: z.enum(phaseBlocks).optional(),
+  rir: rirTargetsSchema.optional(),
+  // Default working-set reduction (a fraction) applied when a session in this
+  // phase starts, e.g. a reduced-volume assessment week. Authored sets remain
+  // the baseline; at least one set is kept per exercise.
+  setReduction: z.number().min(0.1).max(0.6).optional(),
   sessions: z.array(programSessionSchema).min(3).max(5),
 });
 // One training week's train/rest layout, starting from the first day of the
@@ -58,11 +104,45 @@ export const curatedProgramSchema = z
     equipment: z.array(text(60)).min(1).max(30),
     weeklyPattern: weeklyPatternSchema,
     progression: text(2000),
+    // Structured progression rules (Forge Strength V2). When set, every
+    // exercise has a role and every phase has a block and RIR targets.
+    progressionModel: z
+      .enum(["double-progression", "structured", "autoregulated"])
+      .optional(),
+    // A lower-fatigue session: the planned lower-fatigue block, or one the
+    // lifter chooses when recovery is inadequate. Working sets are reduced by
+    // `setReduction` (a fraction) at the given effort; authored sets remain the
+    // baseline.
+    lowerFatigue: z
+      .strictObject({
+        setReduction: z.number().min(0.1).max(0.6),
+        rir: range(0, 5, "RIR"),
+      })
+      .optional(),
     phases: z.array(programPhaseSchema).min(1).max(12),
   })
   .superRefine((p, ctx) => {
     const issue = (message: string) =>
       ctx.addIssue({ code: "custom", message });
+    if (p.progressionModel) {
+      if (!p.lowerFatigue)
+        issue("Programs with a progressionModel need lowerFatigue settings");
+      for (const phase of p.phases) {
+        if (!phase.block || !phase.rir)
+          issue(`Phase "${phase.name}" needs a block and RIR targets`);
+        for (const session of phase.sessions)
+          for (const item of session.exercises)
+            if (!item.role || !item.rest)
+              issue(
+                `${session.id}: ${item.exerciseId} needs a role and rest guidance`,
+              );
+      }
+    }
+    if (
+      p.phases.some((phase) => phase.block === "lower-fatigue") &&
+      !p.lowerFatigue
+    )
+      issue("A lower-fatigue phase needs lowerFatigue settings");
     const training = p.weeklyPattern.filter((d) => d === "train").length;
     if (training !== p.daysPerWeek)
       issue(
@@ -231,13 +311,18 @@ export function publishedPrograms(
   );
 }
 
-// The exact published version a lifter enrolled in.
+// The exact published version a lifter enrolled in. Drafts resolve only for
+// development-build previews.
 export function findProgramVersion(
   library: readonly CuratedProgram[],
   id: string,
   version: number,
+  includeDrafts = false,
 ): CuratedProgram | undefined {
   return library.find(
-    (p) => p.id === id && p.version === version && p.status === "published",
+    (p) =>
+      p.id === id &&
+      p.version === version &&
+      (p.status === "published" || includeDrafts),
   );
 }

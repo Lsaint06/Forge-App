@@ -18,7 +18,14 @@ import {
   type ProgramSession,
 } from "../domain/programs/model";
 import { trainingWeekdays } from "../domain/programs/schedule";
+import {
+  reducedSets,
+  sessionSetReduction,
+  programProgression,
+  type ProgramSessionEvidence,
+} from "../domain/programs/progression";
 import { programLibrary } from "../programs";
+import { draftPreviewEnabled } from "../programs/preview";
 import { archivePath, currentPath } from "./paths";
 
 // Curated program enrollment (Forge Paths 4.0). Records live in the journal
@@ -33,7 +40,11 @@ export type Enrollment = {
 };
 type Library = readonly CuratedProgram[];
 
-export function enrollments(r: Repository, library: Library = programLibrary) {
+export function enrollments(
+  r: Repository,
+  library: Library = programLibrary,
+  includeDrafts = draftPreviewEnabled,
+) {
   return r
     .journal("program")
     .filter((j) => j.data.forgeProgram === 1)
@@ -46,6 +57,7 @@ export function enrollments(r: Repository, library: Library = programLibrary) {
           library,
           data.programId,
           data.programVersion,
+          includeDrafts,
         ),
       };
     });
@@ -152,14 +164,16 @@ export function programProgress(
 }
 
 // Starts a program after the lifter confirms. Other active plans are archived,
-// never deleted: their schedules and recorded workouts are preserved.
+// never deleted: their schedules and recorded workouts are preserved. Drafts
+// can be started only for development-build previews.
 export function enrollProgram(
   r: Repository,
   program: CuratedProgram,
   startDate = localDate(),
   replace = false,
+  allowDrafts = draftPreviewEnabled,
 ) {
-  if (program.status !== "published")
+  if (program.status !== "published" && !allowDrafts)
     throw new Error("Only published programs can be started.");
   const active = enrollments(r).some((e) => e.data.status === "active");
   const generated = currentPath(r);
@@ -189,16 +203,27 @@ export function enrollProgram(
   });
 }
 
-export function sessionPrescription(session: ProgramSession): Prescription[] {
+export function sessionPrescription(
+  session: ProgramSession,
+  setReduction?: number,
+): Prescription[] {
   return session.exercises.map((item) => ({
     exerciseId: item.exerciseId,
-    sets: item.sets,
+    sets:
+      setReduction === undefined
+        ? item.sets
+        : reducedSets(item.sets, setReduction),
     reps: item.reps.min,
     ...(item.reps.max !== item.reps.min ? { repMax: item.reps.max } : {}),
     weight: 0,
     rest: item.restSeconds,
   }));
 }
+
+// The planned lower-fatigue block defaults to a lower-fatigue session; the
+// lifter may override it either way.
+export const defaultLowerFatigue = (slot: SessionSlot) =>
+  slot.phase.block === "lower-fatigue";
 
 function requireNext(r: Repository, enrollmentId: string, library: Library) {
   const enrollment = findEnrollment(r, enrollmentId, library);
@@ -224,11 +249,15 @@ function logRecord(r: Repository, enrollmentId: string, position: number) {
     );
 }
 
-// Starts (or resumes) the next session exactly as authored.
+// Starts (or resumes) the next session exactly as authored. A lower-fatigue
+// session uses the program's lower-fatigue set reduction; otherwise the
+// phase's default reduction applies (e.g. the assessment week). The authored
+// program is unchanged.
 export function startProgramSession(
   r: Repository,
   enrollmentId: string,
   library: Library = programLibrary,
+  options: { lowerFatigue?: boolean } = {},
 ) {
   return r.transaction(() => {
     const { enrollment, next } = requireNext(r, enrollmentId, library);
@@ -239,9 +268,16 @@ export function startProgramSession(
       throw new Error(
         "Finish or discard your current workout first. It has not been assigned to this program session.",
       );
+    const program = enrollment.program!;
+    const lowerFatigue =
+      !!program.lowerFatigue &&
+      (options.lowerFatigue ?? defaultLowerFatigue(next));
     const workout = r.startPrescribedWorkout(
-      `${enrollment.program!.name} · ${next.session.name}`,
-      sessionPrescription(next.session),
+      `${program.name} · ${next.session.name}`,
+      sessionPrescription(
+        next.session,
+        sessionSetReduction(program, next.phase, lowerFatigue),
+      ),
     );
     const data: ProgramSessionLog = {
       forgeProgram: 1,
@@ -249,6 +285,7 @@ export function startProgramSession(
       position: next.position,
       workoutId: workout.id,
       skipped: false,
+      ...(lowerFatigue ? { lowerFatigue: true } : {}),
     };
     const existing = logRecord(r, enrollmentId, next.position);
     if (existing) r.updateJournal(existing.id, data, localDate());
@@ -320,5 +357,63 @@ export function programWorkoutContext(
   const slot = enrollment?.program
     ? sessionAt(enrollment.program, data.position)
     : undefined;
-  return enrollment ? { enrollment, slot } : undefined;
+  return enrollment ? { enrollment, slot, log: data } : undefined;
+}
+
+// Strength V2 progression advice for one exercise of a program workout,
+// built only from this enrollment's earlier completed sessions of the same
+// session slot. Undefined for programs without structured progression.
+export function programExerciseAdvice(
+  r: Repository,
+  workoutId: string,
+  exerciseId: string,
+  library: Library = programLibrary,
+) {
+  const context = programWorkoutContext(r, workoutId, library);
+  const program = context?.enrollment.program;
+  const slot = context?.slot;
+  if (!context || !program?.progressionModel || !slot) return undefined;
+  const item = slot.session.exercises.find((e) => e.exerciseId === exerciseId);
+  if (!item) return undefined;
+  const workouts = new Map(r.workouts().map((w) => [w.id, w]));
+  const history: ProgramSessionEvidence[] = sessionLogs(
+    r,
+    context.enrollment.record.id,
+  )
+    .filter(
+      (l) =>
+        l.state === "completed" &&
+        l.data.position < context.log.position &&
+        sessionAt(program, l.data.position)?.session.id === slot.session.id,
+    )
+    .sort(
+      (a, b) =>
+        (workouts.get(b.data.workoutId)?.finishedAt ?? 0) -
+          (workouts.get(a.data.workoutId)?.finishedAt ?? 0) ||
+        b.data.position - a.data.position,
+    )
+    .map((l) => {
+      const at = sessionAt(program, l.data.position)!;
+      return {
+        week: at.week,
+        block: at.phase.block,
+        lowerFatigue: !!l.data.lowerFatigue,
+        sets: r
+          .workoutExercises(l.data.workoutId)
+          .filter((row) => row.exerciseId === exerciseId)
+          .flatMap((row) => r.sets(row.id)),
+      };
+    });
+  return {
+    item,
+    slot,
+    advice: programProgression({
+      program,
+      phase: slot.phase,
+      item,
+      history,
+      increment: r.profile().increment,
+      lowerFatigue: !!context.log.lowerFatigue,
+    }),
+  };
 }
