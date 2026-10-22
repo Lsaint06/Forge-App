@@ -9,13 +9,11 @@ import { workloadReview } from "../src/domain/paths/review";
 import { prescriptionPolicy } from "../src/domain/paths/policy";
 import { pathPreferences, pathRepository } from "./path-fixture";
 import {
-  acceptPath,
   pathPrograms,
   pathSessions,
   startPathSession,
-  savedDraft,
-  editPathDay,
 } from "../src/data/paths";
+import { acceptPath, savedDraft, editPathDay } from "../src/data/pathBuilder";
 
 test("every recommended exercise has a reviewed purpose and direct/assisting targets", () => {
   for (const movement of movementMenu)

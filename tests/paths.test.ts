@@ -15,7 +15,6 @@ import {
 } from "../src/domain/paths/generator";
 import { addDays, defaultWeekdays } from "../src/domain/paths/model";
 import {
-  acceptPath,
   pathPrograms,
   pathSummary,
   pathSessions,
@@ -24,10 +23,9 @@ import {
   resumePath,
   reschedulePathSession,
   skipPathSession,
-  savedDraft,
-  editPathDay,
   visibleSchedules,
 } from "../src/data/paths";
+import { acceptPath, savedDraft, editPathDay } from "../src/data/pathBuilder";
 import { pathPreferences, pathRepository } from "./path-fixture";
 
 test("all six Paths use distinct, valid goal prescriptions and their own frequency limits", () => {

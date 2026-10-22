@@ -14,14 +14,16 @@ import type { PathDay } from "../src/domain/paths/generator";
 import type { PathPreferences } from "../src/domain/paths/model";
 import { equipmentOptions } from "../src/domain/paths/model";
 import {
-  acceptPath,
-  editPathDay,
   pathPrograms,
   pathSessions,
-  savedDraft,
   startPathSession,
-  workloadGuidance,
 } from "../src/data/paths";
+import {
+  acceptPath,
+  editPathDay,
+  savedDraft,
+  workloadGuidance,
+} from "../src/data/pathBuilder";
 import { pathPreferences, pathRepository } from "./path-fixture";
 
 const experiences = ["Beginner", "Intermediate", "Advanced"] as const;

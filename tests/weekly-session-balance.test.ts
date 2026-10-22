@@ -26,13 +26,11 @@ import { auditWeek } from "../src/domain/paths/weekAudit";
 import type { PathPreferences } from "../src/domain/paths/model";
 import { pathPreferences, pathRepository } from "./path-fixture";
 import {
-  acceptPath,
   pathPrograms,
-  savedDraft,
   startPathSession,
   pathSessions,
-  editPathDay,
 } from "../src/data/paths";
+import { acceptPath, savedDraft, editPathDay } from "../src/data/pathBuilder";
 
 function assertConstraints(draft: ReturnType<typeof generatePath>) {
   const p = draft.preferences;

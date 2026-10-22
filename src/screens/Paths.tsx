@@ -38,20 +38,22 @@ import {
   type PathDefinition,
 } from "../domain/paths/model";
 import {
-  acceptPath,
   currentPath,
   pathPrograms,
   pathSummary,
-  savedDraft,
-  editPathDay,
   pausePath,
   resumePath,
   startPathSession,
   reschedulePathSession,
   skipPathSession,
-  workloadGuidance,
   type PathSession,
 } from "../data/paths";
+import {
+  acceptPath,
+  savedDraft,
+  editPathDay,
+  workloadGuidance,
+} from "../data/pathBuilder";
 import { localDate, type Prescription } from "../domain/types";
 import {
   calendarWeek,

@@ -10,11 +10,11 @@ import { pathRepository, pathPreferences } from "../path-fixture";
 import {
   pathPrograms,
   pathSummary,
-  acceptPath,
   pathSessions,
   reschedulePathSession,
   startPathSession,
 } from "../../src/data/paths";
+import { acceptPath } from "../../src/data/pathBuilder";
 import { generatePath } from "../../src/domain/paths/generator";
 import { generatePath as legacyPath } from "../../src/domain/paths/legacyGenerator";
 import { exercises } from "../../src/data/catalog";

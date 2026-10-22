@@ -1,0 +1,2960 @@
+{
+  "version": 1,
+  "exportedAt": 1792709040723,
+  "profile": {
+    "name": "Legacy Lifter",
+    "onboarded": true,
+    "units": "kg",
+    "theme": "dark",
+    "experience": "Intermediate",
+    "goal": "Build muscle",
+    "height": 0,
+    "weight": 0,
+    "frequency": 4,
+    "equipment": "Barbell, dumbbells, bodyweight",
+    "duration": 45,
+    "muscles": "Full body",
+    "bodyFat": 0,
+    "notifications": false,
+    "rest": 90,
+    "increment": 2.5,
+    "repMin": 8,
+    "repMax": 12,
+    "calories": 2000,
+    "protein": 150,
+    "carbs": 200,
+    "fat": 65
+  },
+  "workouts": [
+    {
+      "id": "d3eadcaf-7aac-40d0-a77f-9b7804fbdb13",
+      "name": "My Arm Day",
+      "status": "completed",
+      "startedAt": 1792709040720,
+      "finishedAt": 1792709040723,
+      "pausedAt": null,
+      "pausedMs": 0,
+      "notes": "",
+      "templateId": "ec133548-48fa-4c6f-85be-b5680f44d716",
+      "updatedAt": 1792709040723
+    },
+    {
+      "id": "b37109db-f44f-440b-a1fe-323dafe1005a",
+      "name": "GET STRONG · Upper body · overhead strength",
+      "status": "completed",
+      "startedAt": 1792709040710,
+      "finishedAt": 1792709040716,
+      "pausedAt": null,
+      "pausedMs": 0,
+      "notes": "",
+      "templateId": "a18dd960-28cf-4332-8952-18b2f77647d9",
+      "updatedAt": 1792709040716
+    },
+    {
+      "id": "6ef28488-31ed-4ebd-b8bf-161199f5fbb8",
+      "name": "GET STRONG · Lower body · squat strength",
+      "status": "completed",
+      "startedAt": 1792709040701,
+      "finishedAt": 1792709040708,
+      "pausedAt": null,
+      "pausedMs": 0,
+      "notes": "",
+      "templateId": "d23b545c-61bc-4436-9cf5-3b3e76852c33",
+      "updatedAt": 1792709040708
+    },
+    {
+      "id": "59247e3d-682c-423f-886c-6ea6db24be4e",
+      "name": "GET STRONG · Upper body · bench strength",
+      "status": "completed",
+      "startedAt": 1792709040693,
+      "finishedAt": 1792709040699,
+      "pausedAt": null,
+      "pausedMs": 0,
+      "notes": "",
+      "templateId": "f04cc3f9-df31-4771-b9b4-8875d6817a0d",
+      "updatedAt": 1792709040699
+    },
+    {
+      "id": "f23b91cf-6fb4-4ca9-9de8-1e3aaa1811da",
+      "name": "BUILD MUSCLE · Full body A",
+      "status": "completed",
+      "startedAt": 1792709040657,
+      "finishedAt": 1792709040671,
+      "pausedAt": null,
+      "pausedMs": 0,
+      "notes": "",
+      "templateId": "bef3fdb2-104c-49ac-b7e8-e289717f50f6",
+      "updatedAt": 1792709040671
+    }
+  ],
+  "workoutExercises": [
+    {
+      "id": "30adcca3-a408-4492-825a-1960ebd23087",
+      "workoutId": "f23b91cf-6fb4-4ca9-9de8-1e3aaa1811da",
+      "exerciseId": "back-squat",
+      "position": 0,
+      "notes": "",
+      "rest": 90,
+      "groupId": "",
+      "target": {
+        "min": 10,
+        "max": 10,
+        "sets": 3
+      }
+    },
+    {
+      "id": "3e7325e6-2839-4b99-b127-fac50183968d",
+      "workoutId": "f23b91cf-6fb4-4ca9-9de8-1e3aaa1811da",
+      "exerciseId": "barbell-bench-press",
+      "position": 1,
+      "notes": "",
+      "rest": 90,
+      "groupId": "",
+      "target": {
+        "min": 10,
+        "max": 10,
+        "sets": 3
+      }
+    },
+    {
+      "id": "8acf2663-4d4a-43aa-b10e-2a9d999d7873",
+      "workoutId": "f23b91cf-6fb4-4ca9-9de8-1e3aaa1811da",
+      "exerciseId": "barbell-bent-over-row",
+      "position": 2,
+      "notes": "",
+      "rest": 90,
+      "groupId": "",
+      "target": {
+        "min": 10,
+        "max": 10,
+        "sets": 3
+      }
+    },
+    {
+      "id": "38f2e67a-2d18-416d-ba45-f602c66ee6a3",
+      "workoutId": "f23b91cf-6fb4-4ca9-9de8-1e3aaa1811da",
+      "exerciseId": "romanian-deadlift",
+      "position": 3,
+      "notes": "",
+      "rest": 90,
+      "groupId": "",
+      "target": {
+        "min": 10,
+        "max": 10,
+        "sets": 3
+      }
+    },
+    {
+      "id": "a1b79c68-8477-414d-8dfe-0b87fd9e01b1",
+      "workoutId": "f23b91cf-6fb4-4ca9-9de8-1e3aaa1811da",
+      "exerciseId": "dead-bug",
+      "position": 4,
+      "notes": "",
+      "rest": 60,
+      "groupId": "",
+      "target": {
+        "min": 12,
+        "max": 12,
+        "sets": 2
+      }
+    },
+    {
+      "id": "abf85bf6-a053-42c7-b588-9fecbc618bff",
+      "workoutId": "f23b91cf-6fb4-4ca9-9de8-1e3aaa1811da",
+      "exerciseId": "dumbbell-lateral-raise",
+      "position": 5,
+      "notes": "",
+      "rest": 60,
+      "groupId": "",
+      "target": {
+        "min": 12,
+        "max": 12,
+        "sets": 2
+      }
+    },
+    {
+      "id": "e7e2185c-d27a-4446-8d22-24240f499e34",
+      "workoutId": "59247e3d-682c-423f-886c-6ea6db24be4e",
+      "exerciseId": "barbell-bench-press",
+      "position": 0,
+      "notes": "",
+      "rest": 210,
+      "groupId": "",
+      "target": {
+        "min": 4,
+        "max": 6,
+        "sets": 4
+      }
+    },
+    {
+      "id": "afd11e82-e3b4-48be-a177-624b5b71b150",
+      "workoutId": "59247e3d-682c-423f-886c-6ea6db24be4e",
+      "exerciseId": "seated-cable-row",
+      "position": 1,
+      "notes": "",
+      "rest": 120,
+      "groupId": "",
+      "target": {
+        "min": 8,
+        "max": 10,
+        "sets": 2
+      }
+    },
+    {
+      "id": "ea604997-2308-49cd-bb1b-705180a2e11b",
+      "workoutId": "59247e3d-682c-423f-886c-6ea6db24be4e",
+      "exerciseId": "overhead-press",
+      "position": 2,
+      "notes": "",
+      "rest": 150,
+      "groupId": "",
+      "target": {
+        "min": 6,
+        "max": 8,
+        "sets": 2
+      }
+    },
+    {
+      "id": "f5a4fe76-2c1f-44f5-8fbb-316e7eca2777",
+      "workoutId": "59247e3d-682c-423f-886c-6ea6db24be4e",
+      "exerciseId": "lat-pulldown",
+      "position": 3,
+      "notes": "",
+      "rest": 120,
+      "groupId": "",
+      "target": {
+        "min": 8,
+        "max": 10,
+        "sets": 2
+      }
+    },
+    {
+      "id": "2761cbb8-3890-4b28-a256-d8cf0687dd8d",
+      "workoutId": "6ef28488-31ed-4ebd-b8bf-161199f5fbb8",
+      "exerciseId": "back-squat",
+      "position": 0,
+      "notes": "",
+      "rest": 210,
+      "groupId": "",
+      "target": {
+        "min": 4,
+        "max": 6,
+        "sets": 4
+      }
+    },
+    {
+      "id": "4e560480-d417-4063-9050-ebaf8d48ec9a",
+      "workoutId": "6ef28488-31ed-4ebd-b8bf-161199f5fbb8",
+      "exerciseId": "seated-leg-curl",
+      "position": 1,
+      "notes": "",
+      "rest": 90,
+      "groupId": "",
+      "target": {
+        "min": 10,
+        "max": 12,
+        "sets": 2
+      }
+    },
+    {
+      "id": "9872f94c-00ce-4eb8-a50b-d58f67e3006a",
+      "workoutId": "6ef28488-31ed-4ebd-b8bf-161199f5fbb8",
+      "exerciseId": "standing-calf-raise",
+      "position": 2,
+      "notes": "",
+      "rest": 90,
+      "groupId": "",
+      "target": {
+        "min": 10,
+        "max": 12,
+        "sets": 2
+      }
+    },
+    {
+      "id": "207c03d6-50eb-4c1c-b1fc-67622352c406",
+      "workoutId": "6ef28488-31ed-4ebd-b8bf-161199f5fbb8",
+      "exerciseId": "dead-bug",
+      "position": 3,
+      "notes": "",
+      "rest": 60,
+      "groupId": "",
+      "target": {
+        "min": 8,
+        "max": 12,
+        "sets": 2
+      }
+    },
+    {
+      "id": "4c93daeb-e7ac-4c0e-bb9c-af10458e9f24",
+      "workoutId": "b37109db-f44f-440b-a1fe-323dafe1005a",
+      "exerciseId": "overhead-press",
+      "position": 0,
+      "notes": "",
+      "rest": 210,
+      "groupId": "",
+      "target": {
+        "min": 4,
+        "max": 6,
+        "sets": 3
+      }
+    },
+    {
+      "id": "d523d623-fb9f-4afa-a6ee-0d56fc19f701",
+      "workoutId": "b37109db-f44f-440b-a1fe-323dafe1005a",
+      "exerciseId": "pull-up",
+      "position": 1,
+      "notes": "",
+      "rest": 150,
+      "groupId": "",
+      "target": {
+        "min": 6,
+        "max": 8,
+        "sets": 2
+      }
+    },
+    {
+      "id": "c2ed4b08-d77e-449b-bb8e-fe042a45262b",
+      "workoutId": "b37109db-f44f-440b-a1fe-323dafe1005a",
+      "exerciseId": "dumbbell-bench-press",
+      "position": 2,
+      "notes": "",
+      "rest": 150,
+      "groupId": "",
+      "target": {
+        "min": 6,
+        "max": 8,
+        "sets": 2
+      }
+    },
+    {
+      "id": "e15037d5-0e88-4cac-9586-6803b20addf7",
+      "workoutId": "b37109db-f44f-440b-a1fe-323dafe1005a",
+      "exerciseId": "chest-supported-dumbbell-row",
+      "position": 3,
+      "notes": "",
+      "rest": 150,
+      "groupId": "",
+      "target": {
+        "min": 6,
+        "max": 8,
+        "sets": 2
+      }
+    },
+    {
+      "id": "9ef77239-ded1-496d-a39b-ca9902dc26c4",
+      "workoutId": "d3eadcaf-7aac-40d0-a77f-9b7804fbdb13",
+      "exerciseId": "dumbbell-curl",
+      "position": 0,
+      "notes": "",
+      "rest": 60,
+      "groupId": "",
+      "target": {
+        "min": 10,
+        "max": 10,
+        "sets": 3
+      }
+    },
+    {
+      "id": "6f52d9a0-e337-4c8e-a943-fbfdaadccd82",
+      "workoutId": "d3eadcaf-7aac-40d0-a77f-9b7804fbdb13",
+      "exerciseId": "custom-legacy-landmine-row",
+      "position": 1,
+      "notes": "",
+      "rest": 90,
+      "groupId": "",
+      "target": {
+        "min": 12,
+        "max": 12,
+        "sets": 2
+      }
+    }
+  ],
+  "sets": [
+    {
+      "id": "6f44a45c-6d75-4837-8285-79d17e1f4470",
+      "exerciseRowId": "30adcca3-a408-4492-825a-1960ebd23087",
+      "position": 0,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "25023b2f-ec53-4e93-b5d4-860552fcb7b9",
+      "exerciseRowId": "30adcca3-a408-4492-825a-1960ebd23087",
+      "position": 1,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "4d4abad8-6928-4c52-8ea0-157eeec61cb9",
+      "exerciseRowId": "30adcca3-a408-4492-825a-1960ebd23087",
+      "position": 2,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "5db1b073-ec8c-4d06-9d23-88052e31ea6f",
+      "exerciseRowId": "3e7325e6-2839-4b99-b127-fac50183968d",
+      "position": 0,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "d15f62e8-0190-42fa-a57d-7169932f074c",
+      "exerciseRowId": "3e7325e6-2839-4b99-b127-fac50183968d",
+      "position": 1,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "d96b4bcd-6ca6-4701-8541-5d285c07ebe7",
+      "exerciseRowId": "3e7325e6-2839-4b99-b127-fac50183968d",
+      "position": 2,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "3738dc78-6e5a-4879-a00a-2be08328ee0e",
+      "exerciseRowId": "8acf2663-4d4a-43aa-b10e-2a9d999d7873",
+      "position": 0,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "f30df449-374f-4b88-b428-87f86d653fae",
+      "exerciseRowId": "8acf2663-4d4a-43aa-b10e-2a9d999d7873",
+      "position": 1,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "bc846ad4-2af3-4203-8093-985d1f71d3cc",
+      "exerciseRowId": "8acf2663-4d4a-43aa-b10e-2a9d999d7873",
+      "position": 2,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "c68f1546-4d8f-4f78-b97d-0ef234c5642f",
+      "exerciseRowId": "38f2e67a-2d18-416d-ba45-f602c66ee6a3",
+      "position": 0,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "29fc8652-5a39-4f73-9b2a-c20f4df81e01",
+      "exerciseRowId": "38f2e67a-2d18-416d-ba45-f602c66ee6a3",
+      "position": 1,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "9e0df5d1-0021-4115-b72c-ff55223beec1",
+      "exerciseRowId": "38f2e67a-2d18-416d-ba45-f602c66ee6a3",
+      "position": 2,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "cd47f267-5009-4a14-bf63-3146257babbd",
+      "exerciseRowId": "a1b79c68-8477-414d-8dfe-0b87fd9e01b1",
+      "position": 0,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 60,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "60719133-270d-4334-8e4a-e7a00777d698",
+      "exerciseRowId": "a1b79c68-8477-414d-8dfe-0b87fd9e01b1",
+      "position": 1,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 60,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "7647fa88-cf19-46bf-b3ba-f53ca962c36e",
+      "exerciseRowId": "abf85bf6-a053-42c7-b588-9fecbc618bff",
+      "position": 0,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 60,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "2246265a-e5c2-44eb-8f43-16bd33385350",
+      "exerciseRowId": "abf85bf6-a053-42c7-b588-9fecbc618bff",
+      "position": 1,
+      "weight": 40,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": 8,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 60,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "cb533bfe-58b1-4752-9c66-0fbf5925ef2f",
+      "exerciseRowId": "e7e2185c-d27a-4446-8d22-24240f499e34",
+      "position": 0,
+      "weight": 60,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 210,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "7c1c513e-84e9-4bd1-a419-6c34f821f338",
+      "exerciseRowId": "e7e2185c-d27a-4446-8d22-24240f499e34",
+      "position": 1,
+      "weight": 60,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 210,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "9808765b-2fb4-4f3c-9e98-d77506c0ff41",
+      "exerciseRowId": "e7e2185c-d27a-4446-8d22-24240f499e34",
+      "position": 2,
+      "weight": 60,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 210,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "622b2ce6-5e9e-4d3f-b3b3-11bbd2e0bb9f",
+      "exerciseRowId": "e7e2185c-d27a-4446-8d22-24240f499e34",
+      "position": 3,
+      "weight": 60,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 210,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "a0524d1e-c87b-4558-b7f6-38d91ddf4032",
+      "exerciseRowId": "afd11e82-e3b4-48be-a177-624b5b71b150",
+      "position": 0,
+      "weight": 60,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 120,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "9cb7b9ad-aa16-4e91-8efc-7b695e70d0f9",
+      "exerciseRowId": "afd11e82-e3b4-48be-a177-624b5b71b150",
+      "position": 1,
+      "weight": 60,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 120,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "aaf4cc80-b856-4a73-8932-40e7199c2a2f",
+      "exerciseRowId": "ea604997-2308-49cd-bb1b-705180a2e11b",
+      "position": 0,
+      "weight": 60,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 150,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "cdc2b971-87b8-4fa8-a1d4-c69e2e45b2b8",
+      "exerciseRowId": "ea604997-2308-49cd-bb1b-705180a2e11b",
+      "position": 1,
+      "weight": 60,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 150,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "613c9d37-18c9-4ae0-98e9-52e7b1000b63",
+      "exerciseRowId": "f5a4fe76-2c1f-44f5-8fbb-316e7eca2777",
+      "position": 0,
+      "weight": 60,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 120,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "e646a12d-23b8-40f2-af89-6219cbc119df",
+      "exerciseRowId": "f5a4fe76-2c1f-44f5-8fbb-316e7eca2777",
+      "position": 1,
+      "weight": 60,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 120,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "1a466a26-4b2c-4a41-8f79-e365a34feda8",
+      "exerciseRowId": "2761cbb8-3890-4b28-a256-d8cf0687dd8d",
+      "position": 0,
+      "weight": 62.5,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 210,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "3dd761e4-a8dc-4123-b919-4409bc7fc1c6",
+      "exerciseRowId": "2761cbb8-3890-4b28-a256-d8cf0687dd8d",
+      "position": 1,
+      "weight": 62.5,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 210,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "12057d4f-e23e-4157-afa1-7ebf3c0b7dbc",
+      "exerciseRowId": "2761cbb8-3890-4b28-a256-d8cf0687dd8d",
+      "position": 2,
+      "weight": 62.5,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 210,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "13488b31-e781-4c2c-809a-8507c51da27b",
+      "exerciseRowId": "2761cbb8-3890-4b28-a256-d8cf0687dd8d",
+      "position": 3,
+      "weight": 62.5,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 210,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "5c68ecb9-b822-4f91-9550-ffee874d314c",
+      "exerciseRowId": "4e560480-d417-4063-9050-ebaf8d48ec9a",
+      "position": 0,
+      "weight": 62.5,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "5d13a07c-d567-4355-8e4b-fe9280806cc1",
+      "exerciseRowId": "4e560480-d417-4063-9050-ebaf8d48ec9a",
+      "position": 1,
+      "weight": 62.5,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "a157f3d9-c09f-4dec-b16e-4ee128efcbb0",
+      "exerciseRowId": "9872f94c-00ce-4eb8-a50b-d58f67e3006a",
+      "position": 0,
+      "weight": 62.5,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "3aefa1c1-b2dc-4f1e-9f72-13088b5e28c5",
+      "exerciseRowId": "9872f94c-00ce-4eb8-a50b-d58f67e3006a",
+      "position": 1,
+      "weight": 62.5,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "aa407b81-9442-4da6-9205-c6e7d6996997",
+      "exerciseRowId": "207c03d6-50eb-4c1c-b1fc-67622352c406",
+      "position": 0,
+      "weight": 62.5,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 60,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "66c5d40f-da4b-46fc-aa23-b5f8e7e50ced",
+      "exerciseRowId": "207c03d6-50eb-4c1c-b1fc-67622352c406",
+      "position": 1,
+      "weight": 62.5,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 60,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "b3762ffa-2c98-48c9-a847-5c1db7caa4f6",
+      "exerciseRowId": "4c93daeb-e7ac-4c0e-bb9c-af10458e9f24",
+      "position": 0,
+      "weight": 65,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 210,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "d6fff8e0-ab24-4f63-9bf0-474865dbff3b",
+      "exerciseRowId": "4c93daeb-e7ac-4c0e-bb9c-af10458e9f24",
+      "position": 1,
+      "weight": 65,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 210,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "90e930a9-c053-403f-9d13-6c2a38db9589",
+      "exerciseRowId": "4c93daeb-e7ac-4c0e-bb9c-af10458e9f24",
+      "position": 2,
+      "weight": 65,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 210,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "d6745683-b070-4eb6-9220-7b69ae55ba56",
+      "exerciseRowId": "d523d623-fb9f-4afa-a6ee-0d56fc19f701",
+      "position": 0,
+      "weight": 65,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 150,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "e86de0a3-5cf6-46e2-addf-504d20d171b0",
+      "exerciseRowId": "d523d623-fb9f-4afa-a6ee-0d56fc19f701",
+      "position": 1,
+      "weight": 65,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 150,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "da961540-288a-47b1-8579-4f489114acf0",
+      "exerciseRowId": "c2ed4b08-d77e-449b-bb8e-fe042a45262b",
+      "position": 0,
+      "weight": 65,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 150,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "244efa13-44af-45d6-8991-9d586deb1f77",
+      "exerciseRowId": "c2ed4b08-d77e-449b-bb8e-fe042a45262b",
+      "position": 1,
+      "weight": 65,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 150,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "081c6d40-7b05-43de-94e0-a25ff9cc6429",
+      "exerciseRowId": "e15037d5-0e88-4cac-9586-6803b20addf7",
+      "position": 0,
+      "weight": 65,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 150,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "471f681e-20fd-476d-b050-659347b18b47",
+      "exerciseRowId": "e15037d5-0e88-4cac-9586-6803b20addf7",
+      "position": 1,
+      "weight": 65,
+      "reps": 6,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": 2,
+      "kind": "working",
+      "completed": true,
+      "rest": 150,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "bcb65761-404a-400b-a72b-4af180b61450",
+      "exerciseRowId": "9ef77239-ded1-496d-a39b-ca9902dc26c4",
+      "position": 0,
+      "weight": 12,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 60,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "5665482d-a71b-4cd5-bef6-0d315ab7be27",
+      "exerciseRowId": "9ef77239-ded1-496d-a39b-ca9902dc26c4",
+      "position": 1,
+      "weight": 12,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 60,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "a239519e-38d5-4b58-a8c0-0f34de65c078",
+      "exerciseRowId": "9ef77239-ded1-496d-a39b-ca9902dc26c4",
+      "position": 2,
+      "weight": 12,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 60,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "4ea6607c-afd8-4659-9ec7-13bd8fe6e85a",
+      "exerciseRowId": "6f52d9a0-e337-4c8e-a943-fbfdaadccd82",
+      "position": 0,
+      "weight": 12,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    },
+    {
+      "id": "719c2908-52e7-4337-9c7b-aa13de7a7b24",
+      "exerciseRowId": "6f52d9a0-e337-4c8e-a943-fbfdaadccd82",
+      "position": 1,
+      "weight": 12,
+      "reps": 10,
+      "duration": 0,
+      "distance": 0,
+      "rpe": null,
+      "rir": null,
+      "kind": "working",
+      "completed": true,
+      "rest": 90,
+      "tempo": "",
+      "notes": "",
+      "side": "both"
+    }
+  ],
+  "templates": [
+    {
+      "id": "bef3fdb2-104c-49ac-b7e8-e289717f50f6",
+      "name": "BUILD MUSCLE · Full body A",
+      "notes": "FORGE PATHS · Foundation. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "back-squat",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "barbell-bench-press",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "barbell-bent-over-row",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "romanian-deadlift",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dead-bug",
+          "sets": 2,
+          "reps": 12,
+          "weight": 0,
+          "rest": 60
+        },
+        {
+          "exerciseId": "dumbbell-lateral-raise",
+          "sets": 2,
+          "reps": 12,
+          "weight": 0,
+          "rest": 60
+        }
+      ],
+      "updatedAt": 1792709040649
+    },
+    {
+      "id": "001b03b3-3cdc-41f3-afb9-b0fd7e34dd34",
+      "name": "BUILD MUSCLE · Full body A",
+      "notes": "FORGE PATHS · Evolution. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "back-squat",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "barbell-bench-press",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "barbell-bent-over-row",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "romanian-deadlift",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dead-bug",
+          "sets": 2,
+          "reps": 12,
+          "weight": 0,
+          "rest": 60
+        },
+        {
+          "exerciseId": "dumbbell-lateral-raise",
+          "sets": 2,
+          "reps": 12,
+          "weight": 0,
+          "rest": 60
+        }
+      ],
+      "updatedAt": 1792709040650
+    },
+    {
+      "id": "f3851f4a-a280-4c53-815f-44830b0e0759",
+      "name": "BUILD MUSCLE · Full body B",
+      "notes": "FORGE PATHS · Foundation. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "goblet-squat",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dumbbell-bench-press",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "pendlay-row",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dumbbell-romanian-deadlift",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "bird-dog",
+          "sets": 2,
+          "reps": 12,
+          "weight": 0,
+          "rest": 60
+        },
+        {
+          "exerciseId": "seated-lateral-raise",
+          "sets": 2,
+          "reps": 12,
+          "weight": 0,
+          "rest": 60
+        }
+      ],
+      "updatedAt": 1792709040650
+    },
+    {
+      "id": "924b499b-e8c0-43a1-9e37-58c2cbd98e60",
+      "name": "BUILD MUSCLE · Full body B",
+      "notes": "FORGE PATHS · Evolution. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "goblet-squat",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dumbbell-bench-press",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "pendlay-row",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dumbbell-romanian-deadlift",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "bird-dog",
+          "sets": 2,
+          "reps": 12,
+          "weight": 0,
+          "rest": 60
+        },
+        {
+          "exerciseId": "seated-lateral-raise",
+          "sets": 2,
+          "reps": 12,
+          "weight": 0,
+          "rest": 60
+        }
+      ],
+      "updatedAt": 1792709040650
+    },
+    {
+      "id": "76b7f7b9-38e4-48ce-b3f1-bc7b620e9b20",
+      "name": "BUILD MUSCLE · Full body C",
+      "notes": "FORGE PATHS · Foundation. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "back-squat",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "barbell-bench-press",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "barbell-bent-over-row",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "romanian-deadlift",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dead-bug",
+          "sets": 2,
+          "reps": 12,
+          "weight": 0,
+          "rest": 60
+        },
+        {
+          "exerciseId": "dumbbell-lateral-raise",
+          "sets": 2,
+          "reps": 12,
+          "weight": 0,
+          "rest": 60
+        }
+      ],
+      "updatedAt": 1792709040650
+    },
+    {
+      "id": "43173182-e08a-4fcd-90c8-a1987bc3f383",
+      "name": "BUILD MUSCLE · Full body C",
+      "notes": "FORGE PATHS · Evolution. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "back-squat",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "barbell-bench-press",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "barbell-bent-over-row",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "romanian-deadlift",
+          "sets": 3,
+          "reps": 10,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dead-bug",
+          "sets": 2,
+          "reps": 12,
+          "weight": 0,
+          "rest": 60
+        },
+        {
+          "exerciseId": "dumbbell-lateral-raise",
+          "sets": 2,
+          "reps": 12,
+          "weight": 0,
+          "rest": 60
+        }
+      ],
+      "updatedAt": 1792709040650
+    },
+    {
+      "id": "94c73fb0-7601-46f9-94e9-e6bc1548457f",
+      "name": "GET STRONG · Lower body · deadlift strength",
+      "notes": "FORGE PATHS · Foundation. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "conventional-deadlift",
+          "sets": 4,
+          "reps": 5,
+          "repMax": 6,
+          "weight": 0,
+          "rest": 210
+        },
+        {
+          "exerciseId": "bulgarian-split-squat",
+          "sets": 2,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "seated-calf-raise",
+          "sets": 2,
+          "reps": 10,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "reverse-crunch",
+          "sets": 2,
+          "reps": 8,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 60
+        }
+      ],
+      "updatedAt": 1792709040689
+    },
+    {
+      "id": "b4ca68b6-dd0b-4d9d-90da-e677f490474b",
+      "name": "GET STRONG · Lower body · deadlift strength",
+      "notes": "FORGE PATHS · Evolution. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "conventional-deadlift",
+          "sets": 4,
+          "reps": 5,
+          "repMax": 6,
+          "weight": 0,
+          "rest": 210
+        },
+        {
+          "exerciseId": "bulgarian-split-squat",
+          "sets": 2,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "seated-calf-raise",
+          "sets": 2,
+          "reps": 10,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "reverse-crunch",
+          "sets": 2,
+          "reps": 8,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 60
+        }
+      ],
+      "updatedAt": 1792709040689
+    },
+    {
+      "id": "d23b545c-61bc-4436-9cf5-3b3e76852c33",
+      "name": "GET STRONG · Lower body · squat strength",
+      "notes": "FORGE PATHS · Foundation. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "back-squat",
+          "sets": 4,
+          "reps": 4,
+          "repMax": 6,
+          "weight": 0,
+          "rest": 210
+        },
+        {
+          "exerciseId": "seated-leg-curl",
+          "sets": 2,
+          "reps": 10,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "standing-calf-raise",
+          "sets": 2,
+          "reps": 10,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dead-bug",
+          "sets": 2,
+          "reps": 8,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 60
+        }
+      ],
+      "updatedAt": 1792709040689
+    },
+    {
+      "id": "a8227b05-095f-433d-982b-7867741b281a",
+      "name": "GET STRONG · Lower body · squat strength",
+      "notes": "FORGE PATHS · Evolution. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "back-squat",
+          "sets": 4,
+          "reps": 3,
+          "repMax": 5,
+          "weight": 0,
+          "rest": 210
+        },
+        {
+          "exerciseId": "seated-leg-curl",
+          "sets": 2,
+          "reps": 10,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "standing-calf-raise",
+          "sets": 2,
+          "reps": 10,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dead-bug",
+          "sets": 2,
+          "reps": 8,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 60
+        }
+      ],
+      "updatedAt": 1792709040689
+    },
+    {
+      "id": "f04cc3f9-df31-4771-b9b4-8875d6817a0d",
+      "name": "GET STRONG · Upper body · bench strength",
+      "notes": "FORGE PATHS · Foundation. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "barbell-bench-press",
+          "sets": 4,
+          "reps": 4,
+          "repMax": 6,
+          "weight": 0,
+          "rest": 210
+        },
+        {
+          "exerciseId": "seated-cable-row",
+          "sets": 2,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 120
+        },
+        {
+          "exerciseId": "overhead-press",
+          "sets": 2,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "lat-pulldown",
+          "sets": 2,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 120
+        }
+      ],
+      "updatedAt": 1792709040689
+    },
+    {
+      "id": "2dc79a54-2a2d-490c-a0ef-50212900170f",
+      "name": "GET STRONG · Upper body · bench strength",
+      "notes": "FORGE PATHS · Evolution. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "barbell-bench-press",
+          "sets": 4,
+          "reps": 3,
+          "repMax": 5,
+          "weight": 0,
+          "rest": 210
+        },
+        {
+          "exerciseId": "seated-cable-row",
+          "sets": 2,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 120
+        },
+        {
+          "exerciseId": "overhead-press",
+          "sets": 2,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "lat-pulldown",
+          "sets": 2,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 120
+        }
+      ],
+      "updatedAt": 1792709040689
+    },
+    {
+      "id": "a18dd960-28cf-4332-8952-18b2f77647d9",
+      "name": "GET STRONG · Upper body · overhead strength",
+      "notes": "FORGE PATHS · Foundation. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "overhead-press",
+          "sets": 3,
+          "reps": 4,
+          "repMax": 6,
+          "weight": 0,
+          "rest": 210
+        },
+        {
+          "exerciseId": "pull-up",
+          "sets": 2,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "dumbbell-bench-press",
+          "sets": 2,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "chest-supported-dumbbell-row",
+          "sets": 2,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 150
+        }
+      ],
+      "updatedAt": 1792709040689
+    },
+    {
+      "id": "94216253-2432-4843-8cf9-f58ede9635e7",
+      "name": "GET STRONG · Upper body · overhead strength",
+      "notes": "FORGE PATHS · Evolution. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "overhead-press",
+          "sets": 3,
+          "reps": 3,
+          "repMax": 5,
+          "weight": 0,
+          "rest": 210
+        },
+        {
+          "exerciseId": "pull-up",
+          "sets": 2,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "dumbbell-bench-press",
+          "sets": 2,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "chest-supported-dumbbell-row",
+          "sets": 2,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 150
+        }
+      ],
+      "updatedAt": 1792709040689
+    },
+    {
+      "id": "ec133548-48fa-4c6f-85be-b5680f44d716",
+      "name": "My Arm Day",
+      "notes": "Personal template",
+      "exercises": [
+        {
+          "exerciseId": "dumbbell-curl",
+          "sets": 3,
+          "reps": 10,
+          "weight": 12,
+          "rest": 60
+        },
+        {
+          "exerciseId": "custom-legacy-landmine-row",
+          "sets": 2,
+          "reps": 12,
+          "weight": 30,
+          "rest": 90
+        }
+      ],
+      "updatedAt": 1792709040720
+    }
+  ],
+  "journals": [
+    {
+      "id": "7b812d86-659c-4dbd-bfd4-bfcab47ddf01",
+      "kind": "schedule",
+      "date": "2026-11-27",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "b4ca68b6-dd0b-4d9d-90da-e677f490474b",
+        "name": "Lower body · deadlift strength",
+        "week": 8,
+        "dayIndex": 3,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040691,
+      "updatedAt": 1792709040691
+    },
+    {
+      "id": "ea2a2303-b1cc-44bc-8124-3641119f275c",
+      "kind": "schedule",
+      "date": "2026-11-26",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "94216253-2432-4843-8cf9-f58ede9635e7",
+        "name": "Upper body · overhead strength",
+        "week": 8,
+        "dayIndex": 2,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040691,
+      "updatedAt": 1792709040691
+    },
+    {
+      "id": "e9ac811a-cff1-40e7-96f2-8cab01f67904",
+      "kind": "schedule",
+      "date": "2026-11-24",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "a8227b05-095f-433d-982b-7867741b281a",
+        "name": "Lower body · squat strength",
+        "week": 8,
+        "dayIndex": 1,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040691,
+      "updatedAt": 1792709040691
+    },
+    {
+      "id": "367aa947-94b5-42e2-905f-5944ccb3ca28",
+      "kind": "schedule",
+      "date": "2026-11-23",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "2dc79a54-2a2d-490c-a0ef-50212900170f",
+        "name": "Upper body · bench strength",
+        "week": 8,
+        "dayIndex": 0,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040691,
+      "updatedAt": 1792709040691
+    },
+    {
+      "id": "d1d0f38a-87d3-421e-9b8e-df8121df3599",
+      "kind": "schedule",
+      "date": "2026-11-20",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "b4ca68b6-dd0b-4d9d-90da-e677f490474b",
+        "name": "Lower body · deadlift strength",
+        "week": 7,
+        "dayIndex": 3,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040691,
+      "updatedAt": 1792709040691
+    },
+    {
+      "id": "487ff1dd-a4ef-43c2-90c8-6a6746f9350c",
+      "kind": "schedule",
+      "date": "2026-11-19",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "94216253-2432-4843-8cf9-f58ede9635e7",
+        "name": "Upper body · overhead strength",
+        "week": 7,
+        "dayIndex": 2,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040691,
+      "updatedAt": 1792709040691
+    },
+    {
+      "id": "65c1f2b5-a6fa-41e2-9869-4ff9d1733c31",
+      "kind": "schedule",
+      "date": "2026-11-17",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "a8227b05-095f-433d-982b-7867741b281a",
+        "name": "Lower body · squat strength",
+        "week": 7,
+        "dayIndex": 1,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040691,
+      "updatedAt": 1792709040691
+    },
+    {
+      "id": "a06ffc9e-e8a0-42fe-821c-83243e5ee15c",
+      "kind": "schedule",
+      "date": "2026-11-16",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "2dc79a54-2a2d-490c-a0ef-50212900170f",
+        "name": "Upper body · bench strength",
+        "week": 7,
+        "dayIndex": 0,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040691,
+      "updatedAt": 1792709040691
+    },
+    {
+      "id": "9991a8e1-c36d-44ce-9459-e1483b97eea9",
+      "kind": "schedule",
+      "date": "2026-11-13",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "b4ca68b6-dd0b-4d9d-90da-e677f490474b",
+        "name": "Lower body · deadlift strength",
+        "week": 6,
+        "dayIndex": 3,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040691,
+      "updatedAt": 1792709040691
+    },
+    {
+      "id": "e3620b3d-0039-4665-a92e-166e43384c66",
+      "kind": "schedule",
+      "date": "2026-11-12",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "94216253-2432-4843-8cf9-f58ede9635e7",
+        "name": "Upper body · overhead strength",
+        "week": 6,
+        "dayIndex": 2,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040691,
+      "updatedAt": 1792709040691
+    },
+    {
+      "id": "efaf27c5-2755-4f79-8b27-a5d44206d1af",
+      "kind": "schedule",
+      "date": "2026-11-10",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "a8227b05-095f-433d-982b-7867741b281a",
+        "name": "Lower body · squat strength",
+        "week": 6,
+        "dayIndex": 1,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040691,
+      "updatedAt": 1792709040691
+    },
+    {
+      "id": "f943bc3f-b81e-47c4-8cc9-fba53cfc5c30",
+      "kind": "schedule",
+      "date": "2026-11-09",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "2dc79a54-2a2d-490c-a0ef-50212900170f",
+        "name": "Upper body · bench strength",
+        "week": 6,
+        "dayIndex": 0,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040691,
+      "updatedAt": 1792709040691
+    },
+    {
+      "id": "3f658ff0-d764-4006-b013-1fedd608360f",
+      "kind": "schedule",
+      "date": "2026-11-06",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "b4ca68b6-dd0b-4d9d-90da-e677f490474b",
+        "name": "Lower body · deadlift strength",
+        "week": 5,
+        "dayIndex": 3,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "28a3ffc4-b07e-4ac4-aac1-cc0d4d91b41d",
+      "kind": "schedule",
+      "date": "2026-11-05",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "94216253-2432-4843-8cf9-f58ede9635e7",
+        "name": "Upper body · overhead strength",
+        "week": 5,
+        "dayIndex": 2,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "358fcd6b-2b59-408f-8945-ace6e3009e56",
+      "kind": "schedule",
+      "date": "2026-11-03",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "a8227b05-095f-433d-982b-7867741b281a",
+        "name": "Lower body · squat strength",
+        "week": 5,
+        "dayIndex": 1,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "476e44cd-cf34-444b-8a02-e3448ae94187",
+      "kind": "schedule",
+      "date": "2026-11-02",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "2dc79a54-2a2d-490c-a0ef-50212900170f",
+        "name": "Upper body · bench strength",
+        "week": 5,
+        "dayIndex": 0,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "c927b737-759c-4068-be44-8d93b81fb771",
+      "kind": "schedule",
+      "date": "2026-10-30",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "94c73fb0-7601-46f9-94e9-e6bc1548457f",
+        "name": "Lower body · deadlift strength",
+        "week": 4,
+        "dayIndex": 3,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "d2c03c25-7f73-4212-b55e-f7efdb49952f",
+      "kind": "schedule",
+      "date": "2026-10-29",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "a18dd960-28cf-4332-8952-18b2f77647d9",
+        "name": "Upper body · overhead strength",
+        "week": 4,
+        "dayIndex": 2,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "55b1c650-c954-4170-a808-71242ceac8f6",
+      "kind": "schedule",
+      "date": "2026-10-27",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "d23b545c-61bc-4436-9cf5-3b3e76852c33",
+        "name": "Lower body · squat strength",
+        "week": 4,
+        "dayIndex": 1,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "da5916b5-a89b-46da-ba69-d39ec6a8fceb",
+      "kind": "schedule",
+      "date": "2026-10-26",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "f04cc3f9-df31-4771-b9b4-8875d6817a0d",
+        "name": "Upper body · bench strength",
+        "week": 4,
+        "dayIndex": 0,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "26ee5508-79b9-4ac7-bba2-9cf248ce0b5c",
+      "kind": "schedule",
+      "date": "2026-10-23",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "94c73fb0-7601-46f9-94e9-e6bc1548457f",
+        "name": "Lower body · deadlift strength",
+        "week": 3,
+        "dayIndex": 3,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "d2f85a55-db75-4968-8d01-e31d22f72b31",
+      "kind": "schedule",
+      "date": "2026-10-22",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "a18dd960-28cf-4332-8952-18b2f77647d9",
+        "name": "Upper body · overhead strength",
+        "week": 3,
+        "dayIndex": 2,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "40fb1404-0413-4a95-ab5f-46289d64d583",
+      "kind": "schedule",
+      "date": "2026-10-20",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "d23b545c-61bc-4436-9cf5-3b3e76852c33",
+        "name": "Lower body · squat strength",
+        "week": 3,
+        "dayIndex": 1,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "9f70523e-479f-4021-aa63-c027df7716d4",
+      "kind": "schedule",
+      "date": "2026-10-19",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "f04cc3f9-df31-4771-b9b4-8875d6817a0d",
+        "name": "Upper body · bench strength",
+        "week": 3,
+        "dayIndex": 0,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "cac38c26-df28-4804-8f68-cca68f009e5e",
+      "kind": "schedule",
+      "date": "2026-10-16",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "94c73fb0-7601-46f9-94e9-e6bc1548457f",
+        "name": "Lower body · deadlift strength",
+        "week": 2,
+        "dayIndex": 3,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "d14c7b13-ad9e-4ea8-b9fa-3aa2c01c0390",
+      "kind": "schedule",
+      "date": "2026-10-15",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "a18dd960-28cf-4332-8952-18b2f77647d9",
+        "name": "Upper body · overhead strength",
+        "week": 2,
+        "dayIndex": 2,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "3db8074b-2b26-4f03-baea-fed5145ebbbe",
+      "kind": "schedule",
+      "date": "2026-10-13",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "d23b545c-61bc-4436-9cf5-3b3e76852c33",
+        "name": "Lower body · squat strength",
+        "week": 2,
+        "dayIndex": 1,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "59f6cd1d-9ec0-43ca-9934-fc8649c8a08c",
+      "kind": "schedule",
+      "date": "2026-10-12",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "f04cc3f9-df31-4771-b9b4-8875d6817a0d",
+        "name": "Upper body · bench strength",
+        "week": 2,
+        "dayIndex": 0,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040690
+    },
+    {
+      "id": "cb282310-f1f9-4bc4-965d-419fc2b6ca40",
+      "kind": "measurement",
+      "date": "2026-10-10",
+      "data": {
+        "name": "Bodyweight",
+        "value": 82.4,
+        "unit": "kg"
+      },
+      "createdAt": 1792709040723,
+      "updatedAt": 1792709040723
+    },
+    {
+      "id": "e2ae8618-a85f-4e3a-823f-bd931057b078",
+      "kind": "schedule",
+      "date": "2026-10-09",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "94c73fb0-7601-46f9-94e9-e6bc1548457f",
+        "name": "Lower body · deadlift strength",
+        "week": 1,
+        "dayIndex": 3,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": true
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040719
+    },
+    {
+      "id": "d39cc9ea-ad0b-4938-9d10-a66d577f18a9",
+      "kind": "schedule",
+      "date": "2026-10-08",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "a18dd960-28cf-4332-8952-18b2f77647d9",
+        "name": "Upper body · overhead strength",
+        "week": 1,
+        "dayIndex": 2,
+        "phase": "foundation",
+        "workoutId": "b37109db-f44f-440b-a1fe-323dafe1005a",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040713
+    },
+    {
+      "id": "9ab0d209-c877-40fd-a847-339b6644146e",
+      "kind": "schedule",
+      "date": "2026-10-06",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "d23b545c-61bc-4436-9cf5-3b3e76852c33",
+        "name": "Lower body · squat strength",
+        "week": 1,
+        "dayIndex": 1,
+        "phase": "foundation",
+        "workoutId": "6ef28488-31ed-4ebd-b8bf-161199f5fbb8",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040705
+    },
+    {
+      "id": "acdfdbdd-d191-4d54-b132-287c780a650e",
+      "kind": "schedule",
+      "date": "2026-10-05",
+      "data": {
+        "forgePath": 1,
+        "programId": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+        "templateId": "f04cc3f9-df31-4771-b9b4-8875d6817a0d",
+        "name": "Upper body · bench strength",
+        "week": 1,
+        "dayIndex": 0,
+        "phase": "foundation",
+        "workoutId": "59247e3d-682c-423f-886c-6ea6db24be4e",
+        "skipped": false
+      },
+      "createdAt": 1792709040690,
+      "updatedAt": 1792709040697
+    },
+    {
+      "id": "d78344b5-02e2-4469-9a56-6a68d443f2d0",
+      "kind": "program",
+      "date": "2026-10-05",
+      "data": {
+        "forgePath": 1,
+        "engineVersion": 9,
+        "pathKey": "get-strong",
+        "name": "GET STRONG",
+        "weeks": 8,
+        "started": "2026-10-05",
+        "status": "active",
+        "pausedOn": "",
+        "pausedDays": 0,
+        "preferences": "{\"pathKey\":\"get-strong\",\"experience\":\"Intermediate\",\"frequency\":4,\"equipment\":[\"Dumbbell\",\"Barbell\",\"EZ bar\",\"Kettlebell\",\"Cable\",\"Chest press machine\",\"Leg press machine\",\"Leg curl machine\",\"Leg extension machine\",\"Chest fly machine\",\"Seated row machine\",\"Shoulder press machine\",\"Lateral raise machine\",\"Hack squat machine\",\"Hip thrust machine\",\"Calf raise machine\",\"Assisted pull-up machine\",\"Smith machine\",\"Resistance band\",\"Band anchor\",\"Pull-up bar\",\"Dip station\",\"Bench\",\"Preacher curl bench\",\"Squat rack\"],\"gymAccess\":true,\"excluded\":[],\"avoidPatterns\":[],\"limitations\":\"\",\"priorities\":[],\"style\":\"Balanced\",\"startDate\":\"2026-10-05\",\"weekdays\":[0,1,3,4]}",
+        "days": "[{\"key\":\"day-0\",\"name\":\"Upper body · bench strength\",\"offset\":0,\"roles\":[\"push\",\"pull\",\"shoulder\",\"pull\"]},{\"key\":\"day-1\",\"name\":\"Lower body · squat strength\",\"offset\":1,\"roles\":[\"squat\",\"posterior\",\"calf\",\"core\"]},{\"key\":\"day-2\",\"name\":\"Upper body · overhead strength\",\"offset\":3,\"roles\":[\"shoulder\",\"pull\",\"push\",\"pull\"]},{\"key\":\"day-3\",\"name\":\"Lower body · deadlift strength\",\"offset\":4,\"roles\":[\"posterior\",\"squat\",\"calf\",\"core\"]}]",
+        "phases": "[{\"key\":\"foundation\",\"name\":\"Foundation\",\"from\":1,\"to\":4,\"templateIds\":[\"f04cc3f9-df31-4771-b9b4-8875d6817a0d\",\"d23b545c-61bc-4436-9cf5-3b3e76852c33\",\"a18dd960-28cf-4332-8952-18b2f77647d9\",\"94c73fb0-7601-46f9-94e9-e6bc1548457f\"]},{\"key\":\"evolution\",\"name\":\"Evolution\",\"from\":5,\"to\":8,\"templateIds\":[\"2dc79a54-2a2d-490c-a0ef-50212900170f\",\"a8227b05-095f-433d-982b-7867741b281a\",\"94216253-2432-4843-8cf9-f58ede9635e7\",\"b4ca68b6-dd0b-4d9d-90da-e677f490474b\"]}]"
+      },
+      "createdAt": 1792709040689,
+      "updatedAt": 1792709040689
+    },
+    {
+      "id": "bbc67fb7-146a-46bd-8f95-9593e1599e32",
+      "kind": "schedule",
+      "date": "2026-09-25",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "43173182-e08a-4fcd-90c8-a1987bc3f383",
+        "name": "Full body C",
+        "week": 8,
+        "dayIndex": 2,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "cdccc548-d644-443b-8d8b-297627c059af",
+      "kind": "schedule",
+      "date": "2026-09-23",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "924b499b-e8c0-43a1-9e37-58c2cbd98e60",
+        "name": "Full body B",
+        "week": 8,
+        "dayIndex": 1,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "075a1f7a-f05e-4234-9d8a-ca4b69fb6dc2",
+      "kind": "schedule",
+      "date": "2026-09-21",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "001b03b3-3cdc-41f3-afb9-b0fd7e34dd34",
+        "name": "Full body A",
+        "week": 8,
+        "dayIndex": 0,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "791cae7b-b282-4941-a9b8-43b66c10d947",
+      "kind": "schedule",
+      "date": "2026-09-18",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "43173182-e08a-4fcd-90c8-a1987bc3f383",
+        "name": "Full body C",
+        "week": 7,
+        "dayIndex": 2,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "3a2c185a-1efe-46be-a676-891cf061eddf",
+      "kind": "schedule",
+      "date": "2026-09-16",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "924b499b-e8c0-43a1-9e37-58c2cbd98e60",
+        "name": "Full body B",
+        "week": 7,
+        "dayIndex": 1,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "c535ce90-7552-4108-89a4-83c8f719b966",
+      "kind": "schedule",
+      "date": "2026-09-14",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "001b03b3-3cdc-41f3-afb9-b0fd7e34dd34",
+        "name": "Full body A",
+        "week": 7,
+        "dayIndex": 0,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "46f019f1-2512-4e59-bc50-52afb80676b6",
+      "kind": "schedule",
+      "date": "2026-09-11",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "43173182-e08a-4fcd-90c8-a1987bc3f383",
+        "name": "Full body C",
+        "week": 6,
+        "dayIndex": 2,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "064b27b3-f9b0-4dbc-8b9c-c77b87c4acb3",
+      "kind": "schedule",
+      "date": "2026-09-09",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "924b499b-e8c0-43a1-9e37-58c2cbd98e60",
+        "name": "Full body B",
+        "week": 6,
+        "dayIndex": 1,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "0ea17df8-32d8-448e-bcee-759542a74d9a",
+      "kind": "schedule",
+      "date": "2026-09-07",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "001b03b3-3cdc-41f3-afb9-b0fd7e34dd34",
+        "name": "Full body A",
+        "week": 6,
+        "dayIndex": 0,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "f528ca35-6d4f-486e-a534-d99900a7bc50",
+      "kind": "schedule",
+      "date": "2026-09-04",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "43173182-e08a-4fcd-90c8-a1987bc3f383",
+        "name": "Full body C",
+        "week": 5,
+        "dayIndex": 2,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "30026076-4c61-4890-bb81-5bfb5692f42a",
+      "kind": "schedule",
+      "date": "2026-09-02",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "924b499b-e8c0-43a1-9e37-58c2cbd98e60",
+        "name": "Full body B",
+        "week": 5,
+        "dayIndex": 1,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "4c5b6060-5060-4102-8272-34e14d203a99",
+      "kind": "schedule",
+      "date": "2026-08-31",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "001b03b3-3cdc-41f3-afb9-b0fd7e34dd34",
+        "name": "Full body A",
+        "week": 5,
+        "dayIndex": 0,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "586649f2-d806-4e36-bed5-4dabd753b06c",
+      "kind": "schedule",
+      "date": "2026-08-28",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "76b7f7b9-38e4-48ce-b3f1-bc7b620e9b20",
+        "name": "Full body C",
+        "week": 4,
+        "dayIndex": 2,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "c7d17352-f1c7-4630-9855-1916e31f9103",
+      "kind": "schedule",
+      "date": "2026-08-26",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "f3851f4a-a280-4c53-815f-44830b0e0759",
+        "name": "Full body B",
+        "week": 4,
+        "dayIndex": 1,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "20283629-81e8-470c-adc1-030834dc4ed2",
+      "kind": "schedule",
+      "date": "2026-08-24",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "bef3fdb2-104c-49ac-b7e8-e289717f50f6",
+        "name": "Full body A",
+        "week": 4,
+        "dayIndex": 0,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "62bcb6c9-cc12-4f9e-a447-c8017d6b863e",
+      "kind": "schedule",
+      "date": "2026-08-21",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "76b7f7b9-38e4-48ce-b3f1-bc7b620e9b20",
+        "name": "Full body C",
+        "week": 3,
+        "dayIndex": 2,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "51d74dd9-1000-4570-bd9b-60b6250f88ad",
+      "kind": "schedule",
+      "date": "2026-08-19",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "f3851f4a-a280-4c53-815f-44830b0e0759",
+        "name": "Full body B",
+        "week": 3,
+        "dayIndex": 1,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "62c6dc55-ff8e-423b-b426-6c72f9b2eafd",
+      "kind": "schedule",
+      "date": "2026-08-17",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "bef3fdb2-104c-49ac-b7e8-e289717f50f6",
+        "name": "Full body A",
+        "week": 3,
+        "dayIndex": 0,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "abc27f85-a452-40c5-a64d-e8d65e33a824",
+      "kind": "schedule",
+      "date": "2026-08-14",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "76b7f7b9-38e4-48ce-b3f1-bc7b620e9b20",
+        "name": "Full body C",
+        "week": 2,
+        "dayIndex": 2,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "392cf8ce-0416-4c0c-b534-0b91620478f1",
+      "kind": "schedule",
+      "date": "2026-08-12",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "f3851f4a-a280-4c53-815f-44830b0e0759",
+        "name": "Full body B",
+        "week": 2,
+        "dayIndex": 1,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "c05b4632-6438-4a23-a178-78b9b418e825",
+      "kind": "schedule",
+      "date": "2026-08-10",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "bef3fdb2-104c-49ac-b7e8-e289717f50f6",
+        "name": "Full body A",
+        "week": 2,
+        "dayIndex": 0,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040654,
+      "updatedAt": 1792709040654
+    },
+    {
+      "id": "f018eaa5-9ae9-47bf-9a16-f89a59724b65",
+      "kind": "schedule",
+      "date": "2026-08-07",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "76b7f7b9-38e4-48ce-b3f1-bc7b620e9b20",
+        "name": "Full body C",
+        "week": 1,
+        "dayIndex": 2,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040653,
+      "updatedAt": 1792709040653
+    },
+    {
+      "id": "9df7b7c5-19ec-4d71-8a27-6e9847dd23f4",
+      "kind": "schedule",
+      "date": "2026-08-05",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "f3851f4a-a280-4c53-815f-44830b0e0759",
+        "name": "Full body B",
+        "week": 1,
+        "dayIndex": 1,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792709040653,
+      "updatedAt": 1792709040653
+    },
+    {
+      "id": "4fe191a1-fd0c-4d9b-b38b-23ac8d1c41a3",
+      "kind": "schedule",
+      "date": "2026-08-03",
+      "data": {
+        "forgePath": 1,
+        "programId": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+        "templateId": "bef3fdb2-104c-49ac-b7e8-e289717f50f6",
+        "name": "Full body A",
+        "week": 1,
+        "dayIndex": 0,
+        "phase": "foundation",
+        "workoutId": "f23b91cf-6fb4-4ca9-9de8-1e3aaa1811da",
+        "skipped": false
+      },
+      "createdAt": 1792709040653,
+      "updatedAt": 1792709040665
+    },
+    {
+      "id": "8febc81b-dc7a-4aaf-b266-6cc8cc8038e2",
+      "kind": "program",
+      "date": "2026-08-03",
+      "data": {
+        "forgePath": 1,
+        "engineVersion": 1,
+        "pathKey": "build-muscle",
+        "name": "BUILD MUSCLE",
+        "weeks": 8,
+        "started": "2026-08-03",
+        "status": "archived",
+        "pausedOn": "",
+        "pausedDays": 0,
+        "preferences": "{\"pathKey\":\"build-muscle\",\"experience\":\"Intermediate\",\"frequency\":3,\"equipment\":[\"Dumbbell\",\"Barbell\",\"EZ bar\",\"Kettlebell\",\"Cable\",\"Chest press machine\",\"Leg press machine\",\"Leg curl machine\",\"Leg extension machine\",\"Chest fly machine\",\"Seated row machine\",\"Shoulder press machine\",\"Lateral raise machine\",\"Hack squat machine\",\"Hip thrust machine\",\"Calf raise machine\",\"Assisted pull-up machine\",\"Smith machine\",\"Resistance band\",\"Band anchor\",\"Pull-up bar\",\"Dip station\",\"Bench\",\"Preacher curl bench\",\"Squat rack\"],\"gymAccess\":true,\"excluded\":[],\"avoidPatterns\":[],\"limitations\":\"\",\"priorities\":[],\"style\":\"Balanced\",\"startDate\":\"2026-08-03\",\"weekdays\":[0,2,4]}",
+        "days": "[{\"key\":\"day-0\",\"name\":\"Full body A\",\"offset\":0,\"roles\":[\"squat\",\"push\",\"pull\",\"posterior\",\"core\",\"shoulder\"]},{\"key\":\"day-1\",\"name\":\"Full body B\",\"offset\":2,\"roles\":[\"squat\",\"push\",\"pull\",\"posterior\",\"core\",\"shoulder\"]},{\"key\":\"day-2\",\"name\":\"Full body C\",\"offset\":4,\"roles\":[\"squat\",\"push\",\"pull\",\"posterior\",\"core\",\"shoulder\"]}]",
+        "phases": "[{\"key\":\"foundation\",\"name\":\"Foundation\",\"from\":1,\"to\":4,\"templateIds\":[\"bef3fdb2-104c-49ac-b7e8-e289717f50f6\",\"f3851f4a-a280-4c53-815f-44830b0e0759\",\"76b7f7b9-38e4-48ce-b3f1-bc7b620e9b20\"]},{\"key\":\"evolution\",\"name\":\"Evolution\",\"from\":5,\"to\":8,\"templateIds\":[\"001b03b3-3cdc-41f3-afb9-b0fd7e34dd34\",\"924b499b-e8c0-43a1-9e37-58c2cbd98e60\",\"43173182-e08a-4fcd-90c8-a1987bc3f383\"]}]"
+      },
+      "createdAt": 1792709040650,
+      "updatedAt": 1792709040689
+    }
+  ],
+  "customExercises": [
+    {
+      "id": "custom-legacy-landmine-row",
+      "name": "Legacy Landmine Row (custom)",
+      "muscle": "Back",
+      "secondary": [
+        "Biceps"
+      ],
+      "equipment": "Barbell",
+      "pattern": "horizontal pull",
+      "difficulty": "Intermediate",
+      "instructions": [
+        "Hinge at the hips with a braced neutral back. Pull toward the lower ribs and lower under control, without jerking the torso.",
+        "Use a load or variation that allows controlled technique. Exhale during effort and record only the work you perform."
+      ],
+      "mistakes": "Rushing repetitions, using momentum, or exceeding a controllable range.",
+      "safety": "Stop for sharp pain. Use a spotter or rack safeties for heavy free-weight lifts. Seek qualified coaching for unfamiliar movements.",
+      "category": "strength",
+      "unilateral": false,
+      "tracking": [
+        "kg",
+        "reps"
+      ]
+    }
+  ],
+  "favorites": [
+    "hammer-curl"
+  ]
+}

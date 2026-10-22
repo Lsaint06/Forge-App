@@ -15,13 +15,11 @@ import {
 import { exerciseStimulus } from "../src/domain/paths/stimulus";
 import { assessProgram } from "../src/domain/paths/programQuality";
 import {
-  acceptPath,
-  editPathDay,
   pathPrograms,
   pathSessions,
-  savedDraft,
   startPathSession,
 } from "../src/data/paths";
+import { acceptPath, editPathDay, savedDraft } from "../src/data/pathBuilder";
 import { generatePath as legacyPath } from "../src/domain/paths/legacyGenerator";
 import type { PathPreferences } from "../src/domain/paths/model";
 import { pathPreferences, pathRepository } from "./path-fixture";

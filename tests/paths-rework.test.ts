@@ -14,13 +14,11 @@ import {
 import { forgePaths, movementMenu } from "../src/domain/paths/catalog";
 import { pathPreferences, pathRepository } from "./path-fixture";
 import {
-  acceptPath,
   pathPrograms,
   pathSessions,
-  savedDraft,
   startPathSession,
-  editPathDay,
 } from "../src/data/paths";
+import { acceptPath, savedDraft, editPathDay } from "../src/data/pathBuilder";
 
 test("muscle-building defaults include complementary back, leg, calf and arm work", () => {
   for (const key of ["build-muscle", "advanced-physique"] as const) {

@@ -4,12 +4,11 @@ import { router } from "expo-router";
 import ForgePaths from "../../src/screens/ForgePaths";
 import { ProgramSummary } from "../../src/components/ProgramSummary";
 import { useRepo, confirm } from "../../src/state";
-import { pathRepository, pathPreferences } from "../path-fixture";
+import { pathRepository } from "../path-fixture";
+import { legacyUserRepository } from "../legacy-fixture";
 import { placeholderProgram } from "../program-fixture";
-import { acceptPath, currentPath } from "../../src/data/paths";
+import { currentPath } from "../../src/data/paths";
 import { currentEnrollment } from "../../src/data/programs";
-import { generatePath } from "../../src/domain/paths/generator";
-import { exercises } from "../../src/data/catalog";
 import type { CuratedProgram } from "../../src/domain/programs/model";
 import strengthDraft from "../../src/programs/library/forge-strength-intermediate-3-day.json";
 import muscleDraft from "../../src/programs/library/forge-muscle-beginner-3-day.json";
@@ -137,9 +136,9 @@ test("recommend, review, start and train a program", async () => {
 });
 
 test("replacing a generated Path asks first and archives it on confirmation", async () => {
-  const { r, db } = pathRepository();
+  // An existing user's generated Path, restored from a pre-Phase-6 backup.
+  const { r, db } = legacyUserRepository();
   try {
-    acceptPath(r, generatePath(pathPreferences(), exercises));
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<ForgePaths />);
     await fireEvent.press(view.getByLabelText("View Test Strength Program"));
@@ -246,6 +245,57 @@ test("the development preview lists Strength and Muscle Building drafts and trai
     ).toEqual(
       musclePreview.phases[0]!.sessions[0]!.exercises.map((e) => e.sets),
     );
+  } finally {
+    db.close();
+  }
+});
+
+test("with all 18 programs published Forge Paths is curated-only and the earlier Path stays available", async () => {
+  const library = [
+    ...[
+      "beginner-3",
+      "beginner-4",
+      "beginner-5",
+      "intermediate-3",
+      "intermediate-4",
+      "intermediate-5",
+      "advanced-3",
+      "advanced-4",
+      "advanced-5",
+    ].flatMap((k) => [
+      jest.requireActual(
+        `../../src/programs/library/forge-strength-${k}-day.json`,
+      ),
+      jest.requireActual(
+        `../../src/programs/library/forge-muscle-${k}-day.json`,
+      ),
+    ]),
+  ].map((p) => ({ ...p, status: "published" }) as CuratedProgram);
+  mockPreview.enabled = false;
+  mockLibrary.splice(0, mockLibrary.length, ...library);
+  const { r, db } = legacyUserRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<ForgePaths />);
+    // The existing user's goal "Build muscle", Intermediate, 4 days a week.
+    expect(view.getByText("RECOMMENDED FOR YOU")).toBeTruthy();
+    expect(
+      view.getAllByText("Intermediate Muscle Building · 4 Days").length,
+    ).toBeGreaterThan(0);
+    expect(view.queryByLabelText("Open the Path builder")).toBeNull();
+    expect(view.queryAllByText(/builder|generated|generator/i)).toHaveLength(0);
+    expect(view.getByText("Your current Path")).toBeTruthy();
+    expect(view.getByText("GET STRONG")).toBeTruthy();
+    expect(view.queryByText("DEVELOPMENT BUILD ONLY")).toBeNull();
+    // Starting a program still asks before replacing the current Path.
+    await fireEvent.press(view.getByLabelText("View program"));
+    await fireEvent.press(view.getByLabelText("Start this program"));
+    expect(confirm).toHaveBeenCalledWith(
+      "Replace your current plan?",
+      expect.stringContaining("preserved"),
+      expect.any(Function),
+    );
+    expect(currentPath(r)?.data.name).toBe("GET STRONG");
   } finally {
     db.close();
   }

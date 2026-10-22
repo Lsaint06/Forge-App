@@ -24,10 +24,10 @@ import {
   programWorkoutContext,
   startProgramSession,
 } from "../src/data/programs";
-import { acceptPath, currentPath, pathPrograms } from "../src/data/paths";
-import { generatePath } from "../src/domain/paths/generator";
+import { currentPath, pathPrograms } from "../src/data/paths";
 import { libraryPrograms, programLibrary } from "../src/programs";
-import { pathPreferences, pathRepository } from "./path-fixture";
+import { pathRepository } from "./path-fixture";
+import { legacyUserRepository } from "./legacy-fixture";
 import {
   approvedLowerFatigue,
   approvedMapping,
@@ -586,9 +586,9 @@ test("changing the preferred rest day never rewrites an enrollment or completed 
 });
 
 test("enrolling archives a generated Path without deleting its plan or workouts", () => {
-  const { r, db } = pathRepository();
+  // An existing user's generated Path, restored from a pre-Phase-6 backup.
+  const { r, db } = legacyUserRepository();
   try {
-    acceptPath(r, generatePath(pathPreferences(), exercises));
     const path = currentPath(r)!;
     const workouts = r.workouts().length;
     enrollProgram(r, byCode("I-M3"), "2026-10-19", true, true);
@@ -612,8 +612,15 @@ test("the nine Strength programs are unchanged", () => {
     "forge-strength-advanced-4-day": "1b7c0a7eb443cf",
     "forge-strength-advanced-5-day": "2ea6d6fdb27aa",
   };
+  // Content fingerprints with status normalized: any change to exercises,
+  // sets, reps or progression fails; publication alone does not.
   assert.deepEqual(
-    Object.fromEntries(strength.map((p) => [p.id, programFingerprint(p)])),
+    Object.fromEntries(
+      strength.map((p) => [
+        p.id,
+        programFingerprint({ ...p, status: "draft" }),
+      ]),
+    ),
     expected,
   );
   assert.ok(strength.every((p) => p.status === "draft"));

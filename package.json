@@ -13,7 +13,8 @@
     "export": "expo export --platform ios --platform android --max-workers 2",
     "format": "prettier --write app src tests",
     "format:check": "prettier --check app src tests",
-    "test:ui": "jest --runInBand"
+    "test:ui": "jest --runInBand",
+    "programs:publish": "tsx scripts/publish-programs.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.17",

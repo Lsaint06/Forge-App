@@ -1,22 +1,19 @@
 import type { Repository } from "./repository";
-import type { Journal, Prescription } from "../domain/types";
+import type { Journal } from "../domain/types";
 import { localDate } from "../domain/types";
-import { forgePaths } from "../domain/paths/catalog";
-import {
-  validateDraft,
-  evolutionDays,
-  scheduledDates,
-  type PathDraft,
-} from "../domain/paths/generator";
 import {
   pathProgramDataSchema,
   pathSessionDataSchema,
   addDays,
   daysBetween,
   type PathProgramData,
-  type PathRole,
   type PathSessionData,
 } from "../domain/paths/model";
+
+// GENERATED PATH COMPATIBILITY (Phase 6, docs/PHASE_6.md). Reads and
+// continues generated Paths that lifters already have: their records,
+// schedules, templates and workouts. Nothing here creates a plan or depends
+// on the workout generator; creation lives in ./pathBuilder until retired.
 
 export type SavedPath = { record: Journal; data: PathProgramData };
 export function pathPrograms(r: Repository): SavedPath[] {
@@ -39,7 +36,7 @@ export function standaloneTemplates(r: Repository) {
   );
   return r.templates().filter((t) => !managed.has(t.id));
 }
-function findPath(r: Repository, programId: string) {
+export function findPath(r: Repository, programId: string) {
   const p = pathPrograms(r).find((p) => p.record.id === programId);
   if (!p)
     throw new Error(
@@ -47,93 +44,13 @@ function findPath(r: Repository, programId: string) {
     );
   return p;
 }
-function encode(data: PathProgramData): Journal["data"] {
+export function encodePath(data: PathProgramData): Journal["data"] {
   return {
     ...data,
     preferences: JSON.stringify(data.preferences),
     phases: JSON.stringify(data.phases),
     days: JSON.stringify(data.days),
   };
-}
-export function acceptPath(r: Repository, draft: PathDraft, replace = false) {
-  const checked = validateDraft(draft, r.exercises());
-  const evolution = evolutionDays(checked, r.exercises());
-  const previous = pathPrograms(r).filter((p) => p.data.status !== "archived");
-  if (previous.length && !replace)
-    throw new Error(
-      "You already have a Path. Confirm replacement before starting another.",
-    );
-  return r.transaction(() => {
-    for (const old of previous)
-      r.updateJournal(
-        old.record.id,
-        encode({ ...old.data, status: "archived", pausedOn: "" }),
-      );
-    const templates = (["Foundation", "Evolution"] as const).map((phase) =>
-      (phase === "Foundation" ? checked.days : evolution).map((day) =>
-        r.saveTemplate(
-          `${forgePaths.find((p) => p.key === checked.preferences.pathKey)!.name} · ${day.name}`,
-          day.exercises,
-          undefined,
-          `FORGE PATHS · ${phase}. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.`,
-        ),
-      ),
-    );
-    const data: PathProgramData = {
-      forgePath: 1,
-      engineVersion: checked.engineVersion ?? 1,
-      pathKey: checked.preferences.pathKey,
-      name: forgePaths.find((p) => p.key === checked.preferences.pathKey)!.name,
-      weeks: 8,
-      started: checked.preferences.startDate,
-      status: "active",
-      pausedOn: "",
-      pausedDays: 0,
-      preferences: checked.preferences,
-      days: checked.days.map((day) => ({
-        key: day.key,
-        name: day.name,
-        offset: day.offset,
-        roles: day.roles,
-      })),
-      phases: [
-        {
-          key: "foundation",
-          name: "Foundation",
-          from: 1,
-          to: 4,
-          templateIds: templates[0]!.map((t) => t.id),
-        },
-        {
-          key: "evolution",
-          name: "Evolution",
-          from: 5,
-          to: 8,
-          templateIds: templates[1]!.map((t) => t.id),
-        },
-      ],
-    };
-    const program = r.addJournal("program", encode(data), data.started);
-    for (const at of scheduledDates(checked)) {
-      r.addJournal(
-        "schedule",
-        {
-          forgePath: 1,
-          programId: program.id,
-          templateId:
-            data.phases[at.week <= 4 ? 0 : 1].templateIds[at.dayIndex]!,
-          name: checked.days[at.dayIndex]!.name,
-          week: at.week,
-          dayIndex: at.dayIndex,
-          phase: at.phase,
-          workoutId: "",
-          skipped: false,
-        },
-        at.date,
-      );
-    }
-    return program;
-  });
 }
 export type PathSession = {
   record: Journal;
@@ -228,54 +145,6 @@ export function pathSummary(
   };
 }
 
-// Recent completed sessions where fewer than this share of prescribed working
-// sets were completed at or above their lower rep target count as a shortfall.
-const WORKLOAD_SHORTFALL = 0.75;
-const lowerExperience = {
-  Advanced: "Intermediate",
-  Intermediate: "Beginner",
-} as const;
-
-// Suggests, never applies, a lower experience level when the prescribed
-// workload is consistently not completed. Session duration plays no part.
-export function workloadGuidance(r: Repository, program: SavedPath) {
-  const experience = program.data.preferences.experience;
-  if (experience === "Beginner") return undefined;
-  const templates = r.templates();
-  const recent = pathSessions(r, program)
-    .filter((s) => s.state === "completed")
-    .map((s) => ({ s, workout: r.workout(s.data.workoutId)! }))
-    .sort((a, b) => (b.workout.finishedAt ?? 0) - (a.workout.finishedAt ?? 0))
-    .slice(0, 4);
-  if (recent.length < 3) return undefined;
-  const shortfalls = recent.filter(({ s, workout }) => {
-    const prescribed =
-      templates.find((t) => t.id === s.data.templateId)?.exercises ?? [];
-    const planned = prescribed.reduce((n, e) => n + e.sets, 0);
-    if (!planned) return false;
-    let met = 0;
-    for (const row of r.workoutExercises(workout.id)) {
-      const target = prescribed.find((e) => e.exerciseId === row.exerciseId);
-      if (!target) continue;
-      met += Math.min(
-        target.sets,
-        r
-          .sets(row.id)
-          .filter(
-            (set) =>
-              set.completed && set.kind !== "warmup" && set.reps >= target.reps,
-          ).length,
-      );
-    }
-    return met / planned < WORKLOAD_SHORTFALL;
-  }).length;
-  if (shortfalls < 3) return undefined;
-  const suggested = lowerExperience[experience];
-  return {
-    suggested,
-    message: `${shortfalls} of your last ${recent.length} Path workouts finished well short of the prescribed sets and reps. Consider rebuilding this Path at the ${suggested} level. Forge will not change your level automatically.`,
-  };
-}
 function findSession(r: Repository, sessionId: string) {
   const raw = r
     .journal("schedule")
@@ -307,15 +176,19 @@ export function startPathSession(r: Repository, sessionId: string) {
         "Finish or discard your current workout first. It has not been assigned to this planned session.",
       );
     }
-    const phaseIndex = session.data.week <= 4 ? 0 : 1;
-    const draft = savedDraft(r, program, phaseIndex);
-    validateDraft(draft, r.exercises());
     const template = r
       .templates()
       .find((t) => t.id === session.data.templateId);
     if (!template)
       throw new Error(
-        "The template was removed. Restore a backup or edit this Path's workout before starting.",
+        "The template was removed. Restore a backup to continue this Path's workout.",
+      );
+    // Saved Path workouts start exactly as stored. They are never
+    // regenerated; an exercise that no longer exists is reported instead.
+    const known = new Set(r.exercises().map((e) => e.id));
+    if (template.exercises.some((e) => !known.has(e.exerciseId)))
+      throw new Error(
+        "This Path workout uses an exercise that is no longer available. Restore a backup or choose a Forge program.",
       );
     const workout = r.startWorkout(
       `${program.data.name} · ${session.data.name}`,
@@ -329,87 +202,6 @@ export function startPathSession(r: Repository, sessionId: string) {
     return workout;
   });
 }
-export function savedDraft(
-  r: Repository,
-  program: SavedPath,
-  phaseIndex = 0,
-): PathDraft {
-  const templates = r.templates();
-  return {
-    engineVersion: program.data.engineVersion,
-    preferences: program.data.preferences,
-    days: program.data.days.map((day, index) => ({
-      ...day,
-      exercises:
-        templates.find(
-          (t) => t.id === program.data.phases[phaseIndex]!.templateIds[index],
-        )?.exercises ?? [],
-    })),
-  };
-}
-// Saves a Foundation day. Engine 8+ plans may also change the day's movement
-// slots (adding, removing or reordering exercises): pass `roles` aligned with
-// `items`. Earlier engines keep their fixed slot structure.
-export function editPathDay(
-  r: Repository,
-  programId: string,
-  index: number,
-  items: Prescription[],
-  roles?: PathRole[],
-) {
-  const program = findPath(r, programId);
-  if (program.data.status === "archived")
-    throw new Error("Archived Paths cannot be edited.");
-  const draft = savedDraft(r, program);
-  if (!draft.days[index]) throw new Error("Training day not found.");
-  const customizable = (draft.engineVersion ?? 1) >= 8;
-  if (roles && !customizable)
-    throw new Error(
-      "This saved plan uses an earlier planner. Rebuild the Path to add, remove or reorder exercises.",
-    );
-  draft.days[index]!.exercises = items;
-  if (roles) draft.days[index]!.roles = roles;
-  validateDraft(draft, r.exercises());
-  // Current plans re-derive the whole Evolution week from the edited
-  // Foundation week, so phase differences stay consistent with user edits.
-  // Earlier engines apply the edit identically to both phases.
-  const evolution =
-    (draft.engineVersion ?? 1) >= 8
-      ? evolutionDays(draft, r.exercises())
-      : undefined;
-  r.transaction(() => {
-    const save = (
-      templateId: string,
-      exercises: Prescription[],
-      day: number,
-    ) => {
-      const existing = r.templates().find((t) => t.id === templateId);
-      r.saveTemplate(
-        existing?.name ?? `${program.data.name} · ${draft.days[day]!.name}`,
-        exercises,
-        templateId,
-        existing?.notes ?? "FORGE PATHS",
-      );
-    };
-    const [foundation, evolutionPhase] = program.data.phases;
-    if (roles)
-      r.updateJournal(
-        programId,
-        encode({
-          ...program.data,
-          days: program.data.days.map((d, i) =>
-            i === index ? { ...d, roles } : d,
-          ),
-        }),
-      );
-    save(foundation.templateIds[index]!, items, index);
-    if (!evolution) save(evolutionPhase.templateIds[index]!, items, index);
-    else
-      evolution.forEach((day, i) =>
-        save(evolutionPhase.templateIds[i]!, day.exercises, i),
-      );
-  });
-}
 // Archives a generated Path when the lifter starts a curated program. Its
 // schedule, templates and recorded workouts are kept, as when replacing a Path.
 export function archivePath(r: Repository, programId: string) {
@@ -417,7 +209,7 @@ export function archivePath(r: Repository, programId: string) {
   if (program.data.status === "archived") return;
   r.updateJournal(
     programId,
-    encode({ ...program.data, status: "archived", pausedOn: "" }),
+    encodePath({ ...program.data, status: "archived", pausedOn: "" }),
   );
 }
 export function pausePath(
@@ -430,7 +222,7 @@ export function pausePath(
     throw new Error("Only an active Path can be paused.");
   r.updateJournal(
     programId,
-    encode({ ...program.data, status: "paused", pausedOn: today }),
+    encodePath({ ...program.data, status: "paused", pausedOn: today }),
   );
 }
 export function resumePath(
@@ -458,7 +250,7 @@ export function resumePath(
     }
     r.updateJournal(
       programId,
-      encode({
+      encodePath({
         ...program.data,
         status: "active",
         pausedOn: "",

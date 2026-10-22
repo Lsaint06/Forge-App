@@ -8,15 +8,13 @@ import {
   type CloudRecord,
 } from "../src/cloud/sync";
 import {
-  acceptPath,
+  currentPath,
   pathPrograms,
   pathSummary,
   pathSessions,
   startPathSession,
 } from "../src/data/paths";
-import { generatePath } from "../src/domain/paths/generator";
-import { exercises } from "../src/data/catalog";
-import { pathPreferences } from "./path-fixture";
+import { legacyBackupText } from "./legacy-fixture";
 function local() {
   const db = new DatabaseSync(":memory:");
   const adapter: SqlDatabase = {
@@ -53,10 +51,14 @@ function remote(rows: CloudRecord[] = []) {
   return cloud;
 }
 test("Path phases, calendar links and completed sessions round-trip through the existing sync protocol", async () => {
+  // An existing user's generated Path, restored from a pre-Phase-6 backup.
   const a = local();
-  acceptPath(a, generatePath(pathPreferences(), exercises));
-  const program = pathPrograms(a)[0]!;
-  const session = pathSessions(a, program)[0]!;
+  a.importBackup(legacyBackupText);
+  const program = currentPath(a)!;
+  const completedBefore = pathSummary(a, program).completed;
+  const session = pathSessions(a, program).find(
+    (s) => s.state === "scheduled" || s.state === "missed",
+  )!;
   const workout = startPathSession(a, session.record.id);
   a.editSet(a.workoutSets(workout.id)[0]!.id, { reps: 8, completed: true });
   a.finishWorkout(workout.id);
@@ -65,12 +67,13 @@ test("Path phases, calendar links and completed sessions round-trip through the 
   const b = local();
   const result = await synchronize(b, server, "paths-user");
   assert.deepEqual(result.errors, []);
-  assert.deepEqual(pathPrograms(b)[0]!.data.phases, program.data.phases);
-  assert.equal(pathSummary(b, pathPrograms(b)[0]!).completed, 1);
+  const synced = currentPath(b)!;
+  assert.deepEqual(synced.data.phases, program.data.phases);
+  assert.equal(pathPrograms(b).length, pathPrograms(a).length);
+  assert.equal(pathSummary(b, synced).completed, completedBefore + 1);
   assert.equal(
-    pathSessions(b, pathPrograms(b)[0]!).find(
-      (s) => s.record.id === session.record.id,
-    )!.data.workoutId,
+    pathSessions(b, synced).find((s) => s.record.id === session.record.id)!.data
+      .workoutId,
     workout.id,
   );
 });

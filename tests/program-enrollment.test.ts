@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pathRepository, pathPreferences } from "./path-fixture";
+import { pathRepository } from "./path-fixture";
 import { placeholderProgram } from "./program-fixture";
 import {
   currentEnrollment,
@@ -12,14 +12,8 @@ import {
   skipProgramSession,
   startProgramSession,
 } from "../src/data/programs";
-import {
-  acceptPath,
-  currentPath,
-  pathPrograms,
-  visibleSchedules,
-} from "../src/data/paths";
-import { generatePath } from "../src/domain/paths/generator";
-import { exercises } from "../src/data/catalog";
+import { currentPath, pathPrograms, visibleSchedules } from "../src/data/paths";
+import { legacyUserRepository } from "./legacy-fixture";
 import { sessionAt, suggestedDates } from "../src/domain/programs/enrollment";
 import type { CuratedProgram } from "../src/domain/programs/model";
 
@@ -202,9 +196,9 @@ test("finishing every session completes the program", () => {
 });
 
 test("starting a program archives a generated Path without losing its data", () => {
-  const { r, db } = pathRepository();
+  // An existing user's generated Path, restored from a pre-Phase-6 backup.
+  const { r, db } = legacyUserRepository();
   try {
-    acceptPath(r, generatePath(pathPreferences(), exercises));
     const path = currentPath(r)!;
     const schedules = r.journal("schedule").length;
     const templates = r.templates().length;

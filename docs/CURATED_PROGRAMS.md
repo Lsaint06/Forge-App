@@ -13,7 +13,7 @@ Forge Paths is moving from automatically generated workouts to **human-authored 
 | 3. Program data architecture | Done — schema, validation, version lock, recommendation, weekday placement |
 | 4. Paths interface (recommended program + library) | Done — Train → Forge Paths |
 | 5. Workout tracking integration (enrollment, session start) | Done |
-| 6. Legacy generator retirement | Not started — generator remains fully in use |
+| 6. Legacy generator retirement | Prepared, awaiting publication approval. The compatibility layer is separated from the generator, curated-only activation is ready and the deletion is staged. See [PHASE_6.md](./PHASE_6.md) |
 
 The bundled library contains 18 **drafts**: the nine **Forge Strength V2** programs ([STRENGTH_V2.md](./STRENGTH_V2.md)) and the nine **Forge Muscle Building V3** programs ([MUSCLE_BUILDING_V3.md](./MUSCLE_BUILDING_V3.md)). Drafts are never listed or recommended in production, so Forge Paths still shows an honest empty state. The generated Path builder remains available from the same screen, and saved generated plans are unchanged.
 
@@ -83,7 +83,7 @@ Rules enforced by `npm test`:
 - With `durationWeeks`, every phase has `weeks` and the weeks add up. Without it, the program has one open-ended phase.
 - Every `exerciseId` must exist in the exercise catalog and be rep-based. Unknown exercises are reported, never substituted. Time-based holds such as planks are not supported yet.
 - Unknown fields are rejected, which catches typos.
-- **Publishing:** after setting `"status": "published"`, run `npm test`. The failure message prints the fingerprint to add to `src/programs/published-lock.json`.
+- **Publishing:** use `npm run programs:publish`. It's a dry run by default; `--apply` requires approval. It validates, flips `status` and records fingerprints in `src/programs/published-lock.json`. See [PHASE_6.md §4](./PHASE_6.md#4-publication-procedure). Manually: after setting `"status": "published"`, run `npm test`; the failure message prints the fingerprint to add to the lock.
 - **Published versions are frozen.** Any change to a published version fails the lock check. Publish the change as a new `version` and keep the old version bundled, so enrolled lifters can still load the exact version they started.
 
 Only the latest published version of each program is listed. Drafts are never listed or recommended.
@@ -118,7 +118,9 @@ Personal customization still edits only the started workout. Saved personal chan
 
 ## Transition plan for later phases
 
-- **Generator and legacy Paths:** generated plans stay fully usable. Generator-only behavior—validation, Evolution re-derivation, role-based reschedule checks and workload-level suggestions—does not apply to curated programs. Creating new generated Paths stays available until the curated flow is verified on devices. Removing generator code requires a separate migration and test review.
+- **Generator and legacy Paths:** see [PHASE_6.md](./PHASE_6.md).
+  - Existing generated Paths are read and continued by a generator-free compatibility layer (`src/data/paths.ts`, `src/screens/LegacyPath.tsx`).
+  - Creating new generated Paths stays available only until the 18 curated programs are published (`npm run programs:publish`). After that, Forge Paths becomes curated-only automatically and the generator is deleted in the same release.
 
 ## Known pre-existing check failures
 
