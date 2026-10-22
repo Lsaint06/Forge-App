@@ -1,0 +1,505 @@
+{
+  "id": "forge-muscle-intermediate-5-day",
+  "version": 1,
+  "status": "draft",
+  "name": "Intermediate Muscle Building · 5 Days",
+  "summary": "Forge Muscle Building V3 (I-M5): five hypertrophy sessions a week for intermediate lifters.",
+  "description": "Forge Muscle Building V3 program I-M5. Split: Push / Pull / Legs / Upper / Lower. Sessions: Push; Pull; Legs; Upper; Lower. Listed sets are working sets; warm-up sets are separate. Unilateral prescriptions are per side. Start with about 2–3 minutes of rest after compound exercises and 1–2 minutes after isolation work, and rest longer whenever you need to keep your sets productive.",
+  "experience": "Intermediate",
+  "goal": "Muscle Building",
+  "daysPerWeek": 5,
+  "equipment": ["Barbell", "Cable", "Dumbbell", "Machine"],
+  "weeklyPattern": [
+    "train",
+    "train",
+    "train",
+    "rest",
+    "train",
+    "train",
+    "rest"
+  ],
+  "progression": "Ongoing double progression at about 1–3 RIR, driven by recorded performance. Build reps within each range. When every working set reaches the top of the range at the target effort, with effort logged, add one small load increment and build back up. Two sessions at the same load without added reps flag a possible stall. Listed sets are working sets; warm-up sets are separate. Keep technique and range of motion consistent from session to session. Add load only when your logged sets earn it, and never because a week has passed. Missing effort data never counts as reaching the target. One missed session keeps the load, and repeated misses suggest a modest reduction. Weekly sets never increase automatically, and training to failure is never required. When fatigue builds up or performance stalls, choose a lower-fatigue session (about 35% fewer working sets at 3–4 RIR). There are no scheduled deloads.",
+  "progressionModel": "double-progression",
+  "lowerFatigue": {
+    "setReduction": 0.35,
+    "rir": {
+      "min": 3,
+      "max": 4
+    }
+  },
+  "phases": [
+    {
+      "name": "Ongoing",
+      "notes": "Repeat the week and keep progressing through reps and load. There are no scheduled deloads; choose a lower-fatigue session when you need one.",
+      "block": "standard",
+      "rir": {
+        "primary": {
+          "min": 1,
+          "max": 3
+        },
+        "secondary": {
+          "min": 1,
+          "max": 3
+        },
+        "accessory": {
+          "min": 1,
+          "max": 3
+        }
+      },
+      "sessions": [
+        {
+          "id": "day-1",
+          "name": "Push",
+          "exercises": [
+            {
+              "exerciseId": "incline-dumbbell-bench-press",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "machine-chest-press",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "machine-shoulder-press",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "cable-lateral-raise",
+              "sets": 3,
+              "reps": {
+                "min": 12,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "standing-cable-fly",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "overhead-cable-triceps-extension",
+              "sets": 3,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-2",
+          "name": "Pull",
+          "exercises": [
+            {
+              "exerciseId": "chest-supported-dumbbell-row",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "lat-pulldown",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-cable-row",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "reverse-pec-deck",
+              "sets": 3,
+              "reps": {
+                "min": 12,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "machine-preacher-curl",
+              "sets": 3,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "incline-dumbbell-curl",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-3",
+          "name": "Legs",
+          "exercises": [
+            {
+              "exerciseId": "hack-squat",
+              "sets": 3,
+              "reps": {
+                "min": 6,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "romanian-deadlift",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "leg-press",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-leg-curl",
+              "sets": 3,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "leg-extension",
+              "sets": 2,
+              "reps": {
+                "min": 12,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "standing-calf-raise",
+              "sets": 3,
+              "reps": {
+                "min": 10,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-4",
+          "name": "Upper",
+          "exercises": [
+            {
+              "exerciseId": "dumbbell-bench-press",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "neutral-grip-lat-pulldown",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "chest-supported-dumbbell-row",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "cable-lateral-raise",
+              "sets": 2,
+              "reps": {
+                "min": 12,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "triceps-rope-pushdown",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "cable-curl",
+              "sets": 2,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        },
+        {
+          "id": "day-5",
+          "name": "Lower",
+          "exercises": [
+            {
+              "exerciseId": "bulgarian-split-squat",
+              "sets": 3,
+              "reps": {
+                "min": 8,
+                "max": 10
+              },
+              "restSeconds": 120,
+              "notes": "Supported Bulgarian split squat: hold a stable support for balance.",
+              "role": "secondary",
+              "perSide": true,
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "seated-leg-curl",
+              "sets": 3,
+              "reps": {
+                "min": 10,
+                "max": 12
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "machine-hip-thrust",
+              "sets": 2,
+              "reps": {
+                "min": 8,
+                "max": 12
+              },
+              "restSeconds": 120,
+              "role": "secondary",
+              "rest": {
+                "min": 120,
+                "max": 180
+              }
+            },
+            {
+              "exerciseId": "leg-extension",
+              "sets": 2,
+              "reps": {
+                "min": 12,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "seated-calf-raise",
+              "sets": 3,
+              "reps": {
+                "min": 12,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            },
+            {
+              "exerciseId": "cable-crunch",
+              "sets": 2,
+              "reps": {
+                "min": 12,
+                "max": 15
+              },
+              "restSeconds": 60,
+              "role": "accessory",
+              "rest": {
+                "min": 60,
+                "max": 120
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -4419,6 +4419,24 @@
     "tracking": ["kg", "reps"]
   },
   {
+    "id": "smith-machine-romanian-deadlift",
+    "name": "Smith Machine Romanian Deadlift",
+    "muscle": "Hamstrings",
+    "secondary": ["Glutes"],
+    "equipment": "Smith machine",
+    "pattern": "hinge",
+    "difficulty": "Beginner",
+    "instructions": [
+      "Set the safeties before loading. Brace the trunk and hinge from the hips with the bar close, keep the spine neutral and drive the hips forward without leaning back at the top.",
+      "Use a load or variation that allows controlled technique. Exhale during effort and record only the work you perform."
+    ],
+    "mistakes": "Rushing repetitions, using momentum, or exceeding a controllable range.",
+    "safety": "Stop for sharp pain. Use a spotter or rack safeties for heavy free-weight lifts. Seek qualified coaching for unfamiliar movements.",
+    "category": "strength",
+    "unilateral": false,
+    "tracking": ["kg", "reps"]
+  },
+  {
     "id": "stiff-leg-deadlift",
     "name": "Stiff-Leg Deadlift",
     "muscle": "Hamstrings",

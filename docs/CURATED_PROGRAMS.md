@@ -15,7 +15,7 @@ Forge Paths is moving from automatically generated workouts to **human-authored 
 | 5. Workout tracking integration (enrollment, session start) | Done |
 | 6. Legacy generator retirement | Not started — generator remains fully in use |
 
-The bundled library contains the nine **Forge Strength V2** programs as **drafts** (see [STRENGTH_V2.md](./STRENGTH_V2.md)). Drafts are never listed or recommended, so Forge Paths still shows an honest empty state. The generated Path builder remains available from the same screen, and saved generated plans are unchanged.
+The bundled library contains 18 **drafts**: the nine **Forge Strength V2** programs ([STRENGTH_V2.md](./STRENGTH_V2.md)) and the nine **Forge Muscle Building V3** programs ([MUSCLE_BUILDING_V3.md](./MUSCLE_BUILDING_V3.md)). Drafts are never listed or recommended in production, so Forge Paths still shows an honest empty state. The generated Path builder remains available from the same screen, and saved generated plans are unchanged.
 
 ## Training profile
 
@@ -109,7 +109,7 @@ Implemented in `src/data/programs.ts`, with record schemas in `src/domain/progra
 - **Enrollment:** a `program` journal record marked `forgeProgram: 1` stores the program ID, exact version, start date, status, and suggested weekdays. The authored program is referenced, never copied or edited. Records sync and back up like other journal entries. They are kept separate from generated Path records and the ordinary calendar.
 - **Replacing a plan:** starting a program asks for confirmation if another curated program or a generated Path is active. The previous plan is archived; its schedules, templates, and workouts are preserved.
 - **Session order:** sessions follow the authored order. The next session is the first one not completed or skipped. Suggested dates come from the author's weekly pattern and the user's rest day. Missing a day does not mark the session missed, add makeup work, or change the program.
-- **Starting a session:** Forge creates a workout from that session, copying exercises, sets, rep targets, and rest into the workout. Later program versions cannot rewrite it. The user enters working loads. The workout card shows **Program target** and the author's exercise note. Programs with a `progressionModel` (Strength V2) also show progression advice built from the lifter's recorded sets. The generic automatic load suggestion is never used for program workouts.
+- **Starting a session:** Forge creates a workout from that session, copying exercises, sets, rep targets, and rest into the workout. Later program versions cannot rewrite it. The user enters working loads. The workout card shows **Program target** and the author's exercise note. Programs with a `progressionModel` (Strength V2, Muscle Building V3) also show progression advice built from the lifter's recorded sets. The generic automatic load suggestion is never used for program workouts.
 - **Logging and history:** each started or skipped session gets one log record. A completed workout counts as completed. If the user deletes or discards the workout, the session returns to the queue. Users can skip a session and restore it later. Program history links to completed workouts.
 - **Completion:** a fixed-length program completes after every session is done. Ending a program archives it, and all workouts remain in history. If an enrolled version is no longer bundled, history is kept and new starts are blocked.
 - **Home and Train:** the **Your program** card shows the next session with **Start** or **Resume**.
@@ -131,4 +131,4 @@ Two former failures were date-dependent test fixtures, now fixed without changin
 - `program adherence cannot count one workout against multiple planned sessions` hard-coded the UTC date `1970-01-01`, which is the previous local day west of UTC. The fixture now uses the workout's local date.
 - `weekly calendar navigates Monday–Sunday…` (UI) expected the Path's first session on 2026-10-19 to be upcoming ("scheduled"). Once the real date passed it, the session was correctly labelled as past. The test now pins only `Date` to 2026-10-15; timers stay real.
 
-Draft programs can be previewed and trained in development builds only; see [STRENGTH_V2.md §5](./STRENGTH_V2.md#5-development-preview).
+Draft programs (Strength and Muscle Building) can be previewed and trained in development builds only; see [STRENGTH_V2.md §5](./STRENGTH_V2.md#5-development-preview).

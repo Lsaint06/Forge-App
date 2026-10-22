@@ -12,6 +12,7 @@ import { generatePath } from "../../src/domain/paths/generator";
 import { exercises } from "../../src/data/catalog";
 import type { CuratedProgram } from "../../src/domain/programs/model";
 import strengthDraft from "../../src/programs/library/forge-strength-intermediate-3-day.json";
+import muscleDraft from "../../src/programs/library/forge-muscle-beginner-3-day.json";
 
 // Test-only published copies of the development placeholder.
 const mockLibrary: CuratedProgram[] = [];
@@ -205,6 +206,46 @@ test("without a development build drafts stay hidden and cannot be resolved", as
     expect(view.queryByText("DEVELOPMENT BUILD ONLY")).toBeNull();
     expect(view.queryByLabelText(/Preview draft/)).toBeNull();
     expect(view.queryByText(draft.name)).toBeNull();
+  } finally {
+    db.close();
+  }
+});
+
+test("the development preview lists Strength and Muscle Building drafts and trains either", async () => {
+  const strengthPreview = strengthDraft as CuratedProgram;
+  const musclePreview = muscleDraft as CuratedProgram;
+  mockLibrary.splice(0, mockLibrary.length, strengthPreview, musclePreview);
+  const { r, db } = pathRepository();
+  try {
+    r.saveProfile({ experience: "Beginner", goal: "Muscle Building" });
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<ForgePaths />);
+    expect(view.getByText("No match yet")).toBeTruthy();
+    expect(view.queryByText(musclePreview.name)).toBeNull();
+    await fireEvent.press(view.getByLabelText("Preview draft programs (2)"));
+    expect(view.getByText(strengthPreview.name)).toBeTruthy();
+    await fireEvent.press(
+      view.getByLabelText(`Preview draft ${musclePreview.name}`),
+    );
+    expect(view.getByText(/DRAFT PREVIEW/)).toBeTruthy();
+    expect(view.getByText("Repeats each week")).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Start this program"));
+    expect(currentEnrollment(r, mockLibrary)?.data.programId).toBe(
+      musclePreview.id,
+    );
+    const dashboard = await render(<ForgePaths />);
+    expect(
+      dashboard.getByText("DRAFT PREVIEW · DEVELOPMENT BUILD ONLY"),
+    ).toBeTruthy();
+    // No planned lower-fatigue week; the lifter may still choose one.
+    expect(dashboard.getByText(/Choose a lower-fatigue session/)).toBeTruthy();
+    await fireEvent.press(dashboard.getByLabelText("Start session"));
+    expect(r.active()?.name).toBe(`${musclePreview.name} · Full Body`);
+    expect(
+      r.workoutExercises(r.active()!.id).map((row) => row.target?.sets),
+    ).toEqual(
+      musclePreview.phases[0]!.sessions[0]!.exercises.map((e) => e.sets),
+    );
   } finally {
     db.close();
   }
