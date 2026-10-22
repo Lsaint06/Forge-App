@@ -2,7 +2,7 @@
 
 Nine human-authored Strength programs (B-S3 … A-S5) built on the Forge Paths 4.0 curated-program architecture ([CURATED_PROGRAMS.md](./CURATED_PROGRAMS.md)). The authored tables are the source of truth. They are kept verbatim in [`tests/fixtures/forge-strength-v2-tables.md`](../tests/fixtures/forge-strength-v2-tables.md), and `npm test` proves every bundled program matches them.
 
-**Status: draft.** All nine are bundled and validated but never listed or recommended. Phase 6 (generator retirement) is untouched.
+**Status: published** (Phase 6B). All nine are locked in `src/programs/published-lock.json`, listed and recommended. Later changes must be published as new versions.
 
 | Code | File (`src/programs/library/`) | Sessions × exercises | Length |
 | --- | --- | --- | --- |

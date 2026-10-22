@@ -2,7 +2,7 @@
 
 Nine human-authored Muscle Building programs (B-M3 … A-M5) built on the same curated-program architecture, progression engine and development preview as [Strength V2](./STRENGTH_V2.md). The authored tables are the source of truth. They are kept verbatim in [`tests/fixtures/forge-muscle-v3-tables.md`](../tests/fixtures/forge-muscle-v3-tables.md), and `npm test` proves every bundled program matches them.
 
-**Status: draft.** All nine are bundled and validated but never listed or recommended in production. Phase 6 (generator retirement) is untouched.
+**Status: published** (Phase 6B). All nine are locked in `src/programs/published-lock.json`, listed and recommended. Later changes must be published as new versions.
 
 | Code | ID (`src/programs/library/<id>.json`) | Split | Exercises per day | Sets per week |
 | --- | --- | --- | --- | --- |
@@ -38,7 +38,7 @@ Of the 44 distinct prescribed names, 29 match a catalog entry exactly. The rest:
 | Supported Bulgarian Split Squat | `bulgarian-split-squat` | Approved, with the note "hold a stable support for balance" |
 | Smith Machine Romanian Deadlift | `smith-machine-romanian-deadlift` | **New catalog entry** (Smith machine, hinge, hamstrings / glutes) |
 
-The new catalog entry is a bundled data addition, not a database migration. `Repository.migrate()` inserts missing built-in exercises on every launch, so existing installs receive it. The Path generator chooses from its own movement list, so it does not start selecting this exercise. The full mapping is `approvedMapping` in [`tests/muscle-v3-source.ts`](../tests/muscle-v3-source.ts).
+The new catalog entry is a bundled data addition, not a database migration. `Repository.migrate()` inserts missing built-in exercises on every launch, so existing installs receive it. The full mapping is `approvedMapping` in [`tests/muscle-v3-source.ts`](../tests/muscle-v3-source.ts).
 
 ## 2. Scientific programming audit
 
@@ -107,9 +107,7 @@ Uses the existing engine ([`programProgression`](../src/domain/programs/progress
 
 ## 5. Development preview
 
-The existing development-only preview ([STRENGTH_V2.md §5](./STRENGTH_V2.md#5-development-preview)) lists every bundled draft, so it now covers both Strength and Muscle Building. Production bundles never list, recommend, enroll or resolve drafts.
-
-To preview: `npm start`, open the app in Expo Go → **Train → Forge Paths** → **Preview draft programs** → choose a program → **Start this program** → **Start session**.
+The development-only draft preview ([STRENGTH_V2.md §5](./STRENGTH_V2.md#5-development-preview)) was used to test these programs before publication. Now that all nine are published, they appear in the normal library, and the preview stays available for future draft versions. Production bundles never list, recommend, enroll or resolve drafts.
 
 ## 6. Known limitations
 

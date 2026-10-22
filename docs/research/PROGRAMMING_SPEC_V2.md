@@ -1,5 +1,8 @@
 # Forge Paths programming specification (Planners 8–9)
 
+> **Historical — retired in Phase 6B.** The workout generator and Path builder described here were removed from the app. Forge Paths now uses 18 curated programs; existing generated Paths can still be continued. See [PHASE_6.md](../PHASE_6.md).
+
+
 Status: implemented in `src/domain/paths/policy.ts` (prescriptions and volume), `src/domain/paths/catalog.ts` (reviewed movement library), `src/domain/paths/generator.ts` (weekly blueprints and selection) and `src/domain/paths/programQuality.ts` (validation). Written 2026-10-16; Planner 9 additions in §8.
 
 This is Forge's own programming system. Its primary philosophical influence is Jeff Nippard's **publicly documented**, science-based approach to training. Forge is not affiliated with or endorsed by Jeff Nippard. No proprietary program content (exercise tables or set/rep tables from paid programs) was accessed or reproduced. Numeric rules are anchored to the peer-reviewed sources listed below. Where the evidence does not settle a value, the rule is labelled **provisional**, and the chosen value is a conservative coaching default.

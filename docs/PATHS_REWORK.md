@@ -1,5 +1,7 @@
 > Updated by the [Planner 3 audit and gym-flow simplification](research/PROGRAMMING_AUDIT_2026_10_15.md). The current screen shows one session; details and management open on request.
 
+> **Historical — retired in Phase 6B.** The workout generator and Path builder described here were removed from the app. Forge Paths now uses 18 curated programs; existing generated Paths can still be continued. See [PHASE_6.md](./PHASE_6.md).
+
 # Forge Paths: phone-first rework
 
 This update supersedes the browser requirements in the historical Phase A report. At the user's request, supported targets are now **iOS and Android**. Windows remains a suitable computer for running Expo and connecting an iPhone; the application itself runs on the phone.

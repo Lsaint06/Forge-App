@@ -1,5 +1,8 @@
 # Training research
 
+> **Historical — retired in Phase 6B.** The workout generator and Path builder described here were removed from the app. Forge Paths now uses 18 curated programs; existing generated Paths can still be continued. See [PHASE_6.md](../PHASE_6.md).
+
+
 Research notes for Forge's training-program design. The user authorized adding these notes to the repository while keeping application implementation unchanged.
 
 - [Initial review and source register](TRAINING_RESEARCH_REVIEW.md): athlete/coaching approaches, research findings, implications and source-access limits.

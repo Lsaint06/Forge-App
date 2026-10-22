@@ -28,7 +28,6 @@ import { recommendProgram } from "../domain/programs/recommend";
 import { trainingWeekdays } from "../domain/programs/schedule";
 import { libraryPrograms, programLibrary } from "../programs";
 import { draftPreviewEnabled } from "../programs/preview";
-import { curatedOnly } from "../programs/activation";
 import {
   currentEnrollment,
   defaultLowerFatigue,
@@ -544,8 +543,6 @@ export default function ForgePaths() {
   const [experience, setExperience] = useState(ALL);
   const [goal, setGoal] = useState(ALL);
   const published = libraryPrograms();
-  // Curated-only once the published library covers every combination.
-  const builderAvailable = !curatedOnly();
   const recommendation = recommendProgram(profile, programLibrary);
   const filtered = published.filter(
     (p) =>
@@ -678,7 +675,7 @@ export default function ForgePaths() {
               ) : (
                 <Empty
                   title="Programs are on the way"
-                  detail="Forge programs are written and reviewed by hand. None are published yet — your workouts, templates and generated Paths keep working in the meantime."
+                  detail="Forge programs are written and reviewed by hand. Your workouts, templates and history keep working in the meantime."
                 />
               )}
               {draftPreviewEnabled && (
@@ -686,30 +683,14 @@ export default function ForgePaths() {
               )}
             </>
           )}
-          {builderAvailable ? (
+          {currentPath(r) && (
             <>
               <SectionHeader
-                title="Generated Paths"
-                detail="The earlier automatic plan builder stays available during the transition."
+                title="Your current Path"
+                detail="Keep training it or start a Forge program whenever you choose."
               />
               <PathSummary />
-              <Button
-                title="Open the Path builder"
-                secondary
-                icon="construct-outline"
-                onPress={() => router.push("/paths")}
-              />
             </>
-          ) : (
-            currentPath(r) && (
-              <>
-                <SectionHeader
-                  title="Your current Path"
-                  detail="Keep training it or start a Forge program whenever you choose."
-                />
-                <PathSummary />
-              </>
-            )
           )}
         </>
       )}

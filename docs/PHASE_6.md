@@ -1,10 +1,15 @@
 # Phase 6 — Curated-only Forge Paths and generator retirement
 
-**Status: prepared and awaiting publication approval.** Every non-destructive step is done. The generator is still bundled because the 18 curated programs are drafts: deleting it now would leave production users without a way to start a training plan. Publication and generator deletion happen together, after explicit approval (see [Activation](#5-activation-checklist)).
+**Status: complete (Phase 6B), pending device validation before release.**
+
+- All 18 curated programs are published and fingerprint-locked.
+- The workout generator, its plan builder and every route to it are deleted.
+- Existing generated Paths stay readable and can be continued through a generator-free compatibility layer.
+- Phase 6A (preparation) is commit `60f52f1`.
 
 ## 1. Generator dependency inventory
 
-### DELETE — creates or reshapes generated plans; removed at activation
+### DELETE — creates or reshapes generated plans (deleted in Phase 6B)
 
 | Component | Role |
 | --- | --- |
@@ -17,7 +22,8 @@
 | `src/data/pathBuilder.ts` | `acceptPath`, `editPathDay`, `savedDraft`, `workloadGuidance`. `acceptPath` already refuses once curated programs are active |
 | `src/screens/Paths.tsx` | Path builder (discover, setup, preview), rebuild, plan editing and the old generator-coupled dashboard |
 | `src/components/PathPlanEditor.tsx`, `PathWorkoutList.tsx` | Builder day editor, plan preview and stimulus list |
-| `src/programs/activation.ts` and the `builderAvailable` branch in `src/screens/ForgePaths.tsx` | Transition switch; unnecessary once the builder is gone |
+| `src/programs/activation.ts` and the `builderAvailable` branch in `src/screens/ForgePaths.tsx` | Transition switch and its development preview; unnecessary once the builder is gone |
+| `src/components/CuratedPreviewBanner.tsx`, the "Preview curated-only Forge Paths" button in `DraftPreview`, and the banner line in `LegacyPath.tsx` | Development preview of curated-only mode |
 | `tests/path-fixture.ts` → `pathPreferences` | Generator input helper (`pathRepository` stays) |
 
 **Tests deleted with the generator:** these only exercise retired generation behavior.
@@ -78,23 +84,68 @@ Exercise catalog and custom exercises, templates, workouts and sets (including R
 3. **Apply, only with final approval:** `npm run programs:publish -- --apply`. It runs the full logic suite first, then changes only each program's `status` and writes the fingerprints to `src/programs/published-lock.json`. Published versions are immutable; later changes need a new version.
 4. Update the draft-status expectations in `tests/strength-v2.test.ts` and `tests/muscle-v3.test.ts` to expect published, locked programs. The content fingerprints in `tests/phase6.test.ts` are status-independent and must not change.
 
-## 5. Activation checklist
+## 5. Phase 6B result
 
-Activation is automatic once the published library covers all 18 combinations (`curatedOnly()`). At that point:
+### Publication
 
-- **Forge Paths** shows only curated programs. The "Open the Path builder" button and the "Generated Paths" section disappear; a current Path appears as "Your current Path".
-- **`/paths`** renders `LegacyPath` instead of the builder.
-- **`acceptPath`** refuses to create a plan.
+`npm run programs:publish -- --apply` ran the full logic suite (223 of 223 passing), then:
 
-Then, in the same release:
+- changed only `"status": "draft"` to `"status": "published"` in each of the 18 program files;
+- recorded 18 fingerprints in `src/programs/published-lock.json`.
 
-1. Delete every **DELETE** item in §1, and simplify `app/paths.tsx` to `export { default } from "../src/screens/LegacyPath";`.
-2. Convert the mixed tests listed in §1, then delete the generator-only tests.
-3. Run the full verification: logic, UI, TypeScript, lint, format, and the iOS and Android exports.
-4. Test on a real device before release: upgrade an existing install with a generated Path; continue, skip and move a session; switch to a curated program; and train Strength weeks 1, 4 and 8 plus a Muscle Building lower-fatigue session.
+Tests confirm the following:
 
-## 6. Current blockers
+- **Lock:** the committed lock is exactly what the procedure produces from the drafts, and re-running it is a no-op.
+- **Edits:** every published version validates against its fingerprint. Edits and removals are rejected.
+- **Content:** each program's content fingerprint, with status normalized, is unchanged from the authored drafts, so no prescription changed.
+- **Coverage:** production lists 18 programs and recommends exactly one for each experience × goal × frequency combination.
 
-- Final approval to publish the 18 programs.
-- Real-device validation (none performed).
-- Pull-up and chin-up assistance tracking (Strength): a documented limitation, with load advice disabled.
+### Removed
+
+Every **DELETE** item in §1 is gone:
+
+- the three engines and eight generator helper modules;
+- `src/data/pathBuilder.ts`, the builder screen `src/screens/Paths.tsx`, `PathPlanEditor.tsx` and `PathWorkoutList.tsx`;
+- the activation switch `src/programs/activation.ts` and the curated-only development preview, whose toggle and banner had served their purpose;
+- `pathPreferences` and the generator-only helpers in `src/domain/paths/model.ts`: `PathDefinition`, `defaultWeekdays`, `expandEquipment`, `hasEquipment` and `machineRequirement`.
+
+`/paths` now always renders `LegacyPath`. Forge Paths has no builder entry point.
+
+Deleted tests (generator-only):
+
+- `balanced-weeks.test.ts`
+- `path-programming-review.test.ts`
+- `paths-rework.test.ts`
+- `paths-v3.test.ts`
+- `programming-engine.test.ts`
+- `weekly-session-balance.test.ts`
+
+Converted tests:
+
+- `rep-ranges.test.ts`: kept the shared progression and label tests.
+- `paths.test.ts` → `legacy-paths.test.ts`: the compatibility tests now run on a restored pre-Phase-6 Path.
+- `ui/paths.test.tsx` → `ui/legacy-workouts.test.tsx`: workout card, logging, template editor, Path targets and the calendar on `LegacyPath`.
+
+The fixture `tests/fixtures/legacy-fresh-path-backup.json` (a freshly accepted engine-9 Path) was exported before the generator was deleted.
+
+### Guard against regression
+
+`tests/phase6.test.ts` → "no generator code, route or entry point remains in the app":
+
+- asserts every deleted file is absent;
+- scans all of `src/` and `app/` for generator identifiers, modules and builder text;
+- asserts `/paths` is `LegacyPath`, and that `src/domain/paths` holds only `model.ts` and `calendar.ts`.
+
+### Kept on purpose
+
+- **Generated-Path record schemas** (`src/domain/paths/model.ts`, vocabulary unchanged) and `calendar.ts`, so saved Paths still parse, sync and back up.
+- **The draft-program development preview** (`src/programs/preview.ts`, `DraftPreview`). It's authoring infrastructure for future drafts and new versions. With every bundled program published, it renders nothing, and it's never available in production.
+- **`scripts/publish-programs.ts`**, for publishing future programs and versions.
+
+## 6. Before release
+
+- **Real-device validation (not yet performed):**
+  - Upgrade an install that has a generated Path and continue it (start, log, skip, restore, move, pause, resume).
+  - Switch to a curated program (confirmation, archived Path, history intact).
+  - Train Strength weeks 1, 4 and 8, and a Muscle Building lower-fatigue session.
+- **Pull-up and chin-up assistance tracking (Strength):** a documented limitation, with load advice disabled.

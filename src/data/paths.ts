@@ -12,8 +12,8 @@ import {
 
 // GENERATED PATH COMPATIBILITY (Phase 6, docs/PHASE_6.md). Reads and
 // continues generated Paths that lifters already have: their records,
-// schedules, templates and workouts. Nothing here creates a plan or depends
-// on the workout generator; creation lives in ./pathBuilder until retired.
+// schedules, templates and workouts. The workout generator was retired in
+// Phase 6B; nothing in Forge creates a generated plan any more.
 
 export type SavedPath = { record: Journal; data: PathProgramData };
 export function pathPrograms(r: Repository): SavedPath[] {

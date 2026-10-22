@@ -1,5 +1,8 @@
 > Historical Phase A implementation report. The current phone-only Paths rework supersedes the browser workflow below; see [Paths rework](PATHS_REWORK.md).
 
+> **Historical — retired in Phase 6B.** The workout generator and Path builder described here were removed from the app. Forge Paths now uses 18 curated programs; existing generated Paths can still be continued. See [PHASE_6.md](./PHASE_6.md).
+
+
 # Forge Paths — Phase A foundation
 
 ## Scope and implementation plan

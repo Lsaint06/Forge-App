@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+// Stored generated-Path records (Phase 6 compatibility). The generator that
+// created them was retired in Phase 6B; these schemas only read, validate and
+// sync the Paths lifters already have, so their vocabulary must not change.
+
 export const pathKeys = [
   "start-strong",
   "build-muscle",
@@ -102,20 +106,6 @@ export const pathPreferencesSchema = z
     },
   );
 export type PathPreferences = z.infer<typeof pathPreferencesSchema>;
-export type PathDefinition = {
-  key: (typeof pathKeys)[number];
-  name: string;
-  subtitle: string;
-  description: string;
-  experience: string;
-  objective: string;
-  frequency: number;
-  minDays: number;
-  maxDays: number;
-  muscles: string;
-  benefits: string;
-  equipment: string;
-};
 export const dayStructureSchema = z.object({
   key: z.string().min(1),
   name: z.string().min(1).max(80),
@@ -227,44 +217,3 @@ export function daysBetween(a: string, b: string): number {
   );
 }
 export const weekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-export function defaultWeekdays(frequency: number): number[] {
-  return (
-    (
-      {
-        1: [0],
-        2: [0, 3],
-        3: [0, 2, 4],
-        4: [0, 1, 3, 4],
-        5: [0, 1, 3, 4, 5],
-        6: [0, 1, 2, 4, 5, 6],
-      } as Record<number, number[]>
-    )[frequency] ?? [0, 2, 4]
-  );
-}
-
-// Legacy broad equipment selections remain readable in saved programs/backups.
-export function expandEquipment(
-  values: PathPreferences["equipment"],
-): PathPreferences["equipment"] {
-  return [
-    ...new Set(
-      values.flatMap((value) =>
-        value === "Full gym machines" ? [...machineEquipment] : [value],
-      ),
-    ),
-  ];
-}
-export function hasEquipment(
-  values: PathPreferences["equipment"],
-  required: string,
-) {
-  return expandEquipment(values).includes(
-    required as PathPreferences["equipment"][number],
-  );
-}
-export function machineRequirement(required: string) {
-  return (
-    required === "Full gym machines" ||
-    machineEquipment.some((value) => value === required)
-  );
-}

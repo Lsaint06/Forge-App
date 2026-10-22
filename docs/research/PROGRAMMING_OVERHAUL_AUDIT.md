@@ -1,5 +1,8 @@
 # Forge programming overhaul — Phase 1 audit
 
+> **Historical — retired in Phase 6B.** The workout generator and Path builder described here were removed from the app. Forge Paths now uses 18 curated programs; existing generated Paths can still be continued. See [PHASE_6.md](../PHASE_6.md).
+
+
 Date: 2026-10-15. Branch: `feat/forge-paths-foundation`. Baseline commit: `58a5f2a`.
 
 This audit precedes implementation. It documents the **verified** behaviour of the

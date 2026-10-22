@@ -33,3 +33,15 @@ export function legacyUserRepository(filename?: string) {
   fixture.r.importBackup(legacyBackupText);
   return fixture;
 }
+
+// A freshly accepted current-engine generated Path (8 weeks, 4 days a week,
+// starting 2026-10-19) with nothing logged, exported by the pre-Phase-6 app.
+export const freshPathBackupText = readFileSync(
+  join(__dirname, "fixtures", "legacy-fresh-path-backup.json"),
+  "utf8",
+);
+export function freshPathRepository(filename?: string) {
+  const fixture = pathRepository(filename);
+  fixture.r.importBackup(freshPathBackupText);
+  return fixture;
+}

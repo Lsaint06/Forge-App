@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { exercises } from "../src/data/catalog";
 import { defaults } from "../src/domain/types";
 import {
@@ -19,7 +21,6 @@ import {
   programLock,
   programSources,
 } from "../src/programs";
-import { curatedOnly } from "../src/programs/activation";
 import { draftPreviewEnabled } from "../src/programs/preview";
 import {
   currentPath,
@@ -33,8 +34,6 @@ import {
   startPathSession,
   visibleSchedules,
 } from "../src/data/paths";
-import { acceptPath } from "../src/data/pathBuilder";
-import type { PathDraft } from "../src/domain/paths/generator";
 import {
   enrollProgram,
   currentEnrollment,
@@ -119,92 +118,144 @@ test("published, the library recommends exactly one program for each of the 18 c
   }
 });
 
-// ---- Publication procedure --------------------------------------------------
+// ---- Publication -------------------------------------------------------------
 
-test("the publication plan publishes all 18 drafts with immutable fingerprints", () => {
-  const plan = publicationPlan(programSources, programLock, exercises);
-  assert.deepEqual(plan.errors, []);
-  assert.equal(plan.publish.length, 18);
-  assert.equal(Object.keys(plan.lock).length, 18);
-  assert.equal(plan.coverage.complete, true);
-  // The planned lock validates the published library exactly.
-  assert.deepEqual(checkLibrary(allPublished, plan.lock, exercises), []);
-  for (const p of plan.publish)
-    assert.equal(
-      p.fingerprint,
-      programFingerprint(
-        allPublished.find((x) => x.id === p.id && x.version === p.version)!,
-      ),
-    );
+const asDraft = (s: unknown) => ({ ...(s as object), status: "draft" });
+
+test("all 18 programs are published and locked to their fingerprints", () => {
+  assert.equal(Object.keys(programLock).length, 18);
+  assert.deepEqual(checkLibrary(programSources, programLock, exercises), []);
+  for (const p of programLibrary) {
+    assert.equal(p.status, "published");
+    assert.equal(programLock[`${p.id}@${p.version}`], programFingerprint(p));
+  }
   // A published program edited after locking is rejected.
-  const edited = allPublished.map((p, i) =>
+  const edited = programLibrary.map((p, i) =>
     i === 0 ? { ...p, summary: `${p.summary} Edited.` } : p,
   );
   assert.match(
-    checkLibrary(edited, plan.lock, exercises).join(),
+    checkLibrary(edited, programLock, exercises).join(),
     /changed after publishing/,
   );
-  // Planning never mutates the authored sources.
-  assert.ok(
-    programSources.every((s) => (s as { status: string }).status === "draft"),
+  // Removing a published version is rejected too.
+  assert.match(
+    checkLibrary(programSources.slice(1), programLock, exercises).join(),
+    /no longer bundled/,
   );
 });
 
+test("the committed lock is exactly what the publication procedure produces", () => {
+  const plan = publicationPlan(programSources.map(asDraft), {}, exercises);
+  assert.deepEqual(plan.errors, []);
+  assert.equal(plan.publish.length, 18);
+  assert.deepEqual(plan.lock, programLock);
+  assert.equal(plan.coverage.complete, true);
+  // Re-running on the published library is a no-op.
+  const again = publicationPlan(programSources, programLock, exercises);
+  assert.deepEqual(again.errors, []);
+  assert.equal(again.publish.length, 0);
+  assert.deepEqual(again.lock, programLock);
+});
+
 test("publication is blocked when coverage is incomplete, ambiguous or an id is unknown", () => {
-  const partial = publicationPlan(programSources, programLock, exercises, [
+  const drafts = programSources.map(asDraft);
+  const partial = publicationPlan(drafts, {}, exercises, [
     "forge-strength-beginner-3-day",
   ]);
   assert.equal(partial.publish.length, 1);
   assert.match(partial.errors.join(), /does not cover/);
-  const unknown = publicationPlan(programSources, programLock, exercises, [
+  const unknown = publicationPlan(drafts, {}, exercises, [
     "forge-strength-elite-9-day",
   ]);
   assert.match(unknown.errors.join(), /not a bundled program/);
   const duplicate = publicationPlan(
-    [
-      ...programSources,
-      {
-        ...(programSources[0] as object),
-        id: "forge-strength-beginner-3-day-b",
-      },
-    ],
-    programLock,
+    [...drafts, { ...drafts[0]!, id: "forge-strength-beginner-3-day-b" }],
+    {},
     exercises,
   );
   assert.match(duplicate.errors.join(), /More than one published program/);
 });
 
-test("production stays on drafts: nothing listed, recommended, previewed or activated", () => {
-  assert.equal(libraryPrograms().length, 0);
-  assert.equal(libraryCoverage(programLibrary).complete, false);
-  assert.equal(libraryCoverage(programLibrary).missing.length, 18);
-  assert.equal(curatedOnly(), false);
+test("production lists and recommends exactly the 18 published programs", () => {
+  assert.equal(libraryPrograms().length, 18);
+  const coverage = libraryCoverage(programLibrary);
+  assert.deepEqual(
+    [coverage.complete, coverage.missing, coverage.duplicated],
+    [true, [], []],
+  );
   assert.equal(draftPreviewEnabled, false);
-  assert.deepEqual(programLock, {});
-  for (const c of requiredCombinations)
-    assert.equal(
-      recommendProgram(
-        { ...defaults, experience: c.experience, goal: c.goal },
-        programLibrary,
-      ).kind,
-      "none",
+  assert.equal(programLibrary.filter((p) => p.status === "draft").length, 0);
+  for (const c of requiredCombinations) {
+    const rec = recommendProgram(
+      {
+        ...defaults,
+        experience: c.experience,
+        goal: c.goal,
+        frequency: c.daysPerWeek,
+      },
+      programLibrary,
     );
+    assert.equal(rec.kind, "match");
+    if (rec.kind !== "match") continue;
+    assert.equal(rec.program.status, "published");
+    assert.deepEqual(
+      [rec.program.goal, rec.program.experience, rec.program.daysPerWeek],
+      [c.goal, c.experience, c.daysPerWeek],
+    );
+  }
 });
 
-test("activation follows complete published coverage, and then no plan can be generated", () => {
-  assert.equal(curatedOnly(allPublished), true);
-  assert.equal(curatedOnly(allPublished.slice(1)), false);
-  const { r, db } = legacyUserRepository();
-  try {
-    const before = r.journal().length;
-    assert.throws(
-      () => acceptPath(r, {} as PathDraft, true, curatedOnly(allPublished)),
-      /curated programs/,
-    );
-    assert.equal(r.journal().length, before);
-  } finally {
-    db.close();
-  }
+// ---- Generator retirement -----------------------------------------------------
+
+const root = join(__dirname, "..");
+function sources(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    return statSync(path).isDirectory()
+      ? sources(path)
+      : /\.(ts|tsx)$/.test(name)
+        ? [path]
+        : [];
+  });
+}
+
+test("no generator code, route or entry point remains in the app", () => {
+  for (const file of [
+    "src/domain/paths/generator.ts",
+    "src/domain/paths/legacyGenerator.ts",
+    "src/domain/paths/versionTwoGenerator.ts",
+    "src/domain/paths/catalog.ts",
+    "src/domain/paths/policy.ts",
+    "src/domain/paths/balance.ts",
+    "src/domain/paths/volume.ts",
+    "src/domain/paths/stimulus.ts",
+    "src/domain/paths/programQuality.ts",
+    "src/domain/paths/review.ts",
+    "src/domain/paths/weekAudit.ts",
+    "src/data/pathBuilder.ts",
+    "src/screens/Paths.tsx",
+    "src/components/PathPlanEditor.tsx",
+    "src/components/PathWorkoutList.tsx",
+    "src/programs/activation.ts",
+  ])
+    assert.equal(existsSync(join(root, file)), false, file);
+  const forbidden =
+    /generatePath|acceptPath|editPathDay|validateDraft|evolutionDays|legacyGenerator|versionTwoGenerator|domain\/paths\/(generator|catalog|policy|balance|volume|stimulus|programQuality|review|weekAudit)|pathBuilder|PathPlanEditor|PathWorkoutList|screens\/Paths"|Path builder/;
+  const offenders = [
+    ...sources(join(root, "src")),
+    ...sources(join(root, "app")),
+  ].filter((file) => forbidden.test(readFileSync(file, "utf8")));
+  assert.deepEqual(offenders, []);
+  // /paths only continues or reviews existing Paths.
+  assert.match(
+    readFileSync(join(root, "app", "paths.tsx"), "utf8"),
+    /screens\/LegacyPath/,
+  );
+  // Only the generated Path record schema and calendar helpers remain.
+  assert.deepEqual(readdirSync(join(root, "src", "domain", "paths")).sort(), [
+    "calendar.ts",
+    "model.ts",
+  ]);
 });
 
 // ---- Existing users ---------------------------------------------------------

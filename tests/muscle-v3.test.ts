@@ -86,7 +86,7 @@ test("the authored tables parse into nine programs with the approved splits", ()
     assert.ok(approvedMapping[name], `${name} is unmapped`);
 });
 
-test("all nine Muscle Building programs are bundled, valid, open-ended drafts", () => {
+test("all nine Muscle Building programs are bundled, valid, open-ended and published", () => {
   assert.equal(muscle.length, 9);
   for (const level of levels)
     for (const days of [3, 4, 5] as const) {
@@ -96,7 +96,7 @@ test("all nine Muscle Building programs are bundled, valid, open-ended drafts", 
       assert.equal(matches.length, 1, `${level} ${days}-day`);
       const p = matches[0]!;
       assert.equal(p.goal, "Muscle Building");
-      assert.equal(p.status, "draft");
+      assert.equal(p.status, "published");
       assert.equal(p.durationWeeks, undefined);
       assert.equal(p.phases.length, 1);
       assert.equal(p.phases[0]!.weeks, undefined);
@@ -282,24 +282,29 @@ test("matching selects the right goal, level and frequency across all 18 program
   );
 });
 
-test("drafts stay out of production listings and recommendations", () => {
+test("published Muscle Building programs are listed and recommended; drafts still are not", () => {
   assert.equal(
     libraryPrograms().filter((p) => p.goal === "Muscle Building").length,
-    0,
+    9,
   );
+  const rec = recommendProgram(
+    { ...defaults, experience: "Advanced", goal: "Muscle Building" },
+    programLibrary,
+  );
+  assert.equal(rec.kind === "match" && rec.program.goal, "Muscle Building");
+  // A future draft version is never listed, recommended or started.
+  const draft: CuratedProgram = { ...byCode("B-M3"), status: "draft" };
+  assert.equal(publishedPrograms([draft]).length, 0);
   assert.equal(
     recommendProgram(
-      { ...defaults, experience: "Advanced", goal: "Muscle Building" },
-      programLibrary,
+      { ...defaults, experience: "Beginner", goal: "Muscle Building" },
+      [draft],
     ).kind,
     "none",
   );
   const { r, db } = pathRepository();
   try {
-    assert.throws(
-      () => enrollProgram(r, byCode("B-M3"), "2026-10-19"),
-      /published/,
-    );
+    assert.throws(() => enrollProgram(r, draft, "2026-10-19"), /published/);
   } finally {
     db.close();
   }
@@ -623,6 +628,6 @@ test("the nine Strength programs are unchanged", () => {
     ),
     expected,
   );
-  assert.ok(strength.every((p) => p.status === "draft"));
+  assert.ok(strength.every((p) => p.status === "published"));
   assert.equal(programLibrary.length, 18);
 });

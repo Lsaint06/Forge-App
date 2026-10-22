@@ -2,13 +2,7 @@
 
 A dark-first, offline fitness log for iOS and Android. Workouts, templates, measurements, nutrition and recovery live in SQLite. Guest mode requires no account, API key, food database or AI service. Dashboard statistics come from your own recorded workouts.
 
-This branch adds **Forge Paths — Phase A**: six personalized, editable eight-week
-plans with a saved dashboard, explicit workout links and flexible scheduling.
-Open **Train → Forge Paths**. See the current [phone-first Paths rework](docs/PATHS_REWORK.md) and the historical [Phase A report](docs/FORGE_PATHS_PHASE_A.md).
-
-Optional **Plan details** reviews weekly session balance, including intentional differences between broad and focused days. New plans redistribute existing work without increasing the previous weekly set budget; see the [weekly balance audit](docs/research/WEEKLY_SESSION_BALANCE.md) for measured before/after programs and limitations. Rebuild explicitly to update an existing Path.
-
-**Forge Paths 4.0 is in progress:** Forge Paths is moving to human-authored, versioned programs. Onboarding asks for experience, goal and preferred rest day. **Train → Forge Paths** now shows a recommended program, a browsable program library, program details, enrollment and session tracking. The program library is still empty, and the generated Path builder remains available. See [docs/CURATED_PROGRAMS.md](docs/CURATED_PROGRAMS.md) for the authoring format and transition plan.
+FORGE Paths is **curated-only**: open **Train → Forge Paths** for a recommended program and the library of 18 human-authored Strength and Muscle Building programs (Beginner, Intermediate and Advanced; 3, 4 and 5 days a week). Each comes with enrollment, scheduling around your rest day and progression built from your logged sets. The earlier workout generator was retired in Phase 6B. Lifters who already have a generated Path can keep training it and review its history. See [docs/CURATED_PROGRAMS.md](docs/CURATED_PROGRAMS.md) and [docs/PHASE_6.md](docs/PHASE_6.md).
 
 **Cinematic intro:** each genuine cold start opens with a 2.6-second FORGE intro: embers, molten letters and cooling steel. It always plays through, respects Reduce Motion, and never replays when returning to an app that is still running. See [docs/SPLASH.md](docs/SPLASH.md) for the architecture, Expo Go testing and needed brand assets.
 

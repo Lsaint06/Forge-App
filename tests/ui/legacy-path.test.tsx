@@ -13,10 +13,6 @@ import {
   pathSummary,
 } from "../../src/data/paths";
 
-const mockActivation = { curated: false };
-jest.mock("../../src/programs/activation", () => ({
-  curatedOnly: () => mockActivation.curated,
-}));
 jest.mock("../../src/notifications", () => ({
   restNotification: jest.fn(async () => {}),
 }));
@@ -38,7 +34,6 @@ const generatorWords =
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockActivation.curated = false;
 });
 
 test("an existing user can continue their generated Path from the compatibility screen", async () => {
@@ -128,18 +123,26 @@ test("without a saved Path the screen points to Forge programs", async () => {
   }
 });
 
-test("the /paths route offers the Path builder only until curated programs are active", async () => {
-  const { r, db } = pathRepository();
+test("the /paths route only continues existing Paths and never offers a plan builder", async () => {
+  const empty = pathRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(empty.r);
+    const none = await render(<PathsRoute />);
+    expect(none.getByText("No current Path")).toBeTruthy();
+    expect(none.queryByText("A clear next step.")).toBeNull();
+    expect(none.queryAllByText(generatorWords)).toHaveLength(0);
+    expect(none.queryAllByLabelText(/^Choose [A-Z ]+$/)).toHaveLength(0);
+  } finally {
+    empty.db.close();
+  }
+  const { r, db } = legacyUserRepository();
   try {
     jest.mocked(useRepo).mockReturnValue(r);
-    const before = await render(<PathsRoute />);
-    expect(before.getByText("A clear next step.")).toBeTruthy();
-    mockActivation.curated = true;
-    const after = await render(<PathsRoute />);
-    expect(after.getByText("No current Path")).toBeTruthy();
-    expect(after.queryByText("A clear next step.")).toBeNull();
-    expect(after.queryAllByText(generatorWords)).toHaveLength(0);
-    expect(after.queryAllByLabelText(/^Choose [A-Z ]+$/)).toHaveLength(0);
+    const existing = await render(<PathsRoute />);
+    expect(existing.getByText("GET STRONG")).toBeTruthy();
+    expect(existing.getByLabelText("Start workout")).toBeTruthy();
+    expect(existing.queryAllByText(generatorWords)).toHaveLength(0);
+    expect(existing.queryAllByLabelText(generatorWords)).toHaveLength(0);
   } finally {
     db.close();
   }

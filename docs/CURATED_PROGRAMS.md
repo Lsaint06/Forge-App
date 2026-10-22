@@ -13,9 +13,9 @@ Forge Paths is moving from automatically generated workouts to **human-authored 
 | 3. Program data architecture | Done — schema, validation, version lock, recommendation, weekday placement |
 | 4. Paths interface (recommended program + library) | Done — Train → Forge Paths |
 | 5. Workout tracking integration (enrollment, session start) | Done |
-| 6. Legacy generator retirement | Prepared, awaiting publication approval. The compatibility layer is separated from the generator, curated-only activation is ready and the deletion is staged. See [PHASE_6.md](./PHASE_6.md) |
+| 6. Legacy generator retirement | Done (Phase 6B). All 18 programs are published and locked, the generator is removed, and existing generated Paths continue through a compatibility layer. See [PHASE_6.md](./PHASE_6.md) |
 
-The bundled library contains 18 **drafts**: the nine **Forge Strength V2** programs ([STRENGTH_V2.md](./STRENGTH_V2.md)) and the nine **Forge Muscle Building V3** programs ([MUSCLE_BUILDING_V3.md](./MUSCLE_BUILDING_V3.md)). Drafts are never listed or recommended in production, so Forge Paths still shows an honest empty state. The generated Path builder remains available from the same screen, and saved generated plans are unchanged.
+The bundled library contains 18 **published** programs, locked in `src/programs/published-lock.json`: the nine **Forge Strength V2** programs ([STRENGTH_V2.md](./STRENGTH_V2.md)) and the nine **Forge Muscle Building V3** programs ([MUSCLE_BUILDING_V3.md](./MUSCLE_BUILDING_V3.md)). Together they cover every experience × goal × 3/4/5-day combination. Forge Paths is curated-only; generated plans can no longer be created.
 
 ## Training profile
 
@@ -100,7 +100,7 @@ Only the latest published version of each program is listed. Drafts are never li
 - **Recommended for you:** shows the recommended program and why it matches. If experience or goal is missing, it asks the user to complete the profile. If no program matches, it says so; nothing is generated to fill the gap.
 - **Program library:** shows every published program, with optional experience and goal filters. Users can choose any program, regardless of the recommendation.
 - **Program details:** shows experience, goal, days per week, duration, equipment, description, suggested training days, progression, and every phase, session, and exercise with sets, reps, rest, and notes. Users choose a start date: Today, Tomorrow, or Next Monday.
-- **Generated Paths:** the current generated Path summary and **Open the Path builder** remain available.
+- **Your current Path:** a lifter who already has a generated Path sees its summary. **Open your Path** continues it in the existing-Path screen. There is no Path builder.
 
 ## Enrollment and tracking (Phase 5)
 
@@ -116,11 +116,11 @@ Implemented in `src/data/programs.ts`, with record schemas in `src/domain/progra
 
 Personal customization still edits only the started workout. Saved personal changes to a program are not implemented yet; the enrollment model leaves room for them without changing authored content.
 
-## Transition plan for later phases
+## Generated Paths after Phase 6
 
-- **Generator and legacy Paths:** see [PHASE_6.md](./PHASE_6.md).
-  - Existing generated Paths are read and continued by a generator-free compatibility layer (`src/data/paths.ts`, `src/screens/LegacyPath.tsx`).
-  - Creating new generated Paths stays available only until the 18 curated programs are published (`npm run programs:publish`). After that, Forge Paths becomes curated-only automatically and the generator is deleted in the same release.
+- See [PHASE_6.md](./PHASE_6.md).
+- Existing generated Paths are read and continued by a generator-free compatibility layer (`src/data/paths.ts`, `src/screens/LegacyPath.tsx`).
+- No code path can create a generated plan; a test scans the app source to keep it that way.
 
 ## Known pre-existing check failures
 
@@ -133,4 +133,4 @@ Two former failures were date-dependent test fixtures, now fixed without changin
 - `program adherence cannot count one workout against multiple planned sessions` hard-coded the UTC date `1970-01-01`, which is the previous local day west of UTC. The fixture now uses the workout's local date.
 - `weekly calendar navigates Monday–Sunday…` (UI) expected the Path's first session on 2026-10-19 to be upcoming ("scheduled"). Once the real date passed it, the session was correctly labelled as past. The test now pins only `Date` to 2026-10-15; timers stay real.
 
-Draft programs (Strength and Muscle Building) can be previewed and trained in development builds only; see [STRENGTH_V2.md §5](./STRENGTH_V2.md#5-development-preview).
+Future draft programs or new versions can be previewed and trained in development builds only; see [STRENGTH_V2.md §5](./STRENGTH_V2.md#5-development-preview). With every bundled program published, the preview card has nothing to show and stays hidden.

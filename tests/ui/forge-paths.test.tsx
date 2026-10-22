@@ -10,8 +10,13 @@ import { placeholderProgram } from "../program-fixture";
 import { currentPath } from "../../src/data/paths";
 import { currentEnrollment } from "../../src/data/programs";
 import type { CuratedProgram } from "../../src/domain/programs/model";
-import strengthDraft from "../../src/programs/library/forge-strength-intermediate-3-day.json";
-import muscleDraft from "../../src/programs/library/forge-muscle-beginner-3-day.json";
+import strengthJson from "../../src/programs/library/forge-strength-intermediate-3-day.json";
+import muscleJson from "../../src/programs/library/forge-muscle-beginner-3-day.json";
+
+// Draft versions of bundled programs, as future programs or new versions are
+// authored before publication.
+const strengthDraft = { ...strengthJson, status: "draft" } as CuratedProgram;
+const muscleDraft = { ...muscleJson, status: "draft" } as CuratedProgram;
 
 // Test-only published copies of the development placeholder.
 const mockLibrary: CuratedProgram[] = [];
@@ -77,9 +82,9 @@ test("an empty library shows an honest empty state, not generated content", asyn
     const view = await render(<ForgePaths />);
     expect(view.getByText("Programs are on the way")).toBeTruthy();
     expect(view.getByText("Tell Forge where you are")).toBeTruthy();
-    // The generated Path builder stays reachable during the transition.
-    await fireEvent.press(view.getByLabelText("Open the Path builder"));
-    expect(router.push).toHaveBeenLastCalledWith("/paths");
+    // No generated plan is offered in its place.
+    expect(view.queryByLabelText("Open the Path builder")).toBeNull();
+    expect(view.queryAllByText(/builder|generated|generator/i)).toHaveLength(0);
   } finally {
     db.close();
   }

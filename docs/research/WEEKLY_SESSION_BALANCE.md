@@ -1,5 +1,7 @@
 # Forge Paths: weekly session balance audit
 
+> **Historical — retired in Phase 6B.** The workout generator and Path builder described here were removed from the app. Forge Paths now uses 18 curated programs; existing generated Paths can still be continued. See [PHASE_6.md](../PHASE_6.md).
+
 ## Scope and evidence
 
 Baseline: `6a7c540`, programming version 5 (the duration/volume architecture inherited from Planner 4). The focused corrections produce programming version 6; they do not replace the planner, change supported frequencies, or regenerate existing plans.

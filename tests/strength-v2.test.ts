@@ -76,7 +76,7 @@ test("the authored tables parse into nine programs covering the full matrix", ()
     assert.ok(approvedMapping[name], `${name} is unmapped`);
 });
 
-test("all nine Strength programs are bundled, valid and still drafts", () => {
+test("all nine Strength programs are bundled, valid and published", () => {
   assert.equal(strength.length, 9);
   for (const level of levels)
     for (const days of [3, 4, 5] as const) {
@@ -85,20 +85,18 @@ test("all nine Strength programs are bundled, valid and still drafts", () => {
       );
       assert.equal(matches.length, 1, `${level} ${days}-day`);
       assert.equal(matches[0]!.goal, "Strength");
-      assert.equal(matches[0]!.status, "draft");
+      assert.equal(matches[0]!.status, "published");
     }
-  // Drafts are never listed or recommended to users.
+  // Published programs are listed and recommended to users.
   assert.equal(
     libraryPrograms().filter((p) => p.goal === "Strength").length,
-    0,
+    9,
   );
-  assert.equal(
-    recommendProgram(
-      { ...defaults, experience: "Beginner", goal: "Build strength" },
-      programLibrary,
-    ).kind,
-    "none",
+  const rec = recommendProgram(
+    { ...defaults, experience: "Beginner", goal: "Build strength" },
+    programLibrary,
   );
+  assert.equal(rec.kind === "match" && rec.program.goal, "Strength");
 });
 
 test("every program matches its authored prescription exactly, in every phase", () => {
@@ -660,21 +658,19 @@ function currentEnrollmentOf(
 test("drafts are enrolled and resolved only when draft preview is allowed", () => {
   // Node tests are not a development build: preview is off by default.
   assert.equal(draftPreviewEnabled, false);
+  // A future draft version of a program, e.g. one under review.
+  const draft: CuratedProgram = { ...intermediate, status: "draft" };
   const { r, db } = pathRepository();
   try {
-    assert.throws(
-      () => enrollProgram(r, intermediate, "2026-10-19"),
-      /published/,
-    );
-    enrollProgram(r, intermediate, "2026-10-19", false, true);
-    assert.equal(currentEnrollment(r, strength)!.program, undefined);
-    assert.equal(
-      currentEnrollment(r, strength)!.data.programId,
-      intermediate.id,
-    );
-    const preview = enrollments(r, strength, true)[0]!;
-    assert.equal(preview.program, intermediate);
-    assert.equal(intermediate.status, "draft");
+    assert.throws(() => enrollProgram(r, draft, "2026-10-19"), /published/);
+    enrollProgram(r, draft, "2026-10-19", false, true);
+    assert.equal(currentEnrollment(r, [draft])!.program, undefined);
+    assert.equal(currentEnrollment(r, [draft])!.data.programId, draft.id);
+    const preview = enrollments(r, [draft], true)[0]!;
+    assert.equal(preview.program, draft);
+    // Published programs enroll normally.
+    enrollProgram(r, intermediate, "2026-10-19", true);
+    assert.equal(currentEnrollment(r, strength)!.program, intermediate);
   } finally {
     db.close();
   }
