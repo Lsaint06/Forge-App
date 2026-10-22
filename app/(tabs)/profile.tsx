@@ -14,6 +14,7 @@ import {
 import { ProfileForm } from "../../src/components/ProfileForm";
 import { useRepo, confirm } from "../../src/state";
 import { SectionHeader } from "../../src/components/design";
+import { replayIntro } from "../../src/components/splash/session";
 import {
   experienceLevel,
   missingTrainingProfile,
@@ -201,6 +202,14 @@ export default function Profile() {
           FORGE · Design 2 · Local schema v1 · {r.outbox().length} pending sync
           records
         </Label>
+        {__DEV__ && (
+          <Button
+            title="Replay intro (development only)"
+            secondary
+            icon="flame-outline"
+            onPress={replayIntro}
+          />
+        )}
       </Card>
       <Sheet
         visible={edit}

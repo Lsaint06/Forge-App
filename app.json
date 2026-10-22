@@ -20,7 +20,20 @@
       "expo-router",
       "expo-sqlite",
       "expo-secure-store",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#101216",
+          "image": "./assets/splash/launch-mark.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "dark": {
+            "backgroundColor": "#101216",
+            "image": "./assets/splash/launch-mark.png"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

@@ -10,6 +10,8 @@ Optional **Plan details** reviews weekly session balance, including intentional 
 
 **Forge Paths 4.0 is in progress:** Forge Paths is moving to human-authored, versioned programs. Onboarding asks for experience, goal and preferred rest day. **Train → Forge Paths** now shows a recommended program, a browsable program library, program details, enrollment and session tracking. The program library is still empty, and the generated Path builder remains available. See [docs/CURATED_PROGRAMS.md](docs/CURATED_PROGRAMS.md) for the authoring format and transition plan.
 
+**Cinematic intro:** each genuine cold start opens with a 2.6-second FORGE intro: embers, molten letters and cooling steel. It always plays through, respects Reduce Motion, and never replays when returning to an app that is still running. See [docs/SPLASH.md](docs/SPLASH.md) for the architecture, Expo Go testing and needed brand assets.
+
 This is a substantial first implementation, **not completion of every requirement in the product brief**. Read [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for exact coverage and verification limits. The supplied brief is preserved in [docs/PRODUCT_SPEC.txt](docs/PRODUCT_SPEC.txt).
 
 ## Run locally

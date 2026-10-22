@@ -7,6 +7,25 @@ import { StatusBar } from "expo-status-bar";
 import { initializeRepository } from "../src/data/native";
 import { useApp } from "../src/state";
 import { Loading, dark, useColors } from "../src/components/ui";
+import * as SplashScreen from "expo-splash-screen";
+import { ForgeSplash } from "../src/components/splash/ForgeSplash";
+import {
+  finishIntro,
+  introPending,
+  onIntroReplay,
+} from "../src/components/splash/session";
+
+// The native launch screen is cosmetic: failures in its module must never
+// block startup.
+function nativeSplash(action: () => Promise<unknown>) {
+  try {
+    void action().catch(() => {});
+  } catch {
+    // Ignore: the in-app intro and app still render.
+  }
+}
+// Keep the native launch screen up until the first in-app frame is ready.
+nativeSplash(() => SplashScreen.preventAutoHideAsync());
 class Boundary extends Component<
   { children: React.ReactNode },
   { error: string }
@@ -73,6 +92,9 @@ function Navigation() {
 function Ready() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<Error>();
+  // Plays once per JavaScript runtime (a genuine cold start in production).
+  const [intro, setIntro] = useState(introPending);
+  useEffect(() => onIntroReplay(() => setIntro(true)), []);
   useEffect(() => {
     let mounted = true;
     void initializeRepository()
@@ -83,6 +105,8 @@ function Ready() {
       })
       .catch((e) => {
         if (!mounted) return;
+        // Recovery must not replay the intro over the error screen.
+        finishIntro();
         setError(e instanceof Error ? e : new Error("Database startup failed"));
       });
     const sub = AppState.addEventListener("change", (s) => {
@@ -102,10 +126,28 @@ function Ready() {
     };
   }, []);
   if (error) throw error;
-  return ready ? <Navigation /> : <Loading />;
+  return (
+    <>
+      {ready ? <Navigation /> : <Loading />}
+      {intro && (
+        <ForgeSplash
+          ready={ready}
+          onFinish={() => {
+            finishIntro();
+            setIntro(false);
+          }}
+        />
+      )}
+    </>
+  );
 }
 export default function Root() {
   const c = useColors();
+  // The in-app intro's first frame matches the native launch screen, so the
+  // native splash can hide as soon as the root has committed.
+  useEffect(() => {
+    nativeSplash(() => SplashScreen.hideAsync());
+  }, []);
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: c.background }}>
       <SafeAreaProvider>
