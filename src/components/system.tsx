@@ -39,7 +39,7 @@ export function ListRow({
   accessibilityLabel?: string;
 }) {
   const c = useColors();
-  const showChevron = chevron ?? (!!onPress && !destructive);
+  const showChevron = chevron ?? (!!onPress && !destructive && !disabled);
   const content = (
     <>
       {icon && (

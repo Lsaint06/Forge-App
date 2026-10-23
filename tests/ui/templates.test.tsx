@@ -45,7 +45,7 @@ test("templates remain available without starter program browsing or adoption, i
   }
 });
 
-test("Train keeps Paths, custom templates and freestyle without the separate programs entry", async () => {
+test("Train keeps Paths, custom templates and empty workouts without the separate programs entry", async () => {
   const { r, db } = pathRepository();
   try {
     jest.mocked(useRepo).mockReturnValue(r);
@@ -56,7 +56,7 @@ test("Train keeps Paths, custom templates and freestyle without the separate pro
     expect(router.push).toHaveBeenLastCalledWith("/forge-paths");
     await fireEvent.press(view.getByLabelText("Workout templates"));
     expect(router.push).toHaveBeenLastCalledWith("/templates");
-    await fireEvent.press(view.getByLabelText("Start freestyle workout"));
+    await fireEvent.press(view.getByLabelText("Start empty workout"));
     expect(r.active()).toBeDefined();
     expect(router.push).toHaveBeenLastCalledWith("/workout");
   } finally {

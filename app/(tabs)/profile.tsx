@@ -144,7 +144,7 @@ export default function Profile() {
         title="Training history"
         secondary
         icon="time-outline"
-        onPress={() => router.push("/(tabs)/train")}
+        onPress={() => router.push("/history")}
       />
       <SectionHeader title="Account & data" />
       <Card>

@@ -56,7 +56,7 @@ Superset/circuit labels are stored but do not automatically rotate exercise orde
 
 | Module | Responsibility |
 | --- | --- |
-| `app/` | Expo Router routes and five-tab navigation |
+| `app/` | Expo Router routes and four-tab navigation |
 | `src/components/` | Accessible theme-aware primitives, form and workout controls, SVG chart |
 | `src/screens/` | Dashboard, live workout and journal flows |
 | `src/domain/` | Typed records, Zod validation, units, overload, analytics and scoring |

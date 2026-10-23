@@ -1,17 +1,28 @@
 import React from "react";
 import { Tabs, router } from "expo-router";
-import { View, Pressable, Text } from "react-native";
+import { View, Pressable, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRepo } from "../../src/state";
-import { useColors } from "../../src/components/ui";
-const icons = {
-  index: "grid-outline",
-  train: "barbell-outline",
-  explore: "compass-outline",
-  progress: "stats-chart-outline",
-  profile: "person-outline",
+import { useColors, Txt } from "../../src/components/ui";
+import { workoutTitle } from "../../src/domain/workout-display";
+import { theme } from "../../src/theme";
+
+// Four destinations: Today, Train, Progress, You. The exercise library lives
+// in Train. The selected tab is white with a filled icon; there is no orange
+// in navigation.
+const tabs = {
+  index: { label: "Today", icon: "today", idle: "today-outline" },
+  train: { label: "Train", icon: "barbell", idle: "barbell-outline" },
+  progress: {
+    label: "Progress",
+    icon: "stats-chart",
+    idle: "stats-chart-outline",
+  },
+  profile: { label: "You", icon: "person", idle: "person-outline" },
 } as const;
+type TabName = keyof typeof tabs;
+
 export default function TabLayout() {
   const c = useColors();
   const r = useRepo();
@@ -23,50 +34,68 @@ export default function TabLayout() {
       tabBar={({ state, navigation }) => (
         <View
           style={{
-            backgroundColor: c.surface,
-            borderTopWidth: 1,
-            borderColor: c.border,
-            paddingBottom: Math.max(8, insets.bottom),
+            backgroundColor: c.bg,
+            borderTopWidth: StyleSheet.hairlineWidth,
+            borderColor: c.hairline,
+            paddingBottom: Math.max(6, insets.bottom),
           }}
         >
-          {active && (
+          {/* Today's hero already offers Resume, so the banner shows on the
+              other tabs only. */}
+          {active && state.routes[state.index]?.name !== "index" && (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Resume active workout"
+              accessibilityHint={`${active.status === "paused" ? "Paused" : "In progress"}: ${active.name}`}
               onPress={() => router.push("/workout")}
-              style={{
-                padding: 14,
-                backgroundColor: c.elevated,
+              style={({ pressed }) => ({
+                marginHorizontal: theme.spacing.group,
+                marginTop: theme.spacing.sm,
+                minHeight: 52,
+                paddingHorizontal: theme.spacing.md,
+                paddingVertical: 8,
+                borderRadius: theme.radii.control,
+                backgroundColor: pressed ? c.selected : c.surfaceRaised,
                 flexDirection: "row",
-                justifyContent: "space-between",
-              }}
+                alignItems: "center",
+                gap: theme.spacing.group,
+              })}
             >
-              <Text
-                style={{ color: c.text, fontWeight: "700" }}
-                numberOfLines={1}
-              >
-                {active.status === "paused" ? "Paused" : "Active"} ·{" "}
-                {active.name}
-              </Text>
-              <Text style={{ color: c.accent }}>RESUME ↗</Text>
+              <View
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor:
+                    active.status === "paused" ? c.text3 : c.ember,
+                }}
+              />
+              <View style={{ flex: 1 }}>
+                <Txt variant="overline" tone="secondary">
+                  {active.status === "paused" ? "Paused" : "In progress"}
+                </Txt>
+                <Txt variant="body" weight="600" numberOfLines={1}>
+                  {workoutTitle(active.name)}
+                </Txt>
+              </View>
+              <Txt variant="body" weight="600">
+                Resume
+              </Txt>
+              <Ionicons name="chevron-forward" size={18} color={c.text2} />
             </Pressable>
           )}
           <View style={{ flexDirection: "row" }}>
             {state.routes.map((route, index) => {
+              const tab = tabs[route.name as TabName];
+              if (!tab) return null;
               const selected = state.index === index;
-              const name = route.name as keyof typeof icons;
+              const color = selected ? c.text : c.text2;
               return (
                 <Pressable
                   key={route.key}
                   accessibilityRole="tab"
                   accessibilityState={{ selected }}
-                  accessibilityLabel={
-                    name === "index"
-                      ? "Home"
-                      : name === "profile"
-                        ? "You"
-                        : name
-                  }
+                  accessibilityLabel={tab.label}
                   onPress={() => {
                     const event = navigation.emit({
                       type: "tabPress",
@@ -78,29 +107,28 @@ export default function TabLayout() {
                   }}
                   style={{
                     flex: 1,
-                    minHeight: 64,
+                    minHeight: 56,
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: 4,
+                    gap: 3,
                   }}
                 >
                   <Ionicons
-                    name={icons[name]}
-                    color={selected ? c.accent : c.muted}
-                    size={23}
+                    name={selected ? tab.icon : tab.idle}
+                    color={color}
+                    size={24}
                   />
                   <Text
+                    maxFontSizeMultiplier={1.3}
+                    numberOfLines={1}
                     style={{
-                      color: selected ? c.accent : c.muted,
+                      color,
                       fontSize: 11,
-                      fontWeight: "700",
+                      fontWeight: selected ? "700" : "500",
+                      letterSpacing: 0.2,
                     }}
                   >
-                    {name === "index"
-                      ? "Home"
-                      : name === "profile"
-                        ? "You"
-                        : name.charAt(0).toUpperCase() + name.slice(1)}
+                    {tab.label}
                   </Text>
                 </Pressable>
               );
@@ -111,7 +139,6 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="train" />
-      <Tabs.Screen name="explore" />
       <Tabs.Screen name="progress" />
       <Tabs.Screen name="profile" />
     </Tabs>

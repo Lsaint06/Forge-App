@@ -215,6 +215,7 @@ export function Label({
 /**
  * A screen with consistent margins and safe areas. `eyebrow` is a factual
  * overline (date, context); `title` is the screen's single display heading.
+ * `onBack` adds a ‹ Back control above the title for pushed screens.
  */
 export function Screen({
   title,
@@ -222,19 +223,21 @@ export function Screen({
   children,
   scroll = true,
   header,
+  onBack,
 }: {
   title: string;
   eyebrow?: string;
   children: React.ReactNode;
   scroll?: boolean;
   header?: React.ReactNode;
+  onBack?: () => void;
 }) {
   const c = useColors();
   const body = (
     <View
       style={{
         paddingHorizontal: theme.spacing.screen,
-        paddingTop: theme.spacing.md,
+        paddingTop: onBack ? 0 : theme.spacing.md,
         gap: theme.spacing.lg,
         paddingBottom: scroll ? theme.spacing.xxl : 0,
         ...(scroll ? {} : { flex: 1 }),
@@ -242,6 +245,7 @@ export function Screen({
     >
       {!(header && !scroll) && (
         <View style={{ gap: theme.spacing.xs }}>
+          {onBack && <BackButton onPress={onBack} />}
           {eyebrow && (
             <Txt variant="overline" tone="secondary">
               {eyebrow}
@@ -426,6 +430,35 @@ export function TextButton(
   props: Omit<React.ComponentProps<typeof Button>, "variant">,
 ) {
   return <Button {...props} variant="text" />;
+}
+
+/** ‹ Back for pushed screens; the chevron aligns with the screen margin. */
+export function BackButton({
+  onPress,
+  label = "Back",
+}: {
+  onPress: () => void;
+  label?: string;
+}) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={4}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        alignSelf: "flex-start",
+        minWidth: 44,
+        minHeight: 44,
+        marginLeft: -10,
+        justifyContent: "center",
+        opacity: pressed ? 0.6 : 1,
+      })}
+    >
+      <Ionicons name="chevron-back" size={26} color={c.text} />
+    </Pressable>
+  );
 }
 
 /** Icon-only action with a 44 pt target. Always pass a descriptive label. */
@@ -976,6 +1009,7 @@ export function Sheet({
   footer,
   dismissOnBackdrop = false,
   unsaved = false,
+  onDismiss,
 }: {
   visible: boolean;
   scroll?: boolean;
@@ -985,6 +1019,8 @@ export function Sheet({
   footer?: React.ReactNode;
   dismissOnBackdrop?: boolean;
   unsaved?: boolean;
+  /** iOS: runs once the sheet has finished closing (see OverflowMenu). */
+  onDismiss?: () => void;
 }) {
   const c = useColors();
   const reduced = useReducedMotion();
@@ -995,6 +1031,7 @@ export function Sheet({
       transparent
       animationType={reduced ? "none" : "fade"}
       onRequestClose={requestClose}
+      onDismiss={onDismiss}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}

@@ -1,20 +1,27 @@
 import React, { useState } from "react";
 import { FlatList, View } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRepo, mutate } from "../../src/state";
+import { useRepo, mutate } from "../src/state";
 import {
   Field,
   Label,
   FilterChips,
   Button,
+  BackButton,
+  Txt,
   useColors,
-} from "../../src/components/ui";
-import { ExerciseCard } from "../../src/components/design";
-import { theme } from "../../src/theme";
+} from "../src/components/ui";
+import { ExerciseCard } from "../src/components/design";
+import { theme } from "../src/theme";
+import { goBack } from "../src/navigation";
+
+// The exercise library, opened from Train (Exercise library, Search
+// exercises). `/explore` links keep working; `?search=1` focuses the search.
 export default function Explore() {
   const r = useRepo();
   const c = useColors();
+  const { search } = useLocalSearchParams<{ search?: string }>();
   const [filters, setFilters] = useState(false);
   const [q, setQ] = useState("");
   const [muscle, setMuscle] = useState("All");
@@ -57,26 +64,27 @@ export default function Explore() {
         initialNumToRender={12}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
-          padding: theme.spacing.screen,
+          paddingHorizontal: theme.spacing.screen,
           gap: 12,
           paddingBottom: 40,
         }}
         ListHeaderComponent={
           <View style={{ gap: 16, paddingBottom: 12 }}>
-            <Label size={11} bold style={{ color: c.muted, letterSpacing: 2 }}>
-              MOVEMENT LIBRARY
-            </Label>
-            <Label size={32} bold>
-              Explore
-            </Label>
-            <Label muted>
-              {all.length} movements. Find your next challenge.
-            </Label>
+            <View style={{ gap: theme.spacing.xs }}>
+              <BackButton onPress={() => goBack("/(tabs)/train")} />
+              <Txt variant="overline" tone="secondary">
+                {`${all.length} exercises`}
+              </Txt>
+              <Txt variant="display" header numberOfLines={2} fit>
+                Exercise library
+              </Txt>
+            </View>
             <Field
               label="Search exercises"
               placeholder="Try bench, dumbbell, back…"
               value={q}
               onChangeText={setQ}
+              autoFocus={search === "1"}
             />
             <FilterChips
               values={["All exercises", "Favorites", "Recent"]}

@@ -80,6 +80,8 @@ function Navigation() {
         />
         <Stack.Screen name="journal" />
         <Stack.Screen name="templates" />
+        <Stack.Screen name="history" />
+        <Stack.Screen name="explore" />
         <Stack.Screen name="paths" />
         <Stack.Screen name="forge-paths" />
         <Stack.Screen name="exercise" />

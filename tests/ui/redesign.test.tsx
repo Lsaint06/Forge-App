@@ -13,7 +13,7 @@ import WorkoutExerciseCard, {
 } from "../../src/components/WorkoutExerciseCard";
 import WorkoutScreen, { RestTimer } from "../../src/screens/Workout";
 import Train from "../../app/(tabs)/train";
-import Explore from "../../app/(tabs)/explore";
+import Explore from "../../app/explore";
 import {
   ExerciseVisual,
   IconButton,
@@ -245,11 +245,13 @@ test("rest controls persist a deadline and skip cancels the reminder", async () 
   expect(r.setSetting).toHaveBeenCalledWith("restDeadline", "0");
   expect(cancelRestNotification).toHaveBeenCalled();
 });
-test("Train exposes resume and plans without creating a new session on resume", async () => {
+test("Train never starts a second session while one is in progress and keeps plans reachable", async () => {
   const r = repo();
   const view = await render(<Train />);
-  await fireEvent.press(view.getByLabelText("Resume active workout"));
-  expect(router.push).toHaveBeenCalledWith("/workout");
+  const empty = view.getByLabelText("Start empty workout");
+  expect(empty.props.accessibilityState).toMatchObject({ disabled: true });
+  expect(view.getByText("Finish your current workout first")).toBeTruthy();
+  await fireEvent.press(empty);
   expect(r.startWorkout).not.toHaveBeenCalled();
   expect(view.queryByLabelText("Training programs")).toBeNull();
   await fireEvent.press(view.getByLabelText("Workout templates"));
@@ -314,9 +316,9 @@ test("freestyle starts through repository and completed history remains reviewab
     ],
   });
   const view = await render(<Train />);
-  await fireEvent.press(view.getByLabelText("Start freestyle workout"));
+  await fireEvent.press(view.getByLabelText("Start empty workout"));
   expect(r.startWorkout).toHaveBeenCalled();
-  await fireEvent.press(view.getByLabelText("Review / edit"));
+  await fireEvent.press(view.getByLabelText("Review Freestyle"));
   expect(router.push).toHaveBeenCalledWith({
     pathname: "/workout",
     params: { id: "w" },

@@ -230,13 +230,66 @@ Numbers in inputs grow with Dynamic Type up to 1.4×. There is no horizontal scr
 
 Unchanged: progression calculations, RIR interpretation, prescriptions, scheduling, workout data, autosave and resume.
 
+## Phase 3 — Today, Train and navigation (implemented)
+
+Goals: Today and Train have distinct jobs. Today answers "what do I train next?" with one primary action; Train is the hub for every way to train; navigation has four tabs and no orange.
+
+```
+Today                          Train                          History
+WEDNESDAY, OCT 22              Train                          ‹
+Today                          PLAN                           12 WORKOUTS
+┌───────────────────────────┐  ⛰ Forge Strength        ›     History
+│ NEXT SESSION              │    Week 2 · 4 of 36 sessions   OCTOBER 2026
+│ Lower A (Squat Strength)  │  🧭 Forge Paths           ›     Lower A           •••
+│ Forge Strength · Week 2   │    18 curated programs           Tue, Oct 21 · 52 min · 9,635 kg
+│ 📅 Suggested for tomorrow │  WORKOUTS                      Upper A           •••
+│ [ ▶ Start early         ] │  ⊕ Empty workout          ›     …
+└───────────────────────────┘    Push day   [Start]   ›     SEPTEMBER 2026
+YOUR PLAN · THIS WEEK ·        ⧉ Workout templates   3  ›     …
+RECOVERY · LAST SESSION        EXERCISES · HISTORY
+```
+
+- **Files:**
+  - Today: `src/screens/Home.tsx`; next-session choice: `src/data/today.ts`
+  - Train: `app/(tabs)/train.tsx`; plan row: `src/components/PlanRow.tsx`
+  - History: `src/screens/History.tsx` (`/history`)
+  - Exercise library: `app/explore.tsx` (moved out of the tabs; `/explore` links still work, `?search=1` focuses search)
+  - Tabs and resume banner: `app/(tabs)/_layout.tsx`
+  - Shared date and history lines: `src/domain/training-display.ts`
+  - `Screen onBack` and `BackButton` (‹ for pushed screens); `Sheet onDismiss` (navigate only after an iOS sheet has closed)
+- **Tabs:** Today · Train · Progress · You. The selected tab is white with a filled icon; the others are `text2` with outline icons. The resume banner above the tabs is a tonal row ("In progress" or "Paused", the session name, Resume ›) and is still announced as "Resume active workout". It shows on Train, Progress and You; on Today the hero already says Resume, so it is hidden there.
+- **Today:**
+  - The heading is **Today** under the date. The greeting, the Completed sessions and Day streak cards, the weekly ring and the motivational paragraph are gone; streak and session counts stay on Progress.
+  - **Next workout**, in this order:
+    1. The workout in progress: **Resume workout**.
+    2. A session due today (program, then Path, then a planned template): **Start workout**.
+    3. The next program or Path session, with its date ("Suggested for tomorrow" for programs, "Scheduled for Thu, Oct 24" for Paths): **Start early**. A missed Path session shows "Originally scheduled for …".
+    4. Nothing planned: **Start workout** (freestyle) and the text action **Choose a Forge Path**.
+  - Starting uses the existing program, Path and calendar start functions; nothing is rescheduled. After a program session is finished today, the next one is suggested from tomorrow. A planned template already trained today is not offered again. A paused Path offers no session.
+  - Below: **Your plan** (one row to the program dashboard or Path), **This week** (sessions against the weekly goal and the Monday–Sunday dots), **Recovery** (check-in with today's readiness) and **Last session** (review) plus **Workout history**.
+- **Train:** grouped rows only; no orange.
+  - **Plan:** the current program or Path, and Forge Paths with the number of curated programs.
+  - **Workouts:** Empty workout (disabled with "Finish your current workout first" while one is in progress; the banner resumes it), up to three templates, and Workout templates. Tapping a template opens its details (exercises, sets, reps, rest, notes, Start workout, Edit or schedule); the compact tonal **Start** begins it directly.
+  - **Exercises:** Search exercises, Exercise library, Create custom exercise.
+  - **History:** the three most recent workouts (tap to review) and All history.
+- **History:** completed workouts grouped by month, newest first. Each row shows the session name (the full name is spoken and titles the menu), date, duration and volume; tapping opens the review. The row's ••• menu has **Repeat workout** and **Delete workout** (red, confirmed). Reached from Train, You → Training history, and Today's Last session.
+
+| Earlier control                                          | Now                                                       |
+| -------------------------------------------------------- | --------------------------------------------------------- |
+| Explore tab                                              | Train → Exercise library / Search exercises               |
+| Home program and Path cards (Start, Open)                | Today's next-workout hero and Your plan row; Train → Plan |
+| Home Completed sessions, Day streak, weekly ring         | Progress (sessions, day streak); Today → This week        |
+| Train Forge Paths, freestyle and template buttons        | Train rows; template Start; Today owns the primary action |
+| Train full history cards (Review / edit, Repeat, Delete) | History rows (tap to review; ••• → Repeat, Delete)        |
+| You → Training history (opened Train)                    | You → Training history (opens History)                    |
+
 ## Roadmap
 
 | Phase                                | Scope                                                                                                                                                             |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1 · Foundations                      | **Done:** tokens, primitives, composites, reference screen, tests                                                                                                 |
-| 2 · Workout logging                  | **Implemented, in review:** see above                                                                                                                             |
-| 3 · Today, Train, navigation         | Four tabs (Today, Train, Progress, You); Explore inside Train; Today prioritizes the next scheduled workout; History screen                                       |
+| 2 · Workout logging                  | **Done:** see above                                                                                                                                               |
+| 3 · Today, Train, navigation         | **Implemented, in review:** see above                                                                                                                             |
 | 4 · Forge Paths                      | Library, program details (unique sessions, phase timeline, persistent enrollment action), dashboard, existing Path                                                |
 | 5 · Progress, You, secondary screens | Grouped settings, info sheets for methodology and privacy, Templates, Journal, Account, Exercise                                                                  |
 | 6 · Onboarding visuals and polish    | Motion, haptics, light-theme parity, Dynamic Type and VoiceOver, device QA (compact, standard and large iPhones, keyboard, safe areas, landscape where supported) |

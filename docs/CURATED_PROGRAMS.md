@@ -95,7 +95,7 @@ Only the latest published version of each program is listed. Drafts are never li
 
 ## Forge Paths screen (Phase 4)
 
-**Train → Forge Paths** and **Home → Choose a Forge Path** open `app/forge-paths.tsx`, implemented in `src/screens/ForgePaths.tsx`.
+**Train → Forge Paths** and **Today → Choose a Forge Path** open `app/forge-paths.tsx`, implemented in `src/screens/ForgePaths.tsx`.
 
 - **Recommended for you:** shows the recommended program and why it matches. If experience or goal is missing, it asks the user to complete the profile. If no program matches, it says so; nothing is generated to fill the gap.
 - **Program library:** shows every published program, with optional experience and goal filters. Users can choose any program, regardless of the recommendation.

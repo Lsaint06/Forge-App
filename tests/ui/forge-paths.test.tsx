@@ -2,7 +2,7 @@ import React from "react";
 import { render, fireEvent, act } from "@testing-library/react-native";
 import { router } from "expo-router";
 import ForgePaths from "../../src/screens/ForgePaths";
-import { ProgramSummary } from "../../src/components/ProgramSummary";
+import Home from "../../src/screens/Home";
 import { useRepo, confirm } from "../../src/state";
 import { pathRepository } from "../path-fixture";
 import { legacyUserRepository } from "../legacy-fixture";
@@ -133,8 +133,13 @@ test("recommend, review, start and train a program", async () => {
     expect(r.active()?.name).toBe(
       "Test Strength Program · Placeholder session a",
     );
-    const summary = await render(<ProgramSummary />);
-    expect(summary.getByLabelText("Resume program session")).toBeTruthy();
+    const today = await render(<Home />);
+    expect(today.getByText("In progress")).toBeTruthy();
+    expect(today.getByText("Placeholder session a")).toBeTruthy();
+    expect(
+      today.getByLabelText("Your program: Test Strength Program"),
+    ).toBeTruthy();
+    expect(today.getByLabelText("Resume workout")).toBeTruthy();
   } finally {
     db.close();
   }
