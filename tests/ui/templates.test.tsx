@@ -114,8 +114,10 @@ test("previously adopted programs survive backup restore and still start their s
     const restoredBackup = restored.r.exportBackup();
     jest.mocked(useRepo).mockReturnValue(restored.r);
     const view = await render(<Templates />);
-    expect(view.getByText("Bench + upper")).toBeTruthy();
-    expect(view.getByText("Deload: one fewer set per exercise")).toBeTruthy();
+    // The template and its planned session are both listed.
+    expect(view.getAllByText("Bench + upper")).toHaveLength(2);
+    expect(view.getByLabelText("Edit Bench + upper")).toBeTruthy();
+    expect(view.getByText(/Deload: one fewer set per exercise/)).toBeTruthy();
     expect(restored.r.exportBackup()).toEqual({
       ...restoredBackup,
       exportedAt: expect.any(Number),

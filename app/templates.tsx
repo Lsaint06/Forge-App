@@ -1,76 +1,106 @@
 import React, { useState } from "react";
+import { View } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
 import { Alert } from "../src/platform/alert";
-import { router } from "expo-router";
-import {
-  Screen,
-  Card,
-  Label,
-  Button,
-  Row,
-  Sheet,
-  Field,
-  NumberField,
-} from "../src/components/ui";
-import { ExercisePicker } from "../src/components/ExercisePicker";
+import { Screen, Button, Txt, Empty } from "../src/components/ui";
+import { ListRow, ListSection, OverflowMenu } from "../src/components/system";
+import { TemplateEditor } from "../src/components/TemplateEditor";
+import { DateSheet } from "../src/components/DateSheet";
 import { useRepo, mutate, confirm } from "../src/state";
-import {
-  localDate,
-  type Template,
-  type Prescription,
-} from "../src/domain/types";
+import { localDate, type Journal, type Template } from "../src/domain/types";
 import {
   visibleSchedules,
   startScheduledSession,
   standaloneTemplates,
 } from "../src/data/paths";
 import { notifyAt } from "../src/notifications";
-import { kgToLb, lbToKg } from "../src/domain/metrics";
 import { workoutTitle } from "../src/domain/workout-display";
-import { ListRow, ListSection } from "../src/components/system";
-import { blockIfTraining, resumeWorkout } from "../src/startGuard";
+import {
+  dayLabel,
+  relativeDay,
+  templateLine,
+} from "../src/domain/training-display";
+import { exerciseNames } from "../src/domain/templates";
+import {
+  blockIfTraining,
+  otherWorkout,
+  resumeWorkout,
+} from "../src/startGuard";
+import { goBack } from "../src/navigation";
+
+// Workout templates: the lifter's own workouts, ready to start, edit or
+// schedule, and the sessions already planned. Start is the one action on
+// each row; everything else lives in its ••• menu.
+
+/** "Today", "Tomorrow", "Thu, Oct 24", or "Past · Mon, Oct 20". */
+function whenText(date: string, today: string) {
+  if (date < today) return `Past · ${dayLabel(date)}`;
+  const day = relativeDay(date, today);
+  return day.charAt(0).toUpperCase() + day.slice(1);
+}
+
 export default function Templates() {
   const r = useRepo();
-  const units = r.profile().units;
-  const [editor, setEditor] = useState(false);
-  const [picker, setPicker] = useState(false);
-  const [editingId, setEditingId] = useState<string>();
-  const [name, setName] = useState("");
-  const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<Prescription[]>([]);
-  const [baseline, setBaseline] = useState("");
-  const [date, setDate] = useState(localDate());
-  const draft = JSON.stringify({ name, notes, items });
-  function edit(t?: Template) {
-    setEditingId(t?.id);
-    setName(t?.name ?? "");
-    setNotes(t?.notes ?? "");
-    setItems(t?.exercises ?? []);
-    setBaseline(
-      JSON.stringify({
-        name: t?.name ?? "",
-        notes: t?.notes ?? "",
-        items: t?.exercises ?? [],
-      }),
-    );
-    setEditor(true);
+  const params = useLocalSearchParams<{ edit?: string }>();
+  const [editing, setEditing] = useState<{ template?: Template }>();
+  const [scheduling, setScheduling] = useState<Template>();
+  const today = localDate();
+  const active = r.active();
+  const templates = standaloneTemplates(r);
+  const planned = visibleSchedules(r)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 30);
+
+  // Train's template sheet links straight to its editor, once per link.
+  const [handled, setHandled] = useState<string>();
+  if (params.edit && params.edit !== handled) {
+    setHandled(params.edit);
+    const t = r.templates().find((x) => x.id === params.edit);
+    if (t) setEditing({ template: t });
   }
-  function schedule(t: Template) {
+
+  function start(t: Template) {
+    if (blockIfTraining(r)) return;
+    const w = mutate(() => r.startWorkout(t.name, t.id));
+    if (w) router.push("/workout");
+  }
+  function schedule(t: Template, date: string) {
+    // The same planned-session record as before: name, template and day.
     const entry = mutate(() =>
       r.addJournal("schedule", { name: t.name, templateId: t.id }, date),
     );
-    if (entry) {
-      Alert.alert("Scheduled", `${t.name} on ${date}`);
-      void notifyAt(
-        "Planned workout",
-        t.name,
-        new Date(`${date}T09:00:00`).getTime(),
-      ).catch((e) => Alert.alert("Reminder unavailable", String(e)));
-    }
+    setScheduling(undefined);
+    if (!entry) return;
+    Alert.alert("Scheduled", `${t.name} · ${dayLabel(date)}`);
+    void notifyAt(
+      "Planned workout",
+      t.name,
+      new Date(`${date}T09:00:00`).getTime(),
+    ).catch((e) => Alert.alert("Reminder unavailable", String(e)));
   }
-  const active = r.active();
+  function startPlanned(j: Journal) {
+    if (blockIfTraining(r, String(j.data.workoutId ?? ""))) return;
+    const w = mutate(() => startScheduledSession(r, j));
+    if (w) router.push("/workout");
+  }
+
   return (
-    <Screen title="Workout templates" eyebrow="TRAIN">
-      <Button title="Back" secondary onPress={() => router.back()} />
+    <Screen
+      title="Workout templates"
+      eyebrow={
+        templates.length
+          ? `${templates.length} ${templates.length === 1 ? "template" : "templates"}`
+          : undefined
+      }
+      onBack={() => goBack("/(tabs)/train")}
+      footer={
+        <Button
+          title="Create template"
+          icon="add"
+          onPress={() => setEditing({})}
+        />
+      }
+    >
       {active && (
         <ListSection>
           <ListRow
@@ -83,231 +113,175 @@ export default function Templates() {
           />
         </ListSection>
       )}
-      <Field
-        label="Schedule date (YYYY-MM-DD)"
-        value={date}
-        onChangeText={setDate}
-      />
-      <Button title="Create template" icon="add" onPress={() => edit()} />
-      {standaloneTemplates(r).map((t) => (
-        <Card key={t.id}>
-          <Label size={21} bold>
-            {t.name}
-          </Label>
-          <Label muted>
-            {t.exercises.length} exercises ·{" "}
-            {t.exercises.reduce((n, e) => n + e.sets, 0)} sets
-          </Label>
-          <Label muted size={12}>
-            {t.notes}
-          </Label>
-          <Row>
-            <Button
-              title="Train"
-              disabled={!!active}
-              onPress={() => {
-                if (blockIfTraining(r)) return;
-                const w = mutate(() => r.startWorkout(t.name, t.id));
-                if (w) router.push("/workout");
-              }}
-            />
-            <Button title="Edit" secondary onPress={() => edit(t)} />
-            <Button
-              title="Duplicate"
-              secondary
-              onPress={() =>
-                mutate(() =>
-                  r.saveTemplate(
-                    `${t.name} copy`,
-                    t.exercises,
-                    undefined,
-                    t.notes,
-                  ),
-                )
-              }
-            />
-            <Button title="Schedule" secondary onPress={() => schedule(t)} />
-            <Button
-              title="Delete"
-              secondary
-              onPress={() =>
-                confirm(
-                  "Delete template?",
-                  "Completed workouts are preserved. Planned sessions will need a new template.",
-                  () => r.deleteTemplate(t.id),
-                )
-              }
-            />
-          </Row>
-        </Card>
-      ))}
-      <Label bold size={23}>
-        Your calendar
-      </Label>
-      {visibleSchedules(r)
-        .sort((a, b) => a.date.localeCompare(b.date))
-        .slice(0, 30)
-        .map((j) => (
-          <Card key={j.id}>
-            <Label bold>
-              {j.date} · {String(j.data.name)}
-            </Label>
-            {j.data.deload === true && (
-              <Label muted>Deload: one fewer set per exercise</Label>
-            )}
-            <Row>
-              <Button
-                title="Start planned session"
-                secondary
-                // A Path session already in progress can still be resumed.
-                disabled={
-                  !!active && active.id !== String(j.data.workoutId ?? "")
-                }
-                onPress={() => {
-                  if (blockIfTraining(r, String(j.data.workoutId ?? "")))
-                    return;
-                  const w = mutate(() => startScheduledSession(r, j));
-                  if (w) router.push("/workout");
-                }}
-              />
-              {j.data.forgePath === 1 ? (
-                <Button
-                  title="Manage Path session"
-                  secondary
-                  onPress={() =>
-                    router.push({
-                      pathname: "/paths",
-                      params: {
-                        programId: String(j.data.programId),
-                        week: String(j.data.week),
-                      },
-                    })
-                  }
-                />
-              ) : (
-                <Button
-                  title="Remove plan"
-                  secondary
-                  onPress={() =>
-                    confirm(
-                      "Remove planned session?",
-                      "Your recorded workouts will remain.",
-                      () => r.deleteJournal(j.id),
-                    )
-                  }
-                />
-              )}
-            </Row>
-          </Card>
-        ))}
-      <Sheet
-        visible={editor}
-        onClose={() => setEditor(false)}
-        title={editingId ? "Edit template" : "New template"}
-        unsaved={draft !== baseline}
-      >
-        <Field label="Template name" value={name} onChangeText={setName} />
-        <Field
-          label="Training notes"
-          value={notes}
-          multiline
-          onChangeText={setNotes}
+      {!templates.length && (
+        <Empty
+          title="No templates yet"
+          detail="Save a workout you repeat, with its exercises, sets, reps, load and rest, then start it in one tap."
         />
-        {items.map((item, i) => (
-          <Card key={`${item.exerciseId}-${i}`}>
-            <Label bold>{r.exercise(item.exerciseId)?.name}</Label>
-            <Row>
-              {(["sets", "reps", "weight", "rest"] as const).map((k) => (
-                <NumberField
-                  key={k}
-                  label={k === "weight" ? units : k === "rest" ? "Rest sec" : k}
-                  // Templates store kilograms; pounds are shown and entered
-                  // as pounds, like workout sets.
-                  value={
-                    k === "weight" && units === "lb"
-                      ? kgToLb(item.weight)
-                      : item[k]
-                  }
-                  onSave={(entered) => {
-                    const value =
-                      k === "weight" && units === "lb" && entered != null
-                        ? lbToKg(entered)
-                        : entered;
-                    setItems((a) =>
-                      a.map((p, n) =>
-                        n === i
-                          ? {
-                              ...p,
-                              [k]: value ?? 0,
-                              ...(k === "reps" && p.repMax != null
-                                ? { repMax: Math.max(value ?? 0, p.repMax) }
-                                : {}),
-                            }
-                          : p,
-                      ),
-                    );
-                  }}
-                />
-              ))}
-              <NumberField
-                label="Maximum reps"
-                value={item.repMax ?? item.reps}
-                integer
-                min={Math.max(1, item.reps)}
-                max={1000}
-                onSave={(repMax) =>
-                  setItems((a) =>
-                    a.map((p, n) => (n === i ? { ...p, repMax: repMax! } : p)),
-                  )
-                }
-              />
-            </Row>
-            <Row>
-              <Button
-                title="Move up"
-                secondary
-                onPress={() => {
-                  if (i > 0)
-                    setItems((a) => {
-                      const copy = [...a];
-                      [copy[i - 1], copy[i]] = [copy[i]!, copy[i - 1]!];
-                      return copy;
-                    });
-                }}
-              />
-              <Button
-                title="Remove"
-                secondary
-                onPress={() => setItems((a) => a.filter((_, n) => n !== i))}
-              />
-            </Row>
-          </Card>
-        ))}
-        <Button
-          title="Add exercise"
-          secondary
-          onPress={() => setPicker(true)}
-        />
-        <Button
-          title="Save template"
-          disabled={!name.trim() || !items.length}
-          onPress={() => {
-            const t = mutate(() =>
-              r.saveTemplate(name, items, editingId, notes),
+      )}
+      {templates.length > 0 && (
+        <ListSection title="Your templates">
+          {templates.map((t) => {
+            const names = t.exercises.map(
+              (e) => r.exercise(e.exerciseId)?.name ?? "Unavailable exercise",
             );
-            if (t) setEditor(false);
-          }}
+            return (
+              <ListRow
+                key={t.id}
+                title={t.name}
+                subtitle={[templateLine(t.exercises), exerciseNames(names)]
+                  .filter(Boolean)
+                  .join("\n")}
+                accessibilityLabel={`Edit ${t.name}`}
+                chevron={false}
+                onPress={() => setEditing({ template: t })}
+                trailing={
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Button
+                      title="Start"
+                      variant="secondary"
+                      compact
+                      disabled={!!active}
+                      accessibilityLabel={`Start ${t.name}`}
+                      onPress={() => start(t)}
+                    />
+                    <OverflowMenu
+                      label={`Options for ${t.name}`}
+                      title={t.name}
+                      actions={[
+                        {
+                          label: "Edit",
+                          icon: "create-outline",
+                          onPress: () => setEditing({ template: t }),
+                        },
+                        {
+                          label: "Schedule…",
+                          icon: "calendar-outline",
+                          onPress: () => setScheduling(t),
+                        },
+                        {
+                          label: "Duplicate",
+                          icon: "copy-outline",
+                          onPress: () =>
+                            mutate(() =>
+                              r.saveTemplate(
+                                `${t.name} copy`,
+                                t.exercises,
+                                undefined,
+                                t.notes,
+                              ),
+                            ),
+                        },
+                        {
+                          label: "Delete",
+                          icon: "trash-outline",
+                          destructive: true,
+                          onPress: () =>
+                            confirm(
+                              "Delete template?",
+                              "Completed workouts are preserved. Planned sessions will need a new template.",
+                              () => r.deleteTemplate(t.id),
+                            ),
+                        },
+                      ]}
+                    />
+                  </View>
+                }
+              />
+            );
+          })}
+        </ListSection>
+      )}
+      {planned.length > 0 && (
+        <ListSection title="Scheduled">
+          {planned.map((j) => {
+            const name = String(j.data.name);
+            const day = dayLabel(j.date);
+            const path = j.data.forgePath === 1;
+            const blocked = !!otherWorkout(r, String(j.data.workoutId ?? ""));
+            return (
+              <ListRow
+                key={j.id}
+                icon={path ? "trail-sign-outline" : "calendar-outline"}
+                title={name}
+                subtitle={[
+                  whenText(j.date, today),
+                  j.data.deload === true
+                    ? "Deload: one fewer set per exercise"
+                    : undefined,
+                ]
+                  .filter(Boolean)
+                  .join("\n")}
+                accessibilityLabel={`${name}, ${day}`}
+                trailing={
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Button
+                      title="Start"
+                      variant="secondary"
+                      compact
+                      disabled={blocked}
+                      accessibilityLabel="Start planned session"
+                      onPress={() => startPlanned(j)}
+                    />
+                    <OverflowMenu
+                      label={`Options for ${name}, ${day}`}
+                      title={`${name} · ${day}`}
+                      actions={
+                        path
+                          ? [
+                              {
+                                label: "Manage Path session",
+                                icon: "trail-sign-outline",
+                                onPress: () =>
+                                  router.push({
+                                    pathname: "/paths",
+                                    params: {
+                                      programId: String(j.data.programId),
+                                      week: String(j.data.week),
+                                    },
+                                  }),
+                              },
+                            ]
+                          : [
+                              {
+                                label: "Remove from schedule",
+                                icon: "trash-outline",
+                                destructive: true,
+                                onPress: () =>
+                                  confirm(
+                                    "Remove planned session?",
+                                    "Your recorded workouts will remain.",
+                                    () => r.deleteJournal(j.id),
+                                  ),
+                              },
+                            ]
+                      }
+                    />
+                  </View>
+                }
+              />
+            );
+          })}
+        </ListSection>
+      )}
+      {templates.length > 0 && !planned.length && (
+        <Txt variant="caption" tone="secondary">
+          Plan a session from a template&apos;s ••• menu → Schedule.
+        </Txt>
+      )}
+      {editing && (
+        <TemplateEditor
+          template={editing.template}
+          onClose={() => setEditing(undefined)}
         />
-      </Sheet>
-      <ExercisePicker
-        visible={picker}
-        onClose={() => setPicker(false)}
-        onPick={(e) =>
-          setItems((a) => [
-            ...a,
-            { exerciseId: e.id, sets: 3, reps: 10, weight: 0, rest: 90 },
-          ])
-        }
+      )}
+      <DateSheet
+        visible={!!scheduling}
+        title="Schedule workout"
+        detail={scheduling ? `Choose a day for ${scheduling.name}.` : undefined}
+        confirmLabel="Schedule"
+        onConfirm={(date) => scheduling && schedule(scheduling, date)}
+        onClose={() => setScheduling(undefined)}
       />
     </Screen>
   );

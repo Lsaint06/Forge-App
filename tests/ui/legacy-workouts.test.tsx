@@ -199,15 +199,21 @@ test("template editor saves and reopens both rep boundaries without collapsing t
     ]);
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Templates />);
-    await fireEvent.press(view.getByRole("button", { name: "Edit" }));
-    await fireEvent.changeText(view.getByLabelText("Maximum reps"), "8");
+    await fireEvent.press(view.getByLabelText("Edit Range template"));
+    await fireEvent.press(view.getByLabelText("Barbell Bench Press"));
+    // The range top steps up from the fixed target: 6 → 7 → 8.
+    await fireEvent.press(view.getByLabelText("Increase Up to reps"));
+    await fireEvent.press(view.getByLabelText("Increase Up to reps"));
     await fireEvent.press(view.getByRole("button", { name: "Save template" }));
     expect(
       r.templates().find((t) => t.id === template.id)!.exercises[0],
     ).toMatchObject({ reps: 6, repMax: 8 });
-    await fireEvent.press(view.getByRole("button", { name: "Edit" }));
-    expect(view.getByLabelText("Maximum reps").props.value).toBe("8");
-    expect(view.getByLabelText("reps").props.value).toBe("6");
+    await fireEvent.press(view.getByLabelText("Edit Range template"));
+    await fireEvent.press(view.getByLabelText("Barbell Bench Press"));
+    expect(
+      view.getByLabelText("Up to reps").props.accessibilityValue.text,
+    ).toBe("8");
+    expect(view.getByLabelText("Reps").props.accessibilityValue.text).toBe("6");
   } finally {
     db.close();
   }

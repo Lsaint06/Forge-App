@@ -562,4 +562,47 @@ Starting commit `a8daf09`. The storage schema is unchanged: two repository metho
 - The summary sheet and its backup buttons on notched and Dynamic Island phones.
 - Leaving mid-edit on iOS: the workout screen is a full-screen modal, so there should be no back-swipe that skips the Cancel prompt; confirm on a device. If an edit is ever left pending, it reopens in edit mode and can still be cancelled.
 - VoiceOver row actions in the reorder sheet.
-*End of report. Phase 7B WP1 and WP2 are approved and committed (WP2 verified on the owner's iPhone); WP3–WP7 have not begun.*
+
+## Phase 7B progress — WP3 (approved)
+
+Starting commit `3e387d2`. No schema, storage or dependency change: templates are still saved through `saveTemplate` with the same prescription shape, and scheduling writes the same `schedule` journal record (`{ name, templateId }` on a local date, with the same 9 AM reminder).
+
+| Area | Before | After |
+|---|---|---|
+| **Library** | Cards with a row of wrapping buttons (Start, Edit, Duplicate, Delete, Schedule) and a global `YYYY-MM-DD` date field. | Design 2.0 rows: name, "3 exercises · 11 sets", the first exercises. One compact **Start** per row and a ••• menu (Edit, Schedule…, Duplicate, Delete). The footer **Create template** is the only orange action. Tapping a row opens its editor. The empty state explains templates. A Resume row and disabled Starts appear while a workout is in progress (WP2 guard). |
+| **Editor (C-01)** | Free-text fields; loads entered as kilograms whatever the profile used. | A sheet with name and notes, and one expandable row per exercise: steppers for Sets, Reps, "Up to reps" and Rest (15 s), plus a load field with ± in the **profile's units** (5 lb or the profile increment). 135 lb is stored as about 61.23 kg and reopens as 135 lb. Remove asks first; Reorder uses the WP2 reorder list; Add exercise uses the exercise picker. Cancel, close or back asks before discarding changes. Saving is one atomic call guarded against double taps. |
+| **Scheduling** | One global text date field applied to whichever template you scheduled. | ••• → Schedule… opens a month calendar (Monday first; today outlined; past days unavailable). The button reads "Schedule · Sun, Oct 25". |
+| **Scheduled list** | Mixed cards. | ListRows with Today / Tomorrow / day / "Past · day" and the deload note, plus Start and a ••• menu ("Remove from schedule", or "Manage Path session" for Path entries). The confirmation text is unchanged. |
+| **Train link** | "Edit or schedule" opened the templates list. | It opens that template's editor directly (`/templates?edit=<id>`). |
+
+New: [TemplateEditor.tsx](../../src/components/TemplateEditor.tsx), [DateSheet.tsx](../../src/components/DateSheet.tsx), [Stepper.tsx](../../src/components/Stepper.tsx), [calendar-dates.ts](../../src/domain/calendar-dates.ts), [templates.ts](../../src/domain/templates.ts). [ReorderSheet.tsx](../../src/components/ReorderSheet.tsx) now exposes a generic `ReorderList`; the workout reorder sheet is unchanged.
+
+**Tests:**
+
+- Logic tests: calendar grids and year boundaries, prescription text, unit round trip, summaries, moves.
+- UI tests: empty state; row actions; delete confirm; active-workout guard; create with steppers (single save); 135 lb → 61.23 kg; remove and reorder; unsaved guard; Train's edit link; schedule writes the same record; closing the picker schedules nothing; planned Start and remove.
+
+**Emulator coverage (Android, Expo Go 58):**
+
+- Sizes: compact, standard and large.
+- Themes and text: dark; light with pounds at 130 % text.
+- Library states: empty, one, many, long (8 exercises), scheduled (past, today and future), active workout.
+- Editing: create, edit, expanded exercise, keyboard on the load field, unsaved prompt, reorder, remove confirm, save persisted (sets and order), menu, calendar, schedule end to end (the new entry appears in date order).
+- Screenshots: `forge-visual-harness\shots\android\p11\`.
+
+**Issue found on the emulator and fixed:** on compact phones "Save template" wrapped to two lines. The save button now takes two-thirds of the footer.
+
+**Issue found on the owner's iPhone and fixed:** Add exercise did nothing. The exercise picker and reorder sheet were rendered next to the editor sheet; iOS cannot present a second modal from outside one that is already showing (Android can, so the emulator missed it). Both are now rendered inside the editor sheet. A UI test checks that each opens nested inside the editor, and it fails on the old layout. Android re-verified: the picker opens over the editor and the picked exercise is added.
+
+**Behaviour changes (approved by the owner):**
+
+- Past dates can no longer be scheduled; the old text field accepted any date. Existing past entries still show as "Past · day" and can be started or removed.
+- A newly added exercise starts with the profile's default rest (it was always 90 s).
+
+**iPhone checks outstanding:**
+
+- Keyboard and the input toolbar on the load field inside the editor sheet.
+- The calendar and reorder sheets stacked over the editor (iOS modal presentation).
+- VoiceOver on the steppers and calendar days.
+
+*End of report. Phase 7B WP1, WP2 and WP3 are approved and committed (WP2 and WP3 verified on the owner's iPhone); WP4–WP7 have not begun.*

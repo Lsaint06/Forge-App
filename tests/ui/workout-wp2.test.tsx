@@ -509,8 +509,8 @@ test("the templates screen shows the workout in progress and disables starts", a
     await fireEvent.press(view.getByLabelText("Resume Freestyle"));
     expect(router.push).toHaveBeenCalledWith("/workout");
     expect(
-      view.getByRole("button", { name: "Train" }).props.accessibilityState
-        .disabled,
+      view.getByRole("button", { name: "Start Upper A" }).props
+        .accessibilityState.disabled,
     ).toBe(true);
     expect(r.workouts()).toHaveLength(1);
   } finally {

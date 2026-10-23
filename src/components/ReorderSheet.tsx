@@ -7,33 +7,32 @@ import { moveExerciseTo } from "../data/workout-session";
 import { plural } from "../domain/training-display";
 import { theme } from "../theme";
 
+export type ReorderItem = { key: string; title: string; subtitle?: string };
+
 /**
- * Reordering a workout's exercises: pick an exercise, then move it to the
- * top, up, down or to the bottom. Every move saves at once; sets and logged
- * values stay with their exercise. Screen readers get the same moves as
- * actions on each row.
+ * Reordering a list of exercises: pick one, then move it to the top, up,
+ * down or to the bottom. `onMove` applies each move at once. Screen readers
+ * get the same moves as actions on each row.
  */
-export function ReorderSheet({
-  workoutId,
+export function ReorderList({
+  items,
   initial,
+  onMove,
   onClose,
 }: {
-  workoutId: string;
-  /** The exercise row to select first (from an exercise's menu). */
+  items: ReorderItem[];
+  /** The item to select first (from an exercise's menu). */
   initial?: string;
+  /** Moves `key` to the 0-based position `to`. */
+  onMove: (key: string, to: number) => void;
   onClose: () => void;
 }) {
-  const r = useRepo();
   const c = useColors();
-  const rows = r.workoutExercises(workoutId);
+  const rows = items;
   const [selected, setSelected] = useState(initial);
-  const index = rows.findIndex((row) => row.id === selected);
-  const name = (exerciseId: string) =>
-    r.exercise(exerciseId)?.name ?? "Missing exercise";
-  const selectedName = index >= 0 ? name(rows[index]!.exerciseId) : "";
-  function move(rowId: string, to: number) {
-    mutate(() => moveExerciseTo(r, workoutId, rowId, to));
-  }
+  const index = rows.findIndex((row) => row.key === selected);
+  const selectedName = index >= 0 ? rows[index]!.title : "";
+  const move = onMove;
   const last = rows.length - 1;
   const moves: {
     key: string;
@@ -96,7 +95,7 @@ export function ReorderSheet({
                 }
                 accessibilityState={{ disabled: m.disabled }}
                 disabled={m.disabled}
-                onPress={() => move(rows[index]!.id, m.to)}
+                onPress={() => move(rows[index]!.key, m.to)}
                 style={({ pressed }) => ({
                   flex: 1,
                   minHeight: 56,
@@ -137,12 +136,11 @@ export function ReorderSheet({
         }}
       >
         {rows.map((row, i) => {
-          const isSelected = row.id === selected;
-          const title = name(row.exerciseId);
-          const sets = r.sets(row.id).length;
+          const isSelected = row.key === selected;
+          const title = row.title;
           return (
             <Pressable
-              key={row.id}
+              key={row.key}
               accessibilityRole="button"
               accessibilityLabel={`${i + 1}. ${title}`}
               accessibilityHint="Selects this exercise to move it"
@@ -161,11 +159,11 @@ export function ReorderSheet({
                   bottom: last,
                 }[event.nativeEvent.actionName];
                 if (to !== undefined && to >= 0 && to <= last && to !== i) {
-                  setSelected(row.id);
-                  move(row.id, to);
+                  setSelected(row.key);
+                  move(row.key, to);
                 }
               }}
-              onPress={() => setSelected(row.id)}
+              onPress={() => setSelected(row.key)}
               style={({ pressed }) => ({
                 flexDirection: "row",
                 alignItems: "center",
@@ -205,9 +203,11 @@ export function ReorderSheet({
                 <Txt weight="600" numberOfLines={2}>
                   {title}
                 </Txt>
-                <Txt variant="caption" tone="secondary">
-                  {plural(sets, "set")}
-                </Txt>
+                {!!row.subtitle && (
+                  <Txt variant="caption" tone="secondary">
+                    {row.subtitle}
+                  </Txt>
+                )}
               </View>
               {isSelected && (
                 <Ionicons name="checkmark" size={20} color={c.ember} />
@@ -217,5 +217,35 @@ export function ReorderSheet({
         })}
       </View>
     </Sheet>
+  );
+}
+
+/**
+ * Reordering a workout's exercises. Every move saves at once; sets and
+ * logged values stay with their exercise.
+ */
+export function ReorderSheet({
+  workoutId,
+  initial,
+  onClose,
+}: {
+  workoutId: string;
+  initial?: string;
+  onClose: () => void;
+}) {
+  const r = useRepo();
+  return (
+    <ReorderList
+      items={r.workoutExercises(workoutId).map((row) => ({
+        key: row.id,
+        title: r.exercise(row.exerciseId)?.name ?? "Missing exercise",
+        subtitle: plural(r.sets(row.id).length, "set"),
+      }))}
+      initial={initial}
+      onMove={(rowId, to) =>
+        mutate(() => moveExerciseTo(r, workoutId, rowId, to))
+      }
+      onClose={onClose}
+    />
   );
 }

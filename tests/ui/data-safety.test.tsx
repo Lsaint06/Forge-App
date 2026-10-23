@@ -356,9 +356,10 @@ test("a pound user edits template loads in pounds while kilograms are stored", a
     ]);
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Templates />);
-    await fireEvent.press(view.getByLabelText("Edit"));
-    expect(view.queryByLabelText("kg")).toBeNull();
-    const field = view.getByLabelText("lb");
+    await fireEvent.press(view.getByLabelText("Edit Push"));
+    await fireEvent.press(view.getByLabelText("Barbell Bench Press"));
+    expect(view.queryByLabelText("Barbell Bench Press load (kg)")).toBeNull();
+    const field = view.getByLabelText("Barbell Bench Press load (lb)");
     expect(field.props.value).toBe("135");
     await fireEvent(field, "focus");
     await fireEvent.changeText(field, "185");
@@ -385,8 +386,9 @@ test("a kilogram user's template loads are unchanged", async () => {
     ]);
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Templates />);
-    await fireEvent.press(view.getByLabelText("Edit"));
-    const field = view.getByLabelText("kg");
+    await fireEvent.press(view.getByLabelText("Edit Push"));
+    await fireEvent.press(view.getByLabelText("Barbell Bench Press"));
+    const field = view.getByLabelText("Barbell Bench Press load (kg)");
     expect(field.props.value).toBe("60");
     await fireEvent(field, "focus");
     await fireEvent.changeText(field, "62.5");

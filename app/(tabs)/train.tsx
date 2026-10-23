@@ -220,7 +220,16 @@ export default function Train() {
         onResume={
           active ? () => afterSheet(() => router.push("/workout")) : undefined
         }
-        onEdit={() => afterSheet(() => router.push("/templates"))}
+        onEdit={() =>
+          afterSheet(
+            () =>
+              details &&
+              router.push({
+                pathname: "/templates",
+                params: { edit: details.id },
+              }),
+          )
+        }
       />
     </Screen>
   );
