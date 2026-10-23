@@ -13,7 +13,11 @@ import {
   ProgressBar,
 } from "../components/ui";
 import { useRepo, mutate, confirm } from "../state";
-import { goalProgress } from "../domain/analytics";
+import {
+  goalProgress,
+  latestBodyweight,
+  bodyweightGoal,
+} from "../domain/analytics";
 import { localDate, type Journal, type JournalKind } from "../domain/types";
 import {
   nutritionTotals,
@@ -154,10 +158,7 @@ export default function JournalScreen() {
     if (kind === "goal" && !entry)
       setForm((f) => ({
         ...f,
-        start: String(
-          r.journal("measurement").find((j) => j.data.name === "Bodyweight")
-            ?.data.value ?? 0,
-        ),
+        start: String(latestBodyweight(r.journal("measurement")) ?? 0),
       }));
     setVisible(true);
     setChanged(false);
@@ -224,12 +225,31 @@ export default function JournalScreen() {
       ).calories;
     if (metric === "strength")
       return records(r.history(String(j.data.exerciseId)).flat()).load;
-    if (metric === "bodyweight")
-      return Number(
-        r.journal("measurement").find((e) => e.data.name === "Bodyweight")?.data
-          .value ?? 0,
-      );
     return 0;
+  }
+  function goalStatus(j: Journal) {
+    const target = Number(j.data.target);
+    if (j.data.metric === "bodyweight") {
+      const current = latestBodyweight(r.journal("measurement"));
+      const start = Number(j.data.start);
+      const { ratio } = bodyweightGoal(
+        current,
+        target,
+        Number.isFinite(start) && start > 0 ? start : undefined,
+      );
+      return {
+        text:
+          current === undefined
+            ? `No bodyweight logged yet · target ${target} kg`
+            : `${current.toFixed(1)} kg now · target ${target} kg`,
+        ratio,
+      };
+    }
+    const current = goalValue(j);
+    return {
+      text: `${current.toFixed(1)} / ${j.data.target} ${j.data.metric}`,
+      ratio: goalProgress(current, target).ratio,
+    };
   }
   return (
     <Screen title={settings.title} eyebrow={`PROGRESS / ${kind.toUpperCase()}`}>
@@ -384,19 +404,9 @@ export default function JournalScreen() {
             )}
             {kind === "goal" && (
               <>
-                <Label>
-                  {goalValue(j).toFixed(1)} / {j.data.target} {j.data.metric}
-                </Label>
+                <Label>{goalStatus(j).text}</Label>
                 <ProgressBar
-                  value={
-                    goalProgress(
-                      goalValue(j),
-                      Number(j.data.target),
-                      j.data.metric === "bodyweight"
-                        ? Number(j.data.start ?? goalValue(j))
-                        : undefined,
-                    ).ratio
-                  }
+                  value={goalStatus(j).ratio}
                   label={String(j.data.name)}
                 />
                 <Label muted size={12}>

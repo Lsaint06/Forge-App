@@ -265,7 +265,7 @@ test("startup errors show recovery instead of the intro", async () => {
   const view = await render(<Root />);
   await advance(10);
   await waitFor(() =>
-    expect(view.getByText("FORGE needs attention")).toBeTruthy(),
+    expect(view.getByText("FORGE couldn't open")).toBeTruthy(),
   );
   expect(view.getByText("disk unavailable")).toBeTruthy();
   expect(view.queryByLabelText(LABEL)).toBeNull();

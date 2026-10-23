@@ -1,6 +1,6 @@
 # FORGE — Fitness Tracker
 
-A dark-first, offline fitness log for iOS and Android. Workouts, templates, measurements, nutrition and recovery live in SQLite. Guest mode requires no account, API key, food database or AI service. Dashboard statistics come from your own recorded workouts.
+A dark-first, offline fitness log for iPhone and Android phones (iPad support is disabled until it is tested). Workouts, templates, measurements, nutrition and recovery live in SQLite. Guest mode requires no account, API key, food database or AI service. Dashboard statistics come from your own recorded workouts.
 
 FORGE Paths is **curated-only**: open **Train → Forge Paths** for a recommended program and the library of 18 human-authored Strength and Muscle Building programs (Beginner, Intermediate and Advanced; 3, 4 and 5 days a week). Each comes with enrollment, scheduling around your rest day and progression built from your logged sets. The earlier workout generator was retired in Phase 6B. Lifters who already have a generated Path can keep training it and review its history. See [docs/CURATED_PROGRAMS.md](docs/CURATED_PROGRAMS.md) and [docs/PHASE_6.md](docs/PHASE_6.md).
 
@@ -47,7 +47,9 @@ GitHub Actions runs these checks and retains native export artifacts. CI does no
 - Edit/duplicate/delete custom workout templates and schedule sessions. Forge Paths is the only guided-plan offering; the ready-made starter-program catalog has been retired. Previously adopted programs, saved templates, schedules and workout history remain available, including their existing calendar deload behavior.
 - Inspect training consistency against your plan, per-exercise strength progression, personal records, volume, primary-muscle set distribution, training time and measurement trends (see [docs/PROGRESS_METRICS.md](docs/PROGRESS_METRICS.md)).
 - Log historical body measurements, manually supplied food values/servings, saved foods, repeat meals, recovery inputs and goals.
-- Export/import validated JSON backups and delete local records with confirmation.
+- Export/import validated JSON backups and delete local records with confirmation. You → Export backup offers **Save to a folder** (Android: Forge writes the file into a folder you pick, reads it back and records a confirmed backup) and **Share a copy** (email, Drive or another app; the share sheet cannot report whether the file was saved, so this is shown as "Shared · not confirmed saved" and never counts as a backup). Importing a backup file also counts as confirmed up to its export time. The row shows the last confirmed backup and how many workouts have been logged since. After a workout Forge offers a backup when one is due (never backed up, three or more new workouts, or a week with new workouts); "Not now", or an unconfirmed share, quiets the prompt for three days. iPhone keeps the share option until the iOS folder picker is verified on a device.
+- Finish a workout from a review sheet: sets that hold numbers but were never ticked are listed per exercise, so nothing is left out of progress silently. They stay out unless you switch them on, because a set that was only planned must not be recorded as done.
+- If FORGE cannot open its data, a recovery screen offers Try again and Save a copy of my data (a JSON backup, or a raw copy of the database file when the records cannot be read). Nothing is deleted. Set `EXPO_PUBLIC_SUPPORT_EMAIL` (see `.env.example`) to show a support contact there; without a dedicated address none is shown.
 - Configure real Supabase email authentication and explicitly requested synchronization. No configured backend means guest mode, not simulated login.
 
 Superset/circuit labels are stored but do not automatically rotate exercise order. Progress photos, barcode scanning, automatic/background cloud sync, advanced progression rules and several achievement/reminder types are not implemented.
@@ -103,6 +105,8 @@ Every local mutation coalesces an outbox record. The server serializes writes an
 Conflict records preserve local and cloud snapshots. Choose Keep local or Use cloud with confirmation; export first. Concurrent edits made during network requests are retained in the outbox. Local deletion queues a tombstone. Deleting all local data does **not** delete cloud data: a later sync can restore it. Cloud account deletion is a separate authenticated action and cascades cloud records. Favorites and timer/settings keys are local-only. No automatic sync, server-side incremental cursor, or remote notifications are implemented.
 
 Local databases and JSON exports are not encrypted by FORGE. Use the device lock and keep shared backups private. Do not use this first release for irreplaceable data without regular backups.
+
+**Where your data lives.** Without a configured cloud backend, training history exists only in the app's SQLite database on the phone. Uninstalling the app, clearing its storage, or losing the phone deletes it; export a backup to Files, iCloud Drive, Google Drive or email regularly. While testing in **Expo Go**, that database belongs to Expo Go itself (on Android, `/data/data/host.exp.exponent/files/SQLite/forge.db`): deleting or clearing Expo Go deletes your log, and a later standalone FORGE build will not see it. Export a backup first and import it into the new app.
 
 ## Validation and delivery
 

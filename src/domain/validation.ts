@@ -128,6 +128,10 @@ export const journalSchema = z.object({
   createdAt: nonnegative,
   updatedAt: nonnegative,
 });
+/** "Bodyweight", "Body weight", "body weight": the measurement goals and
+ * conversions treat as the lifter's weight (always stored in kilograms). */
+export const isBodyweightName = (name: unknown) =>
+  /^body\s*weight$/i.test(String(name ?? "").trim());
 export function validateJournal(
   kind: string,
   data: Record<string, string | number | boolean>,
@@ -164,7 +168,7 @@ export function validateJournal(
     n("value", 10000, 0.01);
     z.enum(["kg", "cm", "percent"]).parse(data.unit);
     if (data.unit === "percent") n("value", 100, 0.01);
-    if (/^body\s*weight$/i.test(String(data.name).trim()) && data.unit !== "kg")
+    if (isBodyweightName(data.name) && data.unit !== "kg")
       throw new Error(
         "Bodyweight must be stored in kilograms; imperial entries are converted before saving",
       );

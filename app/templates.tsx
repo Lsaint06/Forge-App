@@ -24,8 +24,10 @@ import {
   standaloneTemplates,
 } from "../src/data/paths";
 import { notifyAt } from "../src/notifications";
+import { kgToLb, lbToKg } from "../src/domain/metrics";
 export default function Templates() {
   const r = useRepo();
+  const units = r.profile().units;
   const [editor, setEditor] = useState(false);
   const [picker, setPicker] = useState(false);
   const [editingId, setEditingId] = useState<string>();
@@ -194,9 +196,19 @@ export default function Templates() {
               {(["sets", "reps", "weight", "rest"] as const).map((k) => (
                 <NumberField
                   key={k}
-                  label={k === "weight" ? "kg" : k === "rest" ? "Rest sec" : k}
-                  value={item[k]}
-                  onSave={(value) =>
+                  label={k === "weight" ? units : k === "rest" ? "Rest sec" : k}
+                  // Templates store kilograms; pounds are shown and entered
+                  // as pounds, like workout sets.
+                  value={
+                    k === "weight" && units === "lb"
+                      ? kgToLb(item.weight)
+                      : item[k]
+                  }
+                  onSave={(entered) => {
+                    const value =
+                      k === "weight" && units === "lb" && entered != null
+                        ? lbToKg(entered)
+                        : entered;
                     setItems((a) =>
                       a.map((p, n) =>
                         n === i
@@ -209,8 +221,8 @@ export default function Templates() {
                             }
                           : p,
                       ),
-                    )
-                  }
+                    );
+                  }}
                 />
               ))}
               <NumberField

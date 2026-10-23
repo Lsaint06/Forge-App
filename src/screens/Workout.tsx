@@ -39,6 +39,8 @@ import {
   SET_KEYBOARD_ID,
 } from "../components/SetGrid";
 import { restNotification, cancelRestNotification } from "../notifications";
+import { FinishSheet } from "../components/FinishSheet";
+import { hasValues } from "../domain/finish";
 import { theme } from "../theme";
 import type { Workout } from "../domain/types";
 
@@ -250,8 +252,16 @@ export default function WorkoutScreen() {
   const r = useRepo();
   const c = useColors();
   const { id: workoutId } = useLocalSearchParams<{ id?: string }>();
-  const w = workoutId ? r.workout(workoutId) : r.active();
+  // Once finished, the workout is no longer "active": keep showing it while
+  // the finish sheet offers a backup.
+  const [finishedId, setFinishedId] = useState<string>();
+  const w = workoutId
+    ? r.workout(workoutId)
+    : finishedId
+      ? r.workout(finishedId)
+      : r.active();
   const [picker, setPicker] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const [sheet, setSheet] = useState<"name" | "notes" | "rest" | "template">();
   const [name, setName] = useState("");
   const [templateName, setTemplateName] = useState("");
@@ -308,23 +318,14 @@ export default function WorkoutScreen() {
   const close = () => setSheet(undefined);
   function finish() {
     const all = r.workoutSets(w!.id);
-    if (!all.some((s) => s.completed)) {
+    if (!all.some((s) => s.completed || hasValues(s))) {
       Alert.alert(
         "No completed sets",
         "Mark at least one set complete before finishing.",
       );
       return;
     }
-    confirm(
-      "Finish workout?",
-      `${all.filter((s) => s.completed).length} completed sets will be included in your progress.`,
-      () => {
-        r.finishWorkout(w!.id);
-        r.setSetting("restDeadline", "0");
-        void cancelRestNotification().catch(() => {});
-        returnToTraining();
-      },
-    );
+    setFinishing(true);
   }
   const menu: MenuAction[] = [
     {
@@ -589,6 +590,17 @@ export default function WorkoutScreen() {
           })
         }
       />
+      {finishing && (
+        <FinishSheet
+          workout={w}
+          onClose={() => setFinishing(false)}
+          onSaved={() => setFinishedId(w.id)}
+          onDone={() => {
+            setFinishing(false);
+            returnToTraining();
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

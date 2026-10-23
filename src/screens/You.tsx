@@ -4,7 +4,9 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { Alert } from "../platform/alert";
-import { downloadBackup, pickBackup } from "../platform/backup";
+import { pickBackup } from "../platform/backup";
+import { backupState, backupExportedAt, recordBackup } from "../data/backup";
+import { BackupSheet } from "../components/Backup";
 import { cancelAllNotifications } from "../notifications";
 import {
   Screen,
@@ -179,6 +181,7 @@ export default function You() {
   const [editor, setEditor] = useState<Editor>();
   const [dirty, setDirty] = useState(false);
   const [info, setInfo] = useState(false);
+  const [backupOpen, setBackupOpen] = useState(false);
   // Opens an editor requested by a link (e.g. Library's "Complete training
   // profile"), once per request.
   const [handled, setHandled] = useState<string>();
@@ -216,18 +219,12 @@ export default function You() {
   const member = membership();
   const cloud = cloudConfigured();
   const pending = r.outbox().length;
+  const backup = backupState(r);
   const version = Constants.expoConfig?.version ?? "1.0.0";
 
   function close() {
     setEditor(undefined);
     setDirty(false);
-  }
-  async function exportData() {
-    try {
-      await downloadBackup(JSON.stringify(r.exportBackup(), null, 2));
-    } catch (e) {
-      Alert.alert("Export failed", String(e));
-    }
   }
   async function importData() {
     try {
@@ -236,7 +233,13 @@ export default function You() {
       confirm(
         "Replace local data from backup?",
         "All current records will be replaced atomically if the backup is valid. Export first. If cloud sync is enabled, this resets the local sync identity and may cause conflicts on your next sync.",
-        () => r.importBackup(text),
+        () => {
+          r.importBackup(text);
+          // The data now matches that backup file, so it is protected up to
+          // the moment it was exported.
+          const at = backupExportedAt(text);
+          if (at) recordBackup(r, at);
+        },
       );
     } catch (e) {
       Alert.alert("Import failed", e instanceof Error ? e.message : String(e));
@@ -512,8 +515,9 @@ export default function You() {
         <ListRow
           icon="download-outline"
           title="Export backup"
-          subtitle="Save a JSON copy of all your data"
-          onPress={() => void exportData()}
+          subtitle={backup.text}
+          accessibilityLabel="Export backup"
+          onPress={() => setBackupOpen(true)}
         />
         <ListRow
           icon="push-outline"
@@ -574,6 +578,7 @@ export default function You() {
         title="Privacy & training guidance"
         paragraphs={privacy}
       />
+      <BackupSheet visible={backupOpen} onClose={() => setBackupOpen(false)} />
       <Sheet
         visible={!!editor}
         onClose={close}

@@ -127,10 +127,9 @@ export default function Account() {
             Guest mode is active
           </Label>
           <Label muted>
-            Training and lifestyle logs work offline. Cloud accounts are
-            unavailable until EXPO_PUBLIC_SUPABASE_URL and
-            EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY are configured and the database
-            migration is applied. See README for setup.
+            Cloud accounts aren&apos;t available in this version, so your
+            training data stays on this phone. Export a backup regularly from
+            You → Export backup and keep the file somewhere safe.
           </Label>
         </Card>
       ) : user ? (

@@ -1,6 +1,6 @@
-import React, { useEffect, useState, Component } from "react";
+import React, { useEffect, useState } from "react";
 import { Stack } from "expo-router";
-import { View, Text, Pressable, AppState } from "react-native";
+import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -9,6 +9,7 @@ import { useApp } from "../src/state";
 import { Loading, dark, useColors } from "../src/components/ui";
 import * as SplashScreen from "expo-splash-screen";
 import { ForgeSplash } from "../src/components/splash/ForgeSplash";
+import { ErrorBoundary } from "../src/components/Recovery";
 import {
   finishIntro,
   introPending,
@@ -26,42 +27,6 @@ function nativeSplash(action: () => Promise<unknown>) {
 }
 // Keep the native launch screen up until the first in-app frame is ready.
 nativeSplash(() => SplashScreen.preventAutoHideAsync());
-class Boundary extends Component<
-  { children: React.ReactNode },
-  { error: string }
-> {
-  state = { error: "" };
-  static getDerivedStateFromError(e: Error) {
-    return { error: e.message };
-  }
-  render() {
-    if (this.state.error)
-      return (
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: dark.background,
-            padding: 30,
-            justifyContent: "center",
-            gap: 20,
-          }}
-        >
-          <Text style={{ color: dark.text, fontSize: 24 }}>
-            FORGE needs attention
-          </Text>
-          <Text style={{ color: dark.muted }}>{this.state.error}</Text>
-          <Text style={{ color: dark.muted }}>
-            Your database has not been deleted. Close and reopen the app; if
-            this continues, preserve your backup and report this error.
-          </Text>
-          <Pressable onPress={() => this.setState({ error: "" })}>
-            <Text style={{ color: dark.accent }}>Retry</Text>
-          </Pressable>
-        </View>
-      );
-    return this.props.children;
-  }
-}
 function Navigation() {
   const c = useColors();
   return (
@@ -158,9 +123,9 @@ export default function Root() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: c.background }}>
       <SafeAreaProvider>
-        <Boundary>
+        <ErrorBoundary>
           <Ready />
-        </Boundary>
+        </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -290,21 +290,24 @@ test("fallback media is honestly identified and semantic controls remain accessi
   expect(retry).toHaveBeenCalledTimes(1);
 });
 
-test("workout adds an exercise and protects completion with confirmation", async () => {
-  const r = repo({ workoutSets: () => [{ ...set, completed: true }] });
+test("workout adds an exercise and protects completion with a finish sheet", async () => {
+  const r = repo({
+    workoutSets: () => [{ ...set, completed: true }],
+    sets: () => [{ ...set, completed: true }],
+    workout: () => workout,
+    transaction: (fn: () => unknown) => fn(),
+  });
   const view = await render(<WorkoutScreen />);
   await fireEvent.press(view.getByLabelText("Add exercise"));
   await fireEvent.press(view.getByLabelText("Add Bench press"));
   expect(r.addExercise).toHaveBeenCalledWith("w", "bench");
   expect(r.addSet).toHaveBeenCalledWith("row");
   await fireEvent.press(view.getByLabelText("Finish workout"));
+  // Finishing is a deliberate, non-destructive step, never one tap.
   expect(r.finishWorkout).not.toHaveBeenCalled();
-  expect(confirm).toHaveBeenCalledWith(
-    "Finish workout?",
-    expect.any(String),
-    expect.any(Function),
-  );
-  jest.mocked(confirm).mock.calls[0]![2]();
+  expect(confirm).not.toHaveBeenCalled();
+  expect(view.getByText("1 set will be saved")).toBeTruthy();
+  await fireEvent.press(view.getByLabelText("Save workout"));
   expect(r.finishWorkout).toHaveBeenCalledWith("w");
   expect(router.back).toHaveBeenCalled();
 });

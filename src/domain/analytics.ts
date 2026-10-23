@@ -1,5 +1,6 @@
 import { localDate, type Workout, type WorkoutSet } from "./types";
 import { volume, estimatedMax, elapsedSeconds } from "./metrics";
+import { isBodyweightName } from "./validation";
 export function analyze(
   workouts: Workout[],
   getRows: (
@@ -99,6 +100,35 @@ export function goalProgress(current: number, target: number, start?: number) {
     current,
     target,
     ratio: Number.isFinite(ratio) ? Math.max(0, Math.min(1, ratio)) : 0,
+  };
+}
+/**
+ * The latest bodyweight in kilograms from measurement entries (newest first,
+ * as the journal returns them), whichever spelling the lifter used.
+ */
+export function latestBodyweight(
+  measurements: { data: Record<string, string | number | boolean> }[],
+): number | undefined {
+  for (const m of measurements) {
+    const value = Number(m.data.value);
+    if (isBodyweightName(m.data.name) && Number.isFinite(value) && value > 0)
+      return value;
+  }
+  return undefined;
+}
+/**
+ * Progress toward a bodyweight goal. Without a logged bodyweight there is no
+ * progress: never report a goal as reached from a missing value.
+ */
+export function bodyweightGoal(
+  current: number | undefined,
+  target: number,
+  start: number | undefined,
+) {
+  if (current === undefined) return { current, ratio: 0 };
+  return {
+    current,
+    ratio: goalProgress(current, target, start ?? current).ratio,
   };
 }
 export function programAdherence(
