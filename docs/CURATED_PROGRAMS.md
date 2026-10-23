@@ -95,12 +95,12 @@ Only the latest published version of each program is listed. Drafts are never li
 
 ## Forge Paths screen (Phase 4)
 
-**Train → Forge Paths** and **Today → Choose a Forge Path** open `app/forge-paths.tsx`, implemented in `src/screens/ForgePaths.tsx`.
+**Train → Forge Paths** and **Today → Choose a Forge Path** open the library (`/forge-paths`). The redesigned screens (Design System 2.0, Phase 4) live in `src/screens/programs/`: `Library.tsx`, `Details.tsx` (`/forge-paths/[programId]`) and `Dashboard.tsx` (`/forge-paths/current`). See [redesign/DESIGN_SYSTEM_2.md](redesign/DESIGN_SYSTEM_2.md).
 
 - **Recommended for you:** shows the recommended program and why it matches. If experience or goal is missing, it asks the user to complete the profile. If no program matches, it says so; nothing is generated to fill the gap.
-- **Program library:** shows every published program, with optional experience and goal filters. Users can choose any program, regardless of the recommendation.
-- **Program details:** shows experience, goal, days per week, duration, equipment, description, suggested training days, progression, and every phase, session, and exercise with sets, reps, rest, and notes. Users choose a start date: Today, Tomorrow, or Next Monday.
-- **Your current Path:** a lifter who already has a generated Path sees its summary. **Open your Path** continues it in the existing-Path screen. There is no Path builder.
+- **Program library:** six families (Beginner, Intermediate and Advanced; Strength and Muscle Building), grouped by goal. Each family holds the distinct 3-, 4- and 5-day programs; the details screen switches between them. Users can choose any program, regardless of the recommendation.
+- **Program details:** shows experience, goal, days per week, duration, suggested training days, a phase timeline with effort and planned volume reductions, and each distinct workout once with every exercise's sets, reps, rest, role and notes. If a phase changes a workout in any way, each version is listed with its phases. Progression, description and equipment open as information sheets. **Start program** is pinned at the bottom; users choose a start date: Today, Tomorrow, or Next Monday.
+- **Your current Path:** a lifter who already has a generated Path sees it at the top of the library; it opens the existing-Path screen. There is no Path builder.
 
 ## Enrollment and tracking (Phase 5)
 
@@ -112,7 +112,7 @@ Implemented in `src/data/programs.ts`, with record schemas in `src/domain/progra
 - **Starting a session:** Forge creates a workout from that session, copying exercises, sets, rep targets, and rest into the workout. Later program versions cannot rewrite it. The user enters working loads. The workout card shows **Program target** and the author's exercise note. Programs with a `progressionModel` (Strength V2, Muscle Building V3) also show progression advice built from the lifter's recorded sets. The generic automatic load suggestion is never used for program workouts.
 - **Logging and history:** each started or skipped session gets one log record. A completed workout counts as completed. If the user deletes or discards the workout, the session returns to the queue. Users can skip a session and restore it later. Program history links to completed workouts.
 - **Completion:** a fixed-length program completes after every session is done. Ending a program archives it, and all workouts remain in history. If an enrolled version is no longer bundled, history is kept and new starts are blocked.
-- **Home and Train:** the **Your program** card shows the next session with **Start** or **Resume**.
+- **Today and Train:** Today's next-workout card starts or resumes the session; the **Your program** row opens the program dashboard (`/forge-paths/current`).
 
 Personal customization still edits only the started workout. Saved personal changes to a program are not implemented yet; the enrollment model leaves room for them without changing authored content.
 

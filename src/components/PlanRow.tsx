@@ -25,7 +25,7 @@ export function planStatus(r: Repository) {
       kind: "program" as const,
       title: enrollment.data.name,
       subtitle,
-      open: () => router.push("/forge-paths"),
+      open: () => router.push("/forge-paths/current"),
     };
   }
   const path = currentPath(r);

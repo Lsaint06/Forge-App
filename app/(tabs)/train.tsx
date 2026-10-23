@@ -1,8 +1,12 @@
-import React, { useCallback, useRef, useState } from "react";
-import { Platform, View } from "react-native";
+import React, { useState } from "react";
+import { View } from "react-native";
 import { router } from "expo-router";
 import { Screen, Button, Txt, Sheet } from "../../src/components/ui";
-import { ListRow, ListSection } from "../../src/components/system";
+import {
+  ListRow,
+  ListSection,
+  useAfterSheet,
+} from "../../src/components/system";
 import { PlanRow, planStatus } from "../../src/components/PlanRow";
 import { useRepo, mutate } from "../../src/state";
 import { standaloneTemplates } from "../../src/data/paths";
@@ -74,17 +78,9 @@ export default function Train() {
   const [details, setDetails] = useState<Template>();
   // Navigation chosen inside the sheet waits until it has closed: iOS cannot
   // present the workout while the sheet is still dismissing.
-  const pending = useRef<(() => void) | undefined>(undefined);
-  const runPending = useCallback(() => {
-    const next = pending.current;
-    pending.current = undefined;
-    next?.();
-  }, []);
-  function afterSheet(action: () => void) {
-    pending.current = action;
-    setDetails(undefined);
-    setTimeout(runPending, Platform.OS === "ios" ? 700 : 0);
-  }
+  const sheet = useAfterSheet();
+  const afterSheet = (action: () => void) =>
+    sheet.after(() => setDetails(undefined), action);
   const active = r.active();
   const plan = planStatus(r);
   const templates = standaloneTemplates(r);
@@ -198,7 +194,7 @@ export default function Train() {
       <TemplateSheet
         template={details}
         onClose={() => setDetails(undefined)}
-        onDismiss={runPending}
+        onDismiss={sheet.onDismiss}
         onStart={(t) => startTemplate(t, true)}
         onEdit={() => afterSheet(() => router.push("/templates"))}
       />

@@ -12,12 +12,13 @@ import {
   pathSessions,
   pathSummary,
 } from "../../src/data/paths";
+import { pathFocus } from "../../src/data/today";
 
 jest.mock("../../src/notifications", () => ({
   restNotification: jest.fn(async () => {}),
 }));
 jest.mock("expo-router", () => ({
-  router: { push: jest.fn(), replace: jest.fn() },
+  router: { push: jest.fn(), replace: jest.fn(), canGoBack: () => false },
   useLocalSearchParams: () => ({}),
 }));
 jest.mock("../../src/state", () => ({
@@ -84,6 +85,23 @@ test("calendar navigation, skipping and pausing work without the generator", asy
     await fireEvent.press(view.getByLabelText("Pause Path"));
     await act(async () => jest.mocked(confirm).mock.calls.at(-1)![2]());
     expect(currentPath(r)!.data.status).toBe("paused");
+  } finally {
+    db.close();
+  }
+});
+
+test("the Path screen opens on the same session Today offers, with readable dates and a back control", async () => {
+  const { r, db } = legacyUserRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const focus = pathFocus(pathSummary(r, currentPath(r)!).sessions)!;
+    const view = await render(<LegacyPath />);
+    expect(view.getByRole("header", { name: focus.data.name })).toBeTruthy();
+    // No raw ISO dates in the calendar heading.
+    expect(view.queryByText(/\d{4}-\d{2}-\d{2}/)).toBeNull();
+    expect(view.queryByText("Back to Forge Paths")).toBeNull();
+    await fireEvent.press(view.getByLabelText("Back"));
+    expect(router.replace).toHaveBeenLastCalledWith("/forge-paths");
   } finally {
     db.close();
   }

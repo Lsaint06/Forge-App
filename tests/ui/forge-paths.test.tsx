@@ -1,7 +1,15 @@
 import React from "react";
-import { render, fireEvent, act } from "@testing-library/react-native";
+import {
+  render,
+  fireEvent,
+  act,
+  waitFor,
+  type RenderResult,
+} from "@testing-library/react-native";
 import { router } from "expo-router";
-import ForgePaths from "../../src/screens/ForgePaths";
+import Library from "../../src/screens/programs/Library";
+import Details from "../../src/screens/programs/Details";
+import Dashboard from "../../src/screens/programs/Dashboard";
 import Home from "../../src/screens/Home";
 import { useRepo, confirm } from "../../src/state";
 import { pathRepository } from "../path-fixture";
@@ -12,6 +20,9 @@ import { currentEnrollment } from "../../src/data/programs";
 import type { CuratedProgram } from "../../src/domain/programs/model";
 import strengthJson from "../../src/programs/library/forge-strength-intermediate-3-day.json";
 import muscleJson from "../../src/programs/library/forge-muscle-beginner-3-day.json";
+
+// Forge Paths: Library (/forge-paths), Program details
+// (/forge-paths/[programId]) and Your program (/forge-paths/current).
 
 // Draft versions of bundled programs, as future programs or new versions are
 // authored before publication.
@@ -39,9 +50,16 @@ jest.mock("../../src/programs/preview", () => ({
     return mockPreview.enabled;
   },
 }));
+const mockParams: { programId?: string; version?: string } = {};
 jest.mock("expo-router", () => ({
-  router: { push: jest.fn(), replace: jest.fn() },
-  useLocalSearchParams: () => ({}),
+  router: {
+    push: jest.fn(),
+    replace: jest.fn(),
+    back: jest.fn(),
+    dismissTo: jest.fn(),
+    canGoBack: jest.fn(() => true),
+  },
+  useLocalSearchParams: () => mockParams,
 }));
 jest.mock("../../src/notifications", () => ({
   restNotification: jest.fn(async () => {}),
@@ -72,36 +90,64 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockPreview.enabled = true;
   mockLibrary.splice(0, mockLibrary.length, strength, muscle);
+  delete mockParams.programId;
+  delete mockParams.version;
 });
+
+const generatorWords = /builder|generated|generator/i;
+
+// The route Library pushed for a program, applied to the details screen.
+function opened(program: Pick<CuratedProgram, "id" | "version">) {
+  expect(router.push).toHaveBeenLastCalledWith({
+    pathname: "/forge-paths/[programId]",
+    params: { programId: program.id, version: String(program.version) },
+  });
+  mockParams.programId = program.id;
+  mockParams.version = String(program.version);
+}
+
+// Start program → choose a date → confirm in the sheet. The enrollment runs
+// once the sheet has closed.
+async function start(view: RenderResult, when = "Start today") {
+  await fireEvent.press(view.getByLabelText("Start program"));
+  await fireEvent.press(view.getByLabelText(when));
+}
 
 test("an empty library shows an honest empty state, not generated content", async () => {
   mockLibrary.splice(0);
   const { r, db } = pathRepository();
   try {
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<ForgePaths />);
+    const view = await render(<Library />);
     expect(view.getByText("Programs are on the way")).toBeTruthy();
     expect(view.getByText("Tell Forge where you are")).toBeTruthy();
+    expect(view.getByText("0 programs")).toBeTruthy();
     // No generated plan is offered in its place.
     expect(view.queryByLabelText("Open the Path builder")).toBeNull();
-    expect(view.queryAllByText(/builder|generated|generator/i)).toHaveLength(0);
+    expect(view.queryAllByText(generatorWords)).toHaveLength(0);
   } finally {
     db.close();
   }
 });
 
-test("the library lists published programs and filters by goal", async () => {
+test("the library groups published programs into families by goal and hides drafts", async () => {
   mockLibrary.push(placeholderProgram({ id: "hidden-draft", name: "Draft" }));
   const { r, db } = pathRepository();
   try {
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<ForgePaths />);
-    expect(view.getByText("Test Strength Program")).toBeTruthy();
-    expect(view.getByText("Test Muscle Program")).toBeTruthy();
+    const view = await render(<Library />);
+    expect(view.getByText("2 programs")).toBeTruthy();
+    expect(view.getByText("Strength")).toBeTruthy();
+    expect(view.getByText("Muscle Building")).toBeTruthy();
+    expect(view.getByText("Beginner Strength")).toBeTruthy();
+    expect(view.getByText("Intermediate Muscle Building")).toBeTruthy();
     expect(view.queryByText("Draft")).toBeNull();
-    await fireEvent.press(view.getByText("Muscle Building"));
-    expect(view.queryByText("Test Strength Program")).toBeNull();
-    expect(view.getByText("Test Muscle Program")).toBeTruthy();
+    // No internal codes or long summaries in the list.
+    expect(view.queryByText("Test summary.")).toBeNull();
+    await fireEvent.press(
+      view.getByLabelText("Intermediate Muscle Building, 3 days · Ongoing"),
+    );
+    opened(muscle);
   } finally {
     db.close();
   }
@@ -112,22 +158,36 @@ test("recommend, review, start and train a program", async () => {
   try {
     r.saveProfile({ experience: "Beginner", goal: "Strength", restDay: 6 });
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<ForgePaths />);
-    expect(view.getByText("RECOMMENDED FOR YOU")).toBeTruthy();
-    expect(view.getByText(/Written for beginner lifters/)).toBeTruthy();
-    await fireEvent.press(view.getByLabelText("View program"));
+    const library = await render(<Library />);
+    expect(library.getByText("Recommended for you")).toBeTruthy();
+    expect(library.getByText(/Written for beginner lifters/)).toBeTruthy();
+    await fireEvent.press(library.getByLabelText("View program"));
+    opened(strength);
+
+    const view = await render(<Details />);
+    expect(view.getByText("Test Strength Program")).toBeTruthy();
     expect(view.getByText("Mon · Wed · Fri")).toBeTruthy();
     expect(view.getByText(/Sunday stays a rest day/)).toBeTruthy();
-    expect(view.getAllByText("1. Barbell Bench Press").length).toBe(3);
-    expect(view.getAllByText("1 × 1 reps · 0s rest").length).toBe(3);
-    await fireEvent.press(view.getByLabelText("Start this program"));
-    expect(confirm).not.toHaveBeenCalled();
-    expect(currentEnrollment(r, mockLibrary)?.data.programId).toBe(
-      "test-strength",
+    // Workouts start collapsed; each expands to its authored prescription.
+    expect(view.queryByText("Barbell Bench Press")).toBeNull();
+    for (const id of ["a", "b", "c"])
+      await fireEvent.press(
+        view.getByLabelText(`Placeholder session ${id}, 1 exercise`),
+      );
+    expect(view.getAllByText("Barbell Bench Press")).toHaveLength(3);
+    expect(view.getAllByText("1 × 1 reps · 0s rest")).toHaveLength(3);
+    await start(view);
+    await waitFor(() =>
+      expect(currentEnrollment(r, mockLibrary)?.data.programId).toBe(
+        "test-strength",
+      ),
     );
-    const dashboard = await render(<ForgePaths />);
-    expect(dashboard.getByText("YOUR PROGRAM")).toBeTruthy();
-    expect(dashboard.getByText("NEXT SESSION")).toBeTruthy();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(router.dismissTo).toHaveBeenLastCalledWith("/forge-paths/current");
+
+    const dashboard = await render(<Dashboard />);
+    expect(dashboard.getByText("Your program")).toBeTruthy();
+    expect(dashboard.getByText("Next session")).toBeTruthy();
     await fireEvent.press(dashboard.getByLabelText("Start session"));
     expect(router.push).toHaveBeenLastCalledWith("/workout");
     expect(r.active()?.name).toBe(
@@ -150,13 +210,18 @@ test("replacing a generated Path asks first and archives it on confirmation", as
   const { r, db } = legacyUserRepository();
   try {
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<ForgePaths />);
-    await fireEvent.press(view.getByLabelText("View Test Strength Program"));
-    await fireEvent.press(view.getByLabelText("Start this program"));
-    expect(confirm).toHaveBeenCalledWith(
-      "Replace your current plan?",
-      expect.stringContaining("preserved"),
-      expect.any(Function),
+    mockParams.programId = strength.id;
+    mockParams.version = "1";
+    const view = await render(<Details />);
+    await fireEvent.press(view.getByLabelText("Start program"));
+    expect(view.getByText(/GET STRONG will be archived/)).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Start today"));
+    await waitFor(() =>
+      expect(confirm).toHaveBeenCalledWith(
+        "Replace your current plan?",
+        expect.stringContaining("preserved"),
+        expect.any(Function),
+      ),
     );
     expect(currentEnrollment(r, mockLibrary)).toBeUndefined();
     await act(async () => jest.mocked(confirm).mock.calls[0]![2]());
@@ -176,23 +241,29 @@ test("development builds can preview and train a draft program through the real 
   try {
     r.saveProfile({ experience: "Intermediate", goal: "Strength" });
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<ForgePaths />);
+    const view = await render(<Library />);
     // Drafts are never listed or recommended, even in development.
     expect(view.getByText("No match yet")).toBeTruthy();
     expect(view.getByText("Programs are on the way")).toBeTruthy();
-    expect(view.getByText("DEVELOPMENT BUILD ONLY")).toBeTruthy();
+    expect(view.getByText("Development build only")).toBeTruthy();
     expect(view.queryByText(draft.name)).toBeNull();
     await fireEvent.press(view.getByLabelText("Preview draft programs (1)"));
     await fireEvent.press(view.getByLabelText(`Preview draft ${draft.name}`));
-    expect(view.getByText(/DRAFT PREVIEW/)).toBeTruthy();
-    expect(view.getByText("Weeks 1–3 · Accumulation")).toBeTruthy();
-    await fireEvent.press(view.getByLabelText("Start this program"));
-    expect(currentEnrollment(r, mockLibrary)?.data.programId).toBe(draft.id);
-    const dashboard = await render(<ForgePaths />);
+    opened(draft);
+    const details = await render(<Details />);
+    expect(details.getByText(/Draft preview/)).toBeTruthy();
+    expect(details.getByText("Weeks 1–3 · Accumulation")).toBeTruthy();
+    await start(details);
+    await waitFor(() =>
+      expect(currentEnrollment(r, mockLibrary)?.data.programId).toBe(draft.id),
+    );
+    const dashboard = await render(<Dashboard />);
     expect(
-      dashboard.getByText("DRAFT PREVIEW · DEVELOPMENT BUILD ONLY"),
+      dashboard.getByText("Draft preview · development build only"),
     ).toBeTruthy();
-    expect(dashboard.getByText("Squat + Bench Strength")).toBeTruthy();
+    expect(
+      dashboard.getByRole("header", { name: "Squat + Bench Strength" }),
+    ).toBeTruthy();
     await fireEvent.press(dashboard.getByLabelText("Start session"));
     expect(router.push).toHaveBeenLastCalledWith("/workout");
     expect(r.active()?.name).toBe(`${draft.name} · Squat + Bench Strength`);
@@ -211,10 +282,15 @@ test("without a development build drafts stay hidden and cannot be resolved", as
   const { r, db } = pathRepository();
   try {
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<ForgePaths />);
-    expect(view.queryByText("DEVELOPMENT BUILD ONLY")).toBeNull();
+    const view = await render(<Library />);
+    expect(view.queryByText("Development build only")).toBeNull();
     expect(view.queryByLabelText(/Preview draft/)).toBeNull();
     expect(view.queryByText(draft.name)).toBeNull();
+    mockParams.programId = draft.id;
+    mockParams.version = String(draft.version);
+    const details = await render(<Details />);
+    expect(details.getByText("Program unavailable")).toBeTruthy();
+    expect(details.queryByLabelText("Start program")).toBeNull();
   } finally {
     db.close();
   }
@@ -228,7 +304,7 @@ test("the development preview lists Strength and Muscle Building drafts and trai
   try {
     r.saveProfile({ experience: "Beginner", goal: "Muscle Building" });
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<ForgePaths />);
+    const view = await render(<Library />);
     expect(view.getByText("No match yet")).toBeTruthy();
     expect(view.queryByText(musclePreview.name)).toBeNull();
     await fireEvent.press(view.getByLabelText("Preview draft programs (2)"));
@@ -236,15 +312,20 @@ test("the development preview lists Strength and Muscle Building drafts and trai
     await fireEvent.press(
       view.getByLabelText(`Preview draft ${musclePreview.name}`),
     );
-    expect(view.getByText(/DRAFT PREVIEW/)).toBeTruthy();
-    expect(view.getByText("Repeats each week")).toBeTruthy();
-    await fireEvent.press(view.getByLabelText("Start this program"));
-    expect(currentEnrollment(r, mockLibrary)?.data.programId).toBe(
-      musclePreview.id,
+    opened(musclePreview);
+    const details = await render(<Details />);
+    expect(details.getByText(/Draft preview/)).toBeTruthy();
+    // One open-ended phase that repeats every week.
+    expect(details.getByLabelText("Ongoing, details")).toBeTruthy();
+    await start(details);
+    await waitFor(() =>
+      expect(currentEnrollment(r, mockLibrary)?.data.programId).toBe(
+        musclePreview.id,
+      ),
     );
-    const dashboard = await render(<ForgePaths />);
+    const dashboard = await render(<Dashboard />);
     expect(
-      dashboard.getByText("DRAFT PREVIEW · DEVELOPMENT BUILD ONLY"),
+      dashboard.getByText("Draft preview · development build only"),
     ).toBeTruthy();
     // No planned lower-fatigue week; the lifter may still choose one.
     expect(dashboard.getByText(/Choose a lower-fatigue session/)).toBeTruthy();
@@ -286,24 +367,36 @@ test("with all 18 programs published Forge Paths is curated-only and the earlier
   const { r, db } = legacyUserRepository();
   try {
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<ForgePaths />);
+    const view = await render(<Library />);
+    expect(view.getByText("18 programs")).toBeTruthy();
     // The existing user's goal "Build muscle", Intermediate, 4 days a week.
-    expect(view.getByText("RECOMMENDED FOR YOU")).toBeTruthy();
+    expect(view.getByText("Recommended for you")).toBeTruthy();
     expect(
-      view.getAllByText("Intermediate Muscle Building · 4 Days").length,
-    ).toBeGreaterThan(0);
+      view.getByText(/^Intermediate Muscle Building · 4\sDays$/),
+    ).toBeTruthy();
+    for (const level of ["Beginner", "Intermediate", "Advanced"])
+      for (const goal of ["Strength", "Muscle Building"])
+        expect(view.getByText(`${level} ${goal}`)).toBeTruthy();
     expect(view.queryByLabelText("Open the Path builder")).toBeNull();
-    expect(view.queryAllByText(/builder|generated|generator/i)).toHaveLength(0);
-    expect(view.getByText("Your current Path")).toBeTruthy();
-    expect(view.getByText("GET STRONG")).toBeTruthy();
-    expect(view.queryByText("DEVELOPMENT BUILD ONLY")).toBeNull();
+    expect(view.queryAllByText(generatorWords)).toHaveLength(0);
+    // The earlier Path stays one tap away and opens its own screen.
+    await fireEvent.press(view.getByLabelText("Your Path: GET STRONG"));
+    expect(router.push).toHaveBeenLastCalledWith({
+      pathname: "/paths",
+      params: { programId: currentPath(r)!.record.id },
+    });
+    expect(view.queryByText("Development build only")).toBeNull();
     // Starting a program still asks before replacing the current Path.
     await fireEvent.press(view.getByLabelText("View program"));
-    await fireEvent.press(view.getByLabelText("Start this program"));
-    expect(confirm).toHaveBeenCalledWith(
-      "Replace your current plan?",
-      expect.stringContaining("preserved"),
-      expect.any(Function),
+    opened(library.find((p) => p.id === "forge-muscle-intermediate-4-day")!);
+    const details = await render(<Details />);
+    await start(details);
+    await waitFor(() =>
+      expect(confirm).toHaveBeenCalledWith(
+        "Replace your current plan?",
+        expect.stringContaining("preserved"),
+        expect.any(Function),
+      ),
     );
     expect(currentPath(r)?.data.name).toBe("GET STRONG");
   } finally {

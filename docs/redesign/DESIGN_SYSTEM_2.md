@@ -283,13 +283,59 @@ RECOVERY · LAST SESSION        EXERCISES · HISTORY
 | Train full history cards (Review / edit, Repeat, Delete) | History rows (tap to review; ••• → Repeat, Delete)        |
 | You → Training history (opened Train)                    | You → Training history (opens History)                    |
 
+## Phase 4 — Forge Paths (implemented)
+
+Goals: browse, compare, inspect and enroll in the 18 curated programs without scrolling through repeated workouts; one clear action per screen; a program dashboard that leads with what to do next.
+
+```
+Library /forge-paths            Details /forge-paths/[id]       Your program /forge-paths/current
+‹                               ‹                               ‹
+18 PROGRAMS                     INTERMEDIATE · STRENGTH         YOUR PROGRAM
+Forge Paths                     Intermediate Strength · 4 Days  Intermediate Strength · 4 Days
+YOUR PROGRAM  row ›             [ 3 days | 4 days | 5 days ]    Week 2 of 8 · Weeks 1–3 · Accumulation
+┌ RECOMMENDED FOR YOU ┐         4 DAYS A WEEK  8 WEEKS  32      ▬▬▬───── 7 of 32 sessions
+│ Intermediate Strength · 4 Days│YOUR WEEK  M T W T F S S       ┌ NEXT SESSION ────────────┐
+│ ✓ reasons            │        PHASES ▬▬▬ ▬ ▬▬▬ ▬              │ Upper B · Suggested today │
+│ [ View program ]     │        Weeks 1–3 · Accumulation  ›     │ [Standard|Lower fatigue]  │
+└──────────────────────┘        WORKOUTS  Lower A · 6 ex.   ⌄   │ 6 exercises           ⌄   │
+STRENGTH                        ABOUT  How progression works ›  │ [ ▶ Start session ]       │
+Beginner Strength  3, 4 or 5 › ─────────────────────────────── │ Skip this session         │
+MUSCLE BUILDING                 [ ▶ Start program ]  (pinned)   COMING UP · RECENT · PROGRAM
+```
+
+- **Files:**
+  - Screens: `src/screens/programs/Library.tsx`, `Details.tsx`, `Dashboard.tsx`; routes in `app/forge-paths/` (`index`, `[programId]`, `current`). The `/forge-paths` link is unchanged.
+  - Components: `src/components/programs.tsx` (stats, week strip, phase timeline and sheets, expandable workouts, exercise lines).
+  - Presentation (read-only): `src/domain/programs/presentation.ts` (families, distinct workouts, phase timeline, prescription lines).
+  - Shared: `Screen footer` (pinned action above the home indicator and keyboard) and `useAfterSheet` (run navigation or an alert after a sheet closes; Train's template sheet uses it too).
+  - Existing Path: `src/screens/LegacyPath.tsx` (light restyle).
+- **Navigation:** Train → Forge Paths opens the library. Today's and Train's **Your program** row opens the dashboard directly; an existing generated Path still opens `/paths`. Library → Details pushes; back returns. Starting a program returns to the dashboard (`dismissTo`), so back from the dashboard reaches the library or the tab you came from. Screens opened from a link fall back to Train, the library or Today.
+- **Library:**
+  - The heading is **Forge Paths** with the program count; no slogan or "Back to Train" button.
+  - **Your program** or **Your Path** row first, when there is one.
+  - **Recommended for you:** the exact program for the lifter's experience, goal and weekly workout goal, its facts and the reasons. **View program** is the screen's one orange action. Incomplete profile and no-match states are kept.
+  - **Families:** Strength and Muscle Building sections with Beginner, Intermediate and Advanced rows ("3, 4 or 5 days · 8 weeks"). A family opens the recommended program, or the variant closest to the lifter's weekly goal. Authored summaries (which contain internal codes) are not shown in the list.
+  - Development builds keep the draft preview.
+- **Details:**
+  - The title is the program's own name. **3 / 4 / 5 days** switches between the family's distinct authored programs; nothing is adapted.
+  - Stats (days a week, weeks or "Ongoing", workouts), **Your week** with the rest day marked and the suggested days, and the rest-day sentence.
+  - **Phases:** a proportional bar and one row per phase with primary effort and any planned volume reduction ("RIR 1–3 · about 30% fewer working sets"). A phase opens its notes, effort by lift type and the lower-fatigue details.
+  - **Workouts:** each distinct workout once, collapsed to "name · N exercises"; expanding shows every exercise with sets × reps, per side, role, rest and notes.
+  - **No-loss safeguard:** workouts are only combined when every authored field is identical (exercises, order, sets, reps, rest, role, loading, notes, names). If any phase changes anything, every version is listed with the phases that use it, and the footnote says so. Tests cover this for all 18 programs and for deliberate changes to reps, sets, rest, exercise, notes, order and added exercises.
+  - **About:** How progression works and About this program (summary, description, equipment, version) are information sheets.
+  - **Start program** is pinned. Its sheet keeps Today / Tomorrow / Next Monday, shows the suggested days and, if a plan is active, that it will be archived; confirming still asks **Replace your current plan?**. The current program shows **Open your program** instead.
+- **Your program:** week and phase, progress; **Next session** (overline, name, week and phase, suggested date matching Today, Standard / Lower fatigue when available with its explanation, the planned-reduction note, collapsed exercises with the sets that will be used, **Start / Resume session**, **Skip this session**); Coming up (three); Recent sessions (three, with **All program sessions** in a sheet; completed rows open the review, skipped rows have **Restore**); Program (Program details, Browse programs, End program in red, confirmed). Complete and unavailable-version states are kept.
+- **Existing Path:** the Path's name as the title with a back control; readable dates ("Mon, Oct 12") instead of ISO dates; day cells with labelled icons (completed, in progress, missed, skipped, planned, rest) instead of "✓ ! ↷ –" glyphs and orange borders; the session card uses Today's wording ("Scheduled today", "Next session", "Missed session", "Originally scheduled for …") and opens on the same session Today offers. Manage Path and Earlier Paths are rows. Calendar logic, start, pause, resume, skip, restore, reschedule and read-only earlier Paths are unchanged.
+
+Unchanged: the 18 programs and their publication fingerprints, enrollment, scheduling, progression, workout tracking, history, sync and backups.
+
 ## Roadmap
 
 | Phase                                | Scope                                                                                                                                                             |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1 · Foundations                      | **Done:** tokens, primitives, composites, reference screen, tests                                                                                                 |
 | 2 · Workout logging                  | **Done:** see above                                                                                                                                               |
-| 3 · Today, Train, navigation         | **Implemented, in review:** see above                                                                                                                             |
-| 4 · Forge Paths                      | Library, program details (unique sessions, phase timeline, persistent enrollment action), dashboard, existing Path                                                |
+| 3 · Today, Train, navigation         | **Done:** see above                                                                                                                                               |
+| 4 · Forge Paths                      | **Implemented, in review:** see above                                                                                                                             |
 | 5 · Progress, You, secondary screens | Grouped settings, info sheets for methodology and privacy, Templates, Journal, Account, Exercise                                                                  |
 | 6 · Onboarding visuals and polish    | Motion, haptics, light-theme parity, Dynamic Type and VoiceOver, device QA (compact, standard and large iPhones, keyboard, safe areas, landscape where supported) |

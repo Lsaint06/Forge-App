@@ -9,6 +9,7 @@ import WorkoutExerciseCard from "../../src/components/WorkoutExerciseCard";
 import LegacyPath from "../../src/screens/LegacyPath";
 import Templates from "../../app/templates";
 import { useRepo } from "../../src/state";
+import { dayLabel } from "../../src/domain/training-display";
 import { pathRepository } from "../path-fixture";
 import { freshPathRepository, legacyUserRepository } from "../legacy-fixture";
 import {
@@ -316,9 +317,15 @@ test("the existing-Path calendar navigates Monday–Sunday, shows rest days and 
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<LegacyPath />);
     expect(view.getByText("Calendar week 1")).toBeTruthy();
-    expect(view.getByLabelText("Mon 2026-10-19, scheduled")).toBeTruthy();
-    await fireEvent.press(view.getByLabelText("Wed 2026-10-21, Rest day"));
-    expect(view.getByText(/Rest day · 2026-10-21/)).toBeTruthy();
+    // Day cells read as dates with their state, not raw ISO dates.
+    expect(
+      view.getByLabelText(`${dayLabel("2026-10-19")}: workout planned`),
+    ).toBeTruthy();
+    await fireEvent.press(
+      view.getByLabelText(`${dayLabel("2026-10-21")}: rest day`),
+    );
+    expect(view.getByText("Rest day")).toBeTruthy();
+    expect(view.getByText(dayLabel("2026-10-21"))).toBeTruthy();
     await fireEvent.press(view.getByLabelText("Next week →"));
     expect(view.getByText("Calendar week 2")).toBeTruthy();
     expect(view.getByText("Training week 2 · Foundation")).toBeTruthy();
@@ -329,7 +336,10 @@ test("the existing-Path calendar navigates Monday–Sunday, shows rest days and 
     for (let i = 1; i < 12; i++)
       await fireEvent.press(view.getByLabelText("Next week →"));
     expect(view.getByText("Calendar week 12")).toBeTruthy();
-    expect(view.getByText("2027-01-04 · scheduled")).toBeTruthy();
+    expect(view.getByText("Next session")).toBeTruthy();
+    expect(
+      view.getByText(`Scheduled for ${dayLabel("2027-01-04")}`),
+    ).toBeTruthy();
     expect(view.getByText("Training week 1 · Foundation")).toBeTruthy();
     expect(view.getByText("0 / 32 workouts completed")).toBeTruthy();
     expect(pathSummary(r, pathPrograms(r)[0]!).completed).toBe(0);

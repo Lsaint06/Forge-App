@@ -83,7 +83,9 @@ function Navigation() {
         <Stack.Screen name="history" />
         <Stack.Screen name="explore" />
         <Stack.Screen name="paths" />
-        <Stack.Screen name="forge-paths" />
+        <Stack.Screen name="forge-paths/index" />
+        <Stack.Screen name="forge-paths/[programId]" />
+        <Stack.Screen name="forge-paths/current" />
         <Stack.Screen name="exercise" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="account" />

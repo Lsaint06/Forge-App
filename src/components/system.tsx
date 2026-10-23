@@ -363,6 +363,30 @@ export function OverflowMenu({
 // ---- Information sheets -----------------------------------------------------
 
 /**
+ * Runs an action chosen inside a sheet once the sheet has closed. iOS cannot
+ * present a screen or alert while a sheet is still dismissing, so it waits
+ * for the sheet's `onDismiss` (with a fallback timer); other platforms run it
+ * right after closing. Pass `onDismiss` to the Sheet.
+ */
+export function useAfterSheet() {
+  const pending = useRef<(() => void) | undefined>(undefined);
+  const onDismiss = useCallback(() => {
+    const action = pending.current;
+    pending.current = undefined;
+    action?.();
+  }, []);
+  const after = useCallback(
+    (close: () => void, action: () => void) => {
+      pending.current = action;
+      close();
+      setTimeout(onDismiss, Platform.OS === "ios" ? 700 : 0);
+    },
+    [onDismiss],
+  );
+  return { after, onDismiss };
+}
+
+/**
  * Educational content kept out of primary surfaces. Paragraphs render as
  * readable body text; nothing is lost, it is one tap away.
  */

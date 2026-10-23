@@ -18,6 +18,7 @@ import {
   pathSummary,
   startScheduledSession,
   visibleSchedules,
+  type PathSession,
 } from "./paths";
 
 // Today's single next-workout choice (Design System 2.0, Phase 3). Read-only:
@@ -57,7 +58,8 @@ export type NextSession =
 
 type Library = readonly CuratedProgram[];
 
-function programSession(
+/** The current program's next session as Today presents it. */
+export function programNext(
   r: Repository,
   today: string,
   library?: Library,
@@ -93,18 +95,26 @@ function programSession(
   };
 }
 
+/**
+ * The Path session Today offers: today's open session, otherwise the oldest
+ * open one (missed sessions first). The Path screen focuses the same one.
+ */
+export function pathFocus(sessions: PathSession[], today = localDate()) {
+  const open = (s: PathSession) =>
+    ["scheduled", "unlinked", "missed"].includes(s.state);
+  return (
+    sessions.find((s) => open(s) && s.record.date === today) ??
+    sessions.find(open)
+  );
+}
+
 function pathSession(
   r: Repository,
   today: string,
 ): Extract<NextSession, { kind: "path" }> | undefined {
   const path = currentPath(r);
   if (!path || path.data.status !== "active") return undefined;
-  const stats = pathSummary(r, path, today);
-  const open = (s: (typeof stats.sessions)[number]) =>
-    ["scheduled", "unlinked", "missed"].includes(s.state);
-  const session =
-    stats.sessions.find((s) => open(s) && s.record.date === today) ??
-    stats.sessions.find(open);
+  const session = pathFocus(pathSummary(r, path, today).sessions, today);
   if (!session) return undefined;
   const date = session.record.date;
   return {
@@ -162,7 +172,7 @@ export function nextSession(
 ): NextSession {
   const workout = r.active();
   if (workout) return { kind: "active", workout };
-  const program = programSession(r, today, library);
+  const program = programNext(r, today, library);
   const path = pathSession(r, today);
   if (program?.when === "today") return program;
   if (path?.when === "today") return path;

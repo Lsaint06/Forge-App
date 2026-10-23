@@ -121,7 +121,7 @@ test("Today starts the program session due today and links the plan", async () =
     expect(view.getByText(session)).toBeTruthy();
     expect(view.getByText(`${program.name} · Week 1`)).toBeTruthy();
     await fireEvent.press(view.getByLabelText(`Your program: ${program.name}`));
-    expect(router.push).toHaveBeenLastCalledWith("/forge-paths");
+    expect(router.push).toHaveBeenLastCalledWith("/forge-paths/current");
     await fireEvent.press(view.getByLabelText("Start workout"));
     expect(r.active()?.name).toBe(`${program.name} · ${session}`);
     expect(router.push).toHaveBeenLastCalledWith("/workout");

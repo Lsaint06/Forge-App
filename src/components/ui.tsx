@@ -216,6 +216,8 @@ export function Label({
  * A screen with consistent margins and safe areas. `eyebrow` is a factual
  * overline (date, context); `title` is the screen's single display heading.
  * `onBack` adds a ‹ Back control above the title for pushed screens.
+ * `footer` pins the screen's primary action below the scrolling content,
+ * above the home indicator and the keyboard.
  */
 export function Screen({
   title,
@@ -224,6 +226,7 @@ export function Screen({
   scroll = true,
   header,
   onBack,
+  footer,
 }: {
   title: string;
   eyebrow?: string;
@@ -231,6 +234,7 @@ export function Screen({
   scroll?: boolean;
   header?: React.ReactNode;
   onBack?: () => void;
+  footer?: React.ReactNode;
 }) {
   const c = useColors();
   const body = (
@@ -281,6 +285,22 @@ export function Screen({
           </ScrollView>
         ) : (
           body
+        )}
+        {footer && (
+          <SafeAreaView
+            edges={["bottom"]}
+            style={{
+              paddingHorizontal: theme.spacing.screen,
+              paddingTop: theme.spacing.group,
+              paddingBottom: theme.spacing.group,
+              gap: theme.spacing.sm,
+              borderTopWidth: StyleSheet.hairlineWidth,
+              borderTopColor: c.hairline,
+              backgroundColor: c.bg,
+            }}
+          >
+            {footer}
+          </SafeAreaView>
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -349,6 +369,7 @@ export function Button({
   variant,
   compact = false,
   accessibilityLabel,
+  neutral = false,
 }: {
   title: string;
   onPress: () => void;
@@ -360,6 +381,8 @@ export function Button({
   compact?: boolean;
   /** Spoken label when the visible title relies on context (default: title). */
   accessibilityLabel?: string;
+  /** Text buttons only: secondary text colour, for a lesser action beside the primary. */
+  neutral?: boolean;
 }) {
   const c = useColors();
   const kind: ButtonVariant =
@@ -379,7 +402,9 @@ export function Button({
       : kind === "destructive"
         ? c.error
         : kind === "text"
-          ? c.ember
+          ? neutral
+            ? c.text2
+            : c.ember
           : c.text;
   return (
     <Pressable

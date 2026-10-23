@@ -1,17 +1,20 @@
 import React, { useState } from "react";
 import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import {
   Screen,
   Card,
   Label,
+  Txt,
   Button,
-  Row,
   Field,
   Sheet,
   ProgressBar,
   useColors,
+  type IconName,
 } from "../components/ui";
+import { ListRow, ListSection } from "../components/system";
 import { useRepo, mutate, confirm } from "../state";
 import { weekdayNames } from "../domain/paths/model";
 import { calendarWeek, weekDates, weekFocus } from "../domain/paths/calendar";
@@ -26,8 +29,11 @@ import {
   skipPathSession,
   type PathSession,
 } from "../data/paths";
+import { pathFocus } from "../data/today";
 import { repRangeLabel } from "../domain/prescriptions";
 import { localDate, type Prescription } from "../domain/types";
+import { dayLabel, relativeDay } from "../domain/training-display";
+import { goBack } from "../navigation";
 
 // Existing Paths (Phase 6 compatibility). Lifters who started a Path before
 // Forge moved to curated programs can keep training it, review its calendar
@@ -36,6 +42,30 @@ import { localDate, type Prescription } from "../domain/types";
 
 const workingSets = (items: Prescription[]) =>
   items.reduce((n, e) => n + e.sets, 0);
+
+// One marker per calendar day, in the same priority as before: all done, in
+// progress, missed, all skipped, planned, rest.
+function dayMarker(sessions: PathSession[]): {
+  icon: IconName;
+  label: string;
+  tone: "success" | "warning" | "primary" | "tertiary";
+} {
+  if (sessions.length && sessions.every((s) => s.state === "completed"))
+    return { icon: "checkmark-circle", label: "completed", tone: "success" };
+  if (sessions.some((s) => s.state === "in-progress"))
+    return { icon: "time-outline", label: "in progress", tone: "primary" };
+  if (sessions.some((s) => s.state === "missed"))
+    return { icon: "alert-circle-outline", label: "missed", tone: "warning" };
+  if (sessions.length && sessions.every((s) => s.state === "skipped"))
+    return {
+      icon: "play-skip-forward-outline",
+      label: "skipped",
+      tone: "tertiary",
+    };
+  if (sessions.length)
+    return { icon: "ellipse", label: "workout planned", tone: "primary" };
+  return { icon: "remove-outline", label: "rest day", tone: "tertiary" };
+}
 
 function ExerciseList({ items }: { items: Prescription[] }) {
   const r = useRepo();
@@ -66,9 +96,9 @@ function ExerciseList({ items }: { items: Prescription[] }) {
             <Label bold>
               {item.sets} × {repRangeLabel(item)}
             </Label>
-            <Label muted size={11}>
-              {item.rest}s rest
-            </Label>
+            <Txt variant="caption" tone="secondary">
+              {`${item.rest}s rest`}
+            </Txt>
           </View>
         </View>
       ))}
@@ -85,6 +115,8 @@ export default function LegacyPath() {
   const selected =
     pathPrograms(r).find((p) => p.record.id === selectedId) ?? active;
   const stats = selected ? pathSummary(r, selected) : undefined;
+  // The session Today offers, so both screens open on the same workout.
+  const focus = stats ? pathFocus(stats.sessions) : undefined;
   const [manage, setManage] = useState(false);
   const [sessionActions, setSessionActions] = useState(false);
   const [focusedSessionId, setFocusedSessionId] = useState<string>();
@@ -99,7 +131,8 @@ export default function LegacyPath() {
         (selected
           ? calendarWeek(
               selected.data.started,
-              stats?.next?.record.date ??
+              focus?.record.date ??
+                stats?.next?.record.date ??
                 stats?.sessions[stats.sessions.length - 1]?.record.date ??
                 selected.data.started,
             )
@@ -131,6 +164,9 @@ export default function LegacyPath() {
   ].sort((a, b) => a - b);
   const session =
     visibleSessions.find((s) => s.record.id === focusedSessionId) ??
+    (selectedDate
+      ? undefined
+      : visibleSessions.find((s) => s.record.id === focus?.record.id)) ??
     visibleSessions.find((s) => !["completed", "skipped"].includes(s.state)) ??
     visibleSessions[0];
   const calendarDate = selectedDate ?? session?.record.date ?? dates[0];
@@ -151,12 +187,11 @@ export default function LegacyPath() {
     setFocusedSessionId(undefined);
   }
   return (
-    <Screen title="FORGE PATHS" eyebrow="YOUR PATH · PROGRESS SAVED">
-      <Button
-        title="Back to Forge Paths"
-        secondary
-        onPress={() => router.replace("/forge-paths")}
-      />
+    <Screen
+      title={selected?.data.name ?? "Your Path"}
+      eyebrow="Your Path"
+      onBack={() => goBack("/forge-paths")}
+    >
       {!selected || !stats ? (
         <Card>
           <Label bold size={22}>
@@ -174,11 +209,8 @@ export default function LegacyPath() {
         </Card>
       ) : (
         <>
-          <View style={{ gap: 6 }}>
-            <Label bold size={22}>
-              {selected.data.name}
-            </Label>
-            <Label muted size={13}>
+          <View style={{ gap: 8 }}>
+            <Txt variant="headline">
               {selected.data.status === "paused"
                 ? "Paused · your progress is safe"
                 : selected.data.status === "archived"
@@ -186,23 +218,23 @@ export default function LegacyPath() {
                   : stats.complete
                     ? "Cycle complete"
                     : `Week ${stats.week} · ${stats.phase.name}`}
-            </Label>
+            </Txt>
             <ProgressBar value={stats.ratio} label="Path completion" />
-            <Label muted size={12}>
-              {stats.completed} / {stats.expected} workouts completed
-            </Label>
+            <Txt variant="caption" tone="secondary" tabular>
+              {`${stats.completed} / ${stats.expected} workouts completed`}
+            </Txt>
           </View>
           {selected.data.status !== "archived" && (
             <Card>
-              <Label bold>Ready for a Forge program?</Label>
-              <Label muted size={13}>
-                You can keep training this Path or switch to a Forge program
-                whenever you choose. Nothing changes until you review and start
-                a program, and every recorded workout stays in your history.
-              </Label>
+              <Txt variant="headline">Ready for a Forge program?</Txt>
+              <Txt variant="caption" tone="secondary">
+                Keep training this Path or switch whenever you choose. Nothing
+                changes until you start a program, and every recorded workout
+                stays in your history.
+              </Txt>
               <Button
                 title="Browse Forge programs"
-                secondary
+                variant="secondary"
                 icon="trail-sign-outline"
                 onPress={() => router.push("/forge-paths")}
               />
@@ -210,34 +242,45 @@ export default function LegacyPath() {
           )}
           {selectedDate && !session ? (
             <Card>
-              <Label bold size={23}>
-                Rest day
-              </Label>
-              <Label muted>Rest day · {selectedDate}</Label>
+              <Txt variant="headline">Rest day</Txt>
+              <Txt tone="secondary">{dayLabel(selectedDate)}</Txt>
             </Card>
           ) : session ? (
-            <Card>
-              <Label muted size={11}>
-                {session.state === "completed"
-                  ? "COMPLETED"
-                  : session.state === "in-progress"
-                    ? "WORKOUT IN PROGRESS"
-                    : session.record.date === localDate()
-                      ? "TODAY'S WORKOUT"
-                      : session.record.date > localDate()
-                        ? "NEXT WORKOUT"
-                        : "MISSED SESSION"}
-              </Label>
-              <Label bold size={23}>
-                {session.data.name}
-              </Label>
-              <Label muted size={13}>
-                {session.record.date} · {session.state}
-              </Label>
-              <Label muted size={13}>
-                {template?.exercises.length ?? 0} exercises ·{" "}
-                {workingSets(template?.exercises ?? [])} working sets
-              </Label>
+            <Card style={{ padding: 20 }}>
+              <View style={{ gap: 4 }}>
+                <Txt
+                  variant="overline"
+                  tone={
+                    session.state === "in-progress" ? "accent" : "secondary"
+                  }
+                >
+                  {session.state === "completed"
+                    ? "Completed"
+                    : session.state === "in-progress"
+                      ? "In progress"
+                      : session.data.skipped
+                        ? "Skipped"
+                        : session.record.date === localDate()
+                          ? "Scheduled today"
+                          : session.record.date > localDate()
+                            ? "Next session"
+                            : "Missed session"}
+                </Txt>
+                <Txt variant="title" header>
+                  {session.data.name}
+                </Txt>
+                <Txt tone="secondary">
+                  {`Week ${session.data.week} · ${template?.exercises.length ?? 0} exercises · ${workingSets(template?.exercises ?? [])} working sets`}
+                </Txt>
+                <Txt variant="caption" tone="secondary">
+                  {session.state === "completed" ||
+                  session.record.date === localDate()
+                    ? dayLabel(session.record.date)
+                    : session.state === "missed"
+                      ? `Originally scheduled for ${dayLabel(session.record.date)}`
+                      : `Scheduled for ${relativeDay(session.record.date)}`}
+                </Txt>
+              </View>
               {session.state === "completed" ? (
                 <Button
                   title={`Review ${session.data.name}`}
@@ -323,23 +366,27 @@ export default function LegacyPath() {
                       setSelectedDate(undefined);
                     }}
                     style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 12,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 22,
                       alignItems: "center",
                       justifyContent: "center",
-                      backgroundColor: colors.elevated,
+                      backgroundColor: colors.surfaceRaised,
                       opacity: disabled ? 0.35 : 1,
                     }}
                   >
-                    <Label size={26}>{glyph}</Label>
+                    <Ionicons
+                      name={glyph === "←" ? "chevron-back" : "chevron-forward"}
+                      size={20}
+                      color={colors.text}
+                    />
                   </Pressable>
                 </React.Fragment>
               ))}
             </View>
-            <Label muted>
-              {dates[0]} – {dates[6]}
-            </Label>
+            <Txt tone="secondary">
+              {`${dayLabel(dates[0]!)} – ${dayLabel(dates[6]!)}`}
+            </Txt>
             {trainingWeeks.map((w) => (
               <Label key={w} muted size={12}>
                 Training week {w} · {w <= 4 ? "Foundation" : "Evolution"}
@@ -351,57 +398,60 @@ export default function LegacyPath() {
                 const sessions = stats.sessions.filter(
                   (s) => s.record.date === date,
                 );
-                const complete =
-                  sessions.length > 0 &&
-                  sessions.every((s) => s.state === "completed");
+                const marker = dayMarker(sessions);
+                const selectedDay = date === calendarDate;
+                const today = date === localDate();
                 return (
                   <Pressable
                     key={date}
                     accessibilityRole="button"
-                    accessibilityLabel={`${weekdayNames[i]} ${date}, ${sessions.length ? sessions.map((s) => s.state).join(", ") : "Rest day"}`}
-                    accessibilityState={{ selected: date === calendarDate }}
+                    accessibilityLabel={`${dayLabel(date)}${today ? ", today" : ""}: ${marker.label}`}
+                    accessibilityState={{ selected: selectedDay }}
                     onPress={() => {
                       setSelectedDate(date);
                       setFocusedSessionId(undefined);
                     }}
                     style={{
                       flex: 1,
-                      minHeight: 88,
+                      minHeight: 80,
                       paddingVertical: 10,
                       alignItems: "center",
                       gap: 6,
                       borderRadius: 12,
-                      borderWidth: date === localDate() ? 2 : 1,
-                      borderColor:
-                        date === calendarDate || date === localDate()
-                          ? colors.accent
-                          : colors.border,
-                      backgroundColor:
-                        date === calendarDate
-                          ? colors.elevated
-                          : colors.surface,
+                      borderWidth: selectedDay ? 1.5 : 0,
+                      borderColor: colors.text,
+                      backgroundColor: selectedDay
+                        ? colors.surfaceRaised
+                        : "transparent",
                     }}
                   >
-                    <Label size={11} muted>
-                      {weekdayNames[i]}
-                    </Label>
-                    <Label bold size={17}>
-                      {Number(date.slice(-2))}
-                    </Label>
-                    <Label size={11}>
-                      {complete
-                        ? "✓"
-                        : sessions.some((s) => s.state === "in-progress")
-                          ? "◐"
-                          : sessions.some((s) => s.state === "missed")
-                            ? "!"
-                            : sessions.length &&
-                                sessions.every((s) => s.state === "skipped")
-                              ? "↷"
-                              : sessions.length
-                                ? "●"
-                                : "–"}
-                    </Label>
+                    <Txt
+                      variant="caption"
+                      tone={today ? "primary" : "tertiary"}
+                      weight={today ? "700" : "500"}
+                    >
+                      {weekdayNames[i]!.charAt(0)}
+                    </Txt>
+                    <Txt
+                      variant="headline"
+                      tabular
+                      weight={today ? "800" : "600"}
+                    >
+                      {String(Number(date.slice(-2)))}
+                    </Txt>
+                    <Ionicons
+                      name={marker.icon}
+                      size={14}
+                      color={
+                        marker.tone === "success"
+                          ? colors.success
+                          : marker.tone === "warning"
+                            ? colors.warning
+                            : marker.tone === "primary"
+                              ? colors.text
+                              : colors.text3
+                      }
+                    />
                   </Pressable>
                 );
               })}
@@ -410,31 +460,31 @@ export default function LegacyPath() {
           {r.active() && session?.state !== "in-progress" && (
             <Button
               title="Resume current workout"
-              secondary
+              variant="secondary"
               onPress={() => router.push("/workout")}
             />
           )}
-          <Row>
-            <Button
+          <ListSection>
+            <ListRow
+              icon="options-outline"
               title="Manage Path"
-              secondary
               onPress={() => setManage(true)}
             />
-          </Row>
+          </ListSection>
         </>
       )}
       {archived.length > 0 && (
-        <Card>
-          <Label bold>Earlier Paths</Label>
+        <ListSection title="Earlier Paths">
           {archived.map((p) => (
-            <Button
+            <ListRow
               key={p.record.id}
-              title={`Review ${p.data.name} · ${p.data.started}`}
-              secondary
+              title={p.data.name}
+              subtitle={`Started ${dayLabel(p.data.started)} · read only`}
+              accessibilityLabel={`Review ${p.data.name} · ${p.data.started}`}
               onPress={() => review(p.record.id)}
             />
           ))}
-        </Card>
+        </ListSection>
       )}
       <Sheet
         visible={manage && !!selected}
