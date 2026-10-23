@@ -170,9 +170,13 @@ test("a workout with values but nothing ticked can be saved once sets are includ
     await fireEvent.press(view.getByLabelText("Save workout"));
     expect(r.workout(w.id)!.status).toBe("completed");
     expect(completedIds(r, w.id)).toEqual([s.id]);
-    // Backed up moments ago: no prompt, straight back to training.
-    expect(view.queryByText("Workout saved")).toBeNull();
+    // Backed up moments ago: the summary has no backup reminder.
+    expect(view.getByText("Workout complete")).toBeTruthy();
+    expect(view.queryByText("Back up your training")).toBeNull();
+    await fireEvent.press(view.getByLabelText("Done, back to training"));
     expect(router.back).toHaveBeenCalled();
+    // Done without a due reminder snoozes nothing.
+    expect(r.setting("backupSnoozedUntil")).toBe("0");
   } finally {
     db.close();
   }
@@ -195,7 +199,7 @@ test("an empty workout still cannot be finished", async () => {
 
 // ---- Backup reminders and status --------------------------------------------
 
-test("after a workout a due backup is offered; a folder save confirms it", async () => {
+test("after a workout a due backup is offered in the summary; a folder save confirms it", async () => {
   const { r, db } = pathRepository();
   try {
     const { w } = workout(r);
@@ -204,7 +208,8 @@ test("after a workout a due backup is offered; a folder save confirms it", async
     await fireEvent.press(view.getByLabelText("Finish workout"));
     await fireEvent.press(view.getByLabelText("Save workout"));
     expect(r.workout(w.id)!.status).toBe("completed");
-    expect(view.getByText("Workout saved")).toBeTruthy();
+    expect(view.getByText("Workout complete")).toBeTruthy();
+    expect(view.getByText("Back up your training")).toBeTruthy();
     expect(
       view.getByText(/Never backed up · 1 workout on this phone/),
     ).toBeTruthy();
@@ -216,7 +221,13 @@ test("after a workout a due backup is offered; a folder save confirms it", async
       expect.stringContaining("Saved to Downloads and checked"),
     );
     expect(Number(r.setting("lastBackupAt"))).toBeGreaterThan(0);
+    // The summary stays, reports the backup, and offers it only once.
+    expect(view.getByText(/Backup saved and checked/)).toBeTruthy();
+    expect(view.queryByLabelText("Save backup to a folder")).toBeNull();
+    await fireEvent.press(view.getByLabelText("Done, back to training"));
     expect(router.back).toHaveBeenCalled();
+    // A completed backup is not a "Not now".
+    expect(r.setting("backupSnoozedUntil")).toBe("0");
   } finally {
     db.close();
   }
@@ -234,13 +245,17 @@ test("sharing after a workout is recorded as unconfirmed, not as a backup", asyn
     expect(shareBackup).toHaveBeenCalledWith(r);
     expect(r.setting("lastBackupAt")).toBeUndefined();
     expect(Number(r.setting("lastSharedAt"))).toBeGreaterThan(0);
+    expect(
+      view.getByText(/Forge can't confirm the file was saved/),
+    ).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Done, back to training"));
     expect(router.back).toHaveBeenCalled();
   } finally {
     db.close();
   }
 });
 
-test("a cancelled folder picker keeps the backup step open", async () => {
+test("a cancelled folder picker keeps the backup offer open", async () => {
   const { r, db } = pathRepository();
   try {
     workout(r);
@@ -251,7 +266,7 @@ test("a cancelled folder picker keeps the backup step open", async () => {
     await fireEvent.press(view.getByLabelText("Save workout"));
     await fireEvent.press(view.getByLabelText("Save backup to a folder"));
     expect(alert).not.toHaveBeenCalled();
-    expect(view.getByText("Workout saved")).toBeTruthy();
+    expect(view.getByLabelText("Save backup to a folder")).toBeTruthy();
     expect(router.back).not.toHaveBeenCalled();
     expect(r.setting("lastBackupAt")).toBeUndefined();
   } finally {
@@ -276,7 +291,7 @@ test("without folder saving (iPhone), sharing is the backup action", async () =>
   }
 });
 
-test("Not now snoozes the reminder and returns to training", async () => {
+test("Done without backing up snoozes the reminder (Not now) and returns to training", async () => {
   const { r, db } = pathRepository();
   try {
     workout(r);
@@ -284,7 +299,7 @@ test("Not now snoozes the reminder and returns to training", async () => {
     const view = await render(<WorkoutScreen />);
     await fireEvent.press(view.getByLabelText("Finish workout"));
     await fireEvent.press(view.getByLabelText("Save workout"));
-    await fireEvent.press(view.getByLabelText("Not now"));
+    await fireEvent.press(view.getByLabelText("Done, back to training"));
     expect(saveBackupToFolder).not.toHaveBeenCalled();
     expect(shareBackup).not.toHaveBeenCalled();
     expect(Number(r.setting("backupSnoozedUntil"))).toBeGreaterThan(Date.now());

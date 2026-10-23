@@ -48,7 +48,12 @@ jest.mock("../../src/state", () => ({
 }));
 const mockParams: { id?: string } = {};
 jest.mock("expo-router", () => ({
-  router: { push: jest.fn(), back: jest.fn() },
+  router: {
+    push: jest.fn(),
+    back: jest.fn(),
+    replace: jest.fn(),
+    canGoBack: jest.fn(() => true),
+  },
   useLocalSearchParams: () => mockParams,
 }));
 jest.mock("../../src/notifications", () => ({
@@ -186,10 +191,12 @@ test("an earned increase is offered inline and applied only to unfinished workin
     const view = await render(
       <WorkoutExerciseCard row={row} initialExpanded />,
     );
-    // The previous session is shown beside each set.
-    expect(view.getAllByLabelText("Previous 100 kg × 100").length).toBe(
-      r.sets(row.id).length,
-    );
+    // The previous session is shown beside each set: a button that fills
+    // the set while it is open, plain text once the set is done.
+    expect(view.getAllByLabelText("Previous 100 kg × 100")).toHaveLength(1);
+    expect(
+      view.getAllByLabelText("Use previous 100 kilograms for 100 reps"),
+    ).toHaveLength(r.sets(row.id).length - 1);
     expect(view.getByText(`Increase to ${advice.weight} kg`)).toBeTruthy();
     await fireEvent.press(
       view.getByLabelText(`Use suggested load ${advice.weight} kg`),
@@ -283,7 +290,9 @@ test("standard and large iPhones show every column, including the previous set",
     const view = await render(grid());
     expect(view.getByText("Prev", hidden)).toBeTruthy();
     expect(view.getByText("60×8")).toBeTruthy();
-    expect(view.getByLabelText("Previous 60 kg × 8")).toBeTruthy();
+    expect(
+      view.getByLabelText("Use previous 60 kilograms for 8 reps"),
+    ).toBeTruthy();
     expect(view.getByLabelText("No previous set")).toBeTruthy();
     expect(view.getByLabelText("Set 1 RIR")).toBeTruthy();
     await view.unmount();
@@ -299,7 +308,9 @@ test("the narrowest iPhones move the previous set under the row instead of crush
   expect(view.getByText("Set", hidden)).toBeTruthy();
   expect(view.getByText("RIR", hidden)).toBeTruthy();
   expect(view.getByText("Previous 60×8")).toBeTruthy();
-  expect(view.getByLabelText("Previous 60 kg × 8")).toBeTruthy();
+  expect(
+    view.getByLabelText("Use previous 60 kilograms for 8 reps"),
+  ).toBeTruthy();
   for (const label of ["weight (kg)", "reps", "RIR"])
     expect(view.getByLabelText(`Set 1 ${label}`)).toBeTruthy();
 });
@@ -313,7 +324,9 @@ test("large accessibility text stacks each set with labelled inputs", async () =
   expect(view.getAllByText("kg")).toHaveLength(2);
   expect(view.getAllByText("Reps")).toHaveLength(2);
   expect(view.getAllByText("RIR")).toHaveLength(2);
-  expect(view.getByLabelText("Previous 60 kg × 8")).toBeTruthy();
+  expect(
+    view.getByLabelText("Use previous 60 kilograms for 8 reps"),
+  ).toBeTruthy();
   // Numbers grow with Dynamic Type up to a cap that keeps them in the cell.
   expect(view.getByLabelText("Set 1 reps").props.maxFontSizeMultiplier).toBe(
     1.4,
@@ -438,36 +451,36 @@ test("the exercise menu keeps reordering, substitution, settings and removal", a
   try {
     const workout = r.startWorkout("Freestyle");
     const bench = r.addExercise(workout.id, "barbell-bench-press");
-    const squat = r.addExercise(workout.id, "back-squat");
+    r.addExercise(workout.id, "back-squat");
     r.addSet(bench.id);
     jest.mocked(useRepo).mockReturnValue(r);
+    const onReorder = jest.fn();
     const view = await render(
-      <WorkoutExerciseCard row={bench} index={0} count={2} initialExpanded />,
+      <WorkoutExerciseCard
+        row={bench}
+        index={0}
+        count={2}
+        initialExpanded
+        onReorder={onReorder}
+      />,
     );
     const name = r.exercise(bench.exerciseId)!.name;
     await fireEvent.press(view.getByLabelText(`Options for ${name}`));
     const items = view
       .getAllByRole("menuitem")
       .map((i) => i.props.accessibilityLabel);
+    // Reordering opens the reorder sheet instead of moving one step a time.
     expect(items).toEqual([
-      "Move up",
-      "Move down",
+      "Reorder exercises",
       "Substitute exercise",
       "Notes, rest & superset",
       "Progression",
       "Remove exercise",
     ]);
-    // The first exercise cannot move up.
-    expect(
-      view.getByRole("menuitem", { name: "Move up", disabled: true }),
-    ).toBeTruthy();
-    await fireEvent.press(view.getByRole("menuitem", { name: "Move down" }));
-    await waitFor(() =>
-      expect(r.workoutExercises(workout.id).map((e) => e.id)).toEqual([
-        squat.id,
-        bench.id,
-      ]),
+    await fireEvent.press(
+      view.getByRole("menuitem", { name: "Reorder exercises" }),
     );
+    await waitFor(() => expect(onReorder).toHaveBeenCalledTimes(1));
     await chooseMenuItem(
       view,
       `Options for ${name}`,
@@ -671,7 +684,7 @@ test("a paused workout shows Resume in the dock beside the single primary Finish
   }
 });
 
-test("reviewing a finished workout never starts a rest timer or reminder", async () => {
+test("reviewing a finished workout is read-only; editing never starts a rest timer", async () => {
   const { r, db } = pathRepository();
   try {
     const workout = r.startWorkout("Pull A");
@@ -685,8 +698,12 @@ test("reviewing a finished workout never starts a rest timer or reminder", async
     mockParams.id = workout.id;
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<WorkoutScreen />);
+    // Review: values only; nothing to tap that changes history.
+    expect(view.queryByLabelText("Complete set 2")).toBeNull();
+    expect(view.getByLabelText("Set 2 not done")).toBeTruthy();
+    // Editing unlocks the controls; completing a set still starts no rest.
+    await fireEvent.press(view.getByLabelText("Edit workout"));
     await fireEvent.press(view.getByLabelText("Complete set 2"));
-    // The set is saved, but no rest starts for a finished session.
     expect(r.sets(row.id).find((s) => s.id === b.id)!.completed).toBe(true);
     expect(Number(r.setting("restDeadline") ?? 0)).toBe(0);
     expect(restNotification).not.toHaveBeenCalled();

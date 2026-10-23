@@ -36,7 +36,12 @@ jest.mock("../../src/state", () => ({
   ),
 }));
 jest.mock("expo-router", () => ({
-  router: { push: jest.fn(), back: jest.fn() },
+  router: {
+    push: jest.fn(),
+    back: jest.fn(),
+    replace: jest.fn(),
+    canGoBack: jest.fn(() => true),
+  },
   useLocalSearchParams: () => ({}),
 }));
 jest.mock("../../src/notifications", () => ({
@@ -309,6 +314,10 @@ test("workout adds an exercise and protects completion with a finish sheet", asy
   expect(view.getByText("1 set will be saved")).toBeTruthy();
   await fireEvent.press(view.getByLabelText("Save workout"));
   expect(r.finishWorkout).toHaveBeenCalledWith("w");
+  // Saving shows the summary; Done returns to training.
+  expect(view.getByText("Workout complete")).toBeTruthy();
+  expect(router.back).not.toHaveBeenCalled();
+  await fireEvent.press(view.getByLabelText("Done, back to training"));
   expect(router.back).toHaveBeenCalled();
 });
 test("freestyle starts through repository and completed history remains reviewable", async () => {

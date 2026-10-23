@@ -1,25 +1,30 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { View, Switch } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { cancelRestNotification } from "../notifications";
 import { useRepo, mutate } from "../state";
-import { Txt, Button, Sheet, useColors, dark } from "./ui";
+import { Txt, Button, Sheet, useColors, dark, type IconName } from "./ui";
 import { ListRow } from "./system";
 import { useBackupActions } from "./Backup";
 import { backupState, snoozeBackupReminder } from "../data/backup";
+import { workoutSummary } from "../data/workout-session";
 import { unmarkedSets, setNumbers } from "../domain/finish";
 import { volume } from "../domain/metrics";
-import { previousText } from "../domain/workout-display";
-import { plural, volumeText } from "../domain/training-display";
+import { previousText, workoutTitle } from "../domain/workout-display";
+import { plural, volumeText, longDayLabel } from "../domain/training-display";
+import { recordHeadline } from "../domain/progress/format";
 import { theme } from "../theme";
 import type { Workout } from "../domain/types";
 
 /**
- * Finishing a workout. Lists exercises with sets that hold numbers but were
- * never ticked, so nothing is left out of progress without the lifter
- * choosing it. Those sets stay out unless switched on: a set that was only
- * planned must never be recorded as done. After saving, offers a backup when
- * one is due.
+ * Finishing a workout, in one sheet:
+ * 1. Review: exercises with sets that hold numbers but were never ticked are
+ *    listed, so nothing is left out of progress without the lifter choosing
+ *    it. They stay out unless switched on: a set that was only planned must
+ *    never be recorded as done.
+ * 2. Save: one transaction, guarded against repeated taps.
+ * 3. Summary: what was recorded (read back from storage), records from the
+ *    Progress engine, and the backup reminder when one is due. Done leaves.
  */
 export function FinishSheet({
   workout: w,
@@ -38,10 +43,14 @@ export function FinishSheet({
   const r = useRepo();
   const c = useColors();
   const units = r.profile().units;
-  const [phase, setPhase] = useState<"review" | "saved">("review");
+  const [phase, setPhase] = useState<"review" | "summary">("review");
   const [included, setIncluded] = useState<ReadonlySet<string>>(new Set());
-  // Either way the lifter has acted on the reminder: leave the logger.
-  const backupActions = useBackupActions(() => onDone());
+  const saving = useRef(false);
+  // Whether the summary offers a backup: decided once, when saving, so the
+  // reminder appears at most once per workout.
+  const [offerBackup, setOfferBackup] = useState(false);
+  const [backedUp, setBackedUp] = useState<"saved" | "shared">();
+  const backupActions = useBackupActions(setBackedUp);
   const rows = r.workoutExercises(w.id);
   const groups = unmarkedSets(
     rows.map((row) => ({ row, sets: r.sets(row.id) })),
@@ -66,7 +75,9 @@ export function FinishSheet({
     });
   }
   function save() {
-    if (phase !== "review" || total === 0) return;
+    // A second tap before the sheet re-renders must not save twice.
+    if (saving.current || phase !== "review" || total === 0) return;
+    saving.current = true;
     const saved = mutate(() =>
       r.transaction(() => {
         for (const s of adding) r.editSet(s.id, { completed: true });
@@ -75,79 +86,193 @@ export function FinishSheet({
         return true;
       }),
     );
-    if (!saved) return;
+    if (!saved) {
+      saving.current = false;
+      return;
+    }
+    // The workout is committed to storage before the summary appears.
     void cancelRestNotification().catch(() => {});
     onSaved();
-    if (backupState(r).prompt) setPhase("saved");
-    else onDone();
+    setOfferBackup(backupState(r).prompt);
+    setPhase("summary");
   }
-  function notNow() {
-    mutate(() => snoozeBackupReminder(r));
+  function finish() {
+    // Leaving without backing up counts as "Not now".
+    if (offerBackup && !backedUp) mutate(() => snoozeBackupReminder(r));
     onDone();
   }
 
-  if (phase === "saved")
+  if (phase === "summary") {
+    const summary = workoutSummary(r, w.id);
+    const stats: { icon: IconName; value: string; label: string }[] = summary
+      ? [
+          {
+            icon: "checkmark-done-outline",
+            value: String(summary.sets),
+            label: summary.sets === 1 ? "Set" : "Sets",
+          },
+          {
+            icon: "barbell-outline",
+            value: String(summary.exercises),
+            label: summary.exercises === 1 ? "Exercise" : "Exercises",
+          },
+          ...(summary.minutes
+            ? [
+                {
+                  icon: "time-outline" as const,
+                  value: `${summary.minutes} min`,
+                  label: "Duration",
+                },
+              ]
+            : []),
+          ...(summary.volumeKg
+            ? [
+                {
+                  icon: "trending-up-outline" as const,
+                  value: volumeText(summary.volumeKg, units),
+                  label: "Volume",
+                },
+              ]
+            : []),
+        ]
+      : [];
     return (
       <Sheet
         visible
-        onClose={notNow}
-        title="Workout saved"
+        onClose={finish}
+        title="Workout complete"
         footer={
-          <View style={{ gap: theme.spacing.xs }}>
-            {backupActions.folder && (
-              <Button
-                title={
-                  backupActions.busy === "folder"
-                    ? "Saving…"
-                    : "Save backup to a folder"
-                }
-                icon="folder-outline"
-                disabled={!!backupActions.busy}
-                onPress={() => void backupActions.saveToFolder()}
-              />
-            )}
-            <Button
-              title={
-                backupActions.busy === "share" ? "Preparing…" : "Share a copy"
-              }
-              icon="share-outline"
-              variant={backupActions.folder ? "secondary" : "primary"}
-              disabled={!!backupActions.busy}
-              onPress={() => void backupActions.share()}
-            />
-            <Button title="Not now" variant="text" neutral onPress={notNow} />
-          </View>
+          <Button
+            title="Done"
+            accessibilityLabel="Done, back to training"
+            onPress={finish}
+          />
         }
       >
-        <Txt tone="secondary">
-          {plural(total, "set")} saved to your training history.
-        </Txt>
+        {summary && (
+          <View style={{ gap: 2 }}>
+            <Txt variant="headline" header numberOfLines={2}>
+              {workoutTitle(summary.name)}
+            </Txt>
+            <Txt tone="secondary">{longDayLabel(summary.finishedAt)}</Txt>
+          </View>
+        )}
         <View
           style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            rowGap: theme.spacing.md,
             backgroundColor: c.surfaceRaised,
             borderRadius: theme.radii.card,
             padding: theme.spacing.row,
-            gap: theme.spacing.sm,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={20}
-              color={c.ember}
-            />
-            <Txt variant="headline" header style={{ flex: 1 }}>
-              Back up your training
-            </Txt>
-          </View>
-          <Txt variant="caption" tone="secondary">
-            {backup.text}. Save a backup file to Files, iCloud Drive, Google
-            Drive or email so a lost or replaced phone can&apos;t take your
-            history with it.
-          </Txt>
+          {stats.map((s) => (
+            <View
+              key={s.label}
+              accessible
+              accessibilityLabel={`${s.label}: ${s.value}`}
+              style={{ width: "50%", gap: 2, paddingRight: 8 }}
+            >
+              <Txt variant="metric" numberOfLines={1} fit>
+                {s.value}
+              </Txt>
+              <Txt variant="overline" tone="secondary" numberOfLines={1}>
+                {s.label}
+              </Txt>
+            </View>
+          ))}
         </View>
+        {!!summary?.records.length && (
+          <View style={{ gap: theme.spacing.sm }}>
+            <Txt variant="overline" tone="secondary" header>
+              {summary.records.length === 1 ? "New record" : "New records"}
+            </Txt>
+            <View
+              style={{
+                backgroundColor: c.surfaceRaised,
+                borderRadius: theme.radii.card,
+                overflow: "hidden",
+              }}
+            >
+              {summary.records.map(({ exerciseId, name, event }) => {
+                const head = recordHeadline(event, units);
+                return (
+                  <ListRow
+                    key={exerciseId}
+                    icon="trophy-outline"
+                    title={name}
+                    subtitle={`${head.label} · ${head.value}`}
+                    accessibilityLabel={`New record, ${name}: ${head.label} ${head.value}`}
+                  />
+                );
+              })}
+            </View>
+          </View>
+        )}
+        {offerBackup && (
+          <View
+            style={{
+              // Outlined, not filled, so its buttons keep visible edges.
+              borderWidth: 1,
+              borderColor: c.hairline,
+              borderRadius: theme.radii.card,
+              padding: theme.spacing.row,
+              gap: theme.spacing.sm,
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            >
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={20}
+                color={c.ember}
+              />
+              <Txt variant="headline" header style={{ flex: 1 }}>
+                Back up your training
+              </Txt>
+            </View>
+            <Txt variant="caption" tone="secondary">
+              {backedUp === "saved"
+                ? "Backup saved and checked. Keep that folder in cloud storage, or copy the file off this phone."
+                : backedUp === "shared"
+                  ? "Shared. Forge can't confirm the file was saved, so check it reached its destination."
+                  : `${backup.text}. Save a backup file so a lost or replaced phone can't take your history with it.`}
+            </Txt>
+            {!backedUp && (
+              <View style={{ gap: theme.spacing.xs }}>
+                {backupActions.folder && (
+                  <Button
+                    title={
+                      backupActions.busy === "folder"
+                        ? "Saving…"
+                        : "Save backup to a folder"
+                    }
+                    icon="folder-outline"
+                    variant="secondary"
+                    disabled={!!backupActions.busy}
+                    onPress={() => void backupActions.saveToFolder()}
+                  />
+                )}
+                <Button
+                  title={
+                    backupActions.busy === "share"
+                      ? "Preparing…"
+                      : "Share a copy"
+                  }
+                  icon="share-outline"
+                  variant={backupActions.folder ? "text" : "secondary"}
+                  disabled={!!backupActions.busy}
+                  onPress={() => void backupActions.share()}
+                />
+              </View>
+            )}
+          </View>
+        )}
       </Sheet>
     );
+  }
 
   return (
     <Sheet
@@ -201,13 +326,16 @@ export function FinishSheet({
               const exercise = r.exercise(row.exerciseId);
               const name = exercise?.name ?? "Exercise";
               const on = included.has(row.id);
-              const values = sets
-                .map(
-                  ({ set }) =>
-                    previousText(set, exercise?.category ?? "strength", units)
-                      .text,
-                )
-                .join(", ");
+              const texts = sets.map(
+                ({ set }) =>
+                  previousText(set, exercise?.category ?? "strength", units)
+                    .text,
+              );
+              // "10 reps each" rather than the same value four times.
+              const values =
+                texts.length > 1 && texts.every((t) => t === texts[0])
+                  ? `${texts[0]} each`
+                  : texts.join(", ");
               return (
                 <ListRow
                   key={row.id}

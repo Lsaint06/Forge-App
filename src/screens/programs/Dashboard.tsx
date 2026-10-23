@@ -35,6 +35,8 @@ import {
 } from "../../data/programs";
 import { programNext } from "../../data/today";
 import { goBack } from "../../navigation";
+import { blockIfTraining, otherWorkout, resumeWorkout } from "../../startGuard";
+import { workoutTitle } from "../../domain/workout-display";
 
 // Your program: where you are, the next session and how to start it, what
 // comes next, recent sessions and program management.
@@ -60,7 +62,19 @@ function NextSession({
   const [choice, setChoice] = useState<boolean>();
   const lowerFatigue = lowerFatigueAvailable && (choice ?? planned);
   const lf = program.lowerFatigue;
+  // Another workout in progress: this session can't start until it ends.
+  const busy = otherWorkout(
+    r,
+    next.state === "in-progress" ? next.workoutId : undefined,
+  );
   function start() {
+    if (
+      blockIfTraining(
+        r,
+        next.state === "in-progress" ? next.workoutId : undefined,
+      )
+    )
+      return;
     const workout = mutate(() =>
       startProgramSession(r, enrollment.record.id, undefined, {
         lowerFatigue,
@@ -138,13 +152,26 @@ function NextSession({
         />
       </View>
       <View style={{ marginTop: 16, gap: 4 }}>
-        <Button
-          title={
-            next.state === "in-progress" ? "Resume session" : "Start session"
-          }
-          icon="play"
-          onPress={start}
-        />
+        {busy ? (
+          <>
+            <Txt variant="caption" tone="secondary" style={{ marginBottom: 6 }}>
+              {`${workoutTitle(busy.name)} is in progress. Finish it before starting this session.`}
+            </Txt>
+            <Button
+              title="Resume current workout"
+              icon="play"
+              onPress={resumeWorkout}
+            />
+          </>
+        ) : (
+          <Button
+            title={
+              next.state === "in-progress" ? "Resume session" : "Start session"
+            }
+            icon="play"
+            onPress={start}
+          />
+        )}
         {next.state === "ready" && (
           <TextButton
             title="Skip this session"

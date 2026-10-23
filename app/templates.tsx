@@ -25,6 +25,9 @@ import {
 } from "../src/data/paths";
 import { notifyAt } from "../src/notifications";
 import { kgToLb, lbToKg } from "../src/domain/metrics";
+import { workoutTitle } from "../src/domain/workout-display";
+import { ListRow, ListSection } from "../src/components/system";
+import { blockIfTraining, resumeWorkout } from "../src/startGuard";
 export default function Templates() {
   const r = useRepo();
   const units = r.profile().units;
@@ -64,9 +67,22 @@ export default function Templates() {
       ).catch((e) => Alert.alert("Reminder unavailable", String(e)));
     }
   }
+  const active = r.active();
   return (
     <Screen title="Workout templates" eyebrow="TRAIN">
       <Button title="Back" secondary onPress={() => router.back()} />
+      {active && (
+        <ListSection>
+          <ListRow
+            icon="play-circle-outline"
+            title="Workout in progress"
+            subtitle={`Finish ${workoutTitle(active.name)} before starting another`}
+            value="Resume"
+            accessibilityLabel={`Resume ${workoutTitle(active.name)}`}
+            onPress={resumeWorkout}
+          />
+        </ListSection>
+      )}
       <Field
         label="Schedule date (YYYY-MM-DD)"
         value={date}
@@ -88,7 +104,9 @@ export default function Templates() {
           <Row>
             <Button
               title="Train"
+              disabled={!!active}
               onPress={() => {
+                if (blockIfTraining(r)) return;
                 const w = mutate(() => r.startWorkout(t.name, t.id));
                 if (w) router.push("/workout");
               }}
@@ -141,7 +159,13 @@ export default function Templates() {
               <Button
                 title="Start planned session"
                 secondary
+                // A Path session already in progress can still be resumed.
+                disabled={
+                  !!active && active.id !== String(j.data.workoutId ?? "")
+                }
                 onPress={() => {
+                  if (blockIfTraining(r, String(j.data.workoutId ?? "")))
+                    return;
                   const w = mutate(() => startScheduledSession(r, j));
                   if (w) router.push("/workout");
                 }}

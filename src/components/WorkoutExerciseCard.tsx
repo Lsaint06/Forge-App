@@ -174,7 +174,7 @@ function AdviceRow({
   );
 }
 
-/** A tappable one- or two-line note with a leading icon. */
+/** A one- or two-line note with a leading icon; tappable when it opens more. */
 function NoteLine({
   icon,
   text,
@@ -186,32 +186,43 @@ function NoteLine({
   text: string;
   label: string;
   hint: string;
-  onPress: () => void;
+  onPress?: () => void;
 }) {
   const c = useColors();
+  const content = (
+    <>
+      <Ionicons name={icon} size={16} color={c.text2} />
+      <Txt
+        variant="caption"
+        tone="secondary"
+        numberOfLines={onPress ? 2 : undefined}
+        style={{ flex: 1 }}
+      >
+        {text}
+      </Txt>
+    </>
+  );
+  const row = {
+    flexDirection: "row" as const,
+    gap: 8,
+    minHeight: 44,
+    alignItems: "center" as const,
+  };
+  if (!onPress)
+    return (
+      <View accessible accessibilityLabel={label} style={row}>
+        {content}
+      </View>
+    );
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={hint}
       onPress={onPress}
-      style={({ pressed }) => ({
-        flexDirection: "row",
-        gap: 8,
-        minHeight: 44,
-        alignItems: "center",
-        opacity: pressed ? 0.6 : 1,
-      })}
+      style={({ pressed }) => ({ ...row, opacity: pressed ? 0.6 : 1 })}
     >
-      <Ionicons name={icon} size={16} color={c.text2} />
-      <Txt
-        variant="caption"
-        tone="secondary"
-        numberOfLines={2}
-        style={{ flex: 1 }}
-      >
-        {text}
-      </Txt>
+      {content}
     </Pressable>
   );
 }
@@ -224,9 +235,10 @@ function NoteLine({
 export default function WorkoutExerciseCard({
   row: e,
   initialExpanded = false,
-  index,
   count,
   completedWorkout = false,
+  readOnly = false,
+  onReorder,
 }: {
   row: WorkoutExercise;
   initialExpanded?: boolean;
@@ -234,6 +246,10 @@ export default function WorkoutExerciseCard({
   count?: number;
   /** Reviewing a finished workout: completing a set starts no rest. */
   completedWorkout?: boolean;
+  /** Review mode: logged values only, no editing controls. */
+  readOnly?: boolean;
+  /** Opens the reorder sheet with this exercise selected. */
+  onReorder?: () => void;
 }) {
   const r = useRepo();
   const exercise = r.exercise(e.exerciseId);
@@ -349,18 +365,15 @@ export default function WorkoutExerciseCard({
     });
   const close = () => setSheet(undefined);
   const menu: MenuAction[] = [
-    {
-      label: "Move up",
-      icon: "arrow-up",
-      disabled: index === 0,
-      onPress: () => mutate(() => r.moveExercise(e.id, -1)),
-    },
-    {
-      label: "Move down",
-      icon: "arrow-down",
-      disabled: count !== undefined && index === count - 1,
-      onPress: () => mutate(() => r.moveExercise(e.id, 1)),
-    },
+    ...(onReorder && (count ?? 0) > 1
+      ? [
+          {
+            label: "Reorder exercises",
+            icon: "reorder-four-outline" as const,
+            onPress: onReorder,
+          },
+        ]
+      : []),
     {
       label: "Substitute exercise",
       icon: "swap-horizontal",
@@ -433,11 +446,13 @@ export default function WorkoutExerciseCard({
             color={c.text3}
           />
         </Pressable>
-        <OverflowMenu
-          label={`Options for ${name}`}
-          title={name}
-          actions={menu}
-        />
+        {!readOnly && (
+          <OverflowMenu
+            label={`Options for ${name}`}
+            title={name}
+            actions={menu}
+          />
+        )}
       </View>
       {!!e.groupId && (
         <Txt variant="caption" tone="secondary">
@@ -461,10 +476,10 @@ export default function WorkoutExerciseCard({
               text={e.notes}
               label={`Exercise notes: ${e.notes}`}
               hint="Edit notes, rest and superset"
-              onPress={() => setSheet("settings")}
+              onPress={readOnly ? undefined : () => setSheet("settings")}
             />
           )}
-          {advice && (
+          {advice && !readOnly && (
             <AdviceRow
               advice={advice}
               icon={adviceIcon}
@@ -489,30 +504,33 @@ export default function WorkoutExerciseCard({
               order={e.position}
               onDetails={(s) => setDetailSetId(s.id)}
               startsRest={!completedWorkout}
+              readOnly={readOnly}
             />
           )}
-          <View style={{ alignItems: "flex-start" }}>
-            <TextButton
-              title="Add set"
-              icon="add"
-              onPress={() =>
-                mutate(() => {
-                  const prev = sets[sets.length - 1];
-                  return r.addSet(
-                    e.id,
-                    prev
-                      ? {
-                          weight: prev.weight,
-                          reps: prev.reps,
-                          rest: e.rest,
-                          kind: "working",
-                        }
-                      : {},
-                  );
-                })
-              }
-            />
-          </View>
+          {!readOnly && (
+            <View style={{ alignItems: "flex-start" }}>
+              <TextButton
+                title="Add set"
+                icon="add"
+                onPress={() =>
+                  mutate(() => {
+                    const prev = sets[sets.length - 1];
+                    return r.addSet(
+                      e.id,
+                      prev
+                        ? {
+                            weight: prev.weight,
+                            reps: prev.reps,
+                            rest: e.rest,
+                            kind: "working",
+                          }
+                        : {},
+                    );
+                  })
+                }
+              />
+            </View>
+          )}
         </>
       )}
       <Sheet

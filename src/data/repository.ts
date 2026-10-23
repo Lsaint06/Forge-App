@@ -33,6 +33,11 @@ export interface SqlDatabase {
   run(sql: string, params?: (string | number | null)[]): void;
   all<T>(sql: string, params?: (string | number | null)[]): T[];
 }
+export type WorkoutSnapshot = {
+  workout: Workout;
+  exercises: WorkoutExercise[];
+  sets: WorkoutSet[];
+};
 const wSelect = `SELECT id,name,status,started_at AS startedAt,finished_at AS finishedAt,paused_at AS pausedAt,paused_ms AS pausedMs,notes,template_id AS templateId,updated_at AS updatedAt FROM workouts`;
 const eSelect = `SELECT id,workout_id AS workoutId,exercise_id AS exerciseId,position,notes,rest,group_id AS groupId,target FROM workout_exercises`;
 const sSelect = `SELECT id,exercise_row_id AS exerciseRowId,position,weight,reps,duration,distance,rpe,rir,kind,completed,rest,tempo,notes,side FROM workout_sets`;
@@ -444,6 +449,38 @@ export class Repository {
     this.transaction(() => {
       this.db.run("DELETE FROM workouts WHERE id=?", [workoutId]);
       this.queue(workoutId, "workout", {}, true);
+    });
+  }
+  /** One workout with its exercises and sets, for undoing an edit. */
+  workoutSnapshot(workoutId: string): WorkoutSnapshot {
+    const workout = this.workout(workoutId);
+    if (!workout) throw new Error("Workout not found");
+    return {
+      workout,
+      exercises: this.workoutExercises(workoutId),
+      sets: this.workoutSets(workoutId),
+    };
+  }
+  /**
+   * Puts a workout back exactly as snapshotted (same identities), replacing
+   * its current exercises and sets in one transaction.
+   */
+  restoreWorkout(snapshot: WorkoutSnapshot) {
+    const w = workoutSchema.parse(snapshot.workout);
+    if (!this.workout(w.id)) throw new Error("Workout not found");
+    const rows = snapshot.exercises.map((e) => workoutExerciseSchema.parse(e));
+    const sets = snapshot.sets.map((s) => setSchema.parse(s));
+    if (
+      rows.some((e) => e.workoutId !== w.id) ||
+      sets.some((s) => !rows.some((e) => e.id === s.exerciseRowId))
+    )
+      throw new Error("The saved copy doesn't match this workout");
+    this.transaction(() => {
+      this.putWorkout(w);
+      this.db.run("DELETE FROM workout_exercises WHERE workout_id=?", [w.id]);
+      for (const e of rows) this.putExercise(e);
+      for (const s of sets) this.putSet(s);
+      this.queueWorkout(w.id);
     });
   }
   addExercise(workoutId: string, exerciseId: string) {

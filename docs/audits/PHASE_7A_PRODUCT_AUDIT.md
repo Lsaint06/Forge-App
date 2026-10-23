@@ -523,4 +523,43 @@ WP2 (set copy-forward and tappable Prev) should follow immediately: it is the hi
 | C-00b app icon | **Deferred** to a separate branding decision | — |
 | Cloud sync | **Unchanged by decision.** Reliable device migration and recovery are pre-launch priorities (see checklist I). | — |
 
-*End of report. Phase 7B WP1 is approved and committed; WP2–WP7 have not begun.*
+## Phase 7B progress — WP2 (approved)
+
+Starting commit `a8daf09`. The storage schema is unchanged: two repository methods were added (`workoutSnapshot` and `restoreWorkout`, used only to undo an edit), and edit copies live in device settings.
+
+| Item | What changed | Verified on |
+|---|---|---|
+| **C-03: weight copy-forward** | Entering a working set's load fills the following working sets in that exercise that are not done, still hold 0, and were not typed into. Copying stops at the first set that doesn't qualify, so a set with its own load (and everything after it) is never touched. Loads Forge copied can be updated again by editing the source set; reps, rest, set counts and completion never change. It only runs in workouts in progress, never when editing history. Rules: [copy-forward.ts](../../src/domain/copy-forward.ts). | Logic tests; UI tests (pounds, typed loads kept, completed sets kept, no cross-exercise, edit mode off); emulator (100 kg filled set 2, stopped at set 3's 75 kg, verified in the device database; compact keyboard). |
+| **C-03: tappable previous result** | An open set's previous result is an outlined button ("Use previous 135 pounds for 8 reps") that fills that one set with the previous load and reps (time or distance for those exercises), converted to the profile's units. It never completes the set or touches others. Done sets show plain text. | UI tests; emulator. |
+| **C-04, C-13: finish review** | WP1's review sheet is kept unchanged in behaviour (unticked sets stay out unless switched on). Repeated values are condensed ("10 reps each"). Save is guarded against double taps. | UI test (two taps in one frame → one save). |
+| **C-12: post-workout summary** | After a durable save, the sheet shows "Workout complete": name, date, working sets, exercises, duration (when at least a minute was recorded), volume (when any load was lifted) and new records from the Progress records engine (never on a first session). The WP1 backup reminder sits inside the summary and appears at most once; **Done** leaves, and leaving without backing up counts as "Not now". *Ordering:* the review, save, summary and reminder all live in one sheet rather than separate sheets, because chained modals on iOS can drop the second presentation. | Logic and UI tests; emulator (2,840 kg and a heaviest-set record matched the stored sets; force-stop on the summary → the workout was already saved and no duplicate existed). |
+| **C-11: reorder** | ••• → Reorder exercises (on the workout or any exercise) opens a sheet: pick an exercise, then To top, Up, Down or To bottom. Every move saves at once; rows, sets and values move intact. Screen readers get the same moves as row actions. Moving the 8th exercise to the top takes 2 taps instead of 14. Drag-and-drop was not added: it needs a gesture dependency and is harder to make accessible. | Logic and UI tests; emulator (order verified in the device database). |
+| **C-17: one workout at a time** | Train template Start (disabled), the template sheet (offers Resume), the templates screen (in-progress row, Train disabled), program Dashboard (Resume current workout), legacy Path Start (disabled with a note) and History → Repeat (alert offering Resume) all go through one guard ([startGuard.ts](../../src/startGuard.ts)). A session can still resume its own workout. Today already resumes. Exercise detail's "Add to workout" adds to the workout in progress, as before. | UI tests (Train, History, Templates, Dashboard). |
+| **C-18: read-only review** | Finished workouts open read-only: values, completion state and notes, with no inputs, menus or Add buttons. **Edit** unlocks the logger with a Cancel / Save dock. Cancel (and the back button or Android back) asks before discarding, then restores the workout exactly, with the same identities. The pre-edit copy is kept in device settings, so an edit interrupted by FORGE closing reopens in edit mode. Durations show as "64 min". | Logic tests (exact restore, interrupted edit, refusal of foreign copies); UI tests; emulator (review has 0 inputs; edit → Cancel → Discard restored 80 kg; edit → Save kept 9 reps). |
+
+**Emulator coverage (Android, Expo Go 58):**
+
+- Sizes: compact, standard and large.
+- Themes and text: dark; light with pounds; 130 % text.
+- Workouts: empty, short, long (8 exercises), partly completed, finished (review and edit).
+- Interactions: keyboard during weight entry; the finish review, summary and backup offer; the reorder sheet.
+- Screenshots: `forge-visual-harness\shots\android\p10\`.
+
+**Issues found on the emulator and fixed:**
+
+- At 130 % text the review header cut off the duration and volume; the status now wraps to two lines.
+- The summary's backup buttons blended into a filled card; the card is now outlined.
+- Repeated values in the finish review ("10 reps, 10 reps, 10 reps") now read "10 reps each".
+
+**Known limitations:**
+
+- Copy-forward remembers typed-versus-copied sets only while the logger is open. After FORGE restarts, copies are treated like any other non-zero load and are not updated.
+- In review mode, completed loads in pounds show with two decimals (176.37 lb), as before.
+
+**iPhone checks outstanding:**
+
+- Keyboard and the iOS input toolbar with the copy-forward cells.
+- The summary sheet and its backup buttons on notched and Dynamic Island phones.
+- Leaving mid-edit on iOS: the workout screen is a full-screen modal, so there should be no back-swipe that skips the Cancel prompt; confirm on a device. If an edit is ever left pending, it reopens in edit mode and can still be cancelled.
+- VoiceOver row actions in the reorder sheet.
+*End of report. Phase 7B WP1 and WP2 are approved and committed (WP2 verified on the owner's iPhone); WP3–WP7 have not begun.*

@@ -8,11 +8,12 @@ import {
   InputAccessoryView,
   KeyboardAvoidingView,
   StyleSheet,
+  BackHandler,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Alert } from "../platform/alert";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useRepo, mutate, confirm, useApp } from "../state";
 import {
@@ -26,21 +27,33 @@ import {
   Empty,
   Sheet,
   useColors,
+  confirmDiscard,
 } from "../components/ui";
 import { OverflowMenu, type MenuAction } from "../components/system";
 import { ExercisePicker } from "../components/ExercisePicker";
 import { elapsedSeconds, volume, kgToLb } from "../domain/metrics";
 import { timer, workoutTitle } from "../domain/workout-display";
+import { durationMinutes } from "../domain/training-display";
 import { programWorkoutContext } from "../data/programs";
+import {
+  beginWorkoutEdit,
+  cancelWorkoutEdit,
+  editInProgress,
+  saveWorkoutEdit,
+  workoutEdited,
+} from "../data/workout-session";
 import WorkoutExerciseCard from "../components/WorkoutExerciseCard";
 import {
   SetFocusProvider,
+  WeightFillProvider,
   useSetFocus,
   SET_KEYBOARD_ID,
 } from "../components/SetGrid";
 import { restNotification, cancelRestNotification } from "../notifications";
 import { FinishSheet } from "../components/FinishSheet";
+import { ReorderSheet } from "../components/ReorderSheet";
 import { hasValues } from "../domain/finish";
+import { goBack } from "../navigation";
 import { theme } from "../theme";
 import type { Workout } from "../domain/types";
 
@@ -253,7 +266,7 @@ export default function WorkoutScreen() {
   const c = useColors();
   const { id: workoutId } = useLocalSearchParams<{ id?: string }>();
   // Once finished, the workout is no longer "active": keep showing it while
-  // the finish sheet offers a backup.
+  // the finish sheet shows the summary.
   const [finishedId, setFinishedId] = useState<string>();
   const w = workoutId
     ? r.workout(workoutId)
@@ -262,13 +275,52 @@ export default function WorkoutScreen() {
       : r.active();
   const [picker, setPicker] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [reorder, setReorder] = useState<{ initial?: string }>();
   const [sheet, setSheet] = useState<"name" | "notes" | "rest" | "template">();
   const [name, setName] = useState("");
   const [templateName, setTemplateName] = useState("");
+  // Finished workouts open read-only. An edit interrupted by FORGE closing
+  // reopens in edit mode, so it can still be saved or cancelled.
+  const [editing, setEditing] = useState(
+    () => !!w && w.status === "completed" && editInProgress(r, w.id),
+  );
   const keyboard = useKeyboardVisible();
   function returnToTraining() {
-    router.back();
+    goBack("/(tabs)");
   }
+  const completed = w?.status === "completed";
+  const reviewing = completed && !editing;
+  function startEdit() {
+    if (!w) return;
+    mutate(() => beginWorkoutEdit(r, w.id));
+    setEditing(true);
+  }
+  function saveEdit() {
+    if (!w) return;
+    mutate(() => saveWorkoutEdit(r, w.id));
+    setEditing(false);
+  }
+  /** Leaves edit mode, undoing the edits (asks first when there are any). */
+  function cancelEdit(then?: () => void) {
+    if (!w) return;
+    const discard = () => {
+      mutate(() => cancelWorkoutEdit(r, w.id));
+      setEditing(false);
+      then?.();
+    };
+    if (workoutEdited(r, w.id)) confirmDiscard(discard);
+    else discard();
+  }
+  // Android back while editing behaves like Cancel instead of leaving with
+  // half-made edits. Re-registered each render so it sees the latest state.
+  useEffect(() => {
+    if (!editing) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      cancelEdit(returnToTraining);
+      return true;
+    });
+    return () => sub.remove();
+  });
   if (!w)
     return (
       <Screen title="No active workout">
@@ -286,7 +338,6 @@ export default function WorkoutScreen() {
     const rowSets = r.sets(row.id);
     return !rowSets.length || rowSets.some((set) => !set.completed);
   });
-  const completed = w.status === "completed";
   const units = r.profile().units;
   const moved = volume(sets);
   const volumeText =
@@ -294,24 +345,32 @@ export default function WorkoutScreen() {
       ? `${Math.round(units === "lb" ? kgToLb(moved) : moved).toLocaleString()} ${units}`
       : undefined;
   const lowerFatigue = !!programWorkoutContext(r, w.id)?.log.lowerFatigue;
+  const minutes = durationMinutes(w);
+  const day = new Date(w.finishedAt ?? w.startedAt).toLocaleDateString(
+    undefined,
+    { month: "short", day: "numeric" },
+  );
   // One short line under the title; the most useful facts first so it fits.
   const status = (
-    completed
-      ? [
-          `Completed ${new Date(w.finishedAt ?? w.startedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`,
-          volumeText,
-        ]
-      : [
-          w.status === "paused"
-            ? "Paused"
-            : lowerFatigue
-              ? "Lower-fatigue session"
-              : undefined,
-          sets.length
-            ? `${completedSets} of ${sets.length} sets`
-            : "No sets yet",
-          w.status === "paused" || lowerFatigue ? undefined : volumeText,
-        ]
+    editing
+      ? ["Editing", `Completed ${day}`]
+      : completed
+        ? [
+            `Completed ${day}`,
+            minutes >= 1 ? `${minutes} min` : undefined,
+            volumeText,
+          ]
+        : [
+            w.status === "paused"
+              ? "Paused"
+              : lowerFatigue
+                ? "Lower-fatigue session"
+                : undefined,
+            sets.length
+              ? `${completedSets} of ${sets.length} sets`
+              : "No sets yet",
+            w.status === "paused" || lowerFatigue ? undefined : volumeText,
+          ]
   )
     .filter(Boolean)
     .join(" · ");
@@ -327,21 +386,35 @@ export default function WorkoutScreen() {
     }
     setFinishing(true);
   }
-  const menu: MenuAction[] = [
-    {
-      label: "Rename workout",
-      icon: "pencil",
-      onPress: () => {
-        setName(w.name);
-        setSheet("name");
-      },
-    },
-    {
-      label: "Workout notes",
-      icon: "document-text-outline",
-      onPress: () => setSheet("notes"),
-    },
-  ];
+  const reorderItem: MenuAction[] =
+    rows.length > 1
+      ? [
+          {
+            label: "Reorder exercises",
+            icon: "reorder-four-outline",
+            onPress: () => setReorder({}),
+          },
+        ]
+      : [];
+  // Review mode: nothing that changes the workout except deliberate actions.
+  const menu: MenuAction[] = reviewing
+    ? []
+    : [
+        {
+          label: "Rename workout",
+          icon: "pencil",
+          onPress: () => {
+            setName(w.name);
+            setSheet("name");
+          },
+        },
+        {
+          label: "Workout notes",
+          icon: "document-text-outline",
+          onPress: () => setSheet("notes"),
+        },
+        ...reorderItem,
+      ];
   if (!completed)
     menu.push(
       {
@@ -374,6 +447,8 @@ export default function WorkoutScreen() {
           "Delete this workout?",
           "This cannot be undone. Export a backup first if you need to keep it.",
           () => {
+            // Any saved pre-edit copy goes with it.
+            saveWorkoutEdit(r, w.id);
             r.deleteWorkout(w.id);
             returnToTraining();
           },
@@ -383,129 +458,212 @@ export default function WorkoutScreen() {
   return (
     <SafeAreaView
       edges={
-        completed
+        reviewing
           ? ["top", "left", "right", "bottom"]
           : ["top", "left", "right"]
       }
       style={{ flex: 1, backgroundColor: c.bg }}
     >
       <SetFocusProvider>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 4,
-            paddingHorizontal: 8,
-            paddingVertical: 6,
-            borderBottomWidth: StyleSheet.hairlineWidth,
-            borderBottomColor: c.hairline,
-          }}
-        >
-          <IconButton
-            icon="chevron-back"
-            label="Back to training"
-            onPress={returnToTraining}
-          />
-          <View style={{ flex: 1, gap: 2 }}>
-            <Txt variant="headline" header numberOfLines={1}>
-              {workoutTitle(w.name)}
-            </Txt>
-            <Txt variant="caption" tone="secondary" numberOfLines={1}>
-              {status}
-            </Txt>
+        <WeightFillProvider enabled={!completed}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              paddingHorizontal: 8,
+              paddingVertical: 6,
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              borderBottomColor: c.hairline,
+            }}
+          >
+            <IconButton
+              icon="chevron-back"
+              label="Back to training"
+              onPress={() =>
+                editing ? cancelEdit(returnToTraining) : returnToTraining()
+              }
+            />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt variant="headline" header numberOfLines={1}>
+                {workoutTitle(w.name)}
+              </Txt>
+              <Txt
+                variant="caption"
+                tone={editing ? "accent" : "secondary"}
+                // Finished workouts share the row with Edit: wrap rather than
+                // cut the duration and volume at large text sizes.
+                numberOfLines={completed ? 2 : 1}
+              >
+                {status}
+              </Txt>
+            </View>
+            {completed ? (
+              reviewing && (
+                <TextButton
+                  title="Edit"
+                  accessibilityLabel="Edit workout"
+                  onPress={startEdit}
+                />
+              )
+            ) : (
+              <SessionClock workout={w} />
+            )}
+            <OverflowMenu
+              label="Workout options"
+              title={w.name}
+              actions={menu}
+            />
           </View>
-          <SessionClock workout={w} />
-          <OverflowMenu label="Workout options" title={w.name} actions={menu} />
-        </View>
-        {/* Android draws edge to edge, so the window no longer shrinks for
+          {/* Android draws edge to edge, so the window no longer shrinks for
             the keyboard: lift the list and dock above it here. iOS insets the
             list instead (automaticallyAdjustKeyboardInsets). */}
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior="padding"
-          enabled={Platform.OS === "android"}
-        >
-          <ScrollView
+          <KeyboardAvoidingView
             style={{ flex: 1 }}
-            contentContainerStyle={{
-              paddingHorizontal: theme.spacing.screen,
-              paddingTop: theme.spacing.md,
-              paddingBottom: theme.spacing.xl,
-              gap: theme.spacing.group,
-            }}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="interactive"
-            automaticallyAdjustKeyboardInsets
+            behavior="padding"
+            enabled={Platform.OS === "android"}
           >
-            {rows.map((row, i) => (
-              <WorkoutExerciseCard
-                key={row.id}
-                row={row}
-                index={i}
-                count={rows.length}
-                initialExpanded={row.id === firstUnfinished?.id}
-                completedWorkout={completed}
-              />
-            ))}
-            {!rows.length && (
-              <Txt tone="secondary">
-                Add your first exercise to start logging.
-              </Txt>
-            )}
-            <Button
-              title="Add exercise"
-              icon="add"
-              variant="secondary"
-              onPress={() => setPicker(true)}
-            />
-          </ScrollView>
-          {!completed && (
-            <SafeAreaView
-              edges={{ bottom: "maximum" }}
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: 10,
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{
                 paddingHorizontal: theme.spacing.screen,
-                paddingVertical: 10,
-                borderTopWidth: StyleSheet.hairlineWidth,
-                borderTopColor: c.hairline,
-                backgroundColor: c.bg,
+                paddingTop: theme.spacing.md,
+                paddingBottom: theme.spacing.xl,
+                gap: theme.spacing.group,
               }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
+              automaticallyAdjustKeyboardInsets
             >
-              {/* A paused workout offers Resume right where the rest timer
-                  sits; Finish stays the single primary action. */}
-              {w.status === "paused" ? (
-                <View style={{ flexGrow: 1, flexBasis: 120 }}>
+              {reviewing && !!w.notes && (
+                <View
+                  accessible
+                  accessibilityLabel={`Workout notes: ${w.notes}`}
+                  style={{ flexDirection: "row", gap: 8 }}
+                >
+                  <Ionicons
+                    name="document-text-outline"
+                    size={16}
+                    color={c.text2}
+                  />
+                  <Txt variant="caption" tone="secondary" style={{ flex: 1 }}>
+                    {w.notes}
+                  </Txt>
+                </View>
+              )}
+              {rows.map((row, i) => (
+                <WorkoutExerciseCard
+                  key={row.id}
+                  row={row}
+                  index={i}
+                  count={rows.length}
+                  initialExpanded={
+                    reviewing ? i === 0 : row.id === firstUnfinished?.id
+                  }
+                  completedWorkout={completed}
+                  readOnly={reviewing}
+                  onReorder={
+                    reviewing
+                      ? undefined
+                      : () => setReorder({ initial: row.id })
+                  }
+                />
+              ))}
+              {!rows.length && (
+                <Txt tone="secondary">
+                  {reviewing
+                    ? "No exercises were logged in this workout."
+                    : "Add your first exercise to start logging."}
+                </Txt>
+              )}
+              {!reviewing && (
+                <Button
+                  title="Add exercise"
+                  icon="add"
+                  variant="secondary"
+                  onPress={() => setPicker(true)}
+                />
+              )}
+            </ScrollView>
+            {editing && (
+              <SafeAreaView
+                edges={{ bottom: "maximum" }}
+                style={{
+                  flexDirection: "row",
+                  gap: 10,
+                  paddingHorizontal: theme.spacing.screen,
+                  paddingVertical: 10,
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderTopColor: c.hairline,
+                  backgroundColor: c.bg,
+                }}
+              >
+                <View style={{ flex: 1 }}>
                   <Button
-                    title="Resume"
-                    accessibilityLabel="Resume workout"
-                    icon="play"
+                    title="Cancel"
+                    accessibilityLabel="Cancel editing"
                     variant="secondary"
-                    onPress={() => mutate(() => r.pauseWorkout(w.id))}
+                    onPress={() => cancelEdit()}
                   />
                 </View>
-              ) : (
-                <RestTimer />
-              )}
-              {/* While typing on Android the dock sits on the keyboard: keep
+                <View style={{ flex: 1 }}>
+                  <Button
+                    title="Save"
+                    accessibilityLabel="Save changes"
+                    icon="checkmark"
+                    onPress={saveEdit}
+                  />
+                </View>
+              </SafeAreaView>
+            )}
+            {!completed && (
+              <SafeAreaView
+                edges={{ bottom: "maximum" }}
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: 10,
+                  paddingHorizontal: theme.spacing.screen,
+                  paddingVertical: 10,
+                  borderTopWidth: StyleSheet.hairlineWidth,
+                  borderTopColor: c.hairline,
+                  backgroundColor: c.bg,
+                }}
+              >
+                {/* A paused workout offers Resume right where the rest timer
+                  sits; Finish stays the single primary action. */}
+                {w.status === "paused" ? (
+                  <View style={{ flexGrow: 1, flexBasis: 120 }}>
+                    <Button
+                      title="Resume"
+                      accessibilityLabel="Resume workout"
+                      icon="play"
+                      variant="secondary"
+                      onPress={() => mutate(() => r.pauseWorkout(w.id))}
+                    />
+                  </View>
+                ) : (
+                  <RestTimer />
+                )}
+                {/* While typing on Android the dock sits on the keyboard: keep
                   the rest timer, hide Finish. On iOS the keyboard covers the
                   dock and its toolbar shows the rest timer. */}
-              {!(Platform.OS === "android" && keyboard) && (
-                <View style={{ flexGrow: 1, flexBasis: 120 }}>
-                  <Button
-                    title="Finish"
-                    accessibilityLabel="Finish workout"
-                    icon="checkmark"
-                    onPress={finish}
-                  />
-                </View>
-              )}
-            </SafeAreaView>
-          )}
-        </KeyboardAvoidingView>
-        <KeyboardBar />
+                {!(Platform.OS === "android" && keyboard) && (
+                  <View style={{ flexGrow: 1, flexBasis: 120 }}>
+                    <Button
+                      title="Finish"
+                      accessibilityLabel="Finish workout"
+                      icon="checkmark"
+                      onPress={finish}
+                    />
+                  </View>
+                )}
+              </SafeAreaView>
+            )}
+          </KeyboardAvoidingView>
+          <KeyboardBar />
+        </WeightFillProvider>
       </SetFocusProvider>
       <Sheet
         visible={sheet === "name"}
@@ -599,6 +757,13 @@ export default function WorkoutScreen() {
             setFinishing(false);
             returnToTraining();
           }}
+        />
+      )}
+      {reorder && (
+        <ReorderSheet
+          workoutId={w.id}
+          initial={reorder.initial}
+          onClose={() => setReorder(undefined)}
         />
       )}
     </SafeAreaView>

@@ -14,6 +14,7 @@ import { libraryPrograms } from "../../src/programs";
 import { volume } from "../../src/domain/metrics";
 import { templateLine, workoutLine } from "../../src/domain/training-display";
 import { workoutTitle } from "../../src/domain/workout-display";
+import { blockIfTraining } from "../../src/startGuard";
 import type { Template } from "../../src/domain/types";
 
 // Train is the hub for every way to train: the current plan and the Forge
@@ -25,12 +26,15 @@ function TemplateSheet({
   onClose,
   onDismiss,
   onStart,
+  onResume,
   onEdit,
 }: {
   template: Template | undefined;
   onClose: () => void;
   onDismiss: () => void;
   onStart: (t: Template) => void;
+  /** Set while another workout is in progress: it can't start, resume that. */
+  onResume?: () => void;
   onEdit: () => void;
 }) {
   const r = useRepo();
@@ -56,11 +60,25 @@ function TemplateSheet({
             ))}
           </ListSection>
           <View style={{ gap: 8 }}>
-            <Button
-              title="Start workout"
-              icon="play"
-              onPress={() => onStart(template)}
-            />
+            {onResume ? (
+              <>
+                <Txt variant="caption" tone="secondary">
+                  A workout is already in progress. Finish it before starting
+                  this one.
+                </Txt>
+                <Button
+                  title="Resume current workout"
+                  icon="play"
+                  onPress={onResume}
+                />
+              </>
+            ) : (
+              <Button
+                title="Start workout"
+                icon="play"
+                onPress={() => onStart(template)}
+              />
+            )}
             <Button
               title="Edit or schedule"
               variant="secondary"
@@ -87,6 +105,7 @@ export default function Train() {
   const history = r.workouts().filter((w) => w.status === "completed");
   const units = r.profile().units;
   function startTemplate(t: Template, fromSheet = false) {
+    if (blockIfTraining(r)) return;
     const w = mutate(() => r.startWorkout(t.name, t.id));
     if (fromSheet) afterSheet(() => w && router.push("/workout"));
     else if (w) router.push("/workout");
@@ -130,6 +149,8 @@ export default function Train() {
                 title="Start"
                 variant="secondary"
                 compact
+                // One workout at a time: the banner above the tabs resumes it.
+                disabled={!!active}
                 accessibilityLabel={`Start ${t.name}`}
                 onPress={() => startTemplate(t)}
               />
@@ -196,6 +217,9 @@ export default function Train() {
         onClose={() => setDetails(undefined)}
         onDismiss={sheet.onDismiss}
         onStart={(t) => startTemplate(t, true)}
+        onResume={
+          active ? () => afterSheet(() => router.push("/workout")) : undefined
+        }
         onEdit={() => afterSheet(() => router.push("/templates"))}
       />
     </Screen>

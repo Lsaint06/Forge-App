@@ -34,6 +34,7 @@ import { repRangeLabel } from "../domain/prescriptions";
 import { localDate, type Prescription } from "../domain/types";
 import { dayLabel, relativeDay } from "../domain/training-display";
 import { goBack } from "../navigation";
+import { blockIfTraining, otherWorkout } from "../startGuard";
 
 // Existing Paths (Phase 6 compatibility). Lifters who started a Path before
 // Forge moved to curated programs can keep training it, review its calendar
@@ -177,6 +178,7 @@ export default function LegacyPath() {
     (p) => p.data.status === "archived" && p.record.id !== selected?.record.id,
   );
   function start(s: PathSession) {
+    if (blockIfTraining(r, String(s.data.workoutId ?? ""))) return;
     const workout = mutate(() => startPathSession(r, s.record.id));
     if (workout) router.push("/workout");
   }
@@ -302,8 +304,21 @@ export default function LegacyPath() {
                             : "Start workout"
                         }
                         icon="play"
+                        disabled={
+                          !!otherWorkout(
+                            r,
+                            String(session.data.workoutId ?? ""),
+                          )
+                        }
                         onPress={() => start(session)}
                       />
+                    )}
+                  {selected.data.status === "active" &&
+                    !session.data.skipped &&
+                    !!otherWorkout(r, String(session.data.workoutId ?? "")) && (
+                      <Label muted>
+                        Finish your current workout before starting this one.
+                      </Label>
                     )}
                   {session.state === "unlinked" && (
                     <Label muted>

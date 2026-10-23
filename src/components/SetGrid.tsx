@@ -31,6 +31,11 @@ import {
 } from "./ui";
 import { kgToLb, lbToKg } from "../domain/metrics";
 import { previousText } from "../domain/workout-display";
+import {
+  copyForwardTargets,
+  hasPrevious,
+  previousValues,
+} from "../domain/copy-forward";
 import type { WorkoutSet } from "../domain/types";
 import { restNotification } from "../notifications";
 import { theme } from "../theme";
@@ -96,6 +101,56 @@ export function SetFocusProvider({ children }: { children: React.ReactNode }) {
   );
 }
 export const useSetFocus = () => useContext(FocusContext);
+
+// ---- Weight copy-forward ----------------------------------------------------
+
+/**
+ * Remembers, while the logger is open, which loads the lifter typed and which
+ * Forge copied (see domain/copy-forward.ts). Provided only for workouts in
+ * progress: reviewing or editing history never copies loads.
+ */
+export class WeightFill {
+  touched = new Set<string>();
+  filled = new Set<string>();
+  /** The lifter chose this set's load: never overwrite it. */
+  touch(setId: string) {
+    this.touched.add(setId);
+    this.filled.delete(setId);
+  }
+  /** Saves a typed load (kg) and copies it into the empty sets that follow. */
+  save(r: ReturnType<typeof useRepo>, s: WorkoutSet, kg: number) {
+    this.touch(s.id);
+    mutate(() =>
+      r.transaction(() => {
+        r.editSet(s.id, { weight: kg });
+        for (const id of copyForwardTargets(
+          r.sets(s.exerciseRowId),
+          s.id,
+          this,
+        )) {
+          r.editSet(id, { weight: kg });
+          this.filled.add(id);
+        }
+      }),
+    );
+  }
+}
+const FillContext = createContext<WeightFill | undefined>(undefined);
+export function WeightFillProvider({
+  children,
+  enabled = true,
+}: {
+  children: React.ReactNode;
+  /** Off for finished workouts, including while editing them. */
+  enabled?: boolean;
+}) {
+  const fill = useMemo(() => new WeightFill(), []);
+  return (
+    <FillContext.Provider value={enabled ? fill : undefined}>
+      {children}
+    </FillContext.Provider>
+  );
+}
 
 // ---- Cells ------------------------------------------------------------------
 
@@ -218,6 +273,99 @@ function NumberCell({
   );
 }
 
+/** A logged value in review mode: the same cell, but read-only text. */
+function ValueCell({
+  label,
+  text,
+  style,
+}: {
+  label: string;
+  text: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${text || "not logged"}`}
+      style={[{ minHeight: 44, justifyContent: "center" }, style]}
+    >
+      <Txt variant="body" weight="600" tabular align="center" numberOfLines={1}>
+        {text || "–"}
+      </Txt>
+    </View>
+  );
+}
+
+/** "135 pounds for 8 reps", for the "use previous" control. */
+function spokenPrevious(s: WorkoutSet, category: string, units: "kg" | "lb") {
+  if (category === "duration") return `${s.duration} seconds`;
+  if (category === "distance")
+    return `${s.distance} meters in ${s.duration} seconds`;
+  if (s.weight === 0) return `${s.reps} reps`;
+  const load =
+    Math.round((units === "lb" ? kgToLb(s.weight) : s.weight) * 10) / 10;
+  return `${load} ${units === "lb" ? "pounds" : "kilograms"} for ${s.reps} reps`;
+}
+
+/**
+ * The previous result as a button that fills this set with it. Outlined so it
+ * reads as an action, distinct from the filled input cells.
+ */
+function UsePrevious({
+  text,
+  spoken,
+  onPress,
+  wide,
+  style,
+}: {
+  text: string;
+  spoken: string;
+  onPress: () => void;
+  wide: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Use previous ${spoken}`}
+      accessibilityHint="Fills this set with your last result. You can still change it."
+      hitSlop={wide ? { top: 6, bottom: 6 } : { top: 10, bottom: 10 }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        {
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          alignSelf: wide ? "stretch" : "flex-start",
+          gap: 4,
+          minHeight: wide ? 32 : 24,
+          paddingHorizontal: 6,
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: c.hairline,
+          backgroundColor: pressed ? c.selected : "transparent",
+        },
+        style,
+      ]}
+    >
+      {!wide && (
+        <Ionicons name="arrow-redo-outline" size={12} color={c.text2} />
+      )}
+      <Txt
+        variant="caption"
+        tone="secondary"
+        tabular
+        align="center"
+        numberOfLines={1}
+        fit={wide}
+      >
+        {wide ? text : `Previous ${text}`}
+      </Txt>
+    </Pressable>
+  );
+}
+
 const kindTag: Record<WorkoutSet["kind"], string> = {
   working: "",
   warmup: "W",
@@ -302,7 +450,8 @@ export const gridFields = (category: string, showRir: boolean): GridFields => ({
 /**
  * One set: number (opens Set Details), previous result, inputs and the
  * completion check. Completing a set saves it, starts the rest timer and
- * gives a light haptic.
+ * gives a light haptic. `readOnly` shows the logged values without any
+ * control (reviewing a finished workout).
  */
 export function SetRow({
   set: s,
@@ -314,6 +463,7 @@ export function SetRow({
   rirPlaceholder,
   onDetails,
   startsRest = true,
+  readOnly = false,
 }: {
   set: WorkoutSet;
   category: string;
@@ -323,6 +473,7 @@ export function SetRow({
   order?: number[];
   rirPlaceholder?: string;
   onDetails?: () => void;
+  readOnly?: boolean;
   /** False when reviewing a finished workout: no rest timer or reminder. */
   startsRest?: boolean;
 }) {
@@ -334,9 +485,23 @@ export function SetRow({
   const grid = layout ?? setGridLayout(Infinity, 1, fields);
   const prev = previousText(previous, category, p.units);
   const strength = category === "strength";
+  const fill = useContext(FillContext);
   function save(patch: Partial<WorkoutSet>) {
     mutate(() => r.editSet(s.id, patch));
   }
+  function saveWeight(kg: number) {
+    if (fill && !readOnly) fill.save(r, s, kg);
+    else save({ weight: kg });
+  }
+  // Last session's matching set fills this one (only this one, never
+  // marked done) while it is still open for logging.
+  const usePrevious =
+    !readOnly && !s.completed && hasPrevious(previous, category)
+      ? () => {
+          fill?.touch(s.id);
+          save(previousValues(previous!, category));
+        }
+      : undefined;
   function toggle() {
     mutate(() => r.editSet(s.id, { completed: !s.completed }));
     if (
@@ -374,7 +539,7 @@ export function SetRow({
             value: p.units === "lb" ? kgToLb(s.weight) : s.weight,
             rule: {},
             onSave: (v) =>
-              save({ weight: p.units === "lb" ? lbToKg(v ?? 0) : (v ?? 0) }),
+              saveWeight(p.units === "lb" ? lbToKg(v ?? 0) : (v ?? 0)),
           },
         },
         {
@@ -440,15 +605,39 @@ export function SetRow({
           {input.caption}
         </Txt>
       )}
-      <NumberCell
-        {...input.cell}
-        focusKey={`${s.id}:${input.key}`}
-        order={[...order, s.position, i]}
-        completed={s.completed}
-      />
+      {readOnly ? (
+        <ValueCell
+          label={input.cell.label}
+          text={formatNumber(input.cell.value)}
+        />
+      ) : (
+        <NumberCell
+          {...input.cell}
+          focusKey={`${s.id}:${input.key}`}
+          order={[...order, s.position, i]}
+          completed={s.completed}
+        />
+      )}
     </View>
   ));
-  const check = (
+  const check = readOnly ? (
+    <View
+      accessible
+      accessibilityLabel={`Set ${n} ${s.completed ? "done" : "not done"}`}
+      style={{
+        width: CHECK_COLUMN,
+        minHeight: 44,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Ionicons
+        name={s.completed ? "checkmark-circle" : "remove-outline"}
+        size={s.completed ? 28 : 20}
+        color={s.completed ? c.success : c.text3}
+      />
+    </View>
+  ) : (
     <IconButton
       label={s.completed ? `Mark set ${n} incomplete` : `Complete set ${n}`}
       selected={s.completed}
@@ -458,17 +647,28 @@ export function SetRow({
       onPress={toggle}
     />
   );
-  const previousCaption = previous && (
-    <View
-      accessible
-      accessibilityLabel={prev.spoken}
-      style={stacked ? { flex: 1 } : { marginLeft: SET_COLUMN + GRID_GAP }}
-    >
-      <Txt variant="caption" tone="secondary" tabular numberOfLines={1}>
-        {`Previous ${prev.text}`}
-      </Txt>
-    </View>
-  );
+  const spoken = previous ? spokenPrevious(previous, category, p.units) : "";
+  const captionStyle: ViewStyle = stacked
+    ? { flex: 1 }
+    : { marginLeft: SET_COLUMN + GRID_GAP };
+  const previousCaption =
+    previous &&
+    (usePrevious ? (
+      <View style={captionStyle}>
+        <UsePrevious
+          text={prev.text}
+          spoken={spoken}
+          onPress={usePrevious}
+          wide={false}
+        />
+      </View>
+    ) : (
+      <View accessible accessibilityLabel={prev.spoken} style={captionStyle}>
+        <Txt variant="caption" tone="secondary" tabular numberOfLines={1}>
+          {`Previous ${prev.text}`}
+        </Txt>
+      </View>
+    ));
   return (
     <View
       style={{
@@ -505,24 +705,36 @@ export function SetRow({
             }}
           >
             <SetNumber set={s} onPress={onDetails} />
-            {grid.mode === "wide" && (
-              <View
-                accessible
-                accessibilityLabel={prev.spoken}
-                style={column(grid.min.prev)}
-              >
-                <Txt
-                  variant="caption"
-                  tone="secondary"
-                  tabular
-                  align="center"
-                  numberOfLines={1}
-                  fit
+            {grid.mode === "wide" &&
+              (usePrevious ? (
+                <View
+                  style={[column(grid.min.prev), { justifyContent: "center" }]}
                 >
-                  {prev.text}
-                </Txt>
-              </View>
-            )}
+                  <UsePrevious
+                    text={prev.text}
+                    spoken={spoken}
+                    onPress={usePrevious}
+                    wide
+                  />
+                </View>
+              ) : (
+                <View
+                  accessible
+                  accessibilityLabel={prev.spoken}
+                  style={column(grid.min.prev)}
+                >
+                  <Txt
+                    variant="caption"
+                    tone="secondary"
+                    tabular
+                    align="center"
+                    numberOfLines={1}
+                    fit
+                  >
+                    {prev.text}
+                  </Txt>
+                </View>
+              ))}
             {cells}
             {check}
           </View>
@@ -585,6 +797,7 @@ export function SetGrid({
   order,
   onDetails,
   startsRest = true,
+  readOnly = false,
 }: {
   sets: WorkoutSet[];
   category: string;
@@ -594,6 +807,8 @@ export function SetGrid({
   order: number;
   onDetails: (s: WorkoutSet) => void;
   startsRest?: boolean;
+  /** Reviewing a finished workout: values only, no controls. */
+  readOnly?: boolean;
 }) {
   const { width: windowWidth, fontScale } = useWindowDimensions();
   // Until measured: the screen minus its margins and the card's padding.
@@ -619,8 +834,9 @@ export function SetGrid({
           layout={layout}
           order={[order]}
           rirPlaceholder={rirPlaceholder}
-          onDetails={() => onDetails(s)}
+          onDetails={readOnly ? undefined : () => onDetails(s)}
           startsRest={startsRest}
+          readOnly={readOnly}
         />
       ))}
     </View>

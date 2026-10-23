@@ -13,6 +13,7 @@ import {
 } from "../domain/training-display";
 import { workoutTitle } from "../domain/workout-display";
 import { goBack } from "../navigation";
+import { blockIfTraining } from "../startGuard";
 
 // Every completed workout, newest first and grouped by month. A row opens
 // the workout review; Repeat and Delete live in each row's menu.
@@ -55,6 +56,7 @@ export default function History() {
                         label: "Repeat workout",
                         icon: "repeat",
                         onPress: () => {
+                          if (blockIfTraining(r)) return;
                           const copy = mutate(() => r.duplicateWorkout(w.id));
                           if (copy) router.push("/workout");
                         },
