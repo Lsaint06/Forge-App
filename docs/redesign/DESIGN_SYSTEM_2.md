@@ -2,7 +2,7 @@
 
 The app's interior should match the splash: black steel, white type, a single ember. **One action. One number. One line.**
 
-Status: **Phases 1–4 committed; Phase 5 (Progress) implemented, in review.** Screens adopt the system progressively; see [Roadmap](#roadmap).
+Status: **Phases 1–5 committed; Phase 6 (You) implemented, in review.** Screens adopt the system progressively; see [Roadmap](#roadmap).
 
 - Tokens: [`src/theme.ts`](../../src/theme.ts)
 - Primitives: [`src/components/ui.tsx`](../../src/components/ui.tsx)
@@ -371,6 +371,25 @@ RECORDS ⓘ · VOLUME ⓘ · TRAINING TIME · BODY · MORE
 
 Unchanged: workout recording, history, programs, Paths, schedules, sync, backups, onboarding, Today and Train. No stored data changed; there is no migration.
 
+## Phase 6 — You (implemented)
+
+`src/screens/You.tsx` (the You tab, `app/(tabs)/profile.tsx`) is the lifter's profile and settings hub.
+
+- **Athlete header:** initials avatar, name, "Experience · Goal", "Training since <month>" (first completed workout), the active program or Path (or Browse Forge Paths), a Complete-your-training-profile row when experience, goal or rest day is missing, and **Edit profile**.
+- **Training snapshot:** lifetime Workouts, Working sets, Records and Time trained, reusing the Progress model (`progressModel`) and `elapsedSeconds`; no new calculations. New lifters see one line instead of zeros. **View progress** links to Progress.
+- **Forge Premium:** a quiet "Free plan" card. `src/domain/membership.ts` returns the free tier; there are no payments, subscriptions, stored entitlements, AI analysis or photos.
+- **Grouped settings:**
+  - Training: Training focus, Training preferences, Nutrition targets, Training history.
+  - Health & body: Body measurements, Nutrition log, Recovery, Goals (journals).
+  - Notifications: Training reminders switch (the same enable/disable logic as before).
+  - App: Units and Appearance segmented controls that save instantly.
+  - Account & data: Account & cloud sync, Export backup, Import backup (confirmed), Privacy & training guidance (info sheet), Delete all local data (destructive, confirmed).
+  - About: version, local schema, pending sync records, and the development-only tools.
+- **Editors:** each settings row opens a focused sheet built on `ProfileForm` with a `fields` list, so validation, unit conversion and storage are unchanged; unsaved changes are protected. Onboarding still uses the full form.
+- `/(tabs)/profile?edit=focus` opens the Training focus editor (used by the Forge Paths library's "Complete training profile").
+
+Unchanged: profile schema and storage, onboarding, backups, sync, notifications scheduling, programs, Paths, history and Progress. No migration.
+
 ## Roadmap
 
 | Phase                             | Scope                                                                                                                                                             |
@@ -379,6 +398,6 @@ Unchanged: workout recording, history, programs, Paths, schedules, sync, backups
 | 2 · Workout logging               | **Done:** see above                                                                                                                                               |
 | 3 · Today, Train, navigation      | **Done:** see above                                                                                                                                               |
 | 4 · Forge Paths                   | **Done:** see above                                                                                                                                               |
-| 5 · Progress                      | **Implemented, in review:** see above                                                                                                                             |
-| 6 · You and secondary screens     | Grouped settings, info sheets for methodology and privacy, Templates, Journal, Account, Exercise                                                                  |
+| 5 · Progress                      | **Done:** see above                                                                                                                                               |
+| 6 · You and secondary screens     | **You implemented, in review:** see above. Still to do: Templates, Journal, Account, Exercise                                                                     |
 | 7 · Onboarding visuals and polish | Motion, haptics, light-theme parity, Dynamic Type and VoiceOver, device QA (compact, standard and large iPhones, keyboard, safe areas, landscape where supported) |

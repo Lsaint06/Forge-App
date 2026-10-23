@@ -104,6 +104,33 @@ const requiredProfileSchema = profileSchema
     path: ["weight"],
     message: "Enter your starting weight.",
   });
+// Every editable field, for focused editors that show only some of them.
+const fieldDefs = sections.flatMap((s) => s.fields);
+export type ProfileField = keyof Profile | "journey";
+
+/**
+ * Turns local notifications on (asking for permission) or off (cancelling
+ * scheduled reminders). Shared by the settings form and the You tab.
+ */
+export function toggleNotifications(r: ReturnType<typeof useRepo>) {
+  if (r.profile().notifications) {
+    mutate(() => r.saveProfile({ notifications: false }));
+    void cancelAllNotifications().catch((e) =>
+      Alert.alert("Reminder cleanup failed", String(e)),
+    );
+  } else
+    void enableNotifications()
+      .then((granted) => {
+        mutate(() => r.saveProfile({ notifications: granted }));
+        if (!granted)
+          Alert.alert(
+            "Notifications not enabled",
+            "Workouts and in-app timers still work. You can change permissions in phone settings.",
+          );
+      })
+      .catch((e) => Alert.alert("Notification setup failed", String(e)));
+}
+
 const displayWeight = (kg: number, units: Profile["units"]) =>
   kg > 0
     ? String(Math.round((units === "lb" ? kgToLb(kg) : kg) * 100) / 100)
@@ -113,11 +140,19 @@ export function ProfileForm({
   onDone,
   onboarding = false,
   onDirtyChange,
+  fields,
+  saveLabel = "Save settings",
 }: {
   onDone: () => void;
   onboarding?: boolean;
   /** Reports whether the form holds changes that have not been saved. */
   onDirtyChange?: (dirty: boolean) => void;
+  /**
+   * Shows only these fields ("journey" = experience, goal and rest day), for
+   * a focused editor. Every other value is kept and saved unchanged.
+   */
+  fields?: ProfileField[];
+  saveLabel?: string;
 }) {
   const r = useRepo();
   const [step, setStep] = useState(() => {
@@ -147,13 +182,29 @@ export function ProfileForm({
     formState: { errors, isDirty },
   } = useForm<Profile>({
     defaultValues: r.profile(),
-    resolver: zodResolver(requiredProfileSchema),
+    // A focused editor without height or weight cannot fix them, so it only
+    // applies the stored-profile rules.
+    resolver: zodResolver(
+      !fields || fields.includes("height") || fields.includes("weight")
+        ? requiredProfileSchema
+        : profileSchema,
+    ),
   });
   useEffect(() => {
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
   const units = useWatch({ control, name: "units" });
-  const display = onboarding ? [sections[step]!] : sections;
+  const display = fields
+    ? [
+        {
+          title: "",
+          journey: fields.includes("journey"),
+          fields: fields.flatMap((k) => fieldDefs.filter((d) => d.key === k)),
+        },
+      ]
+    : onboarding
+      ? [sections[step]!]
+      : sections;
   const submit = handleSubmit(
     (data) => {
       const result = mutate(() =>
@@ -189,202 +240,210 @@ export function ProfileForm({
           />
         </>
       )}
-      {display.map((section) => (
-        <Card key={section.title}>
-          <Label size={22} bold>
-            {section.title}
-          </Label>
-          {section.journey && (
-            <>
-              <Label muted size={13}>
-                Forge uses these to recommend a training program. You can always
-                browse every program and change these later.
+      {display.map((section) => {
+        const Wrap = fields ? View : Card;
+        return (
+          <Wrap key={section.title} style={fields ? { gap: 16 } : undefined}>
+            {!!section.title && (
+              <Label size={22} bold>
+                {section.title}
               </Label>
-              <Controller
-                control={control}
-                name="experience"
-                render={({ field: { value, onChange } }) => (
-                  <Choices
-                    label="Where are you in your training journey?"
-                    options={experienceChoices}
-                    value={experienceLevel({ experience: value })}
-                    onChange={(choice) => {
-                      onChange(choice);
-                      if (onboarding)
-                        mutate(() => r.saveProfile({ experience: choice }));
-                    }}
-                  />
-                )}
-              />
-              <Controller
-                control={control}
-                name="goal"
-                render={({ field: { value, onChange } }) => (
-                  <Choices
-                    label="What are you training toward?"
-                    options={goalChoices}
-                    value={trainingGoal({ goal: value })}
-                    onChange={(choice) => {
-                      onChange(choice);
-                      if (onboarding)
-                        mutate(() => r.saveProfile({ goal: choice }));
-                    }}
-                  />
-                )}
-              />
-              <Controller
-                control={control}
-                name="restDay"
-                render={({ field: { value, onChange } }) => (
-                  <Choices
-                    label="Which day would you prefer to rest?"
-                    options={restDayNames.map((day, i) => ({
-                      value: String(i),
-                      title: day,
-                    }))}
-                    value={value === undefined ? undefined : String(value)}
-                    onChange={(choice) => {
-                      onChange(Number(choice));
-                      if (onboarding)
-                        mutate(() =>
-                          r.saveProfile({ restDay: Number(choice) }),
-                        );
-                    }}
-                  />
-                )}
-              />
-              <Label muted size={12}>
-                Your rest day guides how program sessions appear on your
-                calendar. You can still train that day.
-              </Label>
-            </>
-          )}
-          {section.fields
-            .filter((f) => !(onboarding && f.settingsOnly))
-            .map((f) => (
-              <Controller
-                key={f.key}
-                control={control}
-                name={f.key}
-                render={({ field: { value, onChange } }) =>
-                  f.options ? (
-                    <View style={{ gap: 6 }}>
-                      <Label muted size={12}>
-                        {f.label}
-                      </Label>
-                      <Chips
-                        values={f.options!}
-                        value={String(value)}
-                        onChange={(value) => {
-                          if (f.key === "units")
-                            setWeightText(
-                              displayWeight(
-                                getValues("weight"),
-                                value as Profile["units"],
-                              ),
-                            );
-                          onChange(value);
-                          if (onboarding)
-                            mutate(() => r.saveProfile({ [f.key]: value }));
-                        }}
-                      />
-                    </View>
-                  ) : f.key === "height" ? (
-                    <View style={{ gap: 8 }}>
-                      <Label muted size={12}>
-                        Height (required)
-                      </Label>
-                      <Row>
-                        <Field
-                          label="Height (feet)"
-                          placeholder="5"
-                          keyboardType="number-pad"
-                          value={feet}
-                          onChangeText={(text) => {
-                            setFeet(text);
-                            const ft = Number(text),
-                              inch = Number(inches);
-                            const valid =
-                              /^\d+$/.test(text) &&
-                              /^(\d+)?$/.test(inches) &&
-                              inch <= 11;
-                            onChange(
-                              valid
-                                ? inToCm(ft * 12 + inch)
-                                : text === "" && inches === ""
-                                  ? 0
-                                  : NaN,
-                            );
-                          }}
-                        />
-                        <Field
-                          label="Height (inches)"
-                          placeholder="0"
-                          keyboardType="number-pad"
-                          value={inches}
-                          onChangeText={(text) => {
-                            setInches(text);
-                            const ft = Number(feet),
-                              inch = Number(text);
-                            const valid =
-                              /^\d+$/.test(feet) &&
-                              /^(\d+)?$/.test(text) &&
-                              inch <= 11;
-                            onChange(
-                              valid
-                                ? inToCm(ft * 12 + inch)
-                                : feet === "" && text === ""
-                                  ? 0
-                                  : NaN,
-                            );
-                          }}
-                        />
-                      </Row>
-                      {errors.height && (
-                        <Label size={12}>
-                          Enter a valid height in feet and inches (0–11 inches).
+            )}
+            {section.journey && (
+              <>
+                <Label muted size={13}>
+                  Forge uses these to recommend a training program. You can
+                  always browse every program and change these later.
+                </Label>
+                <Controller
+                  control={control}
+                  name="experience"
+                  render={({ field: { value, onChange } }) => (
+                    <Choices
+                      label="Where are you in your training journey?"
+                      options={experienceChoices}
+                      value={experienceLevel({ experience: value })}
+                      onChange={(choice) => {
+                        onChange(choice);
+                        if (onboarding)
+                          mutate(() => r.saveProfile({ experience: choice }));
+                      }}
+                    />
+                  )}
+                />
+                <Controller
+                  control={control}
+                  name="goal"
+                  render={({ field: { value, onChange } }) => (
+                    <Choices
+                      label="What are you training toward?"
+                      options={goalChoices}
+                      value={trainingGoal({ goal: value })}
+                      onChange={(choice) => {
+                        onChange(choice);
+                        if (onboarding)
+                          mutate(() => r.saveProfile({ goal: choice }));
+                      }}
+                    />
+                  )}
+                />
+                <Controller
+                  control={control}
+                  name="restDay"
+                  render={({ field: { value, onChange } }) => (
+                    <Choices
+                      label="Which day would you prefer to rest?"
+                      options={restDayNames.map((day, i) => ({
+                        value: String(i),
+                        title: day,
+                      }))}
+                      value={value === undefined ? undefined : String(value)}
+                      onChange={(choice) => {
+                        onChange(Number(choice));
+                        if (onboarding)
+                          mutate(() =>
+                            r.saveProfile({ restDay: Number(choice) }),
+                          );
+                      }}
+                    />
+                  )}
+                />
+                <Label muted size={12}>
+                  Your rest day guides how program sessions appear on your
+                  calendar. You can still train that day.
+                </Label>
+              </>
+            )}
+            {section.fields
+              .filter((f) => !(onboarding && f.settingsOnly))
+              .map((f) => (
+                <Controller
+                  key={f.key}
+                  control={control}
+                  name={f.key}
+                  render={({ field: { value, onChange } }) =>
+                    f.options ? (
+                      <View style={{ gap: 6 }}>
+                        <Label muted size={12}>
+                          {f.label}
                         </Label>
-                      )}
-                    </View>
-                  ) : f.key === "weight" ? (
-                    <Field
-                      label={`Starting weight (${units === "lb" ? "lbs" : "kg"}, required)`}
-                      value={weightText}
-                      keyboardType="decimal-pad"
-                      onChangeText={(text) => {
-                        setWeightText(text);
-                        const number = text.trim() === "" ? 0 : Number(text);
-                        onChange(units === "lb" ? lbToKg(number) : number);
-                      }}
-                      error={errors.weight?.message}
-                    />
-                  ) : (
-                    <Field
-                      label={f.label}
-                      value={String(value)}
-                      keyboardType={
-                        numeric.has(f.key) ? "decimal-pad" : "default"
-                      }
-                      onChangeText={(text) => {
-                        onChange(numeric.has(f.key) ? Number(text) : text);
-                        const patch = {
-                          [f.key]: numeric.has(f.key) ? Number(text) : text,
-                        };
-                        if (
-                          onboarding &&
-                          profileSchema.safeParse({ ...r.profile(), ...patch })
-                            .success
-                        )
-                          mutate(() => r.saveProfile(patch));
-                      }}
-                      error={errors[f.key]?.message}
-                    />
-                  )
-                }
-              />
-            ))}
-        </Card>
-      ))}
+                        <Chips
+                          values={f.options!}
+                          value={String(value)}
+                          onChange={(value) => {
+                            if (f.key === "units")
+                              setWeightText(
+                                displayWeight(
+                                  getValues("weight"),
+                                  value as Profile["units"],
+                                ),
+                              );
+                            onChange(value);
+                            if (onboarding)
+                              mutate(() => r.saveProfile({ [f.key]: value }));
+                          }}
+                        />
+                      </View>
+                    ) : f.key === "height" ? (
+                      <View style={{ gap: 8 }}>
+                        <Label muted size={12}>
+                          Height (required)
+                        </Label>
+                        <Row>
+                          <Field
+                            label="Height (feet)"
+                            placeholder="5"
+                            keyboardType="number-pad"
+                            value={feet}
+                            onChangeText={(text) => {
+                              setFeet(text);
+                              const ft = Number(text),
+                                inch = Number(inches);
+                              const valid =
+                                /^\d+$/.test(text) &&
+                                /^(\d+)?$/.test(inches) &&
+                                inch <= 11;
+                              onChange(
+                                valid
+                                  ? inToCm(ft * 12 + inch)
+                                  : text === "" && inches === ""
+                                    ? 0
+                                    : NaN,
+                              );
+                            }}
+                          />
+                          <Field
+                            label="Height (inches)"
+                            placeholder="0"
+                            keyboardType="number-pad"
+                            value={inches}
+                            onChangeText={(text) => {
+                              setInches(text);
+                              const ft = Number(feet),
+                                inch = Number(text);
+                              const valid =
+                                /^\d+$/.test(feet) &&
+                                /^(\d+)?$/.test(text) &&
+                                inch <= 11;
+                              onChange(
+                                valid
+                                  ? inToCm(ft * 12 + inch)
+                                  : feet === "" && text === ""
+                                    ? 0
+                                    : NaN,
+                              );
+                            }}
+                          />
+                        </Row>
+                        {errors.height && (
+                          <Label size={12}>
+                            Enter a valid height in feet and inches (0–11
+                            inches).
+                          </Label>
+                        )}
+                      </View>
+                    ) : f.key === "weight" ? (
+                      <Field
+                        label={`Starting weight (${units === "lb" ? "lbs" : "kg"}, required)`}
+                        value={weightText}
+                        keyboardType="decimal-pad"
+                        onChangeText={(text) => {
+                          setWeightText(text);
+                          const number = text.trim() === "" ? 0 : Number(text);
+                          onChange(units === "lb" ? lbToKg(number) : number);
+                        }}
+                        error={errors.weight?.message}
+                      />
+                    ) : (
+                      <Field
+                        label={f.label}
+                        value={String(value)}
+                        keyboardType={
+                          numeric.has(f.key) ? "decimal-pad" : "default"
+                        }
+                        onChangeText={(text) => {
+                          onChange(numeric.has(f.key) ? Number(text) : text);
+                          const patch = {
+                            [f.key]: numeric.has(f.key) ? Number(text) : text,
+                          };
+                          if (
+                            onboarding &&
+                            profileSchema.safeParse({
+                              ...r.profile(),
+                              ...patch,
+                            }).success
+                          )
+                            mutate(() => r.saveProfile(patch));
+                        }}
+                        error={errors[f.key]?.message}
+                      />
+                    )
+                  }
+                />
+              ))}
+          </Wrap>
+        );
+      })}
       {onboarding && step < sections.length - 1 ? (
         <Button
           title="Next"
@@ -405,38 +464,21 @@ export function ProfileForm({
         />
       ) : (
         <Button
-          title={onboarding ? "Enter FORGE" : "Save settings"}
+          title={onboarding ? "Enter FORGE" : saveLabel}
           onPress={() => void submit()}
         />
       )}
-      <Button
-        title={
-          r.profile().notifications
-            ? "Disable notifications"
-            : "Enable local notifications"
-        }
-        secondary
-        onPress={() => {
-          if (r.profile().notifications) {
-            mutate(() => r.saveProfile({ notifications: false }));
-            void cancelAllNotifications().catch((e) =>
-              Alert.alert("Reminder cleanup failed", String(e)),
-            );
-          } else
-            void enableNotifications()
-              .then((granted) => {
-                mutate(() => r.saveProfile({ notifications: granted }));
-                if (!granted)
-                  Alert.alert(
-                    "Notifications not enabled",
-                    "Workouts and in-app timers still work. You can change permissions in phone settings.",
-                  );
-              })
-              .catch((e) =>
-                Alert.alert("Notification setup failed", String(e)),
-              );
-        }}
-      />
+      {!fields && (
+        <Button
+          title={
+            r.profile().notifications
+              ? "Disable notifications"
+              : "Enable local notifications"
+          }
+          secondary
+          onPress={() => toggleNotifications(r)}
+        />
+      )}
       {onboarding && (
         <Button
           title="Skip remaining optional setup"
@@ -444,11 +486,13 @@ export function ProfileForm({
           onPress={() => void submit()}
         />
       )}
-      <Label muted size={12}>
-        Guest data stays on this device. FORGE does not send health data to a
-        backend until you configure cloud access and explicitly synchronize.
-        Training estimates are guidance, not medical advice.
-      </Label>
+      {!fields && (
+        <Label muted size={12}>
+          Guest data stays on this device. FORGE does not send health data to a
+          backend until you configure cloud access and explicitly synchronize.
+          Training estimates are guidance, not medical advice.
+        </Label>
+      )}
     </View>
   );
 }

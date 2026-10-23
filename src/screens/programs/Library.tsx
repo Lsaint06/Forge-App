@@ -54,7 +54,12 @@ function Recommendation() {
           title="Complete training profile"
           variant="secondary"
           icon="create-outline"
-          onPress={() => router.push("/(tabs)/profile")}
+          onPress={() =>
+            router.navigate({
+              pathname: "/(tabs)/profile",
+              params: { edit: "focus" },
+            })
+          }
         />
       </Card>
     );
