@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Alert } from "../platform/alert";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -112,9 +112,12 @@ const displayWeight = (kg: number, units: Profile["units"]) =>
 export function ProfileForm({
   onDone,
   onboarding = false,
+  onDirtyChange,
 }: {
   onDone: () => void;
   onboarding?: boolean;
+  /** Reports whether the form holds changes that have not been saved. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const r = useRepo();
   const [step, setStep] = useState(() => {
@@ -141,11 +144,14 @@ export function ProfileForm({
     getValues,
     trigger,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<Profile>({
     defaultValues: r.profile(),
     resolver: zodResolver(requiredProfileSchema),
   });
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
   const units = useWatch({ control, name: "units" });
   const display = onboarding ? [sections[step]!] : sections;
   const submit = handleSubmit(

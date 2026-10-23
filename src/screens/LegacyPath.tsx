@@ -91,6 +91,7 @@ export default function LegacyPath() {
   const [selectedDate, setSelectedDate] = useState<string>();
   const [moving, setMoving] = useState<PathSession>();
   const [moveDate, setMoveDate] = useState(localDate());
+  const [moveFrom, setMoveFrom] = useState(localDate());
   const [week, setWeek] = useState(
     Math.max(
       1,
@@ -439,6 +440,7 @@ export default function LegacyPath() {
         visible={manage && !!selected}
         onClose={() => setManage(false)}
         title="Manage your Path"
+        dismissOnBackdrop
       >
         {selected && stats && (
           <>
@@ -486,6 +488,7 @@ export default function LegacyPath() {
         visible={sessionActions && !!session}
         onClose={() => setSessionActions(false)}
         title="Workout options"
+        dismissOnBackdrop
       >
         {session && selected && (
           <>
@@ -518,11 +521,12 @@ export default function LegacyPath() {
                   onPress={() => {
                     setSessionActions(false);
                     setMoving(session);
-                    setMoveDate(
+                    const from =
                       session.record.date < localDate()
                         ? localDate()
-                        : session.record.date,
-                    );
+                        : session.record.date;
+                    setMoveDate(from);
+                    setMoveFrom(from);
                   }}
                 />
                 <Button
@@ -554,6 +558,7 @@ export default function LegacyPath() {
         visible={!!moving}
         onClose={() => setMoving(undefined)}
         title="Reschedule session"
+        unsaved={moveDate !== moveFrom}
       >
         <Field
           label="New session date (YYYY-MM-DD)"

@@ -8,6 +8,7 @@ import {
   Button,
   Row,
   Chips,
+  FilterChips,
   Empty,
   ProgressBar,
 } from "../components/ui";
@@ -642,12 +643,12 @@ export default function ForgePaths() {
               />
               {published.length ? (
                 <>
-                  <Chips
+                  <FilterChips
                     values={[ALL, "Beginner", "Intermediate", "Advanced"]}
                     value={experience}
                     onChange={setExperience}
                   />
-                  <Chips
+                  <FilterChips
                     values={[ALL, "Strength", "Muscle Building"]}
                     value={goal}
                     onChange={setGoal}

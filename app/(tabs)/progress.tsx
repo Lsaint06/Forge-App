@@ -5,6 +5,7 @@ import {
   Card,
   Label,
   Chips,
+  FilterChips,
   Button,
   Row,
   Stat,
@@ -12,6 +13,7 @@ import {
 } from "../../src/components/ui";
 import { PathSummary } from "../../src/components/PathSummary";
 import { Chart } from "../../src/components/Chart";
+import { theme } from "../../src/theme";
 import { useRepo } from "../../src/state";
 import {
   analyze,
@@ -87,7 +89,7 @@ export default function Progress() {
           Completed workouts · Monday–Sunday
         </Label>
       </Card>
-      <Chips
+      <FilterChips
         values={["7 days", "30 days", "90 days", "1 year", "All time"]}
         value={range}
         onChange={setRange}
@@ -105,6 +107,7 @@ export default function Progress() {
           Training trend
         </Label>
         <Chips
+          bleed={theme.spacing.md}
           values={["Volume", "Sets", "Duration", "Frequency"]}
           value={metric}
           onChange={setMetric}
@@ -190,6 +193,7 @@ export default function Progress() {
           Body measurement trend
         </Label>
         <Chips
+          bleed={theme.spacing.md}
           values={names.length ? names : ["Bodyweight"]}
           value={measurement}
           onChange={setMeasurement}

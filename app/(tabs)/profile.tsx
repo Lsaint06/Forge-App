@@ -25,6 +25,7 @@ export default function Profile() {
   const r = useRepo();
   const p = r.profile();
   const [edit, setEdit] = useState(false);
+  const [prefsDirty, setPrefsDirty] = useState(false);
   const missing = missingTrainingProfile(p);
   const goal = trainingGoal(p);
   const experience = experienceLevel(p);
@@ -210,15 +211,29 @@ export default function Profile() {
             onPress={replayIntro}
           />
         )}
+        {__DEV__ && (
+          <Button
+            title="Design system (development only)"
+            secondary
+            icon="color-palette-outline"
+            onPress={() => router.push("/design-system")}
+          />
+        )}
       </Card>
       <Sheet
         visible={edit}
-        onClose={() => setEdit(false)}
+        onClose={() => {
+          setEdit(false);
+          setPrefsDirty(false);
+        }}
         title="Your preferences"
+        unsaved={prefsDirty}
       >
         <ProfileForm
+          onDirtyChange={setPrefsDirty}
           onDone={() => {
             setEdit(false);
+            setPrefsDirty(false);
             Alert.alert("Saved", "Your preferences have been updated.");
           }}
         />

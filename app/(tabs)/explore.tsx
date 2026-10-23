@@ -6,11 +6,12 @@ import { useRepo, mutate } from "../../src/state";
 import {
   Field,
   Label,
-  Chips,
+  FilterChips,
   Button,
   useColors,
 } from "../../src/components/ui";
 import { ExerciseCard } from "../../src/components/design";
+import { theme } from "../../src/theme";
 export default function Explore() {
   const r = useRepo();
   const c = useColors();
@@ -55,7 +56,11 @@ export default function Explore() {
         keyExtractor={(e) => e.id}
         initialNumToRender={12}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: 24, gap: 12, paddingBottom: 40 }}
+        contentContainerStyle={{
+          padding: theme.spacing.screen,
+          gap: 12,
+          paddingBottom: 40,
+        }}
         ListHeaderComponent={
           <View style={{ gap: 16, paddingBottom: 12 }}>
             <Label size={11} bold style={{ color: c.muted, letterSpacing: 2 }}>
@@ -73,7 +78,7 @@ export default function Explore() {
               value={q}
               onChangeText={setQ}
             />
-            <Chips
+            <FilterChips
               values={["All exercises", "Favorites", "Recent"]}
               value={mode}
               onChange={setMode}
@@ -88,17 +93,17 @@ export default function Explore() {
             />
             {filters && (
               <View style={{ gap: 12 }}>
-                <Chips
+                <FilterChips
                   values={["All", ...new Set(all.map((e) => e.muscle))]}
                   value={muscle}
                   onChange={setMuscle}
                 />
-                <Chips
+                <FilterChips
                   values={["All", ...new Set(all.map((e) => e.equipment))]}
                   value={equipment}
                   onChange={setEquipment}
                 />
-                <Chips
+                <FilterChips
                   values={["Name", "Muscle"]}
                   value={sort}
                   onChange={setSort}

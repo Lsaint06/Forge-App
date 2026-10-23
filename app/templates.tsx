@@ -32,12 +32,21 @@ export default function Templates() {
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<Prescription[]>([]);
+  const [baseline, setBaseline] = useState("");
   const [date, setDate] = useState(localDate());
+  const draft = JSON.stringify({ name, notes, items });
   function edit(t?: Template) {
     setEditingId(t?.id);
     setName(t?.name ?? "");
     setNotes(t?.notes ?? "");
     setItems(t?.exercises ?? []);
+    setBaseline(
+      JSON.stringify({
+        name: t?.name ?? "",
+        notes: t?.notes ?? "",
+        items: t?.exercises ?? [],
+      }),
+    );
     setEditor(true);
   }
   function schedule(t: Template) {
@@ -169,6 +178,7 @@ export default function Templates() {
         visible={editor}
         onClose={() => setEditor(false)}
         title={editingId ? "Edit template" : "New template"}
+        unsaved={draft !== baseline}
       >
         <Field label="Template name" value={name} onChangeText={setName} />
         <Field

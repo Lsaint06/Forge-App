@@ -111,6 +111,8 @@ export default function JournalScreen() {
   const [date, setDate] = useState(localDate());
   const [editing, setEditing] = useState<string>();
   const [visible, setVisible] = useState(false);
+  // Set by any edit in the entry sheet; cleared when the sheet opens.
+  const [changed, setChanged] = useState(false);
   const [filter, setFilter] = useState("All");
   const entries = r.journal(kind);
   const today = entries.filter((e) => e.date === localDate());
@@ -158,6 +160,11 @@ export default function JournalScreen() {
         ),
       }));
     setVisible(true);
+    setChanged(false);
+  }
+  function edit(key: string, value: string) {
+    setForm((f) => ({ ...f, [key]: value }));
+    setChanged(true);
   }
   function payload() {
     return Object.fromEntries(
@@ -279,6 +286,7 @@ export default function JournalScreen() {
                 setEditing(undefined);
                 setDate(localDate());
                 setVisible(true);
+                setChanged(false);
               }}
             />
           ))}
@@ -435,8 +443,16 @@ export default function JournalScreen() {
         visible={visible}
         onClose={() => setVisible(false)}
         title={editing ? "Edit entry" : "New entry"}
+        unsaved={changed}
       >
-        <Field label="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} />
+        <Field
+          label="Date (YYYY-MM-DD)"
+          value={date}
+          onChangeText={(value) => {
+            setDate(value);
+            setChanged(true);
+          }}
+        />
         {settings.fields.map(([key, label]) =>
           key === "metric" ? (
             <Chips
@@ -450,14 +466,14 @@ export default function JournalScreen() {
                 "nutrition",
               ]}
               value={form[key] ?? "workouts"}
-              onChange={(value) => setForm((f) => ({ ...f, [key]: value }))}
+              onChange={(value) => edit(key, value)}
             />
           ) : key === "unit" ? (
             <Chips
               key={key}
               values={["kg", "lb", "cm", "in", "percent"]}
               value={form[key] ?? "kg"}
-              onChange={(value) => setForm((f) => ({ ...f, [key]: value }))}
+              onChange={(value) => edit(key, value)}
             />
           ) : (
             <Field
@@ -465,7 +481,7 @@ export default function JournalScreen() {
               label={label}
               value={form[key] ?? ""}
               keyboardType={numbers.has(key) ? "decimal-pad" : "default"}
-              onChangeText={(value) => setForm((f) => ({ ...f, [key]: value }))}
+              onChangeText={(value) => edit(key, value)}
             />
           ),
         )}
