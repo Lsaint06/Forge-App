@@ -45,7 +45,7 @@ GitHub Actions runs these checks and retains native export artifacts. CI does no
 - Pause/resume, recover an interrupted session, finish once, edit history, repeat a workout and save it as a template.
 - Use persistent rest deadlines, manual rest starts, skip/extend and optional local completion notifications.
 - Edit/duplicate/delete custom workout templates and schedule sessions. Forge Paths is the only guided-plan offering; the ready-made starter-program catalog has been retired. Previously adopted programs, saved templates, schedules and workout history remain available, including their existing calendar deload behavior.
-- Inspect volume, primary-muscle set distribution, frequency, duration, best loads/reps, Epley estimates, program adherence and measurement trends.
+- Inspect training consistency against your plan, per-exercise strength progression, personal records, volume, primary-muscle set distribution, training time and measurement trends (see [docs/PROGRESS_METRICS.md](docs/PROGRESS_METRICS.md)).
 - Log historical body measurements, manually supplied food values/servings, saved foods, repeat meals, recovery inputs and goals.
 - Export/import validated JSON backups and delete local records with confirmation.
 - Configure real Supabase email authentication and explicitly requested synchronization. No configured backend means guest mode, not simulated login.
@@ -73,7 +73,7 @@ Zustand holds a revision signal and theme/profile snapshot; SQLite owns records.
 
 Canonical storage: load/body mass **kg**, body lengths **cm**, distance **meters**, duration **seconds**, calories **kcal**. Imperial measurement entries convert before saving. Volume counts external load × reps for completed working/drop/failure sets; warmups are excluded. Bodyweight work has zero external-load volume unless added weight is logged. Left/right sets each represent separately recorded effort; no implicit doubling occurs. Sets logged with neither reps nor duration nor distance cannot be marked complete.
 
-Epley estimated 1RM = `load × (1 + reps / 30)` for 2–12 reps, actual load for one rep. It is an estimate of **added load** and is not a validated bodyweight strength model. Overload suggests an increment after two sessions reaching the upper target with RPE ≤8 / RIR ≥2 when supplied; two sessions below minimum suggest a 10% reduction. Users can override every load. Recovery weights five self-reported factors equally; it is not medical assessment. Secondary muscles are not double-counted in set totals.
+Epley estimated 1RM = `load × (1 + reps / 30)` for 2–12 reps, actual load for one rep. It is calculated only for exercises whose logged weight is external load; bodyweight and assisted movements track reps instead, because logged assistance cannot be told apart from added weight. Overload suggests an increment after two sessions reaching the upper target with RPE ≤8 / RIR ≥2 when supplied; two sessions below minimum suggest a 10% reduction. Users can override every load. Recovery weights five self-reported factors equally; it is not medical assessment. Secondary muscles are not double-counted in set totals.
 
 Workout durations use saved timestamps and accumulated pause milliseconds. Charts and adherence use current device-local calendar dates; changing timezone can regroup historical workouts. Schedules retain explicit local dates. Repeated dates do not count a session more than once for adherence. Achievements and best records are recomputed from retained history; they can disappear when source records are deleted.
 

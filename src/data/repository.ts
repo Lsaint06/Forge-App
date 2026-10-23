@@ -200,6 +200,24 @@ export class Repository {
       ]);
     return [...history.values()];
   }
+  /**
+   * Read-only: every set of every completed workout in one query, oldest
+   * workout first, with its workout and exercise. Used by Progress.
+   */
+  completedSets() {
+    return this.db
+      .all<{
+        workoutId: string;
+        exerciseId: string;
+        weight: number;
+        reps: number;
+        kind: WorkoutSet["kind"];
+        completed: number | boolean;
+      }>(
+        `SELECT e.workout_id AS workoutId,e.exercise_id AS exerciseId,s.weight,s.reps,s.kind,s.completed FROM workout_sets s JOIN workout_exercises e ON e.id=s.exercise_row_id JOIN workouts w ON w.id=e.workout_id WHERE w.status='completed' ORDER BY w.finished_at,w.id,e.position,s.position`,
+      )
+      .map((s) => ({ ...s, completed: !!s.completed }));
+  }
   targetHistory(exerciseId: string, target: RepTarget): WorkoutSet[][] {
     repTargetSchema.parse(target);
     const rows = this.db.all<{

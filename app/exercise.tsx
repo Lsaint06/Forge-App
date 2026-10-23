@@ -7,13 +7,18 @@ import {
   Button,
   Field,
   Chips,
-  Row,
 } from "../src/components/ui";
 import { useRepo, mutate } from "../src/state";
-import { id, localDate, type Exercise } from "../src/domain/types";
-import { Chart } from "../src/components/Chart";
-import { records, kgToLb } from "../src/domain/metrics";
+import { id, type Exercise } from "../src/domain/types";
+import { LineChart } from "../src/components/charts";
 import { ExerciseVisual, ChartContainer } from "../src/components/design";
+import { exerciseProgress } from "../src/data/progress";
+import {
+  defaultMetric,
+  progressionSeries,
+} from "../src/domain/progress/strength";
+import { estimateText, loadText, setText } from "../src/domain/progress/format";
+import { dayLabel } from "../src/domain/training-display";
 export default function ExerciseScreen() {
   const r = useRepo();
   const { id: exerciseId, custom } = useLocalSearchParams<{
@@ -31,7 +36,11 @@ export default function ExerciseScreen() {
   const [category, setCategory] = useState(e?.category ?? "strength");
   const [unilateral, setUnilateral] = useState(e?.unilateral ?? false);
   const history = e ? r.history(e.id) : [];
-  const pr = records(history.flat());
+  const units = r.profile().units;
+  const progress = e ? exerciseProgress(r, e.id) : undefined;
+  const metric = progress
+    ? defaultMetric(progress.kind, progress.bests)
+    : "reps";
   return (
     <Screen
       title={editing ? "Your movement." : (e?.name ?? "Exercise not found")}
@@ -129,34 +138,31 @@ export default function ExerciseScreen() {
               <Label bold>Safety</Label>
               <Label muted>{e.safety}</Label>
             </Card>
-            {e.category === "strength" && (
+            {progress && progress.bests.length > 0 && (
               <ChartContainer title="Strength history">
-                <Chart
-                  unit={r.profile().units}
-                  points={r
-                    .workouts()
-                    .filter((w) => w.status === "completed")
-                    .flatMap((w) => {
-                      const sets = r
-                        .workoutExercises(w.id)
-                        .filter((row) => row.exerciseId === e.id)
-                        .flatMap((row) => r.sets(row.id))
-                        .filter((s) => s.completed && s.kind !== "warmup");
-                      if (!sets.length) return [];
-                      const load = records(sets).load;
-                      return [
-                        {
-                          label: localDate(w.finishedAt ?? w.startedAt),
-                          value:
-                            r.profile().units === "lb" ? kgToLb(load) : load,
-                        },
-                      ];
-                    })
-                    .reverse()}
+                <LineChart
+                  label={`${e.name} ${metric === "e1rm" ? "estimated 1RM" : metric === "top" ? "heaviest set" : "most reps"} by session`}
+                  format={(v) =>
+                    metric === "reps"
+                      ? `${v} reps`
+                      : metric === "e1rm"
+                        ? estimateText(v, units)
+                        : loadText(v, units)
+                  }
+                  points={progressionSeries(progress.bests, metric).map(
+                    (p) => ({
+                      key: p.workoutId,
+                      value: p.value,
+                      description: dayLabel(p.date),
+                    }),
+                  )}
                 />
                 <Label muted size={12}>
-                  Best completed working-set load per session · added load for
-                  bodyweight movements
+                  {metric === "e1rm"
+                    ? "Estimated 1RM per session"
+                    : metric === "top"
+                      ? "Heaviest completed working set per session"
+                      : "Most reps in a working set per session. Forge can't tell assistance from added weight here, so load isn't compared."}
                 </Label>
               </ChartContainer>
             )}
@@ -164,30 +170,36 @@ export default function ExerciseScreen() {
               <Label bold size={20}>
                 Your records
               </Label>
-              <Row>
+              {progress?.kind === "load" && (
+                <>
+                  <Label>
+                    Heaviest set:{" "}
+                    {progress.records.heaviest
+                      ? setText(progress.records.heaviest, units)
+                      : "—"}
+                  </Label>
+                  <Label muted>
+                    Estimated 1RM:{" "}
+                    {progress.records.e1rm
+                      ? estimateText(progress.records.e1rm.value, units)
+                      : "—"}
+                  </Label>
+                  {progress.records.repsAtWeight.slice(0, 3).map((x) => (
+                    <Label key={x.weight} muted size={13}>
+                      Best at {loadText(x.weight, units)}: {x.reps} reps
+                    </Label>
+                  ))}
+                  <Label muted size={12}>
+                    Epley: load × (1 + reps / 30), for 2–12 reps; one rep uses
+                    actual load. An estimate, not a tested maximum.
+                  </Label>
+                </>
+              )}
+              {progress?.kind === "reps" && (
                 <Label>
-                  Best load:{" "}
-                  {Math.round(
-                    (r.profile().units === "lb" ? kgToLb(pr.load) : pr.load) *
-                      100,
-                  ) / 100}{" "}
-                  {r.profile().units}
+                  Most reps in a set: {progress.records.mostReps?.reps ?? "—"}
                 </Label>
-                <Label>Best reps: {pr.reps}</Label>
-              </Row>
-              <Label muted>
-                Estimated 1RM:{" "}
-                {Math.round(
-                  (r.profile().units === "lb"
-                    ? kgToLb(pr.estimatedMax)
-                    : pr.estimatedMax) * 10,
-                ) / 10}{" "}
-                {r.profile().units}
-              </Label>
-              <Label muted size={12}>
-                Epley: load × (1 + reps / 30), for 2–12 reps; one rep uses
-                actual load. An estimate, not a tested maximum.
-              </Label>
+              )}
               {history.length === 0 && (
                 <Label muted>
                   Complete this exercise in a workout to build your history.
@@ -198,7 +210,11 @@ export default function ExerciseScreen() {
                   Session {history.length - i}:{" "}
                   {s
                     .filter((x) => x.completed)
-                    .map((x) => `${Math.round(x.weight)} kg × ${x.reps}`)
+                    .map((x) =>
+                      x.weight > 0
+                        ? `${loadText(x.weight, units)} × ${x.reps}`
+                        : `${x.reps} reps`,
+                    )
                     .join(" · ") || "No completed sets"}
                 </Label>
               ))}

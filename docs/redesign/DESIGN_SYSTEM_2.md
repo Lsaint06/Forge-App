@@ -2,7 +2,7 @@
 
 The app's interior should match the splash: black steel, white type, a single ember. **One action. One number. One line.**
 
-Status: **Phase 1 (foundations) committed; Phase 2 (workout logging) implemented, in review.** Screens adopt the system progressively; see [Roadmap](#roadmap).
+Status: **Phases 1–4 committed; Phase 5 (Progress) implemented, in review.** Screens adopt the system progressively; see [Roadmap](#roadmap).
 
 - Tokens: [`src/theme.ts`](../../src/theme.ts)
 - Primitives: [`src/components/ui.tsx`](../../src/components/ui.tsx)
@@ -329,13 +329,56 @@ MUSCLE BUILDING                 [ ▶ Start program ]  (pinned)   COMING UP · R
 
 Unchanged: the 18 programs and their publication fingerprints, enrollment, scheduling, progression, workout tracking, history, sync and backups.
 
+## Phase 5 — Progress (implemented)
+
+Goals: in seconds, answer "am I showing up, am I getting stronger, what have I accomplished?", using only what the lifter logged and planned. Formulas, eligibility rules and limitations: [PROGRESS_METRICS.md](../PROGRESS_METRICS.md).
+
+```
+Progress                        Strength                         Records          Calendar
+[4 weeks|12 weeks|1 year|All]   Back Squat ⌄                     ‹                ‹
+┌────────────┬────────────┐     [Est. 1RM | Heaviest set]        129 RECORDS SET  Calendar
+│ 28         │ 89%        │     168 kg            Wed, Oct 14    Records          ‹ October 2026 ›
+│ WORKOUTS   │ ON PLAN    │     ╱‾‾‾‾‾‾‾‾‾‾‾●                    RECENT RECORDS   M T W T F S S
+│ 21 RECORDS │ 238k VOLUME│     Latest   140 kg × 6  Oct 14      🏆 Bench …  Oct 14  •   •   •
+└────────────┴────────────┘     Previous 140 kg × 6  Oct 5       YOUR BESTS       ○ planned  ◌ missed
+CONSISTENCY ⓘ  16 of 18 done    ±0 kg at 6 reps                  Back Squat ›     THU, OCT 22 · Rest day
+▇▇▅▅▅▇▇▇▅▇□  ■ done □ planned   Exercise details ›
+RECORDS ⓘ · VOLUME ⓘ · TRAINING TIME · BODY · MORE
+```
+
+- **Files:**
+  - Calculations: `src/domain/progress/` (`strength.ts`, `consistency.ts`, `volume.ts`, `range.ts`, `format.ts`, `explain.ts`)
+  - Adapters: `src/data/progress.ts`, plus the read-only `Repository.completedSets()` query (one join instead of a query per workout and per row)
+  - Charts: `src/components/charts.tsx` (`BarChart`, `LineChart`, `Legend`), replacing the old `Chart`
+  - Screens: `src/screens/Progress.tsx` (tab), `Records.tsx` (`/records`), `TrainingCalendar.tsx` (`/calendar`); `app/exercise.tsx` records use the same calculations
+- **Progress:**
+  - **Range:** a segmented 4 weeks / 12 weeks / 1 year / All time control.
+  - **Overview:** Workouts; On plan % (or Active weeks without a plan); Records; Volume.
+  - **Consistency:** completed workouts per week or month, with planned sessions as outlines; tap or swipe for "Week of Oct 6 · 3 workouts · 3 of 3 planned".
+  - **Strength:** exercise picker sheet (searchable), Est. 1RM / Heaviest set, line chart, latest vs previous compared like for like, Exercise details.
+  - **Records:** the latest three in the range, and All records.
+  - **Volume:** working sets and volume, and sets by primary muscle.
+  - **Training time:** average, total, day streak.
+  - **Body:** measurement trend.
+  - **More:** Training history, Training calendar, Milestones (sheet), Body measurements, Nutrition, Recovery, Goals.
+  - Saved starter-program adherence is kept when such plans exist.
+  - Each section's ⓘ opens how it is counted.
+- **New lifter:** one card, "Your progress starts here", and **Start a workout**. No empty charts or zeros. One workout shows a baseline; trends appear from the second session.
+- **Records:** recent records (open the workout) and every exercise's bests (open the exercise).
+- **Calendar:** month grid with completed, planned, missed and skipped markers. Tap a day for its workouts (review) and sessions. Rest days are plain. Navigation runs from the first recorded month to two months ahead.
+- **Charts:** both are adjustable for VoiceOver and TalkBack (swipe up or down to move through points). The selected value and its description are shown above the chart. Bars are green (completed), with planned sessions as outlines. The line chart marks the selected point in ember.
+- **Accessibility:** overview tiles, record rows, calendar days and muscle bars each read as one sentence ("On plan: 89%, 16 of 18 sessions").
+
+Unchanged: workout recording, history, programs, Paths, schedules, sync, backups, onboarding, Today and Train. No stored data changed; there is no migration.
+
 ## Roadmap
 
-| Phase                                | Scope                                                                                                                                                             |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 · Foundations                      | **Done:** tokens, primitives, composites, reference screen, tests                                                                                                 |
-| 2 · Workout logging                  | **Done:** see above                                                                                                                                               |
-| 3 · Today, Train, navigation         | **Done:** see above                                                                                                                                               |
-| 4 · Forge Paths                      | **Implemented, in review:** see above                                                                                                                             |
-| 5 · Progress, You, secondary screens | Grouped settings, info sheets for methodology and privacy, Templates, Journal, Account, Exercise                                                                  |
-| 6 · Onboarding visuals and polish    | Motion, haptics, light-theme parity, Dynamic Type and VoiceOver, device QA (compact, standard and large iPhones, keyboard, safe areas, landscape where supported) |
+| Phase                             | Scope                                                                                                                                                             |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 · Foundations                   | **Done:** tokens, primitives, composites, reference screen, tests                                                                                                 |
+| 2 · Workout logging               | **Done:** see above                                                                                                                                               |
+| 3 · Today, Train, navigation      | **Done:** see above                                                                                                                                               |
+| 4 · Forge Paths                   | **Done:** see above                                                                                                                                               |
+| 5 · Progress                      | **Implemented, in review:** see above                                                                                                                             |
+| 6 · You and secondary screens     | Grouped settings, info sheets for methodology and privacy, Templates, Journal, Account, Exercise                                                                  |
+| 7 · Onboarding visuals and polish | Motion, haptics, light-theme parity, Dynamic Type and VoiceOver, device QA (compact, standard and large iPhones, keyboard, safe areas, landscape where supported) |

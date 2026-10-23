@@ -81,6 +81,8 @@ function Navigation() {
         <Stack.Screen name="journal" />
         <Stack.Screen name="templates" />
         <Stack.Screen name="history" />
+        <Stack.Screen name="records" />
+        <Stack.Screen name="calendar" />
         <Stack.Screen name="explore" />
         <Stack.Screen name="paths" />
         <Stack.Screen name="forge-paths/index" />
