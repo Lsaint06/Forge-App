@@ -10,7 +10,7 @@ Official sources confirm that personal GitHub accounts have included monthly Cod
 
 ## Safari-only steps
 
-1. Install **Expo Go** from the [iPhone App Store](https://apps.apple.com/app/expo-go/id982107779). It must support SDK 57. If it reports a version mismatch, preserve the error rather than upgrading dependencies blindly.
+1. Install **Expo Go** from the [iPhone App Store](https://apps.apple.com/app/expo-go/id982107779). It must support SDK 58. If it reports a version mismatch, preserve the error rather than upgrading dependencies blindly.
 2. Sign in to GitHub in Safari. Check your personal **Settings → Billing and licensing → Usage** for remaining included Codespaces usage. Create a Codespace only if included free usage is available; do not enable paid usage or add payment information. Stop if GitHub says your free allowance is exhausted.
 3. Open [FORGE's implementation branch](https://github.com/Lsaint06/Forge-App/tree/feat/forge-app). Select **Code → Codespaces → Create codespace on feat/forge-app**, using the smallest **2-core** machine and your personal account. The selected branch must contain `package.json` and `scripts/start-codespaces-phone.sh`; main may still contain only the original README.
 4. If the editor is cramped, rotate the phone to landscape and use Safari's page menu → **Request Desktop Website**. In the editor menu, choose **Terminal → New Terminal** (or View → Command Palette → Terminal: Create New Terminal).
@@ -38,7 +38,7 @@ Official sources confirm that personal GitHub accounts have included monthly Cod
    python3 scripts/check-codespaces-phone.py
    ```
 
-   Require **`PASS: public HTTPS status, FORGE SDK 57 manifest and iOS bundle`**. The check sends no GitHub cookies or authorization header. If it gets a login page, 403, 404 or a non-HTTPS/local bundle URL, the endpoint is not ready; correct the port settings or Metro startup before opening Expo Go.
+   Require **`PASS: public HTTPS status, FORGE SDK 58 manifest and iOS bundle`**. The check sends no GitHub cookies or authorization header. If it gets a login page, 403, 404 or a non-HTTPS/local bundle URL, the endpoint is not ready; correct the port settings or Metro startup before opening Expo Go.
 
 8. Copy the **Safari launch page** printed by the helper/check into a new Safari tab. It is your real allocated `https://<codespace-name>-8080.app.github.dev` address, not an example URL. Tap **Open FORGE in Expo Go**, then accept iOS's Open prompt. The button uses the actual `exps://<codespace-name>-8081.app.github.dev` URL. Use this button rather than the CLI QR, which may encode an unsuitable exp:// scheme for HTTPS forwarding.
 9. In FORGE, skip optional onboarding and test guest mode. No Supabase credentials are needed. Start a workout, add an exercise, enter reps/load and complete a set. If startup fails, retain the exact Expo Go error; public endpoint success alone does not establish native execution.

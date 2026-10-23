@@ -1,14 +1,13 @@
 import { Platform } from "react-native";
-import Constants, { ExecutionEnvironment } from "expo-constants";
+import { isRunningInExpoGo } from "expo";
 import { repository } from "./data/native";
 
 // Expo Go on Android no longer includes expo-notifications' native modules
 // (Expo SDK 53+), and loading the module there stops the app. It is skipped
 // there and loaded everywhere else (iOS, development and production builds),
-// where reminders behave as before.
-const unavailable =
-  Platform.OS === "android" &&
-  Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+// where reminders behave as before. Expo Go 58 reports its execution
+// environment as "bare", so detect Expo Go directly.
+const unavailable = Platform.OS === "android" && isRunningInExpoGo();
 type NotificationsModule = typeof import("expo-notifications");
 let loading: Promise<NotificationsModule | null> | undefined;
 function notifications() {

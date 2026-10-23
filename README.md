@@ -12,7 +12,7 @@ This is a substantial first implementation, **not completion of every requiremen
 
 FORGE now targets iPhone and Android only. The dedicated browser preview has been retired. On Windows, run the Expo development server and open it in Expo Go on your phone.
 
-Use Node.js **24** and npm. The integration tests use Node's built-in SQLite module. The application uses Expo **SDK 57**, React **19.2.3**, and React Native **0.86.3**; compatible native versions and the dependency lockfile are committed.
+Use Node.js **24** and npm. The integration tests use Node's built-in SQLite module. The application uses Expo **SDK 58**, React **19.3.0**, and React Native **0.88.0**; compatible native versions and the dependency lockfile are committed.
 
 ```sh
 git clone https://github.com/Lsaint06/Forge-App.git

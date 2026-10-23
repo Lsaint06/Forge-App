@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, type TextInput } from "react-native";
+import { StyleSheet, type TextInputInstance } from "react-native";
 import {
   render,
   fireEvent,
@@ -715,7 +715,7 @@ test("Next walks weight, reps and RIR, then the next set and exercise", () => {
   const order = new SetFocusOrder();
   const focused: string[] = [];
   const input = (key: string) =>
-    ({ focus: () => focused.push(key) }) as unknown as TextInput;
+    ({ focus: () => focused.push(key) }) as unknown as TextInputInstance;
   const register = (key: string, ...position: number[]) =>
     order.register(key, position, input(key));
   // Registered out of order, as rows mount.

@@ -31,7 +31,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{ headerShown: false }}
-      tabBar={({ state, navigation }) => (
+      tabBar={({ state, emitter, navigateToTab }) => (
         <View
           style={{
             backgroundColor: c.bg,
@@ -85,10 +85,13 @@ export default function TabLayout() {
             </Pressable>
           )}
           <View style={{ flexDirection: "row" }}>
+            {/* Expo Router 58: `state.routes` lists every visible tab, with
+                placeholders for tabs not yet opened; switch with
+                `navigateToTab(route.key)`. */}
             {state.routes.map((route, index) => {
               const tab = tabs[route.name as TabName];
               if (!tab) return null;
-              const selected = state.index === index;
+              const selected = index === state.index;
               const color = selected ? c.text : c.text2;
               return (
                 <Pressable
@@ -97,13 +100,13 @@ export default function TabLayout() {
                   accessibilityState={{ selected }}
                   accessibilityLabel={tab.label}
                   onPress={() => {
-                    const event = navigation.emit({
+                    const event = emitter.emit({
                       type: "tabPress",
                       target: route.key,
                       canPreventDefault: true,
                     });
-                    if (!event.defaultPrevented)
-                      navigation.navigate(route.name);
+                    if (!selected && !event.defaultPrevented)
+                      navigateToTab(route.key);
                   }}
                   style={{
                     flex: 1,

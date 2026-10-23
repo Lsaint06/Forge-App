@@ -32,7 +32,7 @@ origin, directory = sys.argv[1:]
 uri = 'exps://' + origin.removeprefix('https://')
 page = '''<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Open FORGE</title><style>body{background:#080a0d;color:#f5f7fa;font:18px system-ui;padding:28px}a{display:block;background:#ff5a36;color:#080a0d;padding:20px;border-radius:16px;font-weight:700;text-decoration:none}code{overflow-wrap:anywhere}</style>
-<h1>FORGE</h1><p>Install Expo Go with SDK 57 support, then tap:</p>
+<h1>FORGE</h1><p>Install Expo Go with SDK 58 support, then tap:</p>
 <a href="%s">Open FORGE in Expo Go</a><p>Keep the Codespace and Metro running.</p><p><code>%s</code></p>''' % (html.escape(uri, quote=True), html.escape(uri))
 pathlib.Path(directory, 'index.html').write_text(page)
 PY

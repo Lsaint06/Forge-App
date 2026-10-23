@@ -14,6 +14,7 @@ import {
   Keyboard,
   useWindowDimensions,
   type StyleProp,
+  type TextInputInstance,
   type ViewStyle,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -61,9 +62,12 @@ const compareOrder = (a: number[], b: number[]) => {
  * walks weight → reps → RIR → the next set → the next exercise.
  */
 export class SetFocusOrder {
-  private entries = new Map<string, { order: number[]; input: TextInput }>();
+  private entries = new Map<
+    string,
+    { order: number[]; input: TextInputInstance }
+  >();
   private current: string | undefined;
-  register(key: string, order: number[], input: TextInput) {
+  register(key: string, order: number[], input: TextInputInstance) {
     this.entries.set(key, { order, input });
     return () => {
       if (this.entries.get(key)?.input === input) this.entries.delete(key);
@@ -133,7 +137,7 @@ function NumberCell({
 }) {
   const c = useColors();
   const focus = useSetFocus();
-  const ref = useRef<TextInput>(null);
+  const ref = useRef<TextInputInstance>(null);
   const [draft, setDraft] = useState(formatNumber(value));
   const [focused, setFocused] = useState(false);
   // Whether the text was changed during this focus.

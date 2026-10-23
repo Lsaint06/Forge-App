@@ -22,7 +22,9 @@ jest.mock("expo-router", () => {
             key: name,
           })),
         },
-        navigation: { navigate: mockNavigate, emit: mockEmit },
+        // Expo Router 58 tab bar props.
+        emitter: { emit: mockEmit },
+        navigateToTab: mockNavigate,
       }),
     { Screen: () => null },
   );
@@ -66,7 +68,26 @@ test("the selected tab is white, never orange", async () => {
   const view = await render(<TabLayout />);
   const flat = (style: unknown) =>
     StyleSheet.flatten(style as StyleProp<TextStyle>);
-  expect(flat(view.getByText("Today").props.style).color).toBe(dark.text);
-  expect(flat(view.getByText("Train").props.style).color).toBe(dark.text2);
+  expect(flat(view.getByText("Today").props.style)?.color).toBe(dark.text);
+  expect(flat(view.getByText("Train").props.style)?.color).toBe(dark.text2);
   expect(view.queryByLabelText("Resume active workout")).toBeNull();
+});
+
+test("tapping the current tab does not navigate, and a prevented press is respected", async () => {
+  jest.mocked(useRepo).mockReturnValue({
+    active: () => undefined,
+  } as unknown as ReturnType<typeof useRepo>);
+  const view = await render(<TabLayout />);
+  await fireEvent.press(view.getByLabelText("Today"));
+  expect(mockEmit).toHaveBeenCalledWith({
+    type: "tabPress",
+    target: "index",
+    canPreventDefault: true,
+  });
+  expect(mockNavigate).not.toHaveBeenCalled();
+  mockEmit.mockReturnValueOnce({ defaultPrevented: true });
+  await fireEvent.press(view.getByLabelText("Train"));
+  expect(mockNavigate).not.toHaveBeenCalled();
+  await fireEvent.press(view.getByLabelText("Train"));
+  expect(mockNavigate).toHaveBeenCalledWith("train");
 });

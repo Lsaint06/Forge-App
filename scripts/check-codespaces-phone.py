@@ -20,7 +20,7 @@ try:
     with urllib.request.urlopen(request, timeout=60) as response:
         manifest = json.load(response)
     client = manifest["extra"]["expoClient"]
-    if client["name"] != "FORGE" or client["sdkVersion"] != "57.0.0":
+    if client["name"] != "FORGE" or client["sdkVersion"] != "58.0.0":
         raise ValueError("Unexpected app or SDK in public manifest")
     launch_url = manifest["launchAsset"]["url"]
     parsed = urllib.parse.urlsplit(launch_url)
@@ -30,7 +30,7 @@ try:
         bundle = response.read()
         if not bundle or b"Your session." not in bundle:
             raise ValueError("Bundle did not contain the expected FORGE application")
-    print("PASS: public HTTPS status, FORGE SDK 57 manifest and iOS bundle")
+    print("PASS: public HTTPS status, FORGE SDK 58 manifest and iOS bundle")
     print("Expo Go:", origin.replace("https://", "exps://", 1))
     print("Safari launch page:", f"https://{name}-8080.{domain}")
 except Exception as error:
