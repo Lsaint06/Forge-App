@@ -40,6 +40,11 @@ for (const [name, p] of Object.entries(theme.palettes))
     assert.ok(contrast(p.text2, p.selected) >= 3, "unselected segment");
     // Inverted chips: background-coloured label on a text-coloured pill.
     assert.ok(contrast(p.bg, p.text) >= 4.5, "selected chip");
+    // Completed set rows keep readable numbers and a visible check.
+    assert.ok(contrast(p.text, p.successSubtle) >= 4.5, "completed set text");
+    assert.ok(contrast(p.text2, p.successSubtle) >= 4.5, "completed set text2");
+    assert.ok(contrast(p.success, p.successSubtle) >= 3, "completed check");
+    assert.ok(contrast(p.text3, p.successSubtle) >= 3, "completed hint");
   });
 
 test("earlier colour names map onto the 2.0 tokens", () => {

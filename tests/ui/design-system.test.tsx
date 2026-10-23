@@ -59,6 +59,14 @@ test("button variants share one API and expose labels and disabled state", async
     backgroundColor?: string;
   };
   expect(secondary.backgroundColor).toBe(theme.colors.surfaceRaised);
+  // A disabled button keeps its variant colour, faded: it never looks like
+  // an empty field (tonal fill with grey text).
+  const disabled = flat(view.getByLabelText("Disabled").props.style) as {
+    backgroundColor?: string;
+    opacity?: number;
+  };
+  expect(disabled.backgroundColor).toBe(theme.colors.ember);
+  expect(disabled.opacity).toBe(0.4);
 });
 
 test("icon buttons keep a 44 pt target and a spoken label", async () => {

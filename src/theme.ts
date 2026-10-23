@@ -24,6 +24,9 @@ const dark = {
   onEmber: "#0A0B0D",
   // Status
   success: "#43B88C",
+  // Completed set rows: success at ~14% over surface, precomputed so its
+  // contrast can be verified.
+  successSubtle: "#1B2D29",
   warning: "#E5AE58",
   error: "#EE7A75",
   scrim: "rgba(0,0,0,0.6)",
@@ -38,10 +41,13 @@ const light = {
   text: "#111418",
   text2: "#4E5864",
   text3: "#6B7480",
-  ember: "#B83215",
-  emberPressed: "#96270F",
+  // Same hue as dark-mode ember (17°), darkened for AA contrast on light
+  // surfaces and under white labels.
+  ember: "#C2410C",
+  emberPressed: "#A3360A",
   onEmber: "#FFFFFF",
   success: "#19724F",
+  successSubtle: "#E3EEEA",
   warning: "#8A5A00",
   error: "#A52C32",
   scrim: "rgba(0,0,0,0.4)",

@@ -63,6 +63,7 @@ export default function DesignSystem() {
     ["text3", c.text3],
     ["ember", c.ember],
     ["success", c.success],
+    ["successSubtle", c.successSubtle],
     ["error", c.error],
   ];
   return (

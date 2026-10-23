@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
 import { Sheet, Field, Label, Chips, useColors } from "./ui";
 import { useRepo } from "../state";
+import { theme } from "../theme";
 import type { Exercise } from "../domain/types";
 export function ExercisePicker({
   visible,
@@ -45,6 +46,7 @@ export function ExercisePicker({
         ]}
         value={muscle}
         onChange={setMuscle}
+        bleed={theme.spacing.screen}
       />
       <View style={{ height: 350, flexShrink: 1, minHeight: 100 }}>
         <FlatList

@@ -1,193 +1,95 @@
 import React, { useState } from "react";
 import { View, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Alert } from "../platform/alert";
 import { useRepo, mutate, confirm } from "../state";
 import {
   Card,
-  Label,
+  Txt,
   Button,
-  Row,
+  TextButton,
+  IconButton,
   Field,
   NumberField,
-  Chips,
+  SegmentedControl,
+  Sheet,
   useColors,
+  type IconName,
 } from "./ui";
+import { OverflowMenu, type MenuAction } from "./system";
 import { ExercisePicker } from "./ExercisePicker";
-import { overload, kgToLb, lbToKg } from "../domain/metrics";
+import { SetGrid, SetRow } from "./SetGrid";
+import { overload } from "../domain/metrics";
 import { targetProgression } from "../domain/progression";
-import { repRangeLabel, restGuidanceLabel } from "../domain/prescriptions";
+import {
+  targetSummary,
+  inlineAdvice,
+  plannedSets,
+  previousBySet,
+  loadLabel,
+  rirLabel,
+  keepSegmentsTogether,
+  adviceSummary,
+  type InlineAdvice,
+} from "../domain/workout-display";
 import type { WorkoutExercise, WorkoutSet } from "../domain/types";
-import { restNotification } from "../notifications";
-import { IconButton } from "./design";
 import { programExerciseAdvice, programWorkoutContext } from "../data/programs";
-import type { ProgramExercise } from "../domain/programs/model";
 
-// "Program target: 3 × 8 reps per side · 2–3 RIR · rest 2–3 min".
-export function programTargetLabel(
-  target: { sets: number; min: number; max: number },
-  item: ProgramExercise | undefined,
-  rir: { min: number; max: number } | undefined,
-  restSeconds: number,
-) {
-  const parts = [
-    `Program target: ${target.sets} × ${repRangeLabel({ reps: target.min, repMax: target.max })} reps${item?.perSide ? " per side" : ""}`,
-  ];
-  if (rir)
-    parts.push(
-      rir.min === rir.max ? `${rir.min} RIR` : `${rir.min}–${rir.max} RIR`,
-    );
-  parts.push(
-    item?.rest ? restGuidanceLabel(item.rest) : `${restSeconds}s rest`,
-  );
-  return parts.join(" · ");
-}
-export function SetRow({
-  set: s,
-  category,
-}: {
-  set: WorkoutSet;
-  category: string;
-}) {
-  const r = useRepo();
-  const p = r.profile();
-  const c = useColors();
-  const display = p.units === "lb" ? kgToLb(s.weight) : s.weight;
-  function save(patch: Partial<WorkoutSet>) {
-    mutate(() => r.editSet(s.id, patch));
-  }
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-        paddingVertical: 6,
-        borderTopWidth: 1,
-        borderColor: c.border,
-        backgroundColor: s.completed ? c.elevated : "transparent",
-        borderRadius: 8,
-      }}
-    >
-      <Label bold size={13} style={{ width: 32, textAlign: "center" }}>
-        {s.position + 1}
-      </Label>
-      {category === "strength" ? (
-        <>
-          <NumberField
-            label={`Set ${s.position + 1} weight (${p.units})`}
-            compact
-            value={display}
-            onSave={(n) =>
-              save({ weight: p.units === "lb" ? lbToKg(n ?? 0) : (n ?? 0) })
-            }
-          />
-          <NumberField
-            label={`Set ${s.position + 1} reps`}
-            compact
-            integer
-            max={10000}
-            value={s.reps}
-            onSave={(n) => save({ reps: n ?? 0 })}
-          />
-        </>
-      ) : (
-        <>
-          <NumberField
-            label={`Set ${s.position + 1} duration (seconds)`}
-            compact
-            value={s.duration}
-            onSave={(n) => save({ duration: n ?? 0 })}
-          />
-          {category === "distance" && (
-            <NumberField
-              label={`Set ${s.position + 1} distance (meters)`}
-              compact
-              value={s.distance}
-              onSave={(n) => save({ distance: n ?? 0 })}
-            />
-          )}
-        </>
-      )}
-      <IconButton
-        label={
-          s.completed
-            ? `Mark set ${s.position + 1} incomplete`
-            : `Complete set ${s.position + 1}`
-        }
-        selected={s.completed}
-        icon={s.completed ? "checkmark-circle" : "ellipse-outline"}
-        onPress={() => {
-          mutate(() => r.editSet(s.id, { completed: !s.completed }));
-          if (
-            !s.completed &&
-            r.sets(s.exerciseRowId).find((x) => x.id === s.id)?.completed
-          ) {
-            const deadline = Date.now() + s.rest * 1000;
-            mutate(() => r.setSetting("restDeadline", String(deadline)));
-            void restNotification(deadline).catch((e) =>
-              Alert.alert("Rest saved; notification unavailable", String(e)),
-            );
-          }
-        }}
-      />
-    </View>
-  );
-}
+export { SetRow };
 
+// Path workouts without a saved rep target keep their written guidance.
+const pathGuidance =
+  "Path progression: reach the prescribed reps on every working set with controlled technique and about two reps left, then consider the smallest load increase. Repeat or reduce the load when recovery calls for it.";
+
+/** Everything about one set beyond weight, reps and completion. */
 function SetDetails({ set: s }: { set: WorkoutSet }) {
   const r = useRepo();
   function save(patch: Partial<WorkoutSet>) {
     mutate(() => r.editSet(s.id, patch));
   }
   return (
-    <View style={{ gap: 12 }}>
-      <Label
-        muted
-        size={12}
-      >{`Set ${s.position + 1} · ${s.kind} · ${s.side}`}</Label>
-      <Button
-        title="Remove set"
-        secondary
-        onPress={() =>
-          confirm("Remove set?", "This set will be deleted.", () =>
-            r.removeSet(s.id),
-          )
-        }
-      />
-      <Chips
-        values={["warmup", "working", "drop", "failure"]}
+    <>
+      <SegmentedControl
+        label="Set type"
+        options={[
+          { value: "warmup", label: "Warm-up" },
+          { value: "working", label: "Working" },
+          { value: "drop", label: "Drop" },
+          { value: "failure", label: "Failure" },
+        ]}
         value={s.kind}
         onChange={(kind) => save({ kind: kind as WorkoutSet["kind"] })}
       />
-      <Chips
-        values={["both", "left", "right"]}
+      <SegmentedControl
+        label="Side"
+        options={[
+          { value: "both", label: "Both sides" },
+          { value: "left", label: "Left" },
+          { value: "right", label: "Right" },
+        ]}
         value={s.side}
         onChange={(side) => save({ side: side as WorkoutSet["side"] })}
       />
-      <Row>
-        <NumberField
-          label="RPE (1–10, optional)"
-          min={1}
-          max={10}
-          value={s.rpe}
-          nullable
-          onSave={(rpe) => save({ rpe })}
-        />
-        <NumberField
-          label="RIR (0–20, optional)"
-          max={20}
-          value={s.rir}
-          nullable
-          onSave={(rir) => save({ rir })}
-        />
-        <NumberField
-          label="Rest (seconds)"
-          max={3600}
-          value={s.rest}
-          onSave={(rest) => save({ rest: rest ?? 0 })}
-        />
-      </Row>
+      <NumberField
+        label="RPE (1–10, optional)"
+        min={1}
+        max={10}
+        value={s.rpe}
+        nullable
+        onSave={(rpe) => save({ rpe })}
+      />
+      <NumberField
+        label="RIR (0–20, optional)"
+        max={20}
+        value={s.rir}
+        nullable
+        onSave={(rir) => save({ rir })}
+      />
+      <NumberField
+        label="Rest (seconds)"
+        max={3600}
+        value={s.rest}
+        onSave={(rest) => save({ rest: rest ?? 0 })}
+      />
       <Field
         label="Tempo (e.g. 3-1-1-0)"
         value={s.tempo}
@@ -196,33 +98,170 @@ function SetDetails({ set: s }: { set: WorkoutSet }) {
       <Field
         label="Set notes"
         value={s.notes}
+        multiline
         onChangeText={(notes) => save({ notes })}
+      />
+      <Button
+        title="Remove set"
+        variant="destructive"
+        icon="trash-outline"
+        onPress={() =>
+          confirm("Remove set?", "This set will be deleted.", () =>
+            r.removeSet(s.id),
+          )
+        }
+      />
+    </>
+  );
+}
+
+/** One line of session advice with a quick Apply and a link to the reason. */
+function AdviceRow({
+  advice,
+  icon,
+  units,
+  onApply,
+  onInfo,
+}: {
+  advice: InlineAdvice;
+  icon: IconName;
+  units: "kg" | "lb";
+  onApply: () => void;
+  onInfo: () => void;
+}) {
+  const c = useColors();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        minHeight: 44,
+        paddingLeft: 12,
+        borderRadius: 12,
+        backgroundColor: c.surfaceRaised,
+      }}
+    >
+      <Ionicons name={icon} size={16} color={c.ember} />
+      <Txt variant="caption" weight="600" numberOfLines={2} style={{ flex: 1 }}>
+        {advice.headline}
+      </Txt>
+      {advice.apply !== undefined && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Use suggested load ${loadLabel(advice.apply, units)}`}
+          onPress={onApply}
+          hitSlop={4}
+          style={({ pressed }) => ({
+            minHeight: 44,
+            paddingHorizontal: 8,
+            justifyContent: "center",
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <Txt variant="body" weight="600" tone="accent">
+            Apply
+          </Txt>
+        </Pressable>
+      )}
+      <IconButton
+        icon="information-circle-outline"
+        label="Why this suggestion"
+        size={20}
+        onPress={onInfo}
       />
     </View>
   );
 }
+
+/** A tappable one- or two-line note with a leading icon. */
+function NoteLine({
+  icon,
+  text,
+  label,
+  hint,
+  onPress,
+}: {
+  icon: IconName;
+  text: string;
+  label: string;
+  hint: string;
+  onPress: () => void;
+}) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={hint}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        gap: 8,
+        minHeight: 44,
+        alignItems: "center",
+        opacity: pressed ? 0.6 : 1,
+      })}
+    >
+      <Ionicons name={icon} size={16} color={c.text2} />
+      <Txt
+        variant="caption"
+        tone="secondary"
+        numberOfLines={2}
+        style={{ flex: 1 }}
+      >
+        {text}
+      </Txt>
+    </Pressable>
+  );
+}
+
+/**
+ * One exercise in the logger: name, a one-line target, optional advice, the
+ * set grid and Add set. Infrequent actions live in the exercise menu; set
+ * details open from the set number.
+ */
 export default function WorkoutExerciseCard({
   row: e,
   initialExpanded = false,
+  index,
+  count,
+  completedWorkout = false,
 }: {
   row: WorkoutExercise;
   initialExpanded?: boolean;
+  index?: number;
+  count?: number;
+  /** Reviewing a finished workout: completing a set starts no rest. */
+  completedWorkout?: boolean;
 }) {
   const r = useRepo();
   const exercise = r.exercise(e.exerciseId);
+  const name = exercise?.name ?? "Missing exercise";
   const p = r.profile();
   const c = useColors();
   const sets = r.sets(e.id);
-  const [replace, setReplace] = useState(false);
-  const [details, setDetails] = useState(false);
   const [expanded, setExpanded] = useState(initialExpanded);
+  const [sheet, setSheet] = useState<
+    "settings" | "progression" | "substitute"
+  >();
+  const [more, setMore] = useState(false);
   const [detailSetId, setDetailSetId] = useState<string>();
-  const detailSet = sets.find((s) => s.id === detailSetId) ?? sets[0];
+  const detailSet = sets.find((s) => s.id === detailSetId);
   const working = sets.filter((s) => s.kind !== "warmup");
+  const done = sets.filter((s) => s.completed).length;
   const category = exercise?.category ?? "strength";
-  const previous = r
-    .history(e.exerciseId)[0]
-    ?.filter((s) => s.completed && s.kind !== "warmup");
+  const strength = category === "strength";
+  // The last completed session of this exercise, excluding this workout.
+  const thisWorkout = new Set(
+    r.workoutExercises(e.workoutId).map((row) => row.id),
+  );
+  const previous = previousBySet(
+    sets,
+    r
+      .history(e.exerciseId)
+      .find((group) => !group.some((s) => thisWorkout.has(s.exerciseRowId))),
+  );
   const pathWorkout = r
     .journal("schedule")
     .some(
@@ -252,266 +291,376 @@ export default function WorkoutExerciseCard({
           max: p.repMax,
           increment: p.increment,
         });
-  const shownLoad = (kg: number) =>
-    `${Math.round((p.units === "lb" ? kgToLb(kg) : kg) * 100) / 100} ${p.units}`;
+  // Inline RIR for every program-based workout (curated programs and
+  // existing Paths); freestyle keeps RIR in Set Details.
+  const showRir = strength && (!!programContext || pathWorkout);
+  const rirTarget = programContext ? programAdvice?.rir : undefined;
+  const summary = targetSummary({
+    target,
+    item: programContext ? programItem : undefined,
+    rir: rirTarget,
+    rest: e.rest,
+    workingSets: working.length,
+  });
+  const planned = plannedSets(sets, !!target).map((s) => s.weight);
+  const advice =
+    strength && (programContext || target)
+      ? inlineAdvice(
+          programContext ? programAdvice : recommendation,
+          planned,
+          p.units,
+        )
+      : undefined;
+  const adviceIcon: IconName = advice
+    ? {
+        up: "trending-up" as const,
+        down: "trending-down" as const,
+        hold: "repeat" as const,
+        "lower-fatigue": "battery-half" as const,
+        assess: "speedometer-outline" as const,
+        establish: "flag-outline" as const,
+        review: "create-outline" as const,
+      }[advice.kind]
+    : "information-circle-outline";
+  const pathNote = pathWorkout && !target && strength;
+  const genericAdvice =
+    recommendation && (!pathWorkout || target) && strength
+      ? recommendation
+      : undefined;
+  const programText = programContext?.enrollment.program?.progression;
+  // The advice this sheet leads with: the author's progression for program
+  // workouts, otherwise the generic suggestion.
+  const sessionAdvice = programAdvice ?? genericAdvice;
+  const lead = adviceSummary(sessionAdvice, p.units);
+  const hasProgression = !!(
+    programAdvice ||
+    pathNote ||
+    genericAdvice ||
+    programText ||
+    programItem?.notes
+  );
   const applyLoad = (weight: number | null) =>
     mutate(() => {
       if (weight == null)
         throw new Error(
           "Choose a working load manually until comparable performance is available.",
         );
-      for (const s of sets.filter(
-        (s) => !s.completed && (!target || s.kind === "working"),
-      ))
-        r.editSet(s.id, { weight });
+      for (const s of plannedSets(sets, !!target)) r.editSet(s.id, { weight });
     });
+  const close = () => setSheet(undefined);
+  const menu: MenuAction[] = [
+    {
+      label: "Move up",
+      icon: "arrow-up",
+      disabled: index === 0,
+      onPress: () => mutate(() => r.moveExercise(e.id, -1)),
+    },
+    {
+      label: "Move down",
+      icon: "arrow-down",
+      disabled: count !== undefined && index === count - 1,
+      onPress: () => mutate(() => r.moveExercise(e.id, 1)),
+    },
+    {
+      label: "Substitute exercise",
+      icon: "swap-horizontal",
+      onPress: () => setSheet("substitute"),
+    },
+    {
+      label: "Notes, rest & superset",
+      icon: "options-outline",
+      onPress: () => setSheet("settings"),
+    },
+    ...(hasProgression
+      ? [
+          {
+            label: "Progression",
+            icon: "trending-up" as const,
+            onPress: () => setSheet("progression"),
+          },
+        ]
+      : []),
+    {
+      label: "Remove exercise",
+      icon: "trash-outline",
+      destructive: true,
+      onPress: () =>
+        confirm(
+          "Remove exercise?",
+          "All sets for this movement will also be removed.",
+          () => r.removeExercise(e.id),
+        ),
+    },
+  ];
   return (
-    <Card>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${expanded ? "Collapse" : "Expand"} ${exercise?.name ?? "exercise"}`}
-        accessibilityState={{ expanded }}
-        onPress={() => setExpanded(!expanded)}
-        style={{
-          minHeight: 48,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <View style={{ flex: 1 }}>
-          <Label size={21} bold>
-            {exercise?.name ?? "Missing exercise"}
-          </Label>
-          <Label size={12} muted>
-            {exercise?.muscle} · {exercise?.equipment}
-          </Label>
-        </View>
-        <Ionicons
-          name={expanded ? "chevron-up" : "chevron-down"}
-          size={22}
-          color={c.muted}
+    <Card compact>
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${expanded ? "Collapse" : "Expand"} ${name}`}
+          accessibilityState={{ expanded }}
+          accessibilityValue={{
+            text: `${done} of ${sets.length} sets complete`,
+          }}
+          onPress={() => setExpanded(!expanded)}
+          style={{
+            flex: 1,
+            minHeight: 44,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <Txt variant="headline" numberOfLines={2}>
+              {name}
+            </Txt>
+            <Txt variant="caption" tone="secondary">
+              {keepSegmentsTogether(summary)}
+            </Txt>
+          </View>
+          {sets.length > 0 &&
+            (done === sets.length ? (
+              <Ionicons name="checkmark-circle" size={20} color={c.success} />
+            ) : (
+              <Txt variant="caption" tone="secondary" tabular>
+                {`${done}/${sets.length}`}
+              </Txt>
+            ))}
+          <Ionicons
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={18}
+            color={c.text3}
+          />
+        </Pressable>
+        <OverflowMenu
+          label={`Options for ${name}`}
+          title={name}
+          actions={menu}
         />
-      </Pressable>
-      {target ? (
-        <Label size={12} muted>
-          {programContext
-            ? programTargetLabel(
-                target,
-                programItem,
-                programAdvice?.rir,
-                e.rest,
-              )
-            : `${pathWorkout ? "Path" : "Template"} target: ${target.sets} × ${repRangeLabel({ reps: target.min, repMax: target.max })} reps · ${e.rest}s rest`}
-        </Label>
-      ) : (
-        <Label size={12} muted>
-          {`${working.length} working ${working.length === 1 ? "set" : "sets"} · ${e.rest}s rest`}
-        </Label>
+      </View>
+      {!!e.groupId && (
+        <Txt variant="caption" tone="secondary">
+          Superset · {e.groupId}
+        </Txt>
       )}
-      {programItem?.notes && (
-        <Label size={12}>Program note: {programItem.notes}</Label>
-      )}
-      {programAdvice?.action === "lower-fatigue" && (
-        <Label size={12} muted>
-          Lower-fatigue session · authored baseline {programItem?.sets} sets
-        </Label>
-      )}
-      <Label
-        size={12}
-        muted
-      >{`${sets.filter((s) => s.completed).length} / ${sets.length} sets complete`}</Label>
       {expanded && (
         <>
-          <Label muted size={12}>
-            {previous?.length
-              ? `Previous: ${previous.map((s) => `${Math.round((p.units === "lb" ? kgToLb(s.weight) : s.weight) * 10) / 10} ${p.units} × ${s.reps}`).join(" · ")}`
-              : "No previous working sets"}
-          </Label>
-          {programContext && programAdvice && (
-            <View style={{ gap: 6 }}>
-              {programAdvice && (
-                <>
-                  {programAdvice.weight != null && (
-                    <Label size={12} muted>
-                      NEXT LOAD · {shownLoad(programAdvice.weight)}
-                    </Label>
-                  )}
-                  <Label size={12} muted>
-                    {programAdvice.reason}
-                  </Label>
-                  {programAdvice.weight != null && (
-                    <Button
-                      title="Apply suggested load"
-                      secondary
-                      onPress={() => applyLoad(programAdvice.weight)}
-                    />
-                  )}
-                </>
-              )}
-            </View>
-          )}
-          <Button
-            title={details ? "Hide exercise options" : "Exercise options"}
-            secondary
-            icon="options-outline"
-            onPress={() => setDetails(!details)}
-          />
-          {details && (
-            <View style={{ gap: 12 }}>
-              <Row>
-                <Button
-                  title="Move up"
-                  secondary
-                  onPress={() => mutate(() => r.moveExercise(e.id, -1))}
-                />
-                <Button
-                  title="Move down"
-                  secondary
-                  onPress={() => mutate(() => r.moveExercise(e.id, 1))}
-                />
-                <Button
-                  title="Substitute"
-                  secondary
-                  onPress={() => setReplace(true)}
-                />
-                <Button
-                  title="Remove"
-                  secondary
-                  onPress={() =>
-                    confirm(
-                      "Remove exercise?",
-                      "All sets for this movement will also be removed.",
-                      () => r.removeExercise(e.id),
-                    )
-                  }
-                />
-              </Row>
-              {pathWorkout && !target && exercise?.category === "strength" && (
-                <Label muted size={12}>
-                  Path progression: reach the prescribed reps on every working
-                  set with controlled technique and about two reps left, then
-                  consider the smallest load increase. Repeat or reduce the load
-                  when recovery calls for it.
-                </Label>
-              )}
-              {programContext?.enrollment.program && (
-                <Label size={12} muted>
-                  Program progression:{" "}
-                  {programContext.enrollment.program.progression}
-                </Label>
-              )}
-              {recommendation &&
-                (!pathWorkout || target) &&
-                exercise?.category === "strength" && (
-                  <View style={{ gap: 6 }}>
-                    {recommendation.weight != null && (
-                      <Label size={12} muted>
-                        NEXT LOAD · {shownLoad(recommendation.weight)}
-                      </Label>
-                    )}
-                    <Label size={12} muted>
-                      {recommendation.reason}
-                    </Label>
-                    <Button
-                      title="Apply suggested load"
-                      secondary
-                      disabled={recommendation.weight == null}
-                      onPress={() => applyLoad(recommendation.weight)}
-                    />
-                  </View>
-                )}
-              <Field
-                label="Exercise notes"
-                value={e.notes}
-                onChangeText={(notes) =>
-                  mutate(() => r.editExercise(e.id, { notes }))
-                }
-              />
-              <Field
-                label="Superset / circuit group (shared label)"
-                value={e.groupId}
-                onChangeText={(groupId) =>
-                  mutate(() => r.editExercise(e.id, { groupId }))
-                }
-              />
-              <NumberField
-                label="Exercise default rest (seconds)"
-                value={e.rest}
-                onSave={(rest) =>
-                  mutate(() => r.editExercise(e.id, { rest: rest ?? 0 }))
-                }
-              />
-              {detailSet && (
-                <View style={{ gap: 12 }}>
-                  <Label bold>Optional set tracking</Label>
-                  <Chips
-                    values={sets.map((s) => `Set ${s.position + 1}`)}
-                    value={`Set ${detailSet.position + 1}`}
-                    onChange={(label) =>
-                      setDetailSetId(
-                        sets.find((s) => `Set ${s.position + 1}` === label)!.id,
-                      )
-                    }
-                  />
-                  <SetDetails key={detailSet.id} set={detailSet} />
-                </View>
-              )}
-            </View>
-          )}
-          {!!sets.length && (
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-            >
-              <Label size={11} muted style={{ width: 32, textAlign: "center" }}>
-                SET
-              </Label>
-              <Label size={11} muted style={{ flex: 1 }}>
-                {category === "strength" ? `WEIGHT (${p.units})` : "SECONDS"}
-              </Label>
-              {category !== "duration" && (
-                <Label size={11} muted style={{ flex: 1 }}>
-                  {category === "strength" ? "REPS" : "METERS"}
-                </Label>
-              )}
-              <Label size={11} muted style={{ width: 48, textAlign: "center" }}>
-                DONE
-              </Label>
-            </View>
-          )}
-          {sets.map((s) => (
-            <SetRow
-              key={s.id}
-              set={s}
-              category={exercise?.category ?? "strength"}
+          {programItem?.notes && (
+            <NoteLine
+              icon="information-circle-outline"
+              text={programItem.notes}
+              label={`Program note: ${programItem.notes}`}
+              hint="Opens progression and program notes"
+              onPress={() => setSheet("progression")}
             />
-          ))}
-          <Button
-            title="Add set"
-            secondary
-            icon="add"
-            onPress={() =>
-              mutate(() => {
-                const prev = sets[sets.length - 1];
-                return r.addSet(
-                  e.id,
-                  prev
-                    ? {
-                        weight: prev.weight,
-                        reps: prev.reps,
-                        rest: e.rest,
-                        kind: "working",
-                      }
-                    : {},
-                );
-              })
-            }
-          />
+          )}
+          {!!e.notes && (
+            <NoteLine
+              icon="create-outline"
+              text={e.notes}
+              label={`Exercise notes: ${e.notes}`}
+              hint="Edit notes, rest and superset"
+              onPress={() => setSheet("settings")}
+            />
+          )}
+          {advice && (
+            <AdviceRow
+              advice={advice}
+              icon={adviceIcon}
+              units={p.units}
+              onApply={() => applyLoad(advice.apply ?? null)}
+              onInfo={() => setSheet("progression")}
+            />
+          )}
+          {sets.length > 0 && (
+            <SetGrid
+              sets={sets}
+              category={category}
+              showRir={showRir}
+              previous={previous}
+              rirPlaceholder={
+                rirTarget
+                  ? rirTarget.min === rirTarget.max
+                    ? `${rirTarget.min}`
+                    : `${rirTarget.min}-${rirTarget.max}`
+                  : undefined
+              }
+              order={e.position}
+              onDetails={(s) => setDetailSetId(s.id)}
+              startsRest={!completedWorkout}
+            />
+          )}
+          <View style={{ alignItems: "flex-start" }}>
+            <TextButton
+              title="Add set"
+              icon="add"
+              onPress={() =>
+                mutate(() => {
+                  const prev = sets[sets.length - 1];
+                  return r.addSet(
+                    e.id,
+                    prev
+                      ? {
+                          weight: prev.weight,
+                          reps: prev.reps,
+                          rest: e.rest,
+                          kind: "working",
+                        }
+                      : {},
+                  );
+                })
+              }
+            />
+          </View>
         </>
       )}
+      <Sheet
+        visible={!!detailSet}
+        onClose={() => setDetailSetId(undefined)}
+        title={detailSet ? `Set ${detailSet.position + 1} details` : "Set"}
+        dismissOnBackdrop
+      >
+        <Txt variant="caption" tone="secondary">
+          {name}
+        </Txt>
+        {detailSet && <SetDetails key={detailSet.id} set={detailSet} />}
+      </Sheet>
+      <Sheet
+        visible={sheet === "settings"}
+        onClose={close}
+        title="Exercise settings"
+      >
+        <Txt variant="caption" tone="secondary">
+          {name}
+        </Txt>
+        <Field
+          label="Exercise notes"
+          value={e.notes}
+          multiline
+          onChangeText={(notes) =>
+            mutate(() => r.editExercise(e.id, { notes }))
+          }
+        />
+        <Field
+          label="Superset / circuit group (shared label)"
+          value={e.groupId}
+          onChangeText={(groupId) =>
+            mutate(() => r.editExercise(e.id, { groupId }))
+          }
+        />
+        <NumberField
+          label="Exercise default rest (seconds)"
+          value={e.rest}
+          onSave={(rest) =>
+            mutate(() => r.editExercise(e.id, { rest: rest ?? 0 }))
+          }
+        />
+      </Sheet>
+      <Sheet
+        visible={sheet === "progression"}
+        onClose={() => {
+          close();
+          setMore(false);
+        }}
+        title="Progression"
+        dismissOnBackdrop
+      >
+        <Txt variant="caption" tone="secondary">
+          {name}
+          {rirTarget ? ` · target ${rirLabel(rirTarget)}` : ""}
+        </Txt>
+        {lead && (
+          <View style={{ gap: 6 }}>
+            <Txt variant="overline" tone="secondary">
+              This session
+            </Txt>
+            <Txt variant="headline">{lead.headline}</Txt>
+            {lead.load && <Txt variant="metric">{lead.load}</Txt>}
+            <Txt tone="secondary">{lead.detail}</Txt>
+            {sessionAdvice?.weight != null || genericAdvice ? (
+              <View style={{ marginTop: 6 }}>
+                <Button
+                  title="Apply suggested load"
+                  variant="secondary"
+                  disabled={sessionAdvice?.weight == null}
+                  onPress={() => {
+                    applyLoad(sessionAdvice?.weight ?? null);
+                    close();
+                  }}
+                />
+              </View>
+            ) : null}
+          </View>
+        )}
+        {programItem?.notes && (
+          <View style={{ gap: 4 }}>
+            <Txt variant="overline" tone="secondary">
+              Program note
+            </Txt>
+            <Txt>{programItem.notes}</Txt>
+          </View>
+        )}
+        {(lead?.more ||
+          pathNote ||
+          programText ||
+          programAdvice?.action === "lower-fatigue") && (
+          <View style={{ gap: 12 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="How this is decided"
+              accessibilityState={{ expanded: more }}
+              onPress={() => setMore(!more)}
+              style={({ pressed }) => ({
+                minHeight: 44,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                opacity: pressed ? 0.6 : 1,
+              })}
+            >
+              <Ionicons
+                name="information-circle-outline"
+                size={18}
+                color={c.text2}
+              />
+              <Txt variant="body" weight="600" style={{ flex: 1 }}>
+                How this is decided
+              </Txt>
+              <Ionicons
+                name={more ? "chevron-up" : "chevron-down"}
+                size={18}
+                color={c.text3}
+              />
+            </Pressable>
+            {more && (
+              <>
+                {programAdvice?.action === "lower-fatigue" && (
+                  <Txt variant="caption" tone="secondary">
+                    Lower-fatigue session · authored baseline{" "}
+                    {programItem?.sets} sets
+                  </Txt>
+                )}
+                {lead?.more && sessionAdvice && (
+                  <Txt tone="secondary">{sessionAdvice.reason}</Txt>
+                )}
+                {pathNote && <Txt tone="secondary">{pathGuidance}</Txt>}
+                {programText && (
+                  <View style={{ gap: 4 }}>
+                    <Txt variant="overline" tone="secondary">
+                      Program progression
+                    </Txt>
+                    <Txt tone="secondary">{programText}</Txt>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        )}
+      </Sheet>
       <ExercisePicker
-        visible={replace}
-        onClose={() => setReplace(false)}
+        visible={sheet === "substitute"}
+        onClose={close}
         onPick={(x) => mutate(() => r.editExercise(e.id, { exerciseId: x.id }))}
       />
     </Card>

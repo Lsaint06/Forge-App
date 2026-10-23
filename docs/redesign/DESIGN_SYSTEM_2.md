@@ -2,7 +2,7 @@
 
 The app's interior should match the splash: black steel, white type, a single ember. **One action. One number. One line.**
 
-Status: **Phase 1 (foundations) implemented.** Screens adopt the system progressively; see [Roadmap](#roadmap).
+Status: **Phase 1 (foundations) committed; Phase 2 (workout logging) implemented, in review.** Screens adopt the system progressively; see [Roadmap](#roadmap).
 
 - Tokens: [`src/theme.ts`](../../src/theme.ts)
 - Primitives: [`src/components/ui.tsx`](../../src/components/ui.tsx)
@@ -13,16 +13,21 @@ Status: **Phase 1 (foundations) implemented.** Screens adopt the system progress
 
 ### Color (dark first; light keeps parity)
 
-| Token | Dark | Light | Use |
-| --- | --- | --- | --- |
-| `bg` | `#0A0B0D` | `#F2F3F5` | App background |
-| `surface` | `#141619` | `#FFFFFF` | Cards, grouped sections (tonal, no border) |
-| `surfaceRaised` | `#1E2125` | `#E9ECF0` | Inputs, secondary buttons, pressed rows |
-| `selected` | `#33373E` | `#FFFFFF` | Selected segment |
-| `hairline` | `#2A2E34` | `#D5DAE1` | Row separators, sheet grabber |
-| `text` / `text2` / `text3` | `#F4F2EE` / `#A4A9B0` / `#6E747C` | `#111418` / `#4E5864` / `#6B7480` | Primary / secondary / tertiary text |
-| `ember` | `#F46B35` | `#B83215` | **Only** the screen's primary action, selection indicators, live progress |
-| `success` / `error` / `warning` | `#43B88C` / `#EE7A75` / `#E5AE58` | `#19724F` / `#A52C32` / `#8A5A00` | Completed sets / destructive / caution |
+| Token                           | Dark                              | Light                             | Use                                                                       |
+| ------------------------------- | --------------------------------- | --------------------------------- | ------------------------------------------------------------------------- |
+| `bg`                            | `#0A0B0D`                         | `#F2F3F5`                         | App background                                                            |
+| `surface`                       | `#141619`                         | `#FFFFFF`                         | Cards, grouped sections (tonal, no border)                                |
+| `surfaceRaised`                 | `#1E2125`                         | `#E9ECF0`                         | Inputs, secondary buttons, pressed rows                                   |
+| `selected`                      | `#33373E`                         | `#FFFFFF`                         | Selected segment                                                          |
+| `hairline`                      | `#2A2E34`                         | `#D5DAE1`                         | Row separators, sheet grabber                                             |
+| `text` / `text2` / `text3`      | `#F4F2EE` / `#A4A9B0` / `#6E747C` | `#111418` / `#4E5864` / `#6B7480` | Primary / secondary / tertiary text                                       |
+| `ember`                         | `#F46B35`                         | `#C2410C`                         | **Only** the screen's primary action, selection indicators, live progress |
+| `success` / `error` / `warning` | `#43B88C` / `#EE7A75` / `#E5AE58` | `#19724F` / `#A52C32` / `#8A5A00` | Completed sets / destructive / caution                                    |
+| `successSubtle`                 | `#1B2D29`                         | `#E3EEEA`                         | Completed set rows (an opaque tint, so its contrast can be tested)        |
+
+Light-mode ember shares dark ember's hue (17°), darkened to `#C2410C` for AA contrast. The earlier `#B83215` read brick red on device.
+
+Disabled buttons keep their variant colours at 40% opacity, so an unavailable action still reads as a button and never as an empty field.
 
 Contrast is enforced by `tests/design-tokens.test.ts` for both palettes:
 
@@ -34,16 +39,16 @@ Earlier color names (`background`, `elevated`, `muted`, `accent`, `border`, …)
 
 ### Typography (system font)
 
-| Role | Size / line | Weight | Tracking | Use |
-| --- | --- | --- | --- | --- |
-| `display` | 28 / 32 compact · 32 / 36 standard · 34 / 40 large | 800 | −0.5 | The screen title (one per screen) |
-| `title` | 22 / 27 | 700 | −0.2 | Section and sheet titles, card heroes |
-| `headline` | 17 / 22 | 600 | 0 | Row titles, exercise names |
-| `body` | 15 / 21 | 400 | 0 | Supporting text (one line where possible) |
-| `caption` | 13 / 17 | 500 | 0 | Meta lines, units, field labels |
-| `overline` | 11 / 14 | 700 | +1.6, uppercase | Section labels and screen context, echoing the splash |
-| `metricXL` | 40 / 44 compact · 44 / 48 otherwise | 700, tabular | −1 | Timers, hero numbers |
-| `metric` | 22 / 26 | 600, tabular | −0.3 | Weights, reps, stats |
+| Role       | Size / line                                        | Weight       | Tracking        | Use                                                   |
+| ---------- | -------------------------------------------------- | ------------ | --------------- | ----------------------------------------------------- |
+| `display`  | 28 / 32 compact · 32 / 36 standard · 34 / 40 large | 800          | −0.5            | The screen title (one per screen)                     |
+| `title`    | 22 / 27                                            | 700          | −0.2            | Section and sheet titles, card heroes                 |
+| `headline` | 17 / 22                                            | 600          | 0               | Row titles, exercise names                            |
+| `body`     | 15 / 21                                            | 400          | 0               | Supporting text (one line where possible)             |
+| `caption`  | 13 / 17                                            | 500          | 0               | Meta lines, units, field labels                       |
+| `overline` | 11 / 14                                            | 700          | +1.6, uppercase | Section labels and screen context, echoing the splash |
+| `metricXL` | 40 / 44 compact · 44 / 48 otherwise                | 700, tabular | −1              | Timers, hero numbers                                  |
+| `metric`   | 22 / 26                                            | 600, tabular | −0.3            | Weights, reps, stats                                  |
 
 `Txt` renders a role (`<Txt variant="metric">`). The earlier `Label` snaps arbitrary sizes onto these roles (≤11 overline, ≤13 caption, ≤16 body, ≤19 headline, ≤24 title, larger display). This replaces the 17 sizes in use before. Numeric inputs use tabular figures.
 
@@ -67,22 +72,22 @@ Earlier color names (`background`, `elevated`, `muted`, `accent`, `border`, …)
 
 ## Components
 
-| Component | Where | Notes |
-| --- | --- | --- |
-| `Screen` | ui | 20 pt margins, safe areas, keyboard avoidance and interactive dismissal. Overline context plus a `display` title (announced as a header) |
-| `Txt`, `Label` | ui | Role-based text; `Label` is legacy-compatible |
-| `Button` | ui | `variant`: `primary` (flat ember, one per screen), `secondary` (tonal), `text`, `destructive`. Legacy `secondary` and `danger` props still work |
-| `TextButton`, `IconButton` | ui | Low-emphasis inline actions; icon actions always carry a spoken label and a 44 pt target. `filled` gives a circular tonal background |
-| `Card` | ui | Tonal surface; `compact` for dense content, `raised` inside other surfaces |
-| `Field`, `NumberField` | ui | Tonal input, ember focus ring, error text; tabular numerals for numbers |
-| `Chips` / `FilterChips` | ui | Pills with inverted selection (text-coloured pill). `FilterChips` bleeds to the screen edge; pass `bleed` inside cards |
-| `SegmentedControl` | ui | 2–5 exclusive options, exposed as tabs with selection state |
-| `Choices` | ui | Descriptive radio options (onboarding, profile) |
-| `Stat`, `ProgressBar`, `Empty` | ui | Tabular stat; 6 pt ember bar; quiet empty state |
-| `Sheet`, `SheetHeader` | ui | Grabber, `title` heading, circular × labelled "Close", scrollable body, optional pinned `footer` for the sheet's single action. The ×, Android back and the VoiceOver escape gesture close it. **Tapping the backdrop closes only sheets that pass `dismissOnBackdrop`.** Use it for information and action lists. Never use it for sheets holding form input or confirmations, so a stray tap cannot discard work. **Pass `unsaved` while a form holds changes.** Every close path then asks "Discard changes?" ("Keep editing" / "Discard"). Saving hides the sheet directly, so it never prompts. Sheets have no swipe-to-dismiss gesture |
-| `ListRow`, `ListSection` | system | Grouped rows (title, subtitle, value, icon, chevron, destructive) on one surface with hairlines. They replace navigation buttons |
-| `OverflowMenu` | system | "•••" opens an action list: non-destructive first, destructive last in red, disabled states, and Cancel. The chosen action runs **once, after the menu has closed**, so it can open a sheet, a confirmation or a screen. On iOS it waits for the menu's dismissal event (with a 700 ms fallback) because iOS cannot present a new modal while one is still closing. Repeat taps and re-opening while an action is pending are ignored |
-| `InfoButton`, `InfoSheet` | system | Educational and methodology text one tap away instead of inline paragraphs. Information sheets close on a backdrop tap |
+| Component                      | Where  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Screen`                       | ui     | 20 pt margins, safe areas, keyboard avoidance and interactive dismissal. Overline context plus a `display` title (announced as a header)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `Txt`, `Label`                 | ui     | Role-based text; `Label` is legacy-compatible                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `Button`                       | ui     | `variant`: `primary` (flat ember, one per screen), `secondary` (tonal), `text`, `destructive`. Legacy `secondary` and `danger` props still work                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `TextButton`, `IconButton`     | ui     | Low-emphasis inline actions; icon actions always carry a spoken label and a 44 pt target. `filled` gives a circular tonal background                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `Card`                         | ui     | Tonal surface; `compact` for dense content, `raised` inside other surfaces                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `Field`, `NumberField`         | ui     | Tonal input, ember focus ring, error text; tabular numerals for numbers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `Chips` / `FilterChips`        | ui     | Pills with inverted selection (text-coloured pill). `FilterChips` bleeds to the screen edge; pass `bleed` inside cards                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `SegmentedControl`             | ui     | 2–5 exclusive options, exposed as tabs with selection state                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `Choices`                      | ui     | Descriptive radio options (onboarding, profile)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `Stat`, `ProgressBar`, `Empty` | ui     | Tabular stat; 6 pt ember bar; quiet empty state                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `Sheet`, `SheetHeader`         | ui     | Grabber, `title` heading, circular × labelled "Close", scrollable body, optional pinned `footer` for the sheet's single action. The ×, Android back and the VoiceOver escape gesture close it. **Tapping the backdrop closes only sheets that pass `dismissOnBackdrop`.** Use it for information and action lists. Never use it for sheets holding form input or confirmations, so a stray tap cannot discard work. **Pass `unsaved` while a form holds changes.** Every close path then asks "Discard changes?" ("Keep editing" / "Discard"). Saving hides the sheet directly, so it never prompts. Sheets have no swipe-to-dismiss gesture |
+| `ListRow`, `ListSection`       | system | Grouped rows (title, subtitle, value, icon, chevron, destructive) on one surface with hairlines. They replace navigation buttons                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `OverflowMenu`                 | system | "•••" opens an action list: non-destructive first, destructive last in red, disabled states, and Cancel. The chosen action runs **once, after the menu has closed**, so it can open a sheet, a confirmation or a screen. On iOS it waits for the menu's dismissal event (with a 700 ms fallback) because iOS cannot present a new modal while one is still closing. Repeat taps and re-opening while an action is pending are ignored                                                                                                                                                                                                        |
+| `InfoButton`, `InfoSheet`      | system | Educational and methodology text one tap away instead of inline paragraphs. Information sheets close on a backdrop tap                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ## Usage rules
 
@@ -115,11 +120,11 @@ Foundations only; no screen was restructured.
 
 Automated tests cover tokens, contrast, responsive roles, sheet dismissal and the menu's ordering and single-run behavior. The following needs physical devices (Expo Go). The **Device QA** section of the design-system reference shows the viewport, size class and text-size multiplier, plus a "Menu chaining" test menu with a run counter.
 
-| Device class | Example | Check |
-| --- | --- | --- |
-| Compact | iPhone SE (3rd gen), 13 mini | Screen titles fit on two lines or fewer; chip rows scroll; sheets fit with the keyboard open; tab bar labels |
-| Standard | iPhone 15/16/17 | Baseline review of every screen in dark and light |
-| Large | iPhone 16/17 Pro Max | Title scale (34 pt) and line lengths look intentional |
+| Device class | Example                      | Check                                                                                                        |
+| ------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Compact      | iPhone SE (3rd gen), 13 mini | Screen titles fit on two lines or fewer; chip rows scroll; sheets fit with the keyboard open; tab bar labels |
+| Standard     | iPhone 15/16/17              | Baseline review of every screen in dark and light                                                            |
+| Large        | iPhone 16/17 Pro Max         | Title scale (34 pt) and line lengths look intentional                                                        |
 
 On each device:
 
@@ -132,39 +137,106 @@ On each device:
 6. **VoiceOver.** Overlines and stats read naturally ("Next session", "12 Working sets"); headers are announced; the escape gesture (two-finger Z) closes sheets.
 7. **Light mode.** Set You → Edit profile & preferences → Appearance to Light. Contrast is verified automatically, but review surfaces, chips and sheets visually.
 8. **Landscape.** The app is portrait-only (`app.json`), so landscape needs no check.
+9. **Workout logger (Phase 2).** Start a curated program session, an existing Path session and a freestyle workout.
+   - **Set grid:** the layout is wide on standard and Pro Max phones and compact on the SE or mini. Turn on Larger Text (AX sizes) to see the stacked layout. Numbers are never clipped and the grid never scrolls sideways.
+   - **Keyboard:** tap a weight. The value is selected, the decimal pad shows, and the keyboard bar shows **Next/Done** (plus the rest countdown while resting). **Next** walks weight → reps → RIR → the next set. The focused input stays above the keyboard.
+   - **Dock and rest:** completing a set starts the rest timer in the dock, and the dock stays visible while scrolling. +30 and Skip work. The rest notification arrives with the app in the background.
+   - **Finish:** never covered by the keyboard bar or the home indicator. On Android it hides while typing.
+   - **Set Details:** tap a set number. Change the set type (the W tag appears), side, RPE, tempo and notes, then remove a set.
+   - **Menus:** every workout and exercise menu action opens its sheet or confirmation once.
+   - **Resume:** leave mid-workout, then return from Train → Resume. Every value is kept.
 
-## Phase 2 — Workout logging (prepared, not started)
+## Phase 2 — Workout logging (implemented)
 
-Goals: set rows reachable without scrolling past guidance; compact targets; inline RIR for curated programs; simple weight/rep entry; clear completion; persistent, unobtrusive rest timing; one clear finish control.
+Goals: set rows reachable without scrolling past guidance; compact targets; inline RIR for program workouts; simple weight and rep entry; clear completion; persistent, unobtrusive rest timing; one clear finish control.
 
 ```
-Header (sticky):  ‹  Upper A               32:14     •••    Finish
-Exercise block:   Barbell Bench Press                        •••
-                  3 × 6–8 · RIR 2–3 · 3–5 min        (program note: 1 line, tap to expand)
-                  [ Next 62.5 kg · Apply ]  (i)       (only when advice exists; reason in info sheet)
-                  SET  PREV     KG      REPS   RIR   ✓
-                  1    60×8   [62.5]   [ 8 ]  [ 2 ]  ◯
-                  + Add set                 Set details ›   (RPE, type, side, tempo, notes, rest)
-Footer:           + Add exercise (end of list)
-Rest pill:        ⏱ 2:14   +30   ✕   (floating above the safe area while resting)
+Header (sticky):  ‹  Lower A (Squat Strength)              32:14   •••
+                     4 of 18 sets · 2,480 kg
+Exercise card:    Back Squat                          1/4  ⌄   •••
+                  4 × 4-6 reps · 2–3 RIR · rest 3–5 min
+                  ⓘ Program note (2 lines, tap for the full note)
+                  ↗ Increase to 102.5 kg            Apply  ⓘ   (only when useful)
+                  SET  PREV     KG     REPS   RIR    ✓
+                  1    100×6  [102.5]  [ 6 ]  [2-3]  ◯     (set number opens Set Details)
+                  + Add set
+Dock (sticky):    [⏱ 1:32  +30  ✕]  [          ✓ Finish          ]
+iOS keyboard bar: ⏱ 1:32                              Next   Done
 ```
 
-| Area | Plan | Reuses |
-| --- | --- | --- |
-| **Header** | Back, truncated name, tabular session clock, `OverflowMenu` and a Finish text button that keeps the current confirmation | `IconButton`, `OverflowMenu`, `Txt metric` |
-| **Overflows** | **Workout:** rename, notes, pause/resume, save as template, discard. **Exercise:** move, substitute, superset group, exercise rest, notes, progression info, remove | `OverflowMenu`, `Sheet`, `InfoButton` |
-| **Set rows** | Previous values as ghost text; weight and reps inputs; an **inline RIR cell** for program workouts (program progression requires logged effort); completion check with haptic. **Set details** stays an explicit visible control for RPE, set type, side, tempo, notes and rest | `NumberField` (compact), `IconButton`, `Sheet` |
-| **Rest timer** | A floating pill (start, +30, skip). Default rest goes in the workout overflow | `Txt metricXL` |
+- **Files:**
+  - Workout screen: `src/screens/Workout.tsx`
+  - Exercise card: `src/components/WorkoutExerciseCard.tsx`
+  - Set grid: `src/components/SetGrid.tsx`
+  - Layout rules: `src/components/set-grid-layout.ts`
+  - Display helpers: `src/domain/workout-display.ts`
+- **Header:**
+  - Back button, title and status, tabular clock (`4:05`, `24:00`, `1:04:00`) and the workout menu. The slogan title and the "Session details" panel are gone.
+  - The title is the session name ("Lower A (Squat Strength)"); the full program name stays in the menu title and Train history.
+  - Status is one short line: sets done and volume; "Paused" or "Lower-fatigue session" when relevant; "Completed Oct 20 · 9,635 kg" in review.
+- **Dock:** the rest timer and the single primary action, **Finish**, announced to VoiceOver as "Finish workout". Finish keeps its confirmation and the "No completed sets" check.
+  - The dock sits below the scrolling list, so it never covers content, and it clears the home indicator.
+  - Completed sessions have no dock, and ticking a set while reviewing one never starts a rest timer or reminder.
+  - **Paused:** a tonal **Resume** button replaces the rest timer beside Finish, so resuming never means searching the menu and Finish stays the only orange action.
+  - On Android the list and dock move above the keyboard (Android draws edge to edge, so the window does not resize). Finish hides while typing; the rest timer stays. On iOS the keyboard covers the dock, and the keyboard bar shows the rest countdown.
+- **Exercise card:**
+  - Tapping the name expands or collapses the card; the first unfinished exercise opens first.
+  - A one-line target, then the program note and your exercise notes (tap for the full text or to edit).
+  - An advice row only when it changes or explains this session: a different suggested load, a lower-fatigue session, a performance check, or choosing a starting load. Assisted movements never get a load suggestion.
+  - The advice icon follows the meaning: up for an increase, down for a reduction, repeat for "Stay at", plus distinct icons for lower fatigue, the performance check and choosing a starting load.
+  - Target lines wrap only between segments, so "rest 3–5 min" never splits.
+  - **Apply** changes only unfinished working sets.
+  - **Progression sheet:**
+    - **This session:** the action ("Increase the load"), the suggested load, the first sentence of the reason and **Apply suggested load**.
+    - **How this is decided** expands to the full reason, the program's progression rules, the Path guidance or the lower-fatigue baseline.
+    - The wording comes from the existing progression output; nothing is recalculated.
+- **Set grid:** previous result (same set type, same order, from the last session of that exercise); weight and reps, or seconds and meters for duration and distance exercises; **inline RIR for curated programs and existing Paths** (placeholder shows the target RIR; saves to the existing `rir` field with the same 0–20 rule); and a completion check.
+  - Completing a set tints the row, gives a light haptic and starts that set's rest, as before.
+  - Freestyle and template workouts keep RIR in Set Details.
+- **Set Details** opens from the set number. The dots under the number, or a W/D/F/L/R tag, show that it opens. It contains set type, side, RPE, RIR, rest, tempo, notes and **Remove set** (confirmed). Each field has its own full-width row.
+- **Inputs:**
+  - Number pad for reps; decimal pad for weight, RIR, seconds and meters.
+  - The value is selected on focus.
+  - Invalid entries are outlined in red, never saved, and explained to VoiceOver.
+  - **Next** (iOS keyboard bar, Android return key) walks weight → reps → RIR → next set → next exercise.
+  - The list scrolls the focused input above the keyboard.
 
-Constraints: progression calculations, prescriptions, scheduling, history and backups are unchanged. Every existing workout feature stays reachable, and accessibility labels used by tests are preserved or updated alongside the tests.
+### Responsive set grid
+
+Column minimum widths at the default text size: set 32, previous 56, weight 64, reps 48, RIR 44, check 44, gaps 4. A grid measures itself and picks a layout (`setGridLayout`). The thresholds were checked on Android at 375, 393 and 430 dp, and with Android text size at 1.3×:
+
+| Layout  | When                                                                            | Shows                                                         |
+| ------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Wide    | Everything fits (every iPhone from the SE, 375 pt, up at the default text size) | SET · PREV · KG · REPS · RIR · ✓                              |
+| Compact | Without PREV it fits (larger text, or a first-generation SE)                    | SET · KG · REPS · RIR · ✓, with "Previous 60×8" below the row |
+| Stacked | Even that does not fit (largest text on small phones)                           | Set number, previous and ✓ on one line; labelled inputs below |
+
+Numbers in inputs grow with Dynamic Type up to 1.4×. There is no horizontal scrolling, clipping or crushed numbers.
+
+### Where everything went
+
+| Earlier control                                                     | Now                                                                                                   |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Back to tabs                                                        | ‹ in the header                                                                                       |
+| Session details: name, notes, pause/resume                          | Workout menu → Rename workout, Workout notes, Pause/Resume workout                                    |
+| Rest settings → default rest                                        | Workout menu → Default rest                                                                           |
+| Make this repeatable → Save as template                             | Workout menu → Save as template (asks before discarding a typed name)                                 |
+| Discard workout / Delete session                                    | Workout menu, last, in red, confirmed                                                                 |
+| Exercise options: move, substitute, remove                          | Exercise menu → Move up/down (disabled at the ends), Substitute exercise, Remove exercise (confirmed) |
+| Exercise options: notes, superset group, default rest               | Exercise menu → Notes, rest & superset                                                                |
+| Exercise options: progression text, Next load, Apply suggested load | Advice row (when useful) and Exercise menu → Progression                                              |
+| Optional set tracking (set chips + fields)                          | Tap the set number → Set Details                                                                      |
+| "Previous:" line                                                    | PREV column, or the line under each set on compact layouts                                            |
+
+Unchanged: progression calculations, RIR interpretation, prescriptions, scheduling, workout data, autosave and resume.
 
 ## Roadmap
 
-| Phase | Scope |
-| --- | --- |
-| 1 · Foundations | **Done:** tokens, primitives, composites, reference screen, tests |
-| 2 · Workout logging | See above |
-| 3 · Today, Train, navigation | Four tabs (Today, Train, Progress, You); Explore inside Train; Today prioritizes the next scheduled workout; History screen |
-| 4 · Forge Paths | Library, program details (unique sessions, phase timeline, persistent enrollment action), dashboard, existing Path |
-| 5 · Progress, You, secondary screens | Grouped settings, info sheets for methodology and privacy, Templates, Journal, Account, Exercise |
-| 6 · Onboarding visuals and polish | Motion, haptics, light-theme parity, Dynamic Type and VoiceOver, device QA (compact, standard and large iPhones, keyboard, safe areas, landscape where supported) |
+| Phase                                | Scope                                                                                                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 · Foundations                      | **Done:** tokens, primitives, composites, reference screen, tests                                                                                                 |
+| 2 · Workout logging                  | **Implemented, in review:** see above                                                                                                                             |
+| 3 · Today, Train, navigation         | Four tabs (Today, Train, Progress, You); Explore inside Train; Today prioritizes the next scheduled workout; History screen                                       |
+| 4 · Forge Paths                      | Library, program details (unique sessions, phase timeline, persistent enrollment action), dashboard, existing Path                                                |
+| 5 · Progress, You, secondary screens | Grouped settings, info sheets for methodology and privacy, Templates, Journal, Account, Exercise                                                                  |
+| 6 · Onboarding visuals and polish    | Motion, haptics, light-theme parity, Dynamic Type and VoiceOver, device QA (compact, standard and large iPhones, keyboard, safe areas, landscape where supported) |

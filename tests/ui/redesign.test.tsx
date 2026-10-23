@@ -150,9 +150,16 @@ test("exercise cards collapse logging but retain their summary and progress", as
   repo();
   const view = await render(<WorkoutExerciseCard row={row} />);
   expect(view.getByText("1 working set · 90s rest")).toBeTruthy();
-  expect(view.getByText("0 / 1 sets complete")).toBeTruthy();
+  expect(
+    view.getByRole("button", {
+      name: "Expand Bench press",
+      expanded: false,
+      value: { text: "0 of 1 sets complete" },
+    }),
+  ).toBeTruthy();
+  expect(view.getByText("0/1")).toBeTruthy();
   expect(view.queryByLabelText("Set 1 reps")).toBeNull();
-  expect(view.queryByLabelText("Exercise options")).toBeNull();
+  expect(view.queryByLabelText("Set 1 details")).toBeNull();
   await fireEvent.press(
     view.getByRole("button", { name: "Expand Bench press", expanded: false }),
   );
@@ -160,9 +167,15 @@ test("exercise cards collapse logging but retain their summary and progress", as
   expect(view.queryByText("Effort & details")).toBeNull();
   expect(view.queryByLabelText("Set notes")).toBeNull();
   expect(view.queryByLabelText("RIR (0–20, optional)")).toBeNull();
-  await fireEvent.press(view.getByLabelText("Exercise options"));
+  // Freestyle workouts keep RIR in Set Details rather than inline.
+  expect(view.queryByLabelText("Set 1 RIR")).toBeNull();
+  // Set details open from the set number.
+  await fireEvent.press(view.getByLabelText("Set 1 details"));
+  expect(view.getByRole("header", { name: "Set 1 details" })).toBeTruthy();
   expect(view.getByLabelText("RIR (0–20, optional)")).toBeTruthy();
   expect(view.getByLabelText("Set notes")).toBeTruthy();
+  await fireEvent.press(view.getByLabelText("Close"));
+  expect(view.queryByLabelText("Set notes")).toBeNull();
   await fireEvent.press(
     view.getByRole("button", {
       name: "Collapse Bench press",

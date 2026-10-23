@@ -1,5 +1,10 @@
 import React from "react";
-import { render, fireEvent } from "@testing-library/react-native";
+import {
+  render,
+  fireEvent,
+  waitFor,
+  type RenderResult,
+} from "@testing-library/react-native";
 import WorkoutExerciseCard from "../../src/components/WorkoutExerciseCard";
 import LegacyPath from "../../src/screens/LegacyPath";
 import Templates from "../../app/templates";
@@ -35,6 +40,23 @@ jest.mock("../../src/state", () => ({
     selector({ profile: undefined }),
 }));
 
+// Opens the exercise menu, chooses an item and waits for its sheet (menu
+// actions run once the menu has closed).
+async function openProgression(view: RenderResult) {
+  await fireEvent.press(view.getByLabelText(/^Options for /));
+  await fireEvent.press(view.getByRole("menuitem", { name: "Progression" }));
+  await waitFor(() =>
+    expect(view.getByRole("header", { name: "Progression" })).toBeTruthy(),
+  );
+}
+
+// Target lines carry invisible word joiners so ranges never wrap mid-way;
+// match the visible text.
+const visible = (s: string) =>
+  s
+    .replace(/\u2060/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 test("a saved Path workout shows its saved rep range even if the template later changes, with no unsupported load suggestion", async () => {
   const { r, db } = freshPathRepository();
   try {
@@ -51,12 +73,16 @@ test("a saved Path workout shows its saved rep range even if the template later 
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<WorkoutExerciseCard row={row} />);
     expect(
-      view.getByText(
-        `Path target: ${row.target!.sets} × 6-8 reps · ${row.rest}s rest`,
-      ),
+      view.getByText(`${row.target!.sets} × 6-8 reps · ${row.rest}s rest`, {
+        normalizer: visible,
+      }),
     ).toBeTruthy();
     await fireEvent.press(view.getByLabelText("Expand Barbell Bench Press"));
-    await fireEvent.press(view.getByLabelText("Exercise options"));
+    // Existing Paths are program workouts: RIR is logged inline.
+    expect(view.getByLabelText("Set 1 RIR")).toBeTruthy();
+    // No inline suggestion without comparable history.
+    expect(view.queryByLabelText(/^Use suggested load/)).toBeNull();
+    await openProgression(view);
     expect(
       view.getByRole("button", {
         name: "Apply suggested load",
@@ -98,20 +124,28 @@ test("compact logging and optional set tracking preserve saved details and compa
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<WorkoutExerciseCard row={row} />);
     expect(
-      view.getByText("Template target: 2 × 6-8 reps · 120s rest"),
+      view.getByText("2 × 6-8 reps · 120s rest", { normalizer: visible }),
     ).toBeTruthy();
-    expect(view.getByText("1 / 2 sets complete")).toBeTruthy();
+    expect(
+      view.getByRole("button", {
+        name: "Expand Barbell Bench Press",
+        value: { text: "1 of 2 sets complete" },
+      }),
+    ).toBeTruthy();
     await fireEvent.press(view.getByLabelText("Expand Barbell Bench Press"));
     await fireEvent.changeText(view.getByLabelText("Set 2 weight (kg)"), "45");
     await fireEvent.changeText(view.getByLabelText("Set 2 reps"), "8");
     expect(view.queryByLabelText("Set notes")).toBeNull();
-    await fireEvent.press(view.getByLabelText("Exercise options"));
+    // A template workout is not a program: RIR stays in Set Details.
+    expect(view.queryByLabelText("Set 2 RIR")).toBeNull();
+    await fireEvent.press(view.getByLabelText("Set 1 details"));
     expect(view.getByLabelText("Set notes").props.value).toBe("Controlled");
     expect(view.getByLabelText("RIR (0–20, optional)").props.value).toBe("2");
     expect(view.getByLabelText("Tempo (e.g. 3-1-1-0)").props.value).toBe(
       "3-1-1-0",
     );
-    await fireEvent.press(view.getByRole("button", { name: "Set 2" }));
+    await fireEvent.press(view.getByLabelText("Close"));
+    await fireEvent.press(view.getByLabelText("Set 2 details"));
     await fireEvent.changeText(
       view.getByLabelText("Set notes"),
       "Second working set",
@@ -120,7 +154,7 @@ test("compact logging and optional set tracking preserve saved details and compa
       view.getByLabelText("RIR (0–20, optional)"),
       "3",
     );
-    await fireEvent.press(view.getByLabelText("Hide exercise options"));
+    await fireEvent.press(view.getByLabelText("Close"));
     expect(view.queryByLabelText("RIR (0–20, optional)")).toBeNull();
     await fireEvent.press(view.getByLabelText("Complete set 2"));
     await fireEvent.press(view.getByLabelText("Collapse Barbell Bench Press"));
@@ -206,7 +240,10 @@ test("applying a target recommendation changes only unfinished working sets", as
     const view = await render(
       <WorkoutExerciseCard row={row} initialExpanded />,
     );
-    await fireEvent.press(view.getByLabelText("Exercise options"));
+    // The planned 50 kg differs from the earned increase, so it is offered
+    // inline; the full reasoning and Apply live in the Progression sheet.
+    expect(view.getByText("Suggested 52.5 kg")).toBeTruthy();
+    await openProgression(view);
     await fireEvent.press(
       view.getByRole("button", { name: "Apply suggested load" }),
     );
@@ -235,14 +272,15 @@ test("existing Path workouts progress against the Path's prescribed rep target, 
     const view = await render(
       <WorkoutExerciseCard row={row} initialExpanded />,
     );
-    await fireEvent.press(view.getByLabelText("Exercise options"));
     // The suggestion is driven by the Path's saved target (not the profile's
     // global range) and stays user-applied.
     expect(
       view.getByText(
-        `Path target: ${row.target!.sets} × ${repRangeLabel({ reps: row.target!.min, repMax: row.target!.max })} reps · ${row.rest}s rest`,
+        `${row.target!.sets} × ${repRangeLabel({ reps: row.target!.min, repMax: row.target!.max })} reps · ${row.rest}s rest`,
+        { normalizer: visible },
       ),
     ).toBeTruthy();
+    await openProgression(view);
     expect(view.getByLabelText("Apply suggested load")).toBeTruthy();
     expect(view.queryByText(/Path progression:/)).toBeNull();
   } finally {

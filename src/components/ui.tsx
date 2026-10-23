@@ -344,6 +344,7 @@ export function Button({
   icon,
   variant,
   compact = false,
+  accessibilityLabel,
 }: {
   title: string;
   onPress: () => void;
@@ -353,6 +354,8 @@ export function Button({
   icon?: IconName;
   variant?: ButtonVariant;
   compact?: boolean;
+  /** Spoken label when the visible title relies on context (default: title). */
+  accessibilityLabel?: string;
 }) {
   const c = useColors();
   const kind: ButtonVariant =
@@ -364,9 +367,10 @@ export function Button({
       : kind === "text"
         ? theme.heights.compact
         : theme.heights.control;
-  const fg = disabled
-    ? c.text3
-    : kind === "primary"
+  // Disabled buttons keep their variant colours, faded, so they still read as
+  // a button (never as an empty field) that is unavailable.
+  const fg =
+    kind === "primary"
       ? c.onEmber
       : kind === "destructive"
         ? c.error
@@ -376,7 +380,7 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
@@ -388,16 +392,14 @@ export function Button({
         backgroundColor:
           kind === "text"
             ? "transparent"
-            : disabled
-              ? c.surfaceRaised
-              : kind === "primary"
-                ? pressed
-                  ? c.emberPressed
-                  : c.ember
-                : pressed
-                  ? c.selected
-                  : c.surfaceRaised,
-        opacity: pressed && kind === "text" ? 0.6 : 1,
+            : kind === "primary"
+              ? pressed
+                ? c.emberPressed
+                : c.ember
+              : pressed
+                ? c.selected
+                : c.surfaceRaised,
+        opacity: disabled ? 0.4 : pressed && kind === "text" ? 0.6 : 1,
         flexDirection: "row",
         justifyContent: "center",
         alignItems: "center",
@@ -539,7 +541,7 @@ export function Field({
           props.style,
         ]}
       />
-      {error && (
+      {!!error && (
         <Txt variant="caption" tone="error">
           {error}
         </Txt>
@@ -547,6 +549,34 @@ export function Field({
     </View>
   );
 }
+export type NumberRule = {
+  nullable?: boolean;
+  min?: number;
+  max?: number;
+  integer?: boolean;
+};
+/** Shared numeric-entry validation for fields and set-grid cells. */
+export function parseNumber(
+  text: string,
+  { nullable = false, min = 0, max = Infinity, integer = false }: NumberRule,
+): { value: number | null } | { error: string } {
+  if (nullable && text.trim() === "") return { value: null };
+  const number = Number(text);
+  if (
+    !text.trim() ||
+    !Number.isFinite(number) ||
+    number < min ||
+    number > max ||
+    (integer && !Number.isInteger(number))
+  )
+    return {
+      error: `Enter ${integer ? "a whole number" : "a number"} from ${min}${Number.isFinite(max) ? ` to ${max}` : " or greater"}`,
+    };
+  return { value: number };
+}
+export const formatNumber = (n: number | null) =>
+  n == null ? "" : String(Math.round(n * 100) / 100);
+
 export function NumberField({
   label,
   value,
@@ -566,31 +596,16 @@ export function NumberField({
   integer?: boolean;
   compact?: boolean;
 }) {
-  const format = (n: number | null) =>
-    n == null ? "" : String(Math.round(n * 100) / 100);
-  const [draft, setDraft] = useState(format(value));
+  const [draft, setDraft] = useState(formatNumber(value));
   const [focused, setFocused] = useState(false);
   const [error, setError] = useState("");
   function save(text: string) {
-    if (nullable && text.trim() === "") {
-      onSave(null);
-      setError("");
+    const result = parseNumber(text, { nullable, min, max, integer });
+    if ("error" in result) {
+      setError(result.error);
       return;
     }
-    const number = Number(text);
-    if (
-      !text.trim() ||
-      !Number.isFinite(number) ||
-      number < min ||
-      number > max ||
-      (integer && !Number.isInteger(number))
-    ) {
-      setError(
-        `Enter ${integer ? "a whole number" : "a number"} from ${min}${Number.isFinite(max) ? ` to ${max}` : " or greater"}`,
-      );
-      return;
-    }
-    onSave(number);
+    onSave(result.value);
     setError("");
   }
   return (
@@ -598,9 +613,9 @@ export function NumberField({
       label={label}
       compact={compact}
       keyboardType="decimal-pad"
-      value={focused ? draft : format(value)}
+      value={focused ? draft : formatNumber(value)}
       onFocus={() => {
-        setDraft(format(value));
+        setDraft(formatNumber(value));
         setFocused(true);
       }}
       onChangeText={(text) => {
