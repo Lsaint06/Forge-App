@@ -605,4 +605,8 @@ New: [TemplateEditor.tsx](../../src/components/TemplateEditor.tsx), [DateSheet.t
 - The calendar and reorder sheets stacked over the editor (iOS modal presentation).
 - VoiceOver on the steppers and calendar days.
 
-*End of report. Phase 7B WP1, WP2 and WP3 are approved and committed (WP2 and WP3 verified on the owner's iPhone); WP4–WP7 have not begun.*
+## Phase 7B progress — WP4A Nutrition (implemented, in review)
+
+WP4 is split into WP4A (Nutrition), WP4B (Measurements), WP4C (Recovery) and WP4D (Goals), each reviewed separately. The WP4A audit, the founder's decisions (D1–D10), the implementation, tests, emulator results and outstanding iPhone checks are in [PHASE_7B_WP4A_NUTRITION_AUDIT.md](PHASE_7B_WP4A_NUTRITION_AUDIT.md). WP4A resolves C-06 and the nutrition part of C-05.
+
+*End of report. Phase 7B WP1, WP2 and WP3 are approved and committed (WP2 and WP3 verified on the owner's iPhone); WP4A is implemented and awaiting review; WP4B–WP4D and WP5–WP7 have not begun.*

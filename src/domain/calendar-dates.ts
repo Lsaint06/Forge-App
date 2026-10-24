@@ -48,3 +48,14 @@ export function weekdayHeaders() {
     }),
   );
 }
+
+/** "Today", "Yesterday" or "Thu, Oct 22": a day being looked back on. */
+export function dayTitle(date: string, today = localDate()) {
+  if (date === today) return "Today";
+  if (date === addDays(today, -1)) return "Yesterday";
+  return atNoon(date).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}

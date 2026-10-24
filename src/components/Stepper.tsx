@@ -81,16 +81,37 @@ export function Stepper({
  * A load in the profile's units: type it, or step it by the lifter's
  * increment. `value` and `onChange` are in display units.
  */
-export function LoadControl({
+export function LoadControl(props: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  step: number;
+}) {
+  return <NumberControl {...props} min={0} max={2000} />;
+}
+
+/**
+ * A number that can be typed (accepting "," or "." decimals) or stepped with
+ * − and +. Steps stay within `min`–`max`; typed values outside them show an
+ * error and are not applied.
+ */
+export function NumberControl({
   label,
   value,
   onChange,
   step,
+  min = 0,
+  max = Infinity,
+  floor = min,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   step: number;
+  min?: number;
+  max?: number;
+  /** Lowest value − steps down to (a smaller value can still be typed). */
+  floor?: number;
 }) {
   const round = (n: number) => Math.round(n * 100) / 100;
   return (
@@ -105,22 +126,25 @@ export function LoadControl({
         icon="remove-circle-outline"
         label={`Decrease ${label} by ${step}`}
         size={26}
-        onPress={() => onChange(Math.max(0, round(value - step)))}
+        onPress={() => {
+          if (value > floor) onChange(Math.max(floor, round(value - step)));
+        }}
       />
       <View style={{ flex: 1 }}>
         <NumberField
           label={label}
           compact
-          max={2000}
+          min={min}
+          max={max}
           value={value}
-          onSave={(n) => onChange(n ?? 0)}
+          onSave={(n) => onChange(n ?? min)}
         />
       </View>
       <IconButton
         icon="add-circle-outline"
         label={`Increase ${label} by ${step}`}
         size={26}
-        onPress={() => onChange(round(value + step))}
+        onPress={() => onChange(Math.min(max, round(value + step)))}
       />
     </View>
   );

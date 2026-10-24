@@ -13,9 +13,10 @@ import { dayLabel } from "../domain/training-display";
 import { theme } from "../theme";
 
 /**
- * Choosing a day: a month grid from today onward. Nothing happens until the
- * lifter confirms; closing the sheet changes nothing, and confirming runs
- * once even if tapped twice.
+ * Choosing a day: a month grid from today onward (`range="future"`, for
+ * planning) or up to today (`range="past"`, for logging). Nothing happens
+ * until the lifter confirms; closing the sheet changes nothing, and
+ * confirming runs once even if tapped twice.
  */
 export function DateSheet({
   visible,
@@ -25,6 +26,7 @@ export function DateSheet({
   initial,
   onConfirm,
   onClose,
+  range = "future",
 }: {
   visible: boolean;
   title: string;
@@ -35,6 +37,8 @@ export function DateSheet({
   initial?: string;
   onConfirm: (date: string) => void;
   onClose: () => void;
+  /** Which side of today can be chosen; today always can. */
+  range?: "future" | "past";
 }) {
   const c = useColors();
   const today = localDate();
@@ -53,7 +57,10 @@ export function DateSheet({
   useEffect(() => {
     if (visible) done.current = false;
   }, [visible]);
-  const earliest = monthOf(today);
+  const current = monthOf(today);
+  // Months can't be browsed past the side of today that is unavailable.
+  const canGoBack = range === "past" || month > current;
+  const canGoForward = range === "future" || month < current;
   const headers = weekdayHeaders();
   return (
     <Sheet
@@ -80,8 +87,8 @@ export function DateSheet({
           <IconButton
             icon="chevron-back"
             label="Previous month"
-            onPress={() => month > earliest && setMonth(shiftMonth(month, -1))}
-            tone={month > earliest ? undefined : "tertiary"}
+            onPress={() => canGoBack && setMonth(shiftMonth(month, -1))}
+            tone={canGoBack ? undefined : "tertiary"}
           />
           <Txt variant="headline" header align="center" style={{ flex: 1 }}>
             {monthName(month)}
@@ -89,7 +96,8 @@ export function DateSheet({
           <IconButton
             icon="chevron-forward"
             label="Next month"
-            onPress={() => setMonth(shiftMonth(month, 1))}
+            onPress={() => canGoForward && setMonth(shiftMonth(month, 1))}
+            tone={canGoForward ? undefined : "tertiary"}
           />
         </View>
         <View
@@ -113,7 +121,8 @@ export function DateSheet({
           <View key={w} style={{ flexDirection: "row" }}>
             {week.map((day, i) => {
               if (!day) return <View key={i} style={{ flex: 1 }} />;
-              const past = day < today;
+              const unavailable =
+                range === "future" ? day < today : day > today;
               const isSelected = day === selected;
               const isToday = day === today;
               return (
@@ -121,8 +130,11 @@ export function DateSheet({
                   key={day}
                   accessibilityRole="button"
                   accessibilityLabel={`${dayLabel(day)}${isToday ? ", today" : ""}`}
-                  accessibilityState={{ selected: isSelected, disabled: past }}
-                  disabled={past}
+                  accessibilityState={{
+                    selected: isSelected,
+                    disabled: unavailable,
+                  }}
+                  disabled={unavailable}
                   onPress={() => setSelected(day)}
                   style={{
                     flex: 1,
@@ -147,7 +159,11 @@ export function DateSheet({
                       tabular
                       weight={isSelected || isToday ? "700" : "400"}
                       tone={
-                        isSelected ? "onAccent" : past ? "tertiary" : "primary"
+                        isSelected
+                          ? "onAccent"
+                          : unavailable
+                            ? "tertiary"
+                            : "primary"
                       }
                     >
                       {Number(day.slice(8))}

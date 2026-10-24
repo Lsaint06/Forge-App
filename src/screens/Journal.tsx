@@ -27,6 +27,8 @@ import {
   canonicalMeasurement,
   displayMeasurement,
 } from "../domain/metrics";
+import Nutrition from "./Nutrition";
+import SavedFoods from "./SavedFoods";
 const config = {
   measurement: {
     title: "Measure your change.",
@@ -104,7 +106,17 @@ const numbers = new Set([
   "target",
   "start",
 ]);
+/**
+ * `/journal?kind=…`. Nutrition and saved foods have their own screens (Phase
+ * 7B WP4A); measurements, recovery and goals still use the journal below.
+ */
 export default function JournalScreen() {
+  const params = useLocalSearchParams<{ kind?: string }>();
+  if (params.kind === "nutrition") return <Nutrition />;
+  if (params.kind === "food") return <SavedFoods />;
+  return <LegacyJournal />;
+}
+function LegacyJournal() {
   const r = useRepo();
   const params = useLocalSearchParams<{ kind?: string }>();
   const kind = (

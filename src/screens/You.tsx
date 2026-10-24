@@ -36,6 +36,7 @@ import { isWorkingSet } from "../domain/progress/strength";
 import { compactNumber, loadText } from "../domain/progress/format";
 import { progressModel } from "../data/progress";
 import { membership } from "../domain/membership";
+import { TARGETS_SAVED, targetsPersonalized } from "../domain/nutrition";
 import { cloudClient } from "../cloud/client";
 import { theme } from "../theme";
 
@@ -408,7 +409,7 @@ export default function You() {
           icon="nutrition-outline"
           title="Nutrition targets"
           subtitle={
-            p.calories || p.protein
+            targetsPersonalized(p, r.setting(TARGETS_SAVED) === "1")
               ? `${p.calories.toLocaleString()} kcal · ${p.protein} g protein`
               : "Not set"
           }
@@ -591,7 +592,13 @@ export default function You() {
             fields={editors[editor].fields}
             saveLabel={editors[editor].save}
             onDirtyChange={setDirty}
-            onDone={close}
+            onDone={() => {
+              // Called only after a successful save: the targets are now the
+              // lifter's own, even if they match the suggested defaults.
+              if (editor === "nutrition")
+                mutate(() => r.setSetting(TARGETS_SAVED, "1"));
+              close();
+            }}
           />
         )}
       </Sheet>

@@ -48,7 +48,8 @@ Tunnel reachability has **not** been verified in the Codex cloud environment. A 
 - Edit the completed workout and repeat it as a new session.
 - Save a template, schedule it, or adopt a starter program. Start a deload session from the calendar and verify fewer sets.
 - Turn off network access **after the bundle has loaded** and continue logging. Expo Go may need the server again after a full reload; a standalone build is the correct way to validate cold-start offline distribution.
-- Add meals using values from a food label, repeat a meal and inspect serving-scaled totals.
+- Nutrition: Add → + on a saved or recent food (one entry, Undo removes it); tap a food, set 1.5 servings and a meal; Create food from a label (try a comma decimal such as 17,5); edit an entry's servings, meal and day; Copy to today from yesterday; confirm the day's totals. With the keyboard open, the sheet's Add/Save button must stay visible. In a comma-decimal region (Settings → General → Language & Region), confirm the decimal key types "," and the value saves.
+- Nutrition targets: a new profile shows "Not set" in You and no "of 2,000"; saving targets once in You → Nutrition targets shows them against the day.
 - Log historical weight/measurements, recovery inputs and goals; inspect date ranges.
 - Change to imperial units/light theme/large text and verify labels and layouts.
 - Export a backup to Files, change data, then import with confirmation. Try a malformed file; existing data should remain.

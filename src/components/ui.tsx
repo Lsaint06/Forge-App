@@ -29,6 +29,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useApp } from "../state";
 import { defaults } from "../domain/types";
+import { decimalText } from "../domain/numbers";
 import {
   theme,
   textRoleFor,
@@ -495,6 +496,7 @@ export function IconButton({
   filled = false,
   tone,
   size = 22,
+  disabled = false,
 }: {
   icon: IconName;
   label: string;
@@ -503,13 +505,15 @@ export function IconButton({
   filled?: boolean;
   tone?: Tone;
   size?: number;
+  disabled?: boolean;
 }) {
   const c = useColors();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ selected }}
+      accessibilityState={disabled ? { selected, disabled } : { selected }}
+      disabled={disabled}
       hitSlop={4}
       onPress={onPress}
       style={({ pressed }) => ({
@@ -619,7 +623,7 @@ export function parseNumber(
   { nullable = false, min = 0, max = Infinity, integer = false }: NumberRule,
 ): { value: number | null } | { error: string } {
   if (nullable && text.trim() === "") return { value: null };
-  const number = Number(text);
+  const number = Number(decimalText(text));
   if (
     !text.trim() ||
     !Number.isFinite(number) ||
