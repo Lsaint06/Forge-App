@@ -6,14 +6,23 @@ import { router } from "expo-router";
 import {
   Screen,
   Card,
-  Label,
+  Txt,
   Button,
   Field,
-  Chips,
+  SegmentedControl,
 } from "../src/components/ui";
+import { goBack } from "../src/navigation";
 import { useRepo, useApp, confirm } from "../src/state";
 import { cloudClient, transport } from "../src/cloud/client";
 import { synchronize } from "../src/cloud/sync";
+const MODES = [
+  { value: "Login", label: "Sign in" },
+  { value: "Register", label: "Create account" },
+  { value: "Reset password", label: "Reset password" },
+];
+
+// Account and sync. Presentation only here: the auth, sync and conflict
+// handling below is protected and unchanged.
 export default function Account() {
   const r = useRepo();
   const client = cloudClient();
@@ -119,22 +128,23 @@ export default function Account() {
     }
   }
   return (
-    <Screen title="Your data. Your choice." eyebrow="PROFILE / ACCOUNT">
-      <Button title="Back" secondary onPress={() => router.back()} />
+    <Screen title="Account" onBack={() => goBack("/(tabs)/profile")}>
       {!client ? (
         <Card>
-          <Label bold size={21}>
+          <Txt variant="headline" header>
             Guest mode is active
-          </Label>
-          <Label muted>
+          </Txt>
+          <Txt tone="secondary">
             Cloud accounts aren&apos;t available in this version, so your
             training data stays on this phone. Export a backup regularly from
             You → Export backup and keep the file somewhere safe.
-          </Label>
+          </Txt>
         </Card>
       ) : user ? (
         <Card>
-          <Label bold>{user.email ?? "Authenticated account"}</Label>
+          <Txt variant="headline" header>
+            {user.email ?? "Signed-in account"}
+          </Txt>
           {recovery && (
             <>
               <Field
@@ -151,11 +161,11 @@ export default function Account() {
               />
             </>
           )}
-          <Label muted>
+          <Txt tone="secondary">
             Sync sends your local training and lifestyle data to your configured
             Supabase project. It runs only when requested. Export a backup
             before your first sync.
-          </Label>
+          </Txt>
           <Button
             title={busy ? "Working…" : "Synchronize now"}
             disabled={busy}
@@ -182,7 +192,7 @@ export default function Account() {
             onPress={() =>
               confirm(
                 "Delete account permanently?",
-                "This deletes your account and all cloud records. Local records remain until you delete them in Profile.",
+                "This permanently deletes your account and every cloud record. It can't be undone. Records on this phone stay until you delete them in You.",
                 () => {
                   void client
                     .rpc("forge_delete_account")
@@ -198,14 +208,16 @@ export default function Account() {
                       );
                     });
                 },
+                { action: "Delete account" },
               )
             }
           />
         </Card>
       ) : (
         <Card>
-          <Chips
-            values={["Login", "Register", "Reset password"]}
+          <SegmentedControl
+            label="Account action"
+            options={MODES}
             value={mode}
             onChange={setMode}
           />
@@ -227,7 +239,11 @@ export default function Account() {
             />
           )}
           <Button
-            title={busy ? "Working…" : mode}
+            title={
+              busy
+                ? "Working…"
+                : (MODES.find((m) => m.value === mode)?.label ?? mode)
+            }
             disabled={busy}
             onPress={() => void auth()}
           />
@@ -235,17 +251,22 @@ export default function Account() {
       )}
       {status && (
         <Card>
-          <Label>{status}</Label>
+          <Txt>{status}</Txt>
         </Card>
       )}
       {r.conflicts().map((c) => (
         <Card key={c.id}>
-          <Label bold>Sync conflict · {c.id}</Label>
-          <Label muted>
+          <Txt variant="headline" header>
+            Sync conflict
+          </Txt>
+          <Txt variant="caption" tone="secondary">
+            {`Record ${c.id}`}
+          </Txt>
+          <Txt tone="secondary">
             The cloud record changed since this device last synchronized. Your
             local record remains intact. Keeping local explicitly replaces the
             cloud version on the next sync. Export a backup first.
-          </Label>
+          </Txt>
           <Button
             title="Keep local version"
             secondary
@@ -254,6 +275,7 @@ export default function Account() {
                 "Keep local version?",
                 "This authorizes replacing the currently conflicting cloud version on your next sync.",
                 () => r.keepLocal(c.id),
+                { action: "Keep local version", destructive: false },
               )
             }
           />
@@ -281,6 +303,7 @@ export default function Account() {
                   });
                   useApp.getState().touch();
                 },
+                { action: "Replace with cloud version" },
               )
             }
           />

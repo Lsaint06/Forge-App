@@ -121,6 +121,7 @@ export default function Nutrition() {
       "Delete entry?",
       `${String(e.data.name)} will be removed from ${e.date === today ? "today" : dayLabel(e.date)}.`,
       () => r.deleteJournal(e.id),
+      { action: "Delete entry" },
     );
   }
   function actions(e: Journal): MenuAction[] {

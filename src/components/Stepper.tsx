@@ -49,7 +49,7 @@ export function Stepper({
         gap: theme.spacing.sm,
       }}
     >
-      <Txt style={{ flex: 1 }} numberOfLines={1}>
+      <Txt style={{ flex: 1 }} numberOfLines={2}>
         {label}
       </Txt>
       <IconButton

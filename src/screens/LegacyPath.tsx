@@ -8,13 +8,13 @@ import {
   Label,
   Txt,
   Button,
-  Field,
   Sheet,
   ProgressBar,
   useColors,
   type IconName,
 } from "../components/ui";
 import { ListRow, ListSection } from "../components/system";
+import { DateSheet } from "../components/DateSheet";
 import { useRepo, mutate, confirm } from "../state";
 import { weekdayNames } from "../domain/paths/model";
 import { calendarWeek, weekDates, weekFocus } from "../domain/paths/calendar";
@@ -123,7 +123,6 @@ export default function LegacyPath() {
   const [focusedSessionId, setFocusedSessionId] = useState<string>();
   const [selectedDate, setSelectedDate] = useState<string>();
   const [moving, setMoving] = useState<PathSession>();
-  const [moveDate, setMoveDate] = useState(localDate());
   const [moveFrom, setMoveFrom] = useState(localDate());
   const [week, setWeek] = useState(
     Math.max(
@@ -509,19 +508,16 @@ export default function LegacyPath() {
       >
         {selected && stats && (
           <>
-            <Label>
-              {stats.missed} missed · {stats.skipped} skipped
-            </Label>
+            <Txt>{`${stats.missed} missed · ${stats.skipped} skipped`}</Txt>
             {stats.missing > 0 && (
-              <Label>
-                {stats.missing} calendar entries are missing. Restore a backup
-                to recover the original schedule.
-              </Label>
+              <Txt>
+                {`${stats.missing} calendar entries are missing. Restore a backup to recover the original schedule.`}
+              </Txt>
             )}
-            <Label muted size={13}>
+            <Txt variant="caption" tone="secondary">
               Completed workouts retain their links. Missed and skipped sessions
               never count as completed.
-            </Label>
+            </Txt>
             {selected.data.status !== "archived" && (
               <Button
                 title={
@@ -542,6 +538,13 @@ export default function LegacyPath() {
                       selected.data.status === "paused"
                         ? resumePath(r, selected.record.id)
                         : pausePath(r, selected.record.id),
+                    {
+                      action:
+                        selected.data.status === "paused"
+                          ? "Resume Path"
+                          : "Pause Path",
+                      destructive: false,
+                    },
                   )
                 }
               />
@@ -557,10 +560,10 @@ export default function LegacyPath() {
       >
         {session && selected && (
           <>
-            <Label bold>{session.data.name}</Label>
-            <Label muted>
-              Training week {session.data.week} · {session.data.phase}
-            </Label>
+            <Txt variant="headline">{session.data.name}</Txt>
+            <Txt tone="secondary">
+              {`Training week ${session.data.week} · ${session.data.phase}`}
+            </Txt>
             {visibleSessions
               .filter(
                 (s) =>
@@ -590,7 +593,6 @@ export default function LegacyPath() {
                       session.record.date < localDate()
                         ? localDate()
                         : session.record.date;
-                    setMoveDate(from);
                     setMoveFrom(from);
                   }}
                 />
@@ -611,6 +613,12 @@ export default function LegacyPath() {
                         );
                         setSessionActions(false);
                       },
+                      {
+                        action: session.data.skipped
+                          ? "Restore session"
+                          : "Skip session",
+                        destructive: !session.data.skipped,
+                      },
                     )
                   }
                 />
@@ -619,36 +627,30 @@ export default function LegacyPath() {
           </>
         )}
       </Sheet>
-      <Sheet
+      <DateSheet
         visible={!!moving}
-        onClose={() => setMoving(undefined)}
         title="Reschedule session"
-        unsaved={moveDate !== moveFrom}
-      >
-        <Field
-          label="New session date (YYYY-MM-DD)"
-          value={moveDate}
-          onChangeText={setMoveDate}
-        />
-        <Label muted>
-          The session keeps its original week and workout relationship. Avoid
-          overlapping demanding sessions on adjacent days.
-        </Label>
-        <Button
-          title="Save new session date"
-          onPress={() => {
-            const saved = mutate(() => {
-              reschedulePathSession(r, moving!.record.id, moveDate);
-              return true;
-            });
-            if (saved) {
-              setWeek(calendarWeek(selected!.data.started, moveDate));
-              setSelectedDate(moveDate);
-              setMoving(undefined);
-            }
-          }}
-        />
-      </Sheet>
+        detail={
+          moving &&
+          `${moving.data.name} keeps its original week and workout relationship. Avoid overlapping demanding sessions on adjacent days.`
+        }
+        confirmLabel="Move"
+        initial={moveFrom}
+        range="future"
+        onClose={() => setMoving(undefined)}
+        onConfirm={(date) => {
+          const saved = mutate(() => {
+            reschedulePathSession(r, moving!.record.id, date);
+            return true;
+          });
+          if (saved) {
+            setWeek(calendarWeek(selected!.data.started, date));
+            setSelectedDate(date);
+          }
+          // On a refusal the alert explains why; Move reopens the calendar.
+          setMoving(undefined);
+        }}
+      />
     </Screen>
   );
 }

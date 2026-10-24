@@ -181,6 +181,7 @@ function NextSession({
                 "Skip this session?",
                 "It moves to your history as skipped. The program itself is unchanged, and you can restore it later.",
                 () => skipProgramSession(r, enrollment.record.id),
+                { action: "Skip session" },
               )
             }
           />
@@ -385,8 +386,9 @@ export default function ProgramDashboard() {
             onPress={() =>
               confirm(
                 "End this program?",
-                "It is archived. Every recorded workout stays in your history.",
+                "It is archived and stops scheduling sessions. Every recorded workout stays in your history.",
                 () => endProgram(r, enrollment.record.id),
+                { action: "End program" },
               )
             }
           />

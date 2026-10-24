@@ -231,6 +231,7 @@ test("delete names what is removed and asks first", async () => {
           "Delete measurement?",
           "Bodyweight 81.7 kg from Today will be removed.",
           expect.any(Function),
+          { action: "Delete measurement" },
         ),
       { timeout: 3000 },
     );

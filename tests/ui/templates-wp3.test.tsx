@@ -153,8 +153,9 @@ test("Delete still asks, then removes only that template", async () => {
     await waitFor(() =>
       expect(confirm).toHaveBeenCalledWith(
         "Delete template?",
-        "Completed workouts are preserved. Planned sessions will need a new template.",
+        '"Remove me" will be deleted. Completed workouts are preserved; planned sessions will need a new template.',
         expect.any(Function),
+        { action: "Delete template" },
       ),
     );
     expect(r.templates()).toHaveLength(2);
@@ -525,8 +526,9 @@ test("planned sessions start, and removing one still asks first", async () => {
     await waitFor(() =>
       expect(confirm).toHaveBeenCalledWith(
         "Remove planned session?",
-        "Your recorded workouts will remain.",
+        "It's removed from your schedule. Your recorded workouts will remain.",
         expect.any(Function),
+        { action: "Remove session" },
       ),
     );
     jest.mocked(confirm).mock.calls[0]![2]();

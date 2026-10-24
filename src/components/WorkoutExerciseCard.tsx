@@ -106,8 +106,11 @@ function SetDetails({ set: s }: { set: WorkoutSet }) {
         variant="destructive"
         icon="trash-outline"
         onPress={() =>
-          confirm("Remove set?", "This set will be deleted.", () =>
-            r.removeSet(s.id),
+          confirm(
+            "Remove set?",
+            "This set and its values will be deleted.",
+            () => r.removeSet(s.id),
+            { action: "Remove set" },
           )
         }
       />
@@ -402,6 +405,7 @@ export default function WorkoutExerciseCard({
           "Remove exercise?",
           "All sets for this movement will also be removed.",
           () => r.removeExercise(e.id),
+          { action: "Remove exercise" },
         ),
     },
   ];

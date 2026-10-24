@@ -44,6 +44,7 @@ export default function SavedFoods() {
       "Delete saved food?",
       `${String(f.data.name)} will be removed from your saved foods. Entries you've already logged keep their values.`,
       () => r.deleteJournal(f.id),
+      { action: "Delete food" },
     );
   }
   const macros = (f: Journal) =>

@@ -92,6 +92,7 @@ export default function Measurements() {
       "Delete measurement?",
       `${what} from ${dayTitle(e.date, today)} will be removed.`,
       () => r.deleteJournal(e.id),
+      { action: "Delete measurement" },
     );
   }
   const logFor = (s?: Series): MeasurementTarget =>

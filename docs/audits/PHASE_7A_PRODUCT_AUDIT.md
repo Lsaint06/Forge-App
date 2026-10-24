@@ -633,4 +633,14 @@ A dedicated Goals screen on the same route. All six goal types stay creatable, e
 
 Bars appear only with a real starting point. Confirmed achievements keep their real dates permanently. Legacy goals keep their meaning, with opt-in conversion. Units follow the profile (M-15). The last generic journal form is retired. Same journal records and storage validation; no schema, backup or sync change. Audit, decisions D1–D23, results and iPhone checks: [PHASE_7B_WP4D_GOALS_AUDIT.md](PHASE_7B_WP4D_GOALS_AUDIT.md). Resolves C-05's goal part, C-15, C-19 and M-15.
 
-*End of report. Phase 7B WP1, WP2 and WP3 are approved and committed (WP2 and WP3 verified on the owner's iPhone); WP4A, WP4A.1, WP4B and WP4C are committed and awaiting the owner's iPhone review; WP4D is implemented, uncommitted and awaiting review; WP5–WP7 have not begun.*
+## Phase 7B progress — WP5 Secondary-screen consistency (implemented, in review)
+
+Four batches:
+- **A:** named destructive confirmations; friendly save errors with developer logs; guest-mode About row.
+- **B:** profile editors in the lifter's units, with commas, steppers and field messages; onboarding intact.
+- **C:** exercise library, detail and custom-exercise form using catalogue values; the shared picker's Add/Choose.
+- **D:** Account chrome; the legacy Path reschedule calendar; History paging; a not-found page.
+
+Presentation only: no schema, backup, sync, auth, programming or calculation change. Audit, decisions D1–D14, results and iPhone checks: [PHASE_7B_WP5_SECONDARY_SCREEN_CONSISTENCY_AUDIT.md](PHASE_7B_WP5_SECONDARY_SCREEN_CONSISTENCY_AUDIT.md).
+
+*End of report. Phase 7B WP1, WP2 and WP3 are approved and committed (WP2 and WP3 verified on the owner's iPhone); WP4A, WP4A.1, WP4B and WP4C are committed and awaiting the owner's iPhone review; WP4D is committed and approved on the owner's iPhone; WP5 is implemented, uncommitted and awaiting review; WP6–WP7 have not begun.*

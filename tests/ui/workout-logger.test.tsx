@@ -437,6 +437,7 @@ test("Set Details keeps set type, side, RPE, RIR, rest, tempo, notes and removal
       "Remove set?",
       expect.any(String),
       expect.any(Function),
+      { action: "Remove set" },
     );
     expect(r.sets(row.id)).toHaveLength(1);
     jest.mocked(confirm).mock.calls[0]![2]();
@@ -519,6 +520,7 @@ test("the exercise menu keeps reordering, substitution, settings and removal", a
         "Remove exercise?",
         expect.any(String),
         expect.any(Function),
+        { action: "Remove exercise" },
       ),
     );
   } finally {
@@ -598,9 +600,10 @@ test("the workout menu keeps rename, notes, pause, default rest, templates and d
     );
     await waitFor(() =>
       expect(confirm).toHaveBeenCalledWith(
-        "Delete this workout?",
+        "Discard this workout?",
         expect.any(String),
         expect.any(Function),
+        { action: "Discard workout" },
       ),
     );
     expect(r.workout(workout.id)).toBeDefined();

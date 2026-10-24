@@ -221,6 +221,7 @@ test("replacing a generated Path asks first and archives it on confirmation", as
         "Replace your current plan?",
         expect.stringContaining("preserved"),
         expect.any(Function),
+        { action: "Replace plan" },
       ),
     );
     expect(currentEnrollment(r, mockLibrary)).toBeUndefined();
@@ -396,6 +397,7 @@ test("with all 18 programs published Forge Paths is curated-only and the earlier
         "Replace your current plan?",
         expect.stringContaining("preserved"),
         expect.any(Function),
+        { action: "Replace plan" },
       ),
     );
     expect(currentPath(r)?.data.name).toBe("GET STRONG");

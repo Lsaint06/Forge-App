@@ -444,14 +444,17 @@ export default function WorkoutScreen() {
       destructive: true,
       onPress: () =>
         confirm(
-          "Delete this workout?",
-          "This cannot be undone. Export a backup first if you need to keep it.",
+          completed ? "Delete this workout?" : "Discard this workout?",
+          completed
+            ? "The session and all its sets are removed from your history and progress. This cannot be undone, so export a backup first if you need to keep it."
+            : "The workout and the sets logged so far are removed. This cannot be undone.",
           () => {
             // Any saved pre-edit copy goes with it.
             saveWorkoutEdit(r, w.id);
             r.deleteWorkout(w.id);
             returnToTraining();
           },
+          { action: completed ? "Delete workout" : "Discard workout" },
         ),
     },
   );

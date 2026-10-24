@@ -179,8 +179,9 @@ export default function Templates() {
                           onPress: () =>
                             confirm(
                               "Delete template?",
-                              "Completed workouts are preserved. Planned sessions will need a new template.",
+                              `"${t.name}" will be deleted. Completed workouts are preserved; planned sessions will need a new template.`,
                               () => r.deleteTemplate(t.id),
+                              { action: "Delete template" },
                             ),
                         },
                       ]}
@@ -250,8 +251,9 @@ export default function Templates() {
                                 onPress: () =>
                                   confirm(
                                     "Remove planned session?",
-                                    "Your recorded workouts will remain.",
+                                    "It's removed from your schedule. Your recorded workouts will remain.",
                                     () => r.deleteJournal(j.id),
+                                    { action: "Remove session" },
                                   ),
                               },
                             ]

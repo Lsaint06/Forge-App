@@ -13,6 +13,9 @@ import {
   pathSummary,
 } from "../../src/data/paths";
 import { pathFocus } from "../../src/data/today";
+import { addDays } from "../../src/domain/paths/model";
+import { localDate } from "../../src/domain/types";
+import { dayLabel } from "../../src/domain/training-display";
 
 jest.mock("../../src/notifications", () => ({
   restNotification: jest.fn(async () => {}),
@@ -161,6 +164,49 @@ test("the /paths route only continues existing Paths and never offers a plan bui
     expect(existing.getByLabelText("Start workout")).toBeTruthy();
     expect(existing.queryAllByText(generatorWords)).toHaveLength(0);
     expect(existing.queryAllByLabelText(generatorWords)).toHaveLength(0);
+  } finally {
+    db.close();
+  }
+});
+
+test("a legacy session is rescheduled from a calendar, under the same rule", async () => {
+  const { r, db } = legacyUserRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const path = currentPath(r)!;
+    const focus = pathFocus(pathSummary(r, path).sessions)!;
+    const view = await render(<LegacyPath />);
+    await fireEvent.press(view.getByLabelText("Workout options"));
+    await fireEvent.press(view.getByLabelText(`Move ${focus.data.name}`));
+    expect(
+      view.getByRole("header", { name: "Reschedule session" }),
+    ).toBeTruthy();
+    expect(view.queryByLabelText(/YYYY-MM-DD/)).toBeNull();
+    // Past days can't be chosen.
+    const yesterday = addDays(localDate(), -1);
+    if (view.queryByLabelText(dayLabel(yesterday)))
+      expect(
+        view.getByLabelText(dayLabel(yesterday)).props.accessibilityState
+          .disabled,
+      ).toBe(true);
+    const taken = new Set(
+      pathSessions(r, path)
+        .filter((s) => !["completed", "skipped"].includes(s.state))
+        .map((s) => s.record.date),
+    );
+    // Two days after the last pending session respects the recovery-day rule.
+    const target = addDays([...taken, localDate()].sort().at(-1)!, 2);
+    while (!view.queryByLabelText(dayLabel(target)))
+      await fireEvent.press(view.getByLabelText("Next month"));
+    await fireEvent.press(view.getByLabelText(dayLabel(target)));
+    await fireEvent.press(view.getByLabelText(`Move for ${dayLabel(target)}`));
+    const moved = pathSessions(r, currentPath(r)!).find(
+      (s) => s.record.id === focus.record.id,
+    )!;
+    expect(moved.record.date).toBe(target);
+    expect(
+      view.queryByRole("header", { name: "Reschedule session" }),
+    ).toBeNull();
   } finally {
     db.close();
   }

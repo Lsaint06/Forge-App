@@ -97,6 +97,7 @@ function StartSheet({
           "Replace your current plan?",
           "Your current plan will be archived. Its history and every recorded workout are preserved.",
           run,
+          { action: "Replace plan" },
         );
       else mutate(run);
     });

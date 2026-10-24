@@ -362,13 +362,13 @@ test("the exercise screen shows records in the lifter's units and reps for bodyw
     jest.mocked(useRepo).mockReturnValue(f.r);
     mockParams.id = "barbell-bench-press";
     const bench = await render(<ExerciseScreen />);
-    expect(bench.getByText(/Heaviest set: 225 lb × 5/)).toBeTruthy();
-    expect(bench.getByText(/Session 1: 225 lb × 5/)).toBeTruthy();
+    expect(bench.getByLabelText(/Heaviest set: 225 lb × 5/)).toBeTruthy();
+    expect(bench.getByLabelText(/Session 1: 225 lb × 5/)).toBeTruthy();
     expect(bench.queryByText(/ kg/)).toBeNull();
     await bench.unmount();
     mockParams.id = "pull-up";
     const pull = await render(<ExerciseScreen />);
-    expect(pull.getByText(/Most reps in a set: 9/)).toBeTruthy();
+    expect(pull.getByLabelText(/Most reps in a set: 9/)).toBeTruthy();
     expect(pull.queryByText(/Estimated 1RM/)).toBeNull();
   } finally {
     f.db.close();

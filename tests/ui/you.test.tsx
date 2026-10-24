@@ -198,8 +198,9 @@ test("account, history, journals and data actions stay reachable", async () => {
     await fireEvent.press(view.getByLabelText("Delete all local data"));
     expect(confirm).toHaveBeenCalledWith(
       "Delete all local data?",
-      expect.stringContaining("Export first"),
+      expect.stringContaining("export a backup first"),
       expect.any(Function),
+      { action: "Delete everything" },
     );
     // Nothing is deleted until the lifter confirms.
     expect(r.workouts()).toHaveLength(1);

@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { router } from "expo-router";
-import { Screen, Empty } from "../components/ui";
+import { Screen, Empty, TextButton } from "../components/ui";
 import { ListRow, ListSection, OverflowMenu } from "../components/system";
 import { useRepo, mutate, confirm } from "../state";
 import { volume } from "../domain/metrics";
@@ -15,12 +15,17 @@ import { workoutTitle } from "../domain/workout-display";
 import { goBack } from "../navigation";
 import { blockIfTraining } from "../startGuard";
 
+const PAGE = 60;
+
 // Every completed workout, newest first and grouped by month. A row opens
-// the workout review; Repeat and Delete live in each row's menu.
+// the workout review; Repeat and Delete live in each row's menu. Long
+// histories show the newest 60 first; "Show earlier" reveals the rest in the
+// same order, so nothing is hidden or reordered.
 export default function History() {
   const r = useRepo();
   const units = r.profile().units;
   const done = r.workouts().filter((w) => w.status === "completed");
+  const [shown, setShown] = useState(PAGE);
   return (
     <Screen
       title="History"
@@ -33,7 +38,7 @@ export default function History() {
           detail="Finished workouts appear here with their date, duration and volume."
         />
       )}
-      {byMonth(done).map((month) => (
+      {byMonth(done.slice(0, shown)).map((month) => (
         <ListSection key={month.key} title={month.title}>
           {month.items.map((w) => {
             const day = dayLabel(localDate(workoutTime(w)));
@@ -68,8 +73,9 @@ export default function History() {
                         onPress: () =>
                           confirm(
                             "Delete workout?",
-                            "This removes this session and its sets.",
+                            "The session and all its sets are removed from your history and progress. This cannot be undone.",
                             () => r.deleteWorkout(w.id),
+                            { action: "Delete workout" },
                           ),
                       },
                     ]}
@@ -80,6 +86,13 @@ export default function History() {
           })}
         </ListSection>
       ))}
+      {done.length > shown && (
+        <TextButton
+          title={`Show earlier (${done.length - shown})`}
+          neutral
+          onPress={() => setShown((n) => n + PAGE)}
+        />
+      )}
     </Screen>
   );
 }

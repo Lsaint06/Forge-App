@@ -533,6 +533,7 @@ export function GoalSheet({
       />
       <ExercisePicker
         visible={picking === "exercise"}
+        action="Choose"
         onClose={() => setPicking(undefined)}
         onPick={(e) => update({ exerciseId: e.id })}
       />

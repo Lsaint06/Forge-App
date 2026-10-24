@@ -233,14 +233,30 @@ export default function You() {
       if (text === null) return;
       confirm(
         "Replace local data from backup?",
-        "All current records will be replaced atomically if the backup is valid. Export first. If cloud sync is enabled, this resets the local sync identity and may cause conflicts on your next sync.",
+        "Every workout, template, preference and journal entry on this phone is replaced by the backup's contents, if the file is valid. This can't be undone, so export first. If cloud sync is enabled, the local sync identity resets and your next sync may report conflicts.",
         () => {
-          r.importBackup(text);
+          try {
+            r.importBackup(text);
+          } catch (e) {
+            // Unreadable or invalid files get one plain message; the details
+            // stay in the developer log.
+            if (
+              e instanceof SyntaxError ||
+              (!!e && typeof e === "object" && "issues" in e)
+            ) {
+              console.warn("[FORGE] Backup import rejected", e);
+              throw new Error(
+                "This file isn't a valid FORGE backup. Nothing was changed.",
+              );
+            }
+            throw e;
+          }
           // The data now matches that backup file, so it is protected up to
           // the moment it was exported.
           const at = backupExportedAt(text);
           if (at) recordBackup(r, at);
         },
+        { action: "Replace data" },
       );
     } catch (e) {
       Alert.alert("Import failed", e instanceof Error ? e.message : String(e));
@@ -538,7 +554,7 @@ export default function You() {
           onPress={() =>
             confirm(
               "Delete all local data?",
-              "This removes every local workout, template, preference and journal entry. Cloud records and your account are not deleted. Export first. A later sync can restore cloud records.",
+              "Every workout, template, preference and journal entry on this phone is deleted, and FORGE starts again from setup. This can't be undone, so export a backup first. Your cloud account and cloud records are not deleted; a later sync can restore them.",
               () => {
                 r.clearData();
                 void cancelAllNotifications().catch((e) =>
@@ -546,6 +562,7 @@ export default function You() {
                 );
                 router.replace("/onboarding");
               },
+              { action: "Delete everything" },
             )
           }
         />
@@ -554,8 +571,18 @@ export default function You() {
       <ListSection title="About">
         <ListRow
           title={`FORGE ${version}`}
-          accessibilityLabel={`FORGE version ${version}, local schema v1, ${pending} pending sync records`}
-          subtitle={`Local schema v1 · ${plural(pending, "pending sync record")}`}
+          accessibilityLabel={
+            cloud
+              ? `FORGE version ${version}, local schema v1, ${pending} pending sync records`
+              : `FORGE version ${version}, local schema v1`
+          }
+          // Guest mode never syncs, so a waiting count would only confuse;
+          // the outbox itself is unchanged.
+          subtitle={
+            cloud
+              ? `Local schema v1 · ${plural(pending, "pending sync record")}`
+              : "Local schema v1 · guest mode"
+          }
         />
         {__DEV__ && (
           <ListRow

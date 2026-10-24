@@ -5,7 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRepo, mutate } from "../src/state";
 import {
   Field,
-  Label,
+  Empty,
   FilterChips,
   Button,
   BackButton,
@@ -53,6 +53,11 @@ export default function Explore() {
       );
     return data;
   })();
+  const filtered =
+    !!q.trim() ||
+    muscle !== "All" ||
+    equipment !== "All" ||
+    mode !== "All exercises";
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
@@ -100,17 +105,26 @@ export default function Explore() {
               onPress={() => setFilters(!filters)}
             />
             {filters && (
-              <View style={{ gap: 12 }}>
+              <View style={{ gap: theme.spacing.sm }}>
+                <Txt variant="caption" tone="secondary">
+                  Muscle
+                </Txt>
                 <FilterChips
                   values={["All", ...new Set(all.map((e) => e.muscle))]}
                   value={muscle}
                   onChange={setMuscle}
                 />
+                <Txt variant="caption" tone="secondary">
+                  Equipment
+                </Txt>
                 <FilterChips
                   values={["All", ...new Set(all.map((e) => e.equipment))]}
                   value={equipment}
                   onChange={setEquipment}
                 />
+                <Txt variant="caption" tone="secondary">
+                  Sort by
+                </Txt>
                 <FilterChips
                   values={["Name", "Muscle"]}
                   value={sort}
@@ -142,9 +156,36 @@ export default function Explore() {
           />
         )}
         ListEmptyComponent={
-          <Label muted>
-            No results. Change your filters or create a custom exercise.
-          </Label>
+          <Empty
+            title={
+              mode === "Favorites" && !favorites.length
+                ? "No favorites yet"
+                : mode === "Recent" && !recentIds.size
+                  ? "No recent exercises"
+                  : "No matching exercises"
+            }
+            detail={
+              mode === "Favorites" && !favorites.length
+                ? "Tap the star on an exercise to keep it here."
+                : mode === "Recent" && !recentIds.size
+                  ? "Exercises from your last 10 workouts appear here."
+                  : "Change your search or filters, or create a custom exercise."
+            }
+            action={
+              filtered ? (
+                <Button
+                  title="Clear search and filters"
+                  variant="text"
+                  onPress={() => {
+                    setQ("");
+                    setMuscle("All");
+                    setEquipment("All");
+                    setMode("All exercises");
+                  }}
+                />
+              ) : undefined
+            }
+          />
         }
       />
     </SafeAreaView>

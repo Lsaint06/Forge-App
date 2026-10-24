@@ -61,6 +61,16 @@ Tunnel reachability has **not** been verified in the Codex cloud environment. A 
   5. Open an older goal, tap Edit, then Save without changes (nothing changes). Try "Use the new measurement".
   6. Archive and restore a goal; delete one and Undo.
   7. VoiceOver reads each card with units and dates. With Larger Text the sheet stays usable and Save stays above the keyboard.
+- Secondary screens (WP5), with pounds selected:
+  1. You → Delete all local data and Import backup: the buttons read "Delete everything" and "Replace data" and say it can't be undone. Cancel both. Import a non-FORGE file: "This file isn't a valid FORGE backup. Nothing was changed." About reads "… · guest mode".
+  2. You → Training preferences: the increment shows lb; type 2,5 and save, then reopen (2.5 lb). Use the weekly goal, rep range and rest steppers. Save without changes (nothing changes). Switch to kg: Edit profile shows height in cm.
+  3. Train → Exercise library: open Filters (captioned rows); search nonsense, then Clear search and filters. Open Barbell Bench Press: ‹ back, records and sessions as rows, Add to workout pinned.
+  4. Create custom exercise: Save straight away (each field says what's missing). Choose Main muscle and Equipment from the lists, then save; after a workout with it, it gets load records. Edit it and Save without changes.
+  5. Goals → New goal → Lift: VoiceOver reads picker rows as "Choose …". In a workout, Add exercise still reads "Add …". With the keyboard open, search stays above the list.
+  6. You → Account: title "Account" with ‹ back.
+  7. If you have an older Path: Workout options → Move opens a calendar (past days unavailable).
+  8. History: scroll to "Show earlier"; it continues in order.
+  9. Open `forge://no-such-page` (or any bad link): Page not found → Go to Today.
 - Inspect date ranges.
 - Change to imperial units/light theme/large text and verify labels and layouts.
 - Export a backup to Files, change data, then import with confirmation. Try a malformed file; existing data should remain.

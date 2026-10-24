@@ -143,7 +143,7 @@ test("every one of the six goal types can still be created", async () => {
       view.getByLabelText("Search exercises"),
       "barbell bench",
     );
-    await fireEvent.press(view.getByLabelText("Add Barbell Bench Press"));
+    await fireEvent.press(view.getByLabelText("Choose Barbell Bench Press"));
     await fireEvent.changeText(view.getByLabelText("Target (kg)"), "100");
     await fireEvent.press(view.getByLabelText("Save goal"));
     const saved = goals(r).map((g) => g.data);
@@ -243,7 +243,7 @@ test("a lift already done before the goal asks first and says so, with the real 
       view.getByLabelText("Search exercises"),
       "barbell bench",
     );
-    await fireEvent.press(view.getByLabelText("Add Barbell Bench Press"));
+    await fireEvent.press(view.getByLabelText("Choose Barbell Bench Press"));
     expect(view.getByText(/^Your best: 102\.5 kg × 3/)).toBeTruthy();
     await fireEvent.changeText(view.getByLabelText("Target (kg)"), "100");
     await fireEvent.press(view.getByLabelText("Save goal"));
