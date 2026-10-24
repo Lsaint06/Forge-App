@@ -51,7 +51,7 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 | Strength trend and detailed exercise-frequency charts | Partially implemented | Records/history and frequency totals exist; dedicated trend charts absent |
 | Personal-record events/highlights | Partially implemented | Best values derived; no chronological PR event feed or immediate PR celebration |
 | Training streak | Implemented but unverified | Calendar calculation implemented, not separately device/timezone-tested |
-| Measurement history/edit/delete/custom names | Implemented but unverified | Journal persistence and charts; full device flow untested |
+| Measurements screen: overview, ranges, per-day series, history, log/edit/delete, presets and custom names (WP4B) | Implemented and tested | Same journal records; display-only spelling grouping; change-only edits (untouched save writes nothing, verified on device DB); one-time profile-weight offer; logic/UI tests and Android emulator review; iPhone review outstanding |
 | Metric/imperial load and measurement conversion | Implemented and tested | Reversible conversion/canonical measurement tests |
 | Private progress photos/storage | Not implemented | No photo acquisition or storage |
 | Manual nutrition totals | Implemented and tested | Serving quantity scales all four totals |

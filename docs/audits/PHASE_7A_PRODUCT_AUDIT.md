@@ -613,4 +613,8 @@ WP4 is split into WP4A (Nutrition), WP4B (Measurements), WP4C (Recovery) and WP4
 
 A curated, offline USDA FoodData Central library (3,730 foods) inside Nutrition's Add food, built reproducibly from pinned USDA releases. Research, decisions, implementation results, measurements and outstanding iPhone checks are in [PHASE_7B_WP4A1_FOOD_LIBRARY_PLAN.md](PHASE_7B_WP4A1_FOOD_LIBRARY_PLAN.md).
 
-*End of report. Phase 7B WP1, WP2 and WP3 are approved and committed (WP2 and WP3 verified on the owner's iPhone); WP4A is committed and awaiting the owner's iPhone review; WP4A.1 is implemented and awaiting review; WP4B–WP4D and WP5–WP7 have not begun.*
+## Phase 7B progress — WP4B Measurements (implemented, in review)
+
+A dedicated Measurements screen on the same route (overview with ranges and date-spaced charts, other measurements, day-grouped history, a log/edit sheet) plus the approved, narrowly scoped Progress → Body chart fix. Same journal records; no schema, backup or sync change. Audit, founder decisions, specification, results and iPhone checks: [PHASE_7B_WP4B_MEASUREMENTS_AUDIT.md](PHASE_7B_WP4B_MEASUREMENTS_AUDIT.md). Resolves the Measurements part of C-05.
+
+*End of report. Phase 7B WP1, WP2 and WP3 are approved and committed (WP2 and WP3 verified on the owner's iPhone); WP4A and WP4A.1 are committed and awaiting the owner's iPhone review; WP4B is implemented, uncommitted and awaiting review; WP4C–WP4D and WP5–WP7 have not begun.*

@@ -155,15 +155,32 @@ export function LineChart({
   label,
   format,
   height = 150,
+  x: positions,
+  breakOver,
+  resetKey,
 }: {
   points: Point[];
   label: string;
   format: (value: number) => string;
   height?: number;
+  /**
+   * Optional horizontal positions (for example day numbers) so spacing
+   * follows real time; without them points are evenly spaced.
+   */
+  x?: number[];
+  /** With `x`: consecutive points further apart than this are not joined. */
+  breakOver?: number;
+  /** When this changes, the selection returns to the latest point. */
+  resetKey?: string;
 }) {
   const c = useColors();
   const [width, setWidth] = useState(0);
   const { at, setSelected, onAction } = useSelection(points.length);
+  const [shownFor, setShownFor] = useState(resetKey);
+  if (resetKey !== shownFor) {
+    setShownFor(resetKey);
+    setSelected(points.length - 1);
+  }
   const values = points.map((p) => p.value);
   const hi = Math.max(...values);
   const lo = Math.min(...values);
@@ -174,18 +191,36 @@ export function LineChart({
   const bottom = Math.max(0, mid - span / 2);
   const top = bottom + span;
   const inset = 8;
+  const timed = !!positions && positions.length === points.length;
+  const first = timed ? positions[0]! : 0;
+  const last = timed ? positions[positions.length - 1]! : points.length - 1;
   const x = (i: number) =>
-    points.length === 1
+    points.length === 1 || last === first
       ? width / 2
-      : inset + (i * (width - inset * 2)) / (points.length - 1);
+      : inset +
+        (((timed ? positions[i]! : i) - first) * (width - inset * 2)) /
+          (last - first);
   const y = (v: number) =>
     inset +
     (1 - (v - bottom) / Math.max(1e-9, top - bottom)) * (height - inset * 2);
   const select = (e: GestureResponderEvent) => {
     if (!width || points.length < 2) return;
-    const ratio = (e.nativeEvent.locationX - inset) / (width - inset * 2);
-    setSelected(Math.round(ratio * (points.length - 1)));
+    const px = e.nativeEvent.locationX;
+    let best = 0;
+    for (let i = 1; i < points.length; i++)
+      if (Math.abs(x(i) - px) < Math.abs(x(best) - px)) best = i;
+    setSelected(best);
   };
+  // Runs of points to join: one run, or several split at long gaps.
+  const runs: number[][] = [];
+  points.forEach((_, i) => {
+    const gap =
+      timed && breakOver !== undefined && i > 0
+        ? positions[i]! - positions[i - 1]! > breakOver
+        : false;
+    if (!runs.length || gap) runs.push([i]);
+    else runs[runs.length - 1]!.push(i);
+  });
   const hit = points[at];
   return (
     <View style={{ gap: theme.spacing.sm }}>
@@ -231,19 +266,37 @@ export function LineChart({
               y2={height - 1}
               stroke={c.hairline}
             />
-            {points.length > 1 && (
-              <Polyline
-                points={points.map((p, i) => `${x(i)},${y(p.value)}`).join(" ")}
-                fill="none"
-                stroke={c.text2}
-                strokeWidth={2}
-                strokeLinejoin="round"
-              />
+            {runs.map(
+              (run) =>
+                run.length > 1 && (
+                  <Polyline
+                    key={`run-${run[0]}`}
+                    points={run
+                      .map((i) => `${x(i)},${y(points[i]!.value)}`)
+                      .join(" ")}
+                    fill="none"
+                    stroke={c.text2}
+                    strokeWidth={2}
+                    strokeLinejoin="round"
+                  />
+                ),
             )}
+            {points.length > 40 &&
+              runs
+                .filter((run) => run.length === 1)
+                .map(([i]) => (
+                  <Circle
+                    key={`lone-${i}`}
+                    cx={x(i!)}
+                    cy={y(points[i!]!.value)}
+                    r={3}
+                    fill={c.text2}
+                  />
+                ))}
             {points.length <= 40 &&
               points.map((p, i) => (
                 <Circle
-                  key={p.key}
+                  key={`${p.key}-${i}`}
                   cx={x(i)}
                   cy={y(p.value)}
                   r={3}

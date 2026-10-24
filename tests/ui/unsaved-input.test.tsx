@@ -66,21 +66,27 @@ test("closing the template editor with changes asks before discarding them", asy
   }
 });
 
-test("closing a journal entry with changes asks before discarding them", async () => {
+test("closing a measurement with changes asks before discarding them", async () => {
   const { r, db } = pathRepository();
   try {
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<JournalScreen />);
-    await fireEvent.press(view.getByLabelText("Add entry"));
+    await fireEvent.press(
+      view.getByRole("button", { name: "Log measurement" }),
+    );
     await fireEvent.press(view.getByLabelText("Close"));
     expect(discardPrompts()).toHaveLength(0);
-    await fireEvent.press(view.getByLabelText("Add entry"));
-    await fireEvent.changeText(view.getByLabelText("Value"), "81.5");
+    await fireEvent.press(
+      view.getByRole("button", { name: "Log measurement" }),
+    );
+    await fireEvent.changeText(view.getByLabelText("Bodyweight (kg)"), "81.5");
     await fireEvent.press(view.getByLabelText("Close"));
     expect(discardPrompts()).toHaveLength(1);
-    expect(view.getByLabelText("Value").props.value).toBe("81.5");
+    expect(view.getByLabelText("Bodyweight (kg)").props.value).toBe("81.5");
     await waitFor(() => pressDiscard());
-    await waitFor(() => expect(view.queryByText("New entry")).toBeNull());
+    await waitFor(() =>
+      expect(view.queryByLabelText("Bodyweight (kg)")).toBeNull(),
+    );
     expect(r.journal("measurement")).toHaveLength(0);
   } finally {
     db.close();

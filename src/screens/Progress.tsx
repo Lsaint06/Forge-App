@@ -18,13 +18,15 @@ import { BarChart, Legend, LineChart } from "../components/charts";
 import { AchievementCard } from "../components/design";
 import { useRepo, useApp } from "../state";
 import { localDate } from "../domain/types";
+import { achievements, elapsedSeconds, summary } from "../domain/metrics";
+import { programAdherence } from "../domain/analytics";
 import {
-  achievements,
-  displayMeasurement,
-  elapsedSeconds,
-  summary,
-} from "../domain/metrics";
-import { measurementTrend, programAdherence } from "../domain/analytics";
+  GAP_DAYS,
+  dayNumber,
+  displayUnit,
+  seriesOf,
+  toDisplay,
+} from "../domain/measurements";
 import { keepSegmentsTogether, loadIn } from "../domain/workout-display";
 import {
   buckets,
@@ -558,42 +560,55 @@ function Volume({
 
 function Body({ units }: { units: Units }) {
   const r = useRepo();
-  const measurements = r.journal("measurement");
-  const names = [...new Set(measurements.map((e) => String(e.data.name)))];
-  const [name, setName] = useState(names[0] ?? "Bodyweight");
-  if (!names.length) return null;
-  const unit = String(
-    measurements.find((j) => j.data.name === name)?.data.unit ?? "kg",
+  // Spelling variants share a series, one point per day (the day's latest
+  // entry), spaced by date (Phase 7B WP4B).
+  const series = seriesOf(r.journal("measurement"));
+  const labels = series.map((s, i) =>
+    series.findIndex((o) => o.name === s.name) === i
+      ? s.name
+      : `${s.name} (${displayUnit(s.family, units)})`,
   );
-  const shownUnit = displayMeasurement(0, unit, units).unit;
-  const points = measurementTrend(measurements, name).map((p) => ({
-    key: p.label,
-    value: displayMeasurement(p.value, unit, units).value,
-    description: dayLabel(p.label),
+  const [key, setKey] = useState(series[0]?.key);
+  if (!series.length) return null;
+  const index = Math.max(
+    0,
+    series.findIndex((s) => s.key === key),
+  );
+  const s = series[index]!;
+  const name = labels[index]!;
+  const points = s.days.map((d) => ({
+    key: d.date,
+    value: toDisplay(d.value, d.entry.data.unit, units),
+    description:
+      d.count > 1
+        ? `${dayLabel(d.date)} · ${d.count} entries`
+        : dayLabel(d.date),
   }));
   return (
     <>
       <SectionTitle title="Body" />
       <Card>
-        {names.length > 1 ? (
+        {series.length > 1 ? (
           <Chips
             bleed={theme.spacing.md}
-            values={names}
+            values={labels}
             value={name}
-            onChange={setName}
+            onChange={(label) => setKey(series[labels.indexOf(label)]?.key)}
           />
         ) : (
           <Txt variant="headline">{name}</Txt>
         )}
-        {points.length ? (
-          <LineChart
-            label={`${name} trend`}
-            points={points}
-            format={(v) => `${Math.round(v * 10) / 10} ${shownUnit}`}
-          />
-        ) : (
-          <Txt tone="secondary">No entries yet.</Txt>
-        )}
+        <LineChart
+          label={`${name} trend`}
+          points={points}
+          x={s.days.map((d) => dayNumber(d.date))}
+          breakOver={GAP_DAYS}
+          resetKey={s.key}
+          format={(v) => {
+            const u = displayUnit(s.family, units);
+            return `${Math.round(v * 10) / 10} ${u}`;
+          }}
+        />
       </Card>
     </>
   );

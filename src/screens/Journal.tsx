@@ -29,6 +29,7 @@ import {
 } from "../domain/metrics";
 import Nutrition from "./Nutrition";
 import SavedFoods from "./SavedFoods";
+import Measurements from "./Measurements";
 const config = {
   measurement: {
     title: "Measure your change.",
@@ -107,13 +108,16 @@ const numbers = new Set([
   "start",
 ]);
 /**
- * `/journal?kind=…`. Nutrition and saved foods have their own screens (Phase
- * 7B WP4A); measurements, recovery and goals still use the journal below.
+ * `/journal?kind=…`. Nutrition and saved foods (Phase 7B WP4A) and
+ * measurements (WP4B) have their own screens; recovery and goals still use
+ * the journal below. An unknown kind opens Measurements, as before.
  */
 export default function JournalScreen() {
   const params = useLocalSearchParams<{ kind?: string }>();
   if (params.kind === "nutrition") return <Nutrition />;
   if (params.kind === "food") return <SavedFoods />;
+  if (params.kind !== "recovery" && params.kind !== "goal")
+    return <Measurements />;
   return <LegacyJournal />;
 }
 function LegacyJournal() {
