@@ -142,7 +142,52 @@ export type FoodChoice = {
   quantity: number;
   serving: string;
   source: "recent" | "saved";
+  /** Where a food from the built-in library came from (copied along). */
+  meta?: SourceMeta;
 };
+
+/**
+ * Provenance of a food logged from the built-in library: its catalog ID and
+ * version, the edible grams of one serving, and whether the values were
+ * edited since. Only well-formed keys are read; anything else is ignored.
+ */
+export type SourceMeta = {
+  sourceId?: string;
+  sourceCatalog?: string;
+  sourceGrams?: number;
+  sourceEdited?: boolean;
+};
+export function sourceMeta(data: NutritionData): SourceMeta | undefined {
+  if (typeof data.sourceId !== "string" || !data.sourceId) return undefined;
+  const meta: SourceMeta = { sourceId: data.sourceId };
+  if (typeof data.sourceCatalog === "string")
+    meta.sourceCatalog = data.sourceCatalog;
+  if (
+    typeof data.sourceGrams === "number" &&
+    Number.isFinite(data.sourceGrams) &&
+    data.sourceGrams > 0
+  )
+    meta.sourceGrams = data.sourceGrams;
+  if (data.sourceEdited === true) meta.sourceEdited = true;
+  return meta;
+}
+
+/**
+ * Provenance after an edit: changed values mark the food as edited (it is no
+ * longer the library's values), and a changed serving drops the weight that
+ * described the old one. Records without provenance are returned unchanged.
+ */
+export function withSourceEdits(
+  merged: NutritionData,
+  changes: NutritionData,
+): NutritionData {
+  if (!sourceMeta(merged)) return merged;
+  const next = { ...merged };
+  if (["name", "calories", "protein", "carbs", "fat"].some((k) => k in changes))
+    next.sourceEdited = true;
+  if ("serving" in changes) delete next.sourceGrams;
+  return next;
+}
 
 const norm = (v: unknown) =>
   String(v ?? "")
@@ -166,6 +211,7 @@ export const isDuplicateFood = (foods: Journal[], data: NutritionData) =>
 
 function choice(data: NutritionData, source: FoodChoice["source"]): FoodChoice {
   const q = num(data.quantity);
+  const meta = sourceMeta(data);
   return {
     key: foodKey(data),
     name: String(data.name ?? "").trim(),
@@ -176,13 +222,15 @@ function choice(data: NutritionData, source: FoodChoice["source"]): FoodChoice {
     quantity: Number.isFinite(q) && q > 0 ? q : 1,
     serving: String(data.serving ?? "").trim(),
     source,
+    ...(meta ? { meta } : {}),
   };
 }
 
 /**
  * Foods to offer for logging: recently eaten foods first (most recent first,
  * each once, at the servings last eaten), then saved foods not already shown,
- * alphabetically. A search keeps the foods whose name or serving matches.
+ * alphabetically. A search keeps the foods whose name or serving contains
+ * every word typed, in any order.
  */
 export function foodChoices(
   entries: Journal[],
@@ -191,8 +239,15 @@ export function foodChoices(
   recentLimit = 8,
 ) {
   const q = norm(query);
-  const matches = (c: FoodChoice) =>
-    !q || norm(c.name).includes(q) || norm(c.serving).includes(q);
+  // Every word typed must start a word of the name or serving, in any order:
+  // "oats dry" finds "Oats, … dry", and "cooked" never finds "uncooked".
+  const words = q.split(/[^a-z0-9]+/).filter(Boolean);
+  const matches = (c: FoodChoice) => {
+    const text = `${norm(c.name)} ${norm(c.serving)}`
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
+    return words.every((w) => text.some((t) => t.startsWith(w)));
+  };
   const seen = new Set<string>();
   const recent: FoodChoice[] = [];
   const latest = [...entries].sort((a, b) => b.createdAt - a.createdAt);
@@ -221,7 +276,7 @@ export function foodChoices(
 export function entryFromFood(
   food: Pick<
     FoodChoice,
-    "name" | "calories" | "protein" | "carbs" | "fat" | "serving"
+    "name" | "calories" | "protein" | "carbs" | "fat" | "serving" | "meta"
   >,
   meal: string,
   quantity: number,
@@ -235,6 +290,7 @@ export function entryFromFood(
     fat: food.fat,
     quantity,
     ...(food.serving ? { serving: food.serving } : {}),
+    ...food.meta,
   };
 }
 
@@ -250,7 +306,7 @@ export function foodFromEntry(data: NutritionData): NutritionData {
   };
   const serving = String(data.serving ?? "").trim();
   if (serving) food.serving = serving;
-  return food;
+  return { ...food, ...sourceMeta(data) };
 }
 
 /**

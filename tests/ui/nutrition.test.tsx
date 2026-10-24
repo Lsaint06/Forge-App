@@ -399,10 +399,19 @@ test("search narrows the foods and offers to create a missing one", async () => 
     expect(view.getByLabelText("Add Banana")).toBeTruthy();
     expect(view.queryByLabelText("Add Oats")).toBeNull();
     await fireEvent.changeText(view.getByLabelText("Search foods"), "kiwi");
-    expect(view.getByText(/No foods match “kiwi”/)).toBeTruthy();
+    // Not a saved food, but the built-in USDA library has it.
+    expect(
+      view.getByRole("header", { name: "Food library · USDA" }),
+    ).toBeTruthy();
+    expect(view.queryByLabelText("Add Banana")).toBeNull();
+    await fireEvent.changeText(
+      view.getByLabelText("Search foods"),
+      "grandma's stew",
+    );
+    expect(view.getByText(/No foods match “grandma's stew”/)).toBeTruthy();
     await fireEvent.press(view.getByLabelText("Create food"));
     expect(view.getByRole("header", { name: "New food" })).toBeTruthy();
-    expect(view.getByLabelText("Food name").props.value).toBe("kiwi");
+    expect(view.getByLabelText("Food name").props.value).toBe("grandma's stew");
   } finally {
     db.close();
   }

@@ -609,4 +609,8 @@ New: [TemplateEditor.tsx](../../src/components/TemplateEditor.tsx), [DateSheet.t
 
 WP4 is split into WP4A (Nutrition), WP4B (Measurements), WP4C (Recovery) and WP4D (Goals), each reviewed separately. The WP4A audit, the founder's decisions (D1–D10), the implementation, tests, emulator results and outstanding iPhone checks are in [PHASE_7B_WP4A_NUTRITION_AUDIT.md](PHASE_7B_WP4A_NUTRITION_AUDIT.md). WP4A resolves C-06 and the nutrition part of C-05.
 
-*End of report. Phase 7B WP1, WP2 and WP3 are approved and committed (WP2 and WP3 verified on the owner's iPhone); WP4A is implemented and awaiting review; WP4B–WP4D and WP5–WP7 have not begun.*
+## Phase 7B progress — WP4A.1 Built-in food library (implemented, in review)
+
+A curated, offline USDA FoodData Central library (3,730 foods) inside Nutrition's Add food, built reproducibly from pinned USDA releases. Research, decisions, implementation results, measurements and outstanding iPhone checks are in [PHASE_7B_WP4A1_FOOD_LIBRARY_PLAN.md](PHASE_7B_WP4A1_FOOD_LIBRARY_PLAN.md).
+
+*End of report. Phase 7B WP1, WP2 and WP3 are approved and committed (WP2 and WP3 verified on the owner's iPhone); WP4A is committed and awaiting the owner's iPhone review; WP4A.1 is implemented and awaiting review; WP4B–WP4D and WP5–WP7 have not begun.*

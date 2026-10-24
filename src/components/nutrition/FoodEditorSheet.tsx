@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { View } from "react-native";
 import { Alert } from "../../platform/alert";
-import { Sheet, Button, confirmDiscard } from "../ui";
+import { Sheet, Button, Txt, confirmDiscard } from "../ui";
 import {
   FoodFields,
   draftFrom,
@@ -12,10 +12,14 @@ import {
 } from "./FoodForm";
 import { useRepo, mutate } from "../../state";
 import {
+  amount,
   isDuplicateFood,
   mergeEntry,
+  sourceMeta,
+  withSourceEdits,
   type NutritionData,
 } from "../../domain/nutrition";
+import { sourceLabel } from "../../domain/food-library";
 import type { Journal } from "../../domain/types";
 import { theme } from "../../theme";
 
@@ -80,7 +84,7 @@ export function FoodEditorSheet({
         if (!Object.keys(changes).length && date === original.date) return true;
         r.updateJournal(
           original.id,
-          mergeEntry(original.data, changes),
+          withSourceEdits(mergeEntry(original.data, changes), changes),
           target.kind === "entry" ? date : undefined,
         );
         return true;
@@ -130,6 +134,7 @@ export function FoodEditorSheet({
         </View>
       }
     >
+      <SourceNote data={original?.data} quantity={draft.quantity} />
       <FoodFields
         draft={draft}
         onChange={change}
@@ -139,5 +144,31 @@ export function FoodEditorSheet({
         onDate={target.kind === "entry" ? setDate : undefined}
       />
     </Sheet>
+  );
+}
+
+/**
+ * Where a library food's values came from, and the weight eaten, so a
+ * reopened entry reads plainly ("USDA FNDDS · FDC 2707154 · 2 × 50 g =
+ * 100 g"). Edited values are labelled as based on, not from, USDA.
+ */
+function SourceNote({
+  data,
+  quantity,
+}: {
+  data?: NutritionData;
+  quantity: number;
+}) {
+  const meta = data && sourceMeta(data);
+  if (!meta?.sourceId) return null;
+  const weight = meta.sourceGrams
+    ? quantity === 1
+      ? ` · 1 serving = ${amount(meta.sourceGrams)} g`
+      : ` · ${amount(quantity)} × ${amount(meta.sourceGrams)} g = ${amount(meta.sourceGrams * quantity)} g`
+    : "";
+  return (
+    <Txt variant="caption" tone="secondary">
+      {`${meta.sourceEdited ? "Based on " : "From "}${sourceLabel(meta.sourceId)}${meta.sourceEdited ? " (values edited)" : ""}${weight}`}
+    </Txt>
   );
 }

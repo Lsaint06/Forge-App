@@ -18,6 +18,7 @@ import {
 } from "../components/nutrition/FoodEditorSheet";
 import { useRepo, mutate, confirm } from "../state";
 import { goBack } from "../navigation";
+import { tryLoadFoodLibrary } from "../data/food-catalog";
 import { localDate, type Journal } from "../domain/types";
 import { dayLabel } from "../domain/training-display";
 import {
@@ -64,6 +65,12 @@ export default function Nutrition() {
     const t = setTimeout(() => setBanner(undefined), 6000);
     return () => clearTimeout(t);
   }, [banner]);
+  // Warms the food library once the day has rendered, so Add food opens
+  // without parsing it. Failures surface in Add food, with Try again.
+  useEffect(() => {
+    const t = setTimeout(() => tryLoadFoodLibrary(), 300);
+    return () => clearTimeout(t);
+  }, []);
 
   const p = r.profile();
   const personalized = targetsPersonalized(p, r.setting(TARGETS_SAVED) === "1");

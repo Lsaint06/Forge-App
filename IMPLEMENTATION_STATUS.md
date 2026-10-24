@@ -56,7 +56,8 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 | Private progress photos/storage | Not implemented | No photo acquisition or storage |
 | Manual nutrition totals | Implemented and tested | Serving quantity scales all four totals |
 | Meals, serving descriptions, saved foods and repeated meals | Implemented but unverified | Offline forms/repositories; native workflow outstanding |
-| Barcode scanning/external food API | Not implemented | No invented food data or pretend scanner |
+| Built-in offline USDA food library (WP4A.1) | Implemented and tested | 3,730 curated FoodData Central foods (FNDDS 2021-2023 + selected SR Legacy) from a pinned, reproducible build; grams and USDA household portions; journal snapshots with provenance; logic/UI tests and Android emulator review incl. airplane mode; iPhone review and release-build performance outstanding |
+| Barcode scanning/external food API | Not implemented | No invented food data or pretend scanner; no runtime food API |
 | Recovery scoring | Implemented and tested | Bounded transparent five-factor formula |
 | Recovery journal / subjective readiness / rest days | Implemented but unverified | Additional inputs recorded; subjective readiness not part of derived five-factor score |
 | Configurable goals | Partially implemented | Workouts, volume, load, bodyweight, duration, calories; ratio calculation tested, device goal flows unverified |

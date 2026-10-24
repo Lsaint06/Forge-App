@@ -14,7 +14,9 @@
     "format": "prettier --write app src tests",
     "format:check": "prettier --check app src tests",
     "test:ui": "jest --runInBand",
-    "programs:publish": "tsx scripts/publish-programs.ts"
+    "programs:publish": "tsx scripts/publish-programs.ts",
+    "food-library:build": "tsx scripts/food-library/build.ts",
+    "food-library:check": "tsx scripts/food-library/build.ts --offline --check"
   },
   "dependencies": {
     "@expo/metro-runtime": "~58.0.15",

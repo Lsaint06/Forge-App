@@ -12,3 +12,6 @@ test-results/
 .superpowers/
 ios/
 android/
+
+# Food library build cache (pinned USDA archives; see scripts/food-library)
+.cache/
