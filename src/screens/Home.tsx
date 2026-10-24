@@ -14,7 +14,8 @@ import {
 import { ListRow, ListSection } from "../components/system";
 import { WeeklyConsistency } from "../components/design";
 import { PlanRow, planStatus } from "../components/PlanRow";
-import { summary, readiness, volume } from "../domain/metrics";
+import { summary, volume } from "../domain/metrics";
+import { onDay, sleepText, type Checkin } from "../domain/checkins";
 import { localDate } from "../domain/types";
 import { workoutTitle } from "../domain/workout-display";
 import {
@@ -171,7 +172,7 @@ export default function Home() {
   const plan = planStatus(r);
   const weekly = summary(all, (id) => r.workoutSets(id)).weekly;
   const last = all.find((w) => w.status === "completed");
-  const recovery = r.journal("recovery").find((j) => j.date === today);
+  const recovery = onDay(r.journal("recovery") as Checkin[], today)[0];
   useEffect(() => {
     if (!p.onboarded) router.replace("/onboarding");
   }, [p.onboarded]);
@@ -183,15 +184,7 @@ export default function Home() {
     const w = mutate(() => startNextSession(r, next));
     if (w) router.push("/workout");
   }
-  const score = recovery
-    ? readiness({
-        sleep: Number(recovery.data.sleep),
-        quality: Number(recovery.data.quality),
-        soreness: Number(recovery.data.soreness),
-        energy: Number(recovery.data.energy),
-        stress: Number(recovery.data.stress),
-      }).score
-    : undefined;
+  const sleep = recovery ? sleepText(recovery.data.sleep) : undefined;
   return (
     <Screen title="Today" eyebrow={longDayLabel()}>
       <NextWorkout next={next} today={today} onStart={start} />
@@ -213,9 +206,11 @@ export default function Home() {
           icon="pulse-outline"
           title="Recovery check-in"
           subtitle={
-            score !== undefined
-              ? `Readiness ${score}/100 today`
-              : "Not logged today"
+            !recovery
+              ? "Not logged today"
+              : sleep
+                ? `Logged today · Sleep ${sleep}`
+                : "Logged today"
           }
           onPress={() =>
             router.push({ pathname: "/journal", params: { kind: "recovery" } })

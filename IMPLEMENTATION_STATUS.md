@@ -58,8 +58,8 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 | Meals, serving descriptions, saved foods and repeated meals | Implemented but unverified | Offline forms/repositories; native workflow outstanding |
 | Built-in offline USDA food library (WP4A.1) | Implemented and tested | 3,730 curated FoodData Central foods (FNDDS 2021-2023 + selected SR Legacy) from a pinned, reproducible build; grams and USDA household portions; journal snapshots with provenance; logic/UI tests and Android emulator review incl. airplane mode; iPhone review and release-build performance outstanding |
 | Barcode scanning/external food API | Not implemented | No invented food data or pretend scanner; no runtime food API |
-| Recovery scoring | Implemented and tested | Bounded transparent five-factor formula |
-| Recovery journal / subjective readiness / rest days | Implemented but unverified | Additional inputs recorded; subjective readiness not part of derived five-factor score |
+| Recovery scoring (`readiness()` five-factor formula) | Retained, not shown (WP4C) | Function and test kept for compatibility; no screen displays a score |
+| Recovery screen: Today summary, keyboard-free check-in, trends, month-grouped history, edit/delete with Undo (WP4C) | Implemented and tested | Same journal records and storage validation; nothing prefilled; labelled 1–5 scales; optional self-rated readiness kept; same-day entries kept (latest of day used for Today and trends); change-only edits (untouched save writes nothing, verified on device DB); unusual legacy values shown as recorded; logic/UI tests and Android emulator review; iPhone review outstanding |
 | Configurable goals | Partially implemented | Workouts, volume, load, bodyweight, duration, calories; ratio calculation tested, device goal flows unverified |
 | Basic achievements | Implemented and tested | First/10/100 workouts, 10,000 kg, first recorded strength record thresholds |
 | Four-week consistency and custom exercise milestones | Not implemented | No fabricated unlocks |

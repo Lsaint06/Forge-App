@@ -21,7 +21,6 @@ import {
 import { localDate, type Journal, type JournalKind } from "../domain/types";
 import {
   nutritionTotals,
-  readiness,
   summary,
   records,
   canonicalMeasurement,
@@ -30,6 +29,7 @@ import {
 import Nutrition from "./Nutrition";
 import SavedFoods from "./SavedFoods";
 import Measurements from "./Measurements";
+import Checkins from "./Checkins";
 const config = {
   measurement: {
     title: "Measure your change.",
@@ -51,19 +51,6 @@ const config = {
       ["fat", "Fat g per serving", ""],
       ["quantity", "Servings consumed", "1"],
       ["serving", "Serving description (e.g. 100 g)", ""],
-      ["notes", "Notes", ""],
-    ],
-  },
-  recovery: {
-    title: "Listen to your body.",
-    fields: [
-      ["sleep", "Sleep hours", "8"],
-      ["quality", "Sleep quality (1–5)", "3"],
-      ["soreness", "Soreness (1–5)", "3"],
-      ["energy", "Energy (1–5)", "3"],
-      ["stress", "Stress (1–5)", "3"],
-      ["readiness", "Subjective readiness (1–5)", "3"],
-      ["restDay", "Rest day: yes / no", "no"],
       ["notes", "Notes", ""],
     ],
   },
@@ -98,26 +85,20 @@ const numbers = new Set([
   "carbs",
   "fat",
   "quantity",
-  "sleep",
-  "quality",
-  "soreness",
-  "energy",
-  "stress",
-  "readiness",
   "target",
   "start",
 ]);
 /**
  * `/journal?kind=…`. Nutrition and saved foods (Phase 7B WP4A) and
- * measurements (WP4B) have their own screens; recovery and goals still use
- * the journal below. An unknown kind opens Measurements, as before.
+ * measurements (WP4B) and recovery (WP4C) have their own screens; goals still
+ * use the journal below. An unknown kind opens Measurements, as before.
  */
 export default function JournalScreen() {
   const params = useLocalSearchParams<{ kind?: string }>();
   if (params.kind === "nutrition") return <Nutrition />;
   if (params.kind === "food") return <SavedFoods />;
-  if (params.kind !== "recovery" && params.kind !== "goal")
-    return <Measurements />;
+  if (params.kind === "recovery") return <Checkins />;
+  if (params.kind !== "goal") return <Measurements />;
   return <LegacyJournal />;
 }
 function LegacyJournal() {
@@ -357,7 +338,7 @@ function LegacyJournal() {
         .map((j) => (
           <Card key={j.id}>
             <Label size={19} bold>
-              {String(j.data.name ?? "Recovery check-in")}
+              {String(j.data.name ?? "")}
             </Label>
             <Label muted size={12}>
               {j.date}
@@ -387,37 +368,6 @@ function LegacyJournal() {
                 {j.data.meal ?? j.data.serving}
               </Label>
             ) : null}
-            {kind === "recovery" && (
-              <>
-                <Label size={28} bold>
-                  {
-                    readiness({
-                      sleep: Number(j.data.sleep),
-                      quality: Number(j.data.quality),
-                      soreness: Number(j.data.soreness),
-                      energy: Number(j.data.energy),
-                      stress: Number(j.data.stress),
-                    }).score
-                  }{" "}
-                  / 100
-                </Label>
-                <Label muted>
-                  {
-                    readiness({
-                      sleep: Number(j.data.sleep),
-                      quality: Number(j.data.quality),
-                      soreness: Number(j.data.soreness),
-                      energy: Number(j.data.energy),
-                      stress: Number(j.data.stress),
-                    }).reason
-                  }
-                </Label>
-                <Label muted>
-                  Sleep {j.data.sleep} h · soreness {j.data.soreness}/5 · energy{" "}
-                  {j.data.energy}/5 · rest day {j.data.restDay ?? "not logged"}
-                </Label>
-              </>
-            )}
             {kind === "goal" && (
               <>
                 <Label>{goalStatus(j).text}</Label>
