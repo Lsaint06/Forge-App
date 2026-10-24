@@ -621,4 +621,16 @@ A dedicated Measurements screen on the same route (overview with ranges and date
 
 A dedicated Recovery screen on the same route: a Today summary of what was recorded (no score), a keyboard-free check-in with labelled 1–5 scales and a last-night's-sleep stepper (nothing prefilled), real-date trends with plain summaries, and month-grouped history with change-only edits and delete with Undo. Same journal records and storage validation; no schema, backup or sync change; nothing feeds training. Audit, decisions D1–D12, results and iPhone checks: [PHASE_7B_WP4C_RECOVERY_AUDIT.md](PHASE_7B_WP4C_RECOVERY_AUDIT.md). Resolves the Recovery part of C-05 and C-15.
 
-*End of report. Phase 7B WP1, WP2 and WP3 are approved and committed (WP2 and WP3 verified on the owner's iPhone); WP4A, WP4A.1 and WP4B are committed and awaiting the owner's iPhone review; WP4C is implemented, uncommitted and awaiting review; WP4D and WP5–WP7 have not begun.*
+## Phase 7B progress — WP4D Goals (implemented, in review)
+
+A dedicated Goals screen on the same route. All six goal types stay creatable, each with an exact, stated measurement:
+- bodyweight up or down;
+- the heaviest working-set lift at N reps;
+- volume from a chosen day;
+- workouts per week;
+- session length at most or at least over 4 weeks;
+- daily logged calories at most or at least.
+
+Bars appear only with a real starting point. Confirmed achievements keep their real dates permanently. Legacy goals keep their meaning, with opt-in conversion. Units follow the profile (M-15). The last generic journal form is retired. Same journal records and storage validation; no schema, backup or sync change. Audit, decisions D1–D23, results and iPhone checks: [PHASE_7B_WP4D_GOALS_AUDIT.md](PHASE_7B_WP4D_GOALS_AUDIT.md). Resolves C-05's goal part, C-15, C-19 and M-15.
+
+*End of report. Phase 7B WP1, WP2 and WP3 are approved and committed (WP2 and WP3 verified on the owner's iPhone); WP4A, WP4A.1, WP4B and WP4C are committed and awaiting the owner's iPhone review; WP4D is implemented, uncommitted and awaiting review; WP5–WP7 have not begun.*

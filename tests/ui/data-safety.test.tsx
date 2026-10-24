@@ -427,9 +427,11 @@ test("a bodyweight goal reads any spelling of body weight", async () => {
     mockParams.kind = "goal";
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<JournalScreen />);
-    expect(view.getByText("81.8 kg now · target 80 kg")).toBeTruthy();
+    const hidden = { includeHiddenElements: true };
+    expect(view.getByText(/^81\.8 kg · /, hidden)).toBeTruthy();
+    expect(view.getByText("Target 80 kg", hidden)).toBeTruthy();
     expect(
-      view.getByLabelText("Reach 80 kg").props.accessibilityValue.now,
+      view.getByLabelText("Reach 80 kg", hidden).props.accessibilityValue.now,
     ).toBe(56);
   } finally {
     db.close();
@@ -443,12 +445,13 @@ test("a bodyweight goal with no weight logged shows no progress, not completion"
     mockParams.kind = "goal";
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<JournalScreen />);
+    const hidden = { includeHiddenElements: true };
     expect(
-      view.getByText("No bodyweight logged yet · target 80 kg"),
+      view.getByText("No weigh-in yet. Log one in Measurements.", hidden),
     ).toBeTruthy();
-    expect(
-      view.getByLabelText("Reach 80 kg").props.accessibilityValue.now,
-    ).toBe(0);
+    expect(view.queryByLabelText("Reach 80 kg", hidden)).toBeNull();
+    expect(view.queryByText("Target reached", hidden)).toBeNull();
+    expect(view.queryByText(/Mark .* as achieved/, hidden)).toBeNull();
   } finally {
     db.close();
   }

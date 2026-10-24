@@ -709,7 +709,9 @@ test("the Goals nutrition metric still reads today's calories", async () => {
     mockParams.kind = "goal";
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render_();
-    expect(view.getByText("500.0 / 2500 nutrition")).toBeTruthy();
+    expect(
+      view.getByText("500 kcal logged today", { includeHiddenElements: true }),
+    ).toBeTruthy();
   } finally {
     db.close();
   }
