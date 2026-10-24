@@ -19,9 +19,9 @@ export const INTRO = {
 } as const;
 
 export const PARTICLE_COUNT = 44;
-// Image effects wait this long at most before falling back to the procedural
-// versions, so a slow image load never delays or stalls the intro.
-export const ASSET_WAIT_MS = 450;
+// The intro plays only from its artwork images. If they haven't all loaded by
+// this point, the intro is skipped so a slow load never delays the app.
+export const ASSET_GIVE_UP_MS = 2500;
 export const SPARK_COUNT = 12;
 export const BOKEH_COUNT = 3;
 // Deterministic pseudo-random values so the layout is stable across renders.

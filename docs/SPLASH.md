@@ -57,16 +57,13 @@ Runtime images are stored in `assets/splash/effects/`: 10 PNGs, **115.7 KB total
 - Every other Kenney sprite.
 - Kenney `star_05` as a reveal glint: tested in rendered frames, it read as a small lens-flare sparkle beside the letters and did not improve the molten peak.
 
-**Load gate and fallbacks**
+**Load gate (no fallback intro)**
 
-- Effect images preload invisibly during Stage 01's darkness. The clock starts when every image has loaded or failed, or after at most **450 ms** (`ASSET_WAIT_MS`), so nothing pops in mid-sequence.
-- Any layer whose image did not load keeps its procedural look:
-  - Embers fall back to drawn dots.
-  - Smoke falls back to the gradient haze.
-  - Sparks and depth embers are simply omitted; the procedural ember burst remains.
-- Images that arrive after the cutoff are ignored for that playback.
-- Reduce Motion loads no effect images.
-- The intro always plays through; there is no skip control.
+- Every artwork image (effects and all ten letter images) preloads invisibly while the screen stays plain charcoal `#101216`, matching the native launch screen.
+- The intro plays only once **every** image has loaded. There is no asset-free or vector-drawn version of the intro; the original procedural intro was removed and can never play.
+- If any image fails, or they have not all loaded within **2.5 s** (`ASSET_GIVE_UP_MS`), the intro is skipped and the app appears as soon as it is ready. Late loads after that are ignored.
+- Reduce Motion preloads only the five steel letters.
+- The intro always plays through once it starts; there is no skip control.
 
 **Readiness**
 
@@ -139,10 +136,10 @@ The native launch screen and real production cold-start behavior require a devel
   - native splash failures that do not block startup
   - startup-error recovery without replay
   - effect images:
-    - waiting for loads, then replacing the procedural layers
-    - a failed image keeping its layer's fallback
-    - the 450 ms timeout starting procedurally without late pop-in
-    - playing through while images load
+    - showing only charcoal until every image loads, then the full image intro
+    - a failed effect or letter image skipping the intro, never drawing a stand-in
+    - the 2.5 s wait skipping the intro when images never arrive
+    - images that load within the wait playing the full intro
     - no images under Reduce Motion
     - deterministic spark and bokeh layouts
     - the file set, dimensions, color types, and the 150 KB budget, with no source media in `assets/`
@@ -194,7 +191,7 @@ The `brand/` files are master sources; the app does not bundle them. The 11 app 
 
 **Fallbacks**
 
-- Letter images are used only if **all five** letters load. Otherwise all five fall back to the vector letters, never a mix.
+- None. If any letter image fails to load, the intro is skipped (see the load gate above); vector-drawn letters are never shown.
 - Reduce Motion preloads only the five steel letters, then shows the finished logo.
 
 ## Brand assets still needed

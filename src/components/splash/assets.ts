@@ -1,8 +1,8 @@
 import type { ImageSourcePropType } from "react-native";
 
 // Runtime image effects for the FORGE intro. Sources, licenses and how these
-// were prepared are documented in docs/SPLASH.md. Every layer that uses one of
-// these images keeps a procedural fallback if it fails to load.
+// were prepared are documented in docs/SPLASH.md. The intro plays only once
+// every one of these has loaded; there is no image-free fallback.
 export type SplashAssets = {
   // White + alpha, tinted at runtime.
   ember: ImageSourcePropType;

@@ -14,7 +14,6 @@ import { StatusBar } from "expo-status-bar";
 import Svg, {
   Defs,
   Ellipse,
-  LinearGradient,
   Path,
   RadialGradient,
   Stop,
@@ -28,7 +27,7 @@ import {
 } from "./wordmark";
 
 import {
-  ASSET_WAIT_MS,
+  ASSET_GIVE_UP_MS,
   INTRO,
   SPLASH_COLORS,
   makeBokeh,
@@ -39,29 +38,16 @@ import { assetEntries, splashAssets, type SplashAssets } from "./assets";
 
 export { INTRO, SPLASH_COLORS };
 
-// Molten fill cools into a steel-white finish.
-const HOT_STOPS = [
-  ["0", "#FFE2A8"],
-  ["0.45", "#FF8A3D"],
-  ["1", "#C2381A"],
-] as const;
-const COOL_STOPS = [
-  ["0", "#FFFFFF"],
-  ["0.55", SPLASH_COLORS.offWhite],
-  ["1", "#C8CBD0"],
-] as const;
-function LetterArt({
+// The heat halo that rings each letter while the metal is molten.
+function LetterGlow({
   path,
   width,
   scale,
-  variant,
 }: {
   path: string;
   width: number;
   scale: number;
-  variant: "glow" | "hot" | "cool";
 }) {
-  const id = `${variant}-${path.length}-${width}`;
   return (
     <Svg
       width={(width + LETTER_PAD * 2) * scale}
@@ -69,50 +55,34 @@ function LetterArt({
       viewBox={`${-LETTER_PAD} ${-LETTER_PAD} ${width + LETTER_PAD * 2} ${WORDMARK_HEIGHT + LETTER_PAD * 2}`}
       style={StyleSheet.absoluteFill}
     >
-      <Defs>
-        <LinearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
-          {(variant === "cool" ? COOL_STOPS : HOT_STOPS).map(
-            ([offset, color]) => (
-              <Stop key={offset} offset={offset} stopColor={color} />
-            ),
-          )}
-        </LinearGradient>
-      </Defs>
-      {variant === "glow" ? (
-        <>
-          <Path
-            d={path}
-            fillRule="evenodd"
-            fill="none"
-            stroke={SPLASH_COLORS.orange}
-            strokeOpacity={0.35}
-            strokeWidth={14}
-            strokeLinejoin="round"
-          />
-          <Path
-            d={path}
-            fillRule="evenodd"
-            fill="none"
-            stroke="#FF9A55"
-            strokeOpacity={0.6}
-            strokeWidth={6}
-            strokeLinejoin="round"
-          />
-        </>
-      ) : (
-        <Path
-          d={path}
-          fillRule="evenodd"
-          fill={`url(#${id}-fill)`}
-          stroke={variant === "hot" ? "#FFD08A" : "#FFFFFF"}
-          strokeOpacity={variant === "hot" ? 0.55 : 0.18}
-          strokeWidth={1.2}
-        />
-      )}
+      <Path
+        d={path}
+        fillRule="evenodd"
+        fill="none"
+        stroke={SPLASH_COLORS.orange}
+        strokeOpacity={0.35}
+        strokeWidth={14}
+        strokeLinejoin="round"
+      />
+      <Path
+        d={path}
+        fillRule="evenodd"
+        fill="none"
+        stroke="#FF9A55"
+        strokeOpacity={0.6}
+        strokeWidth={6}
+        strokeLinejoin="round"
+      />
     </Svg>
   );
 }
 
+/**
+ * The FORGE intro, built from its artwork images. It waits on the plain
+ * charcoal launch background until every image has loaded, then plays. If an
+ * image fails or doesn't arrive within ASSET_GIVE_UP_MS, the intro is skipped
+ * and the app appears: there is no image-free version of the intro.
+ */
 export function ForgeSplash({
   ready,
   onFinish,
@@ -124,8 +94,8 @@ export function ForgeSplash({
   onFinish: () => void;
   // Overrides the system reduced-motion preference (tests).
   reduceMotion?: boolean;
-  // Image effects; null renders the procedural intro only.
-  assets?: SplashAssets | null;
+  // The intro's artwork (tests may substitute their own).
+  assets?: SplashAssets;
 }) {
   const systemReduced = useReducedMotion();
   const reduced = reduceMotion ?? systemReduced;
@@ -140,74 +110,59 @@ export function ForgeSplash({
   const [clock] = useState(() => new Animated.Value(reduced ? INTRO.total : 0));
   const [fade] = useState(() => new Animated.Value(1));
   const [sequenceDone, setSequenceDone] = useState(reduced);
-  // Leave once the sequence is done and the app is ready. The intro always
-  // plays through; slow initialization holds the finished logo and the
-  // sequence never loops.
-  const exiting = ready && sequenceDone;
 
-  // Image effects preload invisibly. The clock starts once every image has
-  // loaded or failed, or after ASSET_WAIT_MS, so nothing pops in mid-sequence.
-  // Layers whose images are not loaded by then keep their procedural look.
+  // Every artwork image preloads invisibly; the intro plays only once all of
+  // them have loaded. Reduced motion needs only the finished steel letters.
   const entries = useMemo(
-    () => (!assets ? [] : assetEntries(assets, reduced)),
+    () => assetEntries(assets, reduced),
     [reduced, assets],
   );
   const [loaded, setLoaded] = useState<ReadonlySet<string>>(() => new Set());
-  const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set());
+  const [failed, setFailed] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
-  const gateOpen = timedOut || loaded.size + failed.size >= entries.length;
+  const complete = loaded.size >= entries.length;
+  // Never fall back to drawn artwork: without every image, skip the intro.
+  const skipped = !complete && (failed || timedOut);
   // Read and written only in callbacks and effects, never during render.
-  const cutoff = useRef(false);
+  const settled = useRef(false);
   useEffect(() => {
-    if (gateOpen) return;
+    if (complete || skipped) {
+      settled.current = true;
+      return;
+    }
     const timer = setTimeout(() => {
-      cutoff.current = true;
+      settled.current = true;
       setTimedOut(true);
-    }, ASSET_WAIT_MS);
+    }, ASSET_GIVE_UP_MS);
     return () => clearTimeout(timer);
-  }, [gateOpen]);
-  useEffect(() => {
-    // Late loads after the cutoff are ignored for this playback.
-    if (gateOpen) cutoff.current = true;
-  }, [gateOpen]);
+  }, [complete, skipped]);
   const markLoaded = (key: string) => {
-    if (!cutoff.current) setLoaded((prev) => new Set(prev).add(key));
+    if (!settled.current) setLoaded((prev) => new Set(prev).add(key));
   };
-  const markFailed = (key: string) => {
-    if (!cutoff.current) setFailed((prev) => new Set(prev).add(key));
+  const markFailed = () => {
+    if (!settled.current) setFailed(true);
   };
-  const has = (key: string) => gateOpen && loaded.has(key);
-  const sparkSprites = assets
-    ? assets.sparks.filter((_, i) => has(`spark-${i}`))
-    : [];
-  const bokehSprites = assets
-    ? assets.bokeh.filter((_, i) => has(`bokeh-${i}`))
-    : [];
-  // Textured letters only when every needed image loaded, so all five letters
-  // always share one look; otherwise the vector letters are drawn.
-  const steelLoaded = wordmarkLetters.every((_, i) => has(`steel-${i}`));
-  const textured =
-    steelLoaded &&
-    (reduced || wordmarkLetters.every((_, i) => has(`molten-${i}`)));
-  // Reduced motion shows the finished logo immediately; wait for the gate so
-  // vector letters are never swapped for images on screen.
-  const showLogo = !reduced || gateOpen;
+  const playing = complete;
+  // Leave once the sequence is done and the app is ready (or at once when the
+  // intro was skipped). The intro always plays through; slow initialization
+  // holds the finished logo and the sequence never loops.
+  const exiting = ready && (skipped || (playing && sequenceDone));
 
   const particles = useMemo(
     () => (reduced ? [] : makeParticles(width, height, markWidth, markHeight)),
     [reduced, width, height, markWidth, markHeight],
   );
   const sparks = useMemo(
-    () => makeSparks(markWidth, markHeight, sparkSprites.length),
-    [markWidth, markHeight, sparkSprites.length],
+    () => makeSparks(markWidth, markHeight, assets.sparks.length),
+    [markWidth, markHeight, assets.sparks.length],
   );
   const bokeh = useMemo(
-    () => makeBokeh(width, height, bokehSprites.length),
-    [width, height, bokehSprites.length],
+    () => makeBokeh(width, height, assets.bokeh.length),
+    [width, height, assets.bokeh.length],
   );
 
   useEffect(() => {
-    if (reduced || !gateOpen) return;
+    if (reduced || !playing) return;
     const run = Animated.timing(clock, {
       toValue: INTRO.total,
       duration: INTRO.total,
@@ -218,7 +173,7 @@ export function ForgeSplash({
       if (finished) setSequenceDone(true);
     });
     return () => run.stop();
-  }, [clock, reduced, gateOpen]);
+  }, [clock, reduced, playing]);
 
   useEffect(() => {
     if (!exiting) return;
@@ -258,7 +213,7 @@ export function ForgeSplash({
       ]}
     >
       <StatusBar style="light" />
-      {!reduced && (
+      {playing && !reduced && (
         <>
           {/* Molten forge floor: a low, dim glow, not a flame effect. */}
           <Animated.View
@@ -346,110 +301,68 @@ export function ForgeSplash({
               />
             </Svg>
           </Animated.View>
-          {/* Cooling haze rises off the metal: real smoke when loaded. */}
-          {has("smoke") ? (
+          {/* Cooling smoke rises off the metal. */}
+          <Animated.View
+            testID="splash-smoke"
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              left: width / 2 - smokeWidth / 2,
+              top: markTop + markHeight / 2 - smokeHeight * 0.55,
+              opacity: at(
+                [INTRO.cool - 150, INTRO.cool + 400, INTRO.total],
+                [0, 0.26, 0.12],
+              ),
+              transform: [
+                {
+                  translateY: at([INTRO.cool - 150, INTRO.total], [26, -30]),
+                },
+                { scale: at([INTRO.cool - 150, INTRO.total], [1.04, 1.12]) },
+              ],
+            }}
+          >
+            <Image
+              source={assets.smoke}
+              resizeMode="stretch"
+              style={{
+                width: smokeWidth,
+                height: smokeHeight,
+                tintColor: "#A3A9B1",
+              }}
+            />
+          </Animated.View>
+          {/* Out-of-focus embers for depth. */}
+          {bokeh.map((b, i) => (
             <Animated.View
-              testID="splash-smoke"
+              key={`bokeh-${i}`}
+              testID="splash-bokeh"
               pointerEvents="none"
               style={{
                 position: "absolute",
-                left: width / 2 - smokeWidth / 2,
-                top: markTop + markHeight / 2 - smokeHeight * 0.55,
+                left: width / 2 + b.at[0] - b.size / 2,
+                top: centerY + b.at[1] - b.size / 2,
                 opacity: at(
-                  [INTRO.cool - 150, INTRO.cool + 400, INTRO.total],
-                  [0, 0.26, 0.12],
+                  [
+                    INTRO.ignite + 150,
+                    INTRO.forge + 250,
+                    INTRO.reveal + 150,
+                    INTRO.cool + 250,
+                    INTRO.settle,
+                  ],
+                  [0, b.opacity * 0.7, b.opacity, b.opacity * 0.5, 0],
                 ),
                 transform: [
-                  {
-                    translateY: at([INTRO.cool - 150, INTRO.total], [26, -30]),
-                  },
-                  { scale: at([INTRO.cool - 150, INTRO.total], [1.04, 1.12]) },
+                  { translateY: at([0, INTRO.settle], [b.rise, -b.rise]) },
                 ],
               }}
             >
               <Image
-                source={assets!.smoke}
+                source={assets.bokeh[b.sprite]!}
                 resizeMode="stretch"
-                style={{
-                  width: smokeWidth,
-                  height: smokeHeight,
-                  tintColor: "#A3A9B1",
-                }}
+                style={{ width: b.size, height: b.size }}
               />
             </Animated.View>
-          ) : (
-            <Animated.View
-              testID="splash-haze"
-              pointerEvents="none"
-              style={{
-                position: "absolute",
-                left: width / 2 - markWidth * 0.8,
-                top: markTop - markHeight * 1.2,
-                opacity: at(
-                  [INTRO.cool - 100, INTRO.cool + 350, INTRO.total],
-                  [0, 0.42, 0.14],
-                ),
-                transform: [
-                  {
-                    translateY: at([INTRO.cool - 100, INTRO.total], [12, -18]),
-                  },
-                ],
-              }}
-            >
-              <Svg width={markWidth * 1.6} height={markHeight * 3.4}>
-                <Defs>
-                  <RadialGradient id="haze" cx="50%" cy="50%" rx="50%" ry="50%">
-                    <Stop offset="0" stopColor="#9AA0A8" stopOpacity={0.45} />
-                    <Stop
-                      offset="1"
-                      stopColor={SPLASH_COLORS.charcoal}
-                      stopOpacity={0}
-                    />
-                  </RadialGradient>
-                </Defs>
-                <Ellipse
-                  cx={markWidth * 0.8}
-                  cy={markHeight * 1.7}
-                  rx={markWidth * 0.8}
-                  ry={markHeight * 1.7}
-                  fill="url(#haze)"
-                />
-              </Svg>
-            </Animated.View>
-          )}
-          {/* Out-of-focus embers for depth. */}
-          {bokehSprites.length > 0 &&
-            bokeh.map((b, i) => (
-              <Animated.View
-                key={`bokeh-${i}`}
-                testID="splash-bokeh"
-                pointerEvents="none"
-                style={{
-                  position: "absolute",
-                  left: width / 2 + b.at[0] - b.size / 2,
-                  top: centerY + b.at[1] - b.size / 2,
-                  opacity: at(
-                    [
-                      INTRO.ignite + 150,
-                      INTRO.forge + 250,
-                      INTRO.reveal + 150,
-                      INTRO.cool + 250,
-                      INTRO.settle,
-                    ],
-                    [0, b.opacity * 0.7, b.opacity, b.opacity * 0.5, 0],
-                  ),
-                  transform: [
-                    { translateY: at([0, INTRO.settle], [b.rise, -b.rise]) },
-                  ],
-                }}
-              >
-                <Image
-                  source={bokehSprites[b.sprite]!}
-                  resizeMode="stretch"
-                  style={{ width: b.size, height: b.size }}
-                />
-              </Animated.View>
-            ))}
+          ))}
           {particles.map((p, i) => {
             const enter = INTRO.ignite + p.appear;
             const path = [
@@ -459,7 +372,6 @@ export function ForgeSplash({
               INTRO.cool + 100,
               INTRO.settle,
             ];
-            const color = p.hot ? "#FFB066" : SPLASH_COLORS.orange;
             return (
               <Animated.View
                 key={i}
@@ -501,163 +413,132 @@ export function ForgeSplash({
                   ],
                 }}
               >
-                {has("ember") ? (
-                  <>
-                    <Image
-                      source={assets!.ember}
-                      resizeMode="stretch"
-                      style={{
-                        position: "absolute",
-                        width: p.size * 3.6,
-                        height: p.size * 3.6,
-                        left: -p.size * 1.8,
-                        top: -p.size * 1.8,
-                        opacity: 0.55,
-                        tintColor: SPLASH_COLORS.orange,
-                      }}
-                    />
-                    <Image
-                      source={assets!.ember}
-                      resizeMode="stretch"
-                      style={{
-                        position: "absolute",
-                        width: p.size * 1.3,
-                        height: p.size * 1.3,
-                        left: -p.size * 0.65,
-                        top: -p.size * 0.65,
-                        tintColor: p.hot ? "#FFE2A8" : "#FFB066",
-                      }}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <View
-                      style={{
-                        position: "absolute",
-                        width: p.size * 3.2,
-                        height: p.size * 3.2,
-                        left: -p.size * 1.6,
-                        top: -p.size * 1.6,
-                        borderRadius: p.size * 1.6,
-                        backgroundColor: SPLASH_COLORS.orange,
-                        opacity: 0.22,
-                      }}
-                    />
-                    <View
-                      style={{
-                        position: "absolute",
-                        width: p.size,
-                        height: p.size,
-                        left: -p.size / 2,
-                        top: -p.size / 2,
-                        borderRadius: p.size / 2,
-                        backgroundColor: color,
-                      }}
-                    />
-                  </>
-                )}
+                <Image
+                  source={assets.ember}
+                  resizeMode="stretch"
+                  style={{
+                    position: "absolute",
+                    width: p.size * 3.6,
+                    height: p.size * 3.6,
+                    left: -p.size * 1.8,
+                    top: -p.size * 1.8,
+                    opacity: 0.55,
+                    tintColor: SPLASH_COLORS.orange,
+                  }}
+                />
+                <Image
+                  source={assets.ember}
+                  resizeMode="stretch"
+                  style={{
+                    position: "absolute",
+                    width: p.size * 1.3,
+                    height: p.size * 1.3,
+                    left: -p.size * 0.65,
+                    top: -p.size * 0.65,
+                    tintColor: p.hot ? "#FFE2A8" : "#FFB066",
+                  }}
+                />
               </Animated.View>
             );
           })}
           {/* Real spark streaks thrown off at the molten reveal. */}
-          {sparkSprites.length > 0 &&
-            sparks.map((s, i) => {
-              const start = INTRO.reveal + s.delay;
-              const end = start + s.duration;
-              return (
-                <Animated.View
-                  key={`spark-${i}`}
-                  testID="splash-spark"
-                  pointerEvents="none"
-                  style={{
-                    position: "absolute",
-                    left: width / 2 - s.width / 2,
-                    top: centerY - taglineSize - s.length / 2,
-                    width: s.width,
-                    height: s.length,
-                    opacity: at(
-                      [start, start + 40, start + s.duration * 0.55, end],
-                      [0, 1, 0.85, 0],
-                    ),
-                    transform: [
-                      { translateX: at([start, end], [s.from[0], s.to[0]]) },
-                      { translateY: at([start, end], [s.from[1], s.to[1]]) },
-                      { rotate: s.rotate },
-                      { scaleY: at([start, end], [0.6, 1.15]) },
-                    ],
-                  }}
-                >
-                  <Image
-                    source={sparkSprites[s.sprite]!}
-                    resizeMode="stretch"
-                    style={{ width: s.width, height: s.length }}
-                  />
-                </Animated.View>
-              );
-            })}
+          {sparks.map((s, i) => {
+            const start = INTRO.reveal + s.delay;
+            const end = start + s.duration;
+            return (
+              <Animated.View
+                key={`spark-${i}`}
+                testID="splash-spark"
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  left: width / 2 - s.width / 2,
+                  top: centerY - taglineSize - s.length / 2,
+                  width: s.width,
+                  height: s.length,
+                  opacity: at(
+                    [start, start + 40, start + s.duration * 0.55, end],
+                    [0, 1, 0.85, 0],
+                  ),
+                  transform: [
+                    { translateX: at([start, end], [s.from[0], s.to[0]]) },
+                    { translateY: at([start, end], [s.from[1], s.to[1]]) },
+                    { rotate: s.rotate },
+                    { scaleY: at([start, end], [0.6, 1.15]) },
+                  ],
+                }}
+              >
+                <Image
+                  source={assets.sparks[s.sprite]!}
+                  resizeMode="stretch"
+                  style={{ width: s.width, height: s.length }}
+                />
+              </Animated.View>
+            );
+          })}
         </>
       )}
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          top: markTop,
-          alignItems: "center",
-        }}
-      >
-        <Animated.View
-          accessible
-          accessibilityRole="image"
-          accessibilityLabel="FORGE. Built through discipline."
+      {playing && (
+        <View
+          pointerEvents="none"
           style={{
-            width: markWidth,
-            height: markHeight,
-            transform: [
-              {
-                scale: at(
-                  [INTRO.reveal, INTRO.reveal + 150, INTRO.cool],
-                  [1, 1.03, 1],
-                ),
-              },
-            ],
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: markTop,
+            alignItems: "center",
           }}
         >
-          {/* The artwork's own heat glow, once every letter has formed. */}
-          {!reduced && textured && has("wordmark-glow") && (
-            <Animated.View
-              testID="splash-wordmark-glow"
-              pointerEvents="none"
-              style={{
-                position: "absolute",
-                left: GLOW_REGION.x * scale,
-                top: GLOW_REGION.y * scale,
-                width: GLOW_REGION.width * scale,
-                height: GLOW_REGION.height * scale,
-                opacity: at(
-                  [
-                    INTRO.reveal - 150,
-                    INTRO.reveal + 120,
-                    INTRO.cool,
-                    INTRO.cool + 420,
-                  ],
-                  [0, 1, 0.7, 0],
-                ),
-              }}
-            >
-              <Image
-                source={assets!.wordmarkGlow}
-                resizeMode="stretch"
+          <Animated.View
+            accessible
+            accessibilityRole="image"
+            accessibilityLabel="FORGE. Built through discipline."
+            style={{
+              width: markWidth,
+              height: markHeight,
+              transform: [
+                {
+                  scale: at(
+                    [INTRO.reveal, INTRO.reveal + 150, INTRO.cool],
+                    [1, 1.03, 1],
+                  ),
+                },
+              ],
+            }}
+          >
+            {/* The artwork's own heat glow, once every letter has formed. */}
+            {!reduced && (
+              <Animated.View
+                testID="splash-wordmark-glow"
+                pointerEvents="none"
                 style={{
+                  position: "absolute",
+                  left: GLOW_REGION.x * scale,
+                  top: GLOW_REGION.y * scale,
                   width: GLOW_REGION.width * scale,
                   height: GLOW_REGION.height * scale,
+                  opacity: at(
+                    [
+                      INTRO.reveal - 150,
+                      INTRO.reveal + 120,
+                      INTRO.cool,
+                      INTRO.cool + 420,
+                    ],
+                    [0, 1, 0.7, 0],
+                  ),
                 }}
-              />
-            </Animated.View>
-          )}
-          {showLogo &&
-            wordmarkLetters.map((letter, i) => {
+              >
+                <Image
+                  source={assets.wordmarkGlow}
+                  resizeMode="stretch"
+                  style={{
+                    width: GLOW_REGION.width * scale,
+                    height: GLOW_REGION.height * scale,
+                  }}
+                />
+              </Animated.View>
+            )}
+            {wordmarkLetters.map((letter, i) => {
               const start = INTRO.forge + i * 90;
               const box = {
                 position: "absolute" as const,
@@ -673,7 +554,7 @@ export function ForgeSplash({
               return (
                 <Animated.View
                   key={letter.key}
-                  testID={textured ? "splash-letter-textured" : undefined}
+                  testID="splash-letter-textured"
                   style={[
                     box,
                     {
@@ -695,36 +576,23 @@ export function ForgeSplash({
                         style={[
                           StyleSheet.absoluteFill,
                           {
-                            opacity: textured
-                              ? // The image glow takes over at the reveal.
-                                at(
-                                  [
-                                    start,
-                                    start + 250,
-                                    INTRO.reveal,
-                                    INTRO.reveal + 120,
-                                  ],
-                                  [0, 0.45, 0.45, 0],
-                                )
-                              : at(
-                                  [
-                                    start,
-                                    start + 250,
-                                    INTRO.reveal,
-                                    INTRO.reveal + 120,
-                                    INTRO.cool,
-                                    INTRO.cool + 420,
-                                  ],
-                                  [0, 0.55, 0.7, 1, 0.6, 0],
-                                ),
+                            // The image glow takes over at the reveal.
+                            opacity: at(
+                              [
+                                start,
+                                start + 250,
+                                INTRO.reveal,
+                                INTRO.reveal + 120,
+                              ],
+                              [0, 0.45, 0.45, 0],
+                            ),
                           },
                         ]}
                       >
-                        <LetterArt
+                        <LetterGlow
                           path={letter.path}
                           width={letter.width}
                           scale={scale}
-                          variant="glow"
                         />
                       </Animated.View>
                       {/* Molten stays opaque beneath the fading-in steel, so
@@ -745,20 +613,11 @@ export function ForgeSplash({
                           },
                         ]}
                       >
-                        {textured ? (
-                          <Image
-                            source={assets!.molten[i]!}
-                            resizeMode="stretch"
-                            style={fill}
-                          />
-                        ) : (
-                          <LetterArt
-                            path={letter.path}
-                            width={letter.width}
-                            scale={scale}
-                            variant="hot"
-                          />
-                        )}
+                        <Image
+                          source={assets.molten[i]!}
+                          resizeMode="stretch"
+                          style={fill}
+                        />
                       </Animated.View>
                     </>
                   )}
@@ -773,65 +632,70 @@ export function ForgeSplash({
                       },
                     ]}
                   >
-                    {textured ? (
-                      <Image
-                        source={assets!.steel[i]!}
-                        resizeMode="stretch"
-                        style={fill}
-                      />
-                    ) : (
-                      <LetterArt
-                        path={letter.path}
-                        width={letter.width}
-                        scale={scale}
-                        variant="cool"
-                      />
-                    )}
+                    <Image
+                      source={assets.steel[i]!}
+                      resizeMode="stretch"
+                      style={fill}
+                    />
                   </Animated.View>
                 </Animated.View>
               );
             })}
-        </Animated.View>
-        <Animated.Text
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          style={{
-            marginTop: taglineSize * 1.6,
-            maxWidth: markWidth,
-            color: SPLASH_COLORS.offWhite,
-            fontSize: taglineSize,
-            fontWeight: "600",
-            letterSpacing: taglineSize * 0.42,
-            opacity: showLogo
-              ? at([INTRO.settle, INTRO.settle + 350], [0, 1])
-              : 0,
-            transform: [
-              {
-                translateY: at([INTRO.settle, INTRO.settle + 350], [6, 0]),
-              },
-            ],
-          }}
+          </Animated.View>
+          <Animated.Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            style={{
+              marginTop: taglineSize * 1.6,
+              maxWidth: markWidth,
+              color: SPLASH_COLORS.offWhite,
+              fontSize: taglineSize,
+              fontWeight: "600",
+              letterSpacing: taglineSize * 0.42,
+              opacity: at([INTRO.settle, INTRO.settle + 350], [0, 1]),
+              transform: [
+                {
+                  translateY: at([INTRO.settle, INTRO.settle + 350], [6, 0]),
+                },
+              ],
+            }}
+          >
+            BUILT THROUGH DISCIPLINE
+          </Animated.Text>
+          {sequenceDone && !ready && (
+            <View style={{ marginTop: 28 }}>
+              <ActivityIndicator
+                color={SPLASH_COLORS.orange}
+                accessibilityLabel="Preparing FORGE"
+              />
+            </View>
+          )}
+        </View>
+      )}
+      {skipped && !ready && (
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            { alignItems: "center", justifyContent: "center" },
+          ]}
         >
-          BUILT THROUGH DISCIPLINE
-        </Animated.Text>
-        {sequenceDone && !ready && (
-          <View style={{ marginTop: 28 }}>
-            <ActivityIndicator
-              color={SPLASH_COLORS.orange}
-              accessibilityLabel="Preparing FORGE"
-            />
-          </View>
-        )}
-      </View>
-      {/* Invisible preloads that gate the clock; see ASSET_WAIT_MS. */}
-      {!gateOpen &&
+          <ActivityIndicator
+            color={SPLASH_COLORS.orange}
+            accessibilityLabel="Preparing FORGE"
+          />
+        </View>
+      )}
+      {/* Invisible preloads; the intro plays only once all of them load. */}
+      {!complete &&
+        !skipped &&
         entries.map(([key, source]) => (
           <Image
             key={key}
             testID={`splash-preload-${key}`}
             source={source}
             onLoad={() => markLoaded(key)}
-            onError={() => markFailed(key)}
+            onError={markFailed}
             style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}
           />
         ))}

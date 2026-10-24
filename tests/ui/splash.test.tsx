@@ -10,7 +10,7 @@ import {
   replayIntro,
 } from "../../src/components/splash/session";
 import {
-  ASSET_WAIT_MS,
+  ASSET_GIVE_UP_MS,
   makeBokeh,
   makeParticles,
   makeSparks,
@@ -100,6 +100,13 @@ const advance = async (ms: number) =>
     jest.advanceTimersByTime(ms);
   });
 
+const preloads = (view: Awaited<ReturnType<typeof render>>) =>
+  view.queryAllByTestId(/^splash-preload-/, { includeHiddenElements: true });
+// Every artwork image finishes loading, which is what starts the intro.
+const loadAll = async (view: Awaited<ReturnType<typeof render>>) => {
+  for (const image of preloads(view)) await fireEvent(image, "load");
+};
+
 test("the wordmark and timeline stay within the intended proportions", () => {
   expect(wordmarkLetters.map((l) => l.key).join("")).toBe("FORGE");
   // Proportions of the approved brand artwork: about 6.4 : 1.
@@ -116,14 +123,10 @@ test("the full sequence holds the finished logo until the app is ready", async (
   const onFinish = jest.fn();
   const view = await render(
     phone(
-      <ForgeSplash
-        ready={false}
-        onFinish={onFinish}
-        reduceMotion={false}
-        assets={null}
-      />,
+      <ForgeSplash ready={false} onFinish={onFinish} reduceMotion={false} />,
     ),
   );
+  await loadAll(view);
   expect(view.getByLabelText(LABEL)).toBeTruthy();
   expect(view.getByText("BUILT THROUGH DISCIPLINE")).toBeTruthy();
   expect(view.queryByLabelText("Continue to FORGE")).toBeNull();
@@ -132,14 +135,7 @@ test("the full sequence holds the finished logo until the app is ready", async (
   expect(onFinish).not.toHaveBeenCalled();
   expect(view.getByLabelText("Preparing FORGE")).toBeTruthy();
   await view.rerender(
-    phone(
-      <ForgeSplash
-        ready
-        onFinish={onFinish}
-        reduceMotion={false}
-        assets={null}
-      />,
-    ),
+    phone(<ForgeSplash ready onFinish={onFinish} reduceMotion={false} />),
   );
   await advance(INTRO.exit + 100);
   expect(onFinish).toHaveBeenCalledTimes(1);
@@ -147,14 +143,9 @@ test("the full sequence holds the finished logo until the app is ready", async (
 
 test("a ready app finishes after the sequence without waiting further", async () => {
   const onFinish = jest.fn();
-  await render(
-    phone(
-      <ForgeSplash
-        ready
-        onFinish={onFinish}
-        reduceMotion={false}
-        assets={null}
-      />,
+  await loadAll(
+    await render(
+      phone(<ForgeSplash ready onFinish={onFinish} reduceMotion={false} />),
     ),
   );
   await advance(INTRO.total - 200);
@@ -167,15 +158,9 @@ test("a ready app finishes after the sequence without waiting further", async ()
 test("there is no tap-to-continue prompt or skip control", async () => {
   const onFinish = jest.fn();
   const view = await render(
-    phone(
-      <ForgeSplash
-        ready
-        onFinish={onFinish}
-        reduceMotion={false}
-        assets={null}
-      />,
-    ),
+    phone(<ForgeSplash ready onFinish={onFinish} reduceMotion={false} />),
   );
+  await loadAll(view);
   await advance(300);
   const hidden = { includeHiddenElements: true };
   expect(view.queryByText(/tap to continue/i, hidden)).toBeNull();
@@ -189,6 +174,7 @@ test("reduced motion shows the static logo and leaves with minimal movement", as
   const view = await render(
     phone(<ForgeSplash ready={false} onFinish={onFinish} reduceMotion />),
   );
+  await loadAll(view);
   expect(view.getByLabelText(LABEL)).toBeTruthy();
   expect(view.getByLabelText("Preparing FORGE")).toBeTruthy();
   await view.rerender(
@@ -215,6 +201,7 @@ test("cold start plays once; resume and remount do not replay", async () => {
   const Root = require("../../app/_layout").default;
   const SplashScreen = jest.requireMock("expo-splash-screen");
   const view = await render(<Root />);
+  await loadAll(view);
   expect(view.getByLabelText(LABEL)).toBeTruthy();
   await advance(0);
   expect(SplashScreen.hideAsync).toHaveBeenCalled();
@@ -272,10 +259,7 @@ test("startup errors show recovery instead of the intro", async () => {
   expect(introPending()).toBe(false);
 });
 
-const preloads = (view: Awaited<ReturnType<typeof render>>) =>
-  view.queryAllByTestId(/^splash-preload-/, { includeHiddenElements: true });
-
-test("image effects wait for their images, then replace procedural layers", async () => {
+test("nothing but the charcoal background shows until every image loads", async () => {
   const onFinish = jest.fn();
   const view = await render(
     phone(
@@ -283,86 +267,81 @@ test("image effects wait for their images, then replace procedural layers", asyn
     ),
   );
   const hidden = { includeHiddenElements: true };
-  // Before images resolve, nothing has started and no image layer shows.
   expect(preloads(view)).toHaveLength(assetEntries(splashAssets).length);
+  // No drawn stand-in for the artwork: no letters, effects or tagline yet.
+  expect(view.queryByLabelText(LABEL, hidden)).toBeNull();
+  expect(view.queryByText("BUILT THROUGH DISCIPLINE", hidden)).toBeNull();
   expect(view.queryByTestId("splash-smoke", hidden)).toBeNull();
-  for (const image of preloads(view)) await fireEvent(image, "load");
+  const [last, ...rest] = preloads(view).reverse();
+  for (const image of rest) await fireEvent(image, "load");
+  await advance(ASSET_GIVE_UP_MS - 100);
+  expect(view.queryByLabelText(LABEL, hidden)).toBeNull();
+  await fireEvent(last!, "load");
   expect(preloads(view)).toHaveLength(0);
+  expect(view.getByLabelText(LABEL)).toBeTruthy();
   expect(view.getByTestId("splash-smoke", hidden)).toBeTruthy();
-  expect(view.queryByTestId("splash-haze", hidden)).toBeNull();
   expect(view.getAllByTestId("splash-spark", hidden)).toHaveLength(SPARK_COUNT);
   expect(view.getAllByTestId("splash-bokeh", hidden)).toHaveLength(3);
   expect(view.getAllByTestId("splash-letter-textured", hidden)).toHaveLength(5);
   expect(view.getByTestId("splash-wordmark-glow", hidden)).toBeTruthy();
-  // The clock starts once images resolve; the sequence completes normally.
+  // The clock starts once images load; the sequence completes normally.
   await advance(INTRO.total + 100);
   expect(view.getByLabelText("Preparing FORGE")).toBeTruthy();
+  expect(onFinish).not.toHaveBeenCalled();
 });
 
-test("a failed image keeps that layer's procedural fallback", async () => {
-  const view = await render(
-    phone(
-      <ForgeSplash ready={false} onFinish={jest.fn()} reduceMotion={false} />,
-    ),
-  );
-  const hidden = { includeHiddenElements: true };
-  for (const image of preloads(view))
-    await fireEvent(
-      image,
-      image.props.testID === "splash-preload-smoke" ? "error" : "load",
+test.each(["splash-preload-smoke", "splash-preload-molten-2"])(
+  "a failed image (%s) skips the intro instead of drawing a stand-in",
+  async (failing) => {
+    const onFinish = jest.fn();
+    const view = await render(
+      phone(
+        <ForgeSplash ready={false} onFinish={onFinish} reduceMotion={false} />,
+      ),
     );
-  expect(view.queryByTestId("splash-smoke", hidden)).toBeNull();
-  expect(view.getByTestId("splash-haze", hidden)).toBeTruthy();
-  expect(view.getAllByTestId("splash-spark", hidden)).toHaveLength(SPARK_COUNT);
-});
-
-test("one failed letter image keeps all five letters vector, never mixed", async () => {
-  const view = await render(
-    phone(
-      <ForgeSplash ready={false} onFinish={jest.fn()} reduceMotion={false} />,
-    ),
-  );
-  const hidden = { includeHiddenElements: true };
-  for (const image of preloads(view))
-    await fireEvent(
-      image,
-      image.props.testID === "splash-preload-molten-2" ? "error" : "load",
+    const hidden = { includeHiddenElements: true };
+    for (const image of preloads(view))
+      await fireEvent(image, image.props.testID === failing ? "error" : "load");
+    expect(preloads(view)).toHaveLength(0);
+    expect(view.queryByLabelText(LABEL, hidden)).toBeNull();
+    expect(view.queryByTestId("splash-letter-textured", hidden)).toBeNull();
+    expect(view.getByLabelText("Preparing FORGE")).toBeTruthy();
+    await view.rerender(
+      phone(<ForgeSplash ready onFinish={onFinish} reduceMotion={false} />),
     );
-  expect(view.queryAllByTestId("splash-letter-textured", hidden)).toHaveLength(
-    0,
-  );
-  expect(view.queryByTestId("splash-wordmark-glow", hidden)).toBeNull();
-  // Other image effects still apply.
-  expect(view.getByTestId("splash-smoke", hidden)).toBeTruthy();
-  expect(view.getByLabelText(LABEL)).toBeTruthy();
-});
+    await advance(INTRO.exit + 50);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+    expect(view.queryByLabelText(LABEL, hidden)).toBeNull();
+  },
+);
 
-test("slow images never stall the intro: it starts procedurally after the wait", async () => {
+test("images that never arrive skip the intro after the wait", async () => {
   const onFinish = jest.fn();
   const view = await render(
     phone(<ForgeSplash ready onFinish={onFinish} reduceMotion={false} />),
   );
   const hidden = { includeHiddenElements: true };
-  await advance(ASSET_WAIT_MS);
+  await advance(ASSET_GIVE_UP_MS - 50);
+  expect(onFinish).not.toHaveBeenCalled();
+  await advance(50);
   expect(preloads(view)).toHaveLength(0);
-  expect(view.getByTestId("splash-haze", hidden)).toBeTruthy();
-  expect(view.queryByTestId("splash-spark", hidden)).toBeNull();
-  expect(view.queryAllByTestId("splash-letter-textured", hidden)).toHaveLength(
-    0,
-  );
-  // A load that arrives after the cutoff does not pop in mid-sequence.
-  await advance(INTRO.total);
-  await advance(INTRO.exit + 100);
+  await advance(INTRO.exit + 50);
   expect(onFinish).toHaveBeenCalledTimes(1);
+  expect(view.queryByLabelText(LABEL, hidden)).toBeNull();
 });
 
-test("the intro plays through while images are loading", async () => {
+test("images that load within the wait play the full intro", async () => {
   const onFinish = jest.fn();
-  await render(
+  const view = await render(
     phone(<ForgeSplash ready onFinish={onFinish} reduceMotion={false} />),
   );
-  await advance(ASSET_WAIT_MS);
-  await advance(INTRO.total);
+  await advance(ASSET_GIVE_UP_MS - 200);
+  await loadAll(view);
+  await advance(200);
+  expect(view.getByLabelText(LABEL)).toBeTruthy();
+  await advance(INTRO.total - 200);
+  expect(onFinish).not.toHaveBeenCalled();
+  await advance(200);
   await advance(INTRO.exit + 50);
   expect(onFinish).toHaveBeenCalledTimes(1);
 });
@@ -384,14 +363,10 @@ test("reduced motion loads only the finished steel letters", async () => {
 test("the tagline is live off-white text that appears only in the final stage", async () => {
   const view = await render(
     phone(
-      <ForgeSplash
-        ready={false}
-        onFinish={jest.fn()}
-        reduceMotion={false}
-        assets={null}
-      />,
+      <ForgeSplash ready={false} onFinish={jest.fn()} reduceMotion={false} />,
     ),
   );
+  await loadAll(view);
   const tagline = () =>
     view.getByText("BUILT THROUGH DISCIPLINE", { includeHiddenElements: true });
   const style = () => Object.assign({}, ...[tagline().props.style].flat());
