@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View,
   ScrollView,
@@ -10,6 +10,7 @@ import {
   StyleSheet,
   BackHandler,
   AccessibilityInfo,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,7 +23,6 @@ import {
   Txt,
   Button,
   TextButton,
-  IconButton,
   Field,
   NumberField,
   Empty,
@@ -32,7 +32,13 @@ import {
 } from "../components/ui";
 import { OverflowMenu, type MenuAction } from "../components/system";
 import { ExercisePicker } from "../components/ExercisePicker";
-import { elapsedSeconds, volume, kgToLb } from "../domain/metrics";
+import {
+  CtaButton,
+  FText,
+  OutlineButton,
+  SquareIconButton,
+} from "../components/reforge";
+import { volume, kgToLb } from "../domain/metrics";
 import { timer, workoutTitle } from "../domain/workout-display";
 import { durationMinutes } from "../domain/training-display";
 import { programWorkoutContext } from "../data/programs";
@@ -55,17 +61,19 @@ import { FinishSheet } from "../components/FinishSheet";
 import { ReorderSheet } from "../components/ReorderSheet";
 import { hasValues } from "../domain/finish";
 import { goBack } from "../navigation";
-import { theme } from "../theme";
-import type { Workout } from "../domain/types";
+import { forge } from "../theme";
+import {
+  MenuSquare,
+  ProgressCard,
+  RestRing,
+  SessionCard,
+  WorkoutBackdrop,
+  WorkoutHero,
+  WorkoutTopBar,
+  useNow,
+} from "./workout/sections";
+import { exerciseProgress, restTotal, workoutPlan } from "./workout/model";
 
-function useNow() {
-  const [now, set] = useState(() => Date.now());
-  useEffect(() => {
-    const i = setInterval(() => set(Date.now()), 1000);
-    return () => clearInterval(i);
-  }, []);
-  return now;
-}
 /** "1 minute 29 seconds": how the countdown is read aloud. */
 export function spokenRest(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -98,11 +106,17 @@ function useKeyboardVisible() {
   return visible;
 }
 
-// Starts (or restarts) the rest countdown and its reminder.
-function restFor(r: ReturnType<typeof useRepo>, seconds: number) {
-  mutate(() =>
-    r.setSetting("restDeadline", String(Date.now() + seconds * 1000)),
-  );
+// Starts (or restarts) the rest countdown and its reminder. `total` is the
+// length the rest ring measures against (local display state only).
+function restFor(
+  r: ReturnType<typeof useRepo>,
+  seconds: number,
+  total = seconds,
+) {
+  mutate(() => {
+    r.setSetting("restTotal", String(total));
+    r.setSetting("restDeadline", String(Date.now() + seconds * 1000));
+  });
   void restNotification(Date.now() + seconds * 1000).catch((e) =>
     Alert.alert("Reminder unavailable", String(e)),
   );
@@ -139,13 +153,21 @@ export function RestTimer() {
       ).catch(() => {});
     }
   }, [deadline, left, r]);
-  const change = (seconds: number) => restFor(r, seconds);
+  const total = restTotal(r.setting("restTotal"), left);
+  const change = (seconds: number, length?: number) =>
+    restFor(r, seconds, length);
   const rest = r.profile().rest;
-  const pill = {
-    minHeight: 48,
-    borderRadius: theme.radii.pill,
+  // The reference's rest panel: ring, REST TIMER, time; +30s and Skip.
+  const panel = {
+    minHeight: 56,
+    borderRadius: forge.radii.card,
+    borderWidth: forge.border.card,
+    borderColor: c.cardBorder,
+    paddingLeft: 10,
+    paddingRight: 6,
     flexDirection: "row" as const,
     alignItems: "center" as const,
+    gap: 10,
   };
   if (!left)
     return (
@@ -155,55 +177,82 @@ export function RestTimer() {
         accessibilityHint={`Starts a ${timer(rest)} rest timer`}
         onPress={() => change(rest)}
         style={({ pressed }) => ({
-          ...pill,
-          gap: 6,
-          paddingHorizontal: 14,
-          backgroundColor: pressed ? c.selected : c.surfaceRaised,
+          ...panel,
+          paddingRight: 14,
+          backgroundColor: pressed ? c.cardRaised : c.cardBg,
         })}
       >
-        <Ionicons name="timer-outline" size={18} color={c.text2} />
-        <Txt variant="headline" tone="secondary" tabular>
-          {timer(rest)}
-        </Txt>
+        <RestRing ratio={0} size={40}>
+          <Ionicons name="timer-outline" size={18} color={c.text2} />
+        </RestRing>
+        <View style={{ flex: 1, gap: 1 }}>
+          <FText variant="overline" tone="secondary" numberOfLines={1}>
+            Rest timer
+          </FText>
+          <FText variant="statMetric" tone="secondary" numberOfLines={1}>
+            {timer(rest)}
+          </FText>
+        </View>
+        <Ionicons name="play" size={16} color={c.emberHot} />
+        <FText variant="cardTitle" tone="accent">
+          Start
+        </FText>
       </Pressable>
     );
   return (
-    <View
-      style={{ ...pill, paddingLeft: 14, backgroundColor: c.surfaceRaised }}
-    >
+    <View style={{ ...panel, backgroundColor: c.cardBg }}>
       <View
         accessible
         accessibilityRole="timer"
         accessibilityLabel="Rest timer"
         accessibilityValue={{ text: `${spokenRest(left)} remaining` }}
-        style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+        style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}
       >
-        <Ionicons name="timer" size={18} color={c.ember} />
-        <Txt variant="headline" tabular style={{ minWidth: 48 }}>
-          {timer(left)}
-        </Txt>
+        <RestRing ratio={left / total} size={40} />
+        <View style={{ flexShrink: 1, gap: 1 }}>
+          <FText variant="overline" tone="secondary" numberOfLines={1}>
+            Rest timer
+          </FText>
+          <View style={{ flexDirection: "row", alignItems: "baseline" }}>
+            <FText variant="statMetric" style={{ minWidth: 48 }}>
+              {timer(Math.min(left, total))}
+            </FText>
+            <FText variant="label" tone="secondary" numberOfLines={1}>
+              {` / ${timer(total)}`}
+            </FText>
+          </View>
+        </View>
       </View>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="+30 sec"
-        onPress={() => change(left + 30)}
+        // Exactly 30 s more on the stored deadline (not on the displayed
+        // whole seconds, which may lag the clock by up to a second).
+        onPress={() =>
+          change((deadline + 30_000 - Date.now()) / 1000, total + 30)
+        }
         style={({ pressed }) => ({
           minHeight: 44,
           minWidth: 44,
-          paddingHorizontal: 8,
+          paddingHorizontal: 12,
+          borderRadius: forge.radii.cta,
+          borderWidth: forge.border.active,
+          borderColor: c.cardBorder,
+          backgroundColor: pressed ? c.cardRaised : "transparent",
+          flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
-          opacity: pressed ? 0.6 : 1,
+          gap: 6,
         })}
       >
-        <Txt variant="body" weight="600">
-          +30
-        </Txt>
+        <Ionicons name="play-skip-forward" size={14} color={c.text} />
+        <FText variant="label" weight="700">
+          +30s
+        </FText>
       </Pressable>
-      <IconButton
+      <SquareIconButton
         icon="close"
         label="Skip"
-        size={20}
         onPress={() => {
           mutate(() => r.setSetting("restDeadline", "0"));
           void cancelRestNotification().catch(() => {});
@@ -242,7 +291,7 @@ function KeyboardBar() {
             accessibilityValue={{ text: `${spokenRest(left)} remaining` }}
             style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
           >
-            <Ionicons name="timer" size={16} color={c.ember} />
+            <Ionicons name="timer" size={16} color={c.emberHot} />
             <Txt variant="headline" tabular>
               {timer(left)}
             </Txt>
@@ -262,28 +311,11 @@ function KeyboardBar() {
   );
 }
 
-function SessionClock({ workout: w }: { workout: Workout }) {
-  const now = useNow();
-  const seconds = elapsedSeconds(
-    w.startedAt,
-    w.finishedAt ?? now,
-    w.pausedMs,
-    w.pausedAt,
-  );
-  return (
-    <View
-      accessible
-      accessibilityLabel={`Elapsed time ${Math.floor(seconds / 60)} minutes`}
-    >
-      <Txt variant="metric">{timer(seconds)}</Txt>
-    </View>
-  );
-}
-
 /**
- * The workout logger: a compact header (back, name, clock, menu), the
- * exercises, and a dock with the rest timer and Finish. Every edit saves
- * immediately, so leaving and resuming never loses logged sets.
+ * The workout logger (Phase 7.2A, after the approved Train reference): top
+ * bar (back, wordmark, menu), the session hero, timer and progress cards,
+ * the exercises, and a dock with the rest timer and Finish Workout. Every
+ * edit saves immediately, so leaving and resuming never loses logged sets.
  */
 export default function WorkoutScreen() {
   const r = useRepo();
@@ -309,6 +341,16 @@ export default function WorkoutScreen() {
     () => !!w && w.status === "completed" && editInProgress(r, w.id),
   );
   const keyboard = useKeyboardVisible();
+  // Short screens (iPhone SE class) keep Finish Workout at 48 pt so the dock
+  // leaves more room for sets.
+  const compactDock = useWindowDimensions().height < 700;
+  // Week and phase never change during a session: read once, not on every
+  // keystroke.
+  const planId = w?.id;
+  const plan = useMemo(
+    () => (planId ? workoutPlan(r, planId) : undefined),
+    [r, planId],
+  );
   function returnToTraining() {
     goBack("/(tabs)");
   }
@@ -358,10 +400,13 @@ export default function WorkoutScreen() {
   const rows = r.workoutExercises(w.id);
   const sets = r.workoutSets(w.id);
   const completedSets = sets.filter((s) => s.completed).length;
-  const firstUnfinished = rows.find((row) => {
-    const rowSets = r.sets(row.id);
-    return !rowSets.length || rowSets.some((set) => !set.completed);
+  const rowSets = rows.map((row) => r.sets(row.id));
+  const firstUnfinished = rows.find((_, i) => {
+    const s = rowSets[i]!;
+    return !s.length || s.some((set) => !set.completed);
   });
+  const progress = exerciseProgress(rowSets);
+  const paused = w.status === "paused";
   const units = r.profile().units;
   const moved = volume(sets);
   const volumeText =
@@ -482,6 +527,13 @@ export default function WorkoutScreen() {
         ),
     },
   );
+  const overline = editing
+    ? "Editing session"
+    : completed
+      ? "Completed session"
+      : paused
+        ? "Workout paused"
+        : "Workout in progress";
   return (
     <SafeAreaView
       edges={
@@ -491,57 +543,30 @@ export default function WorkoutScreen() {
       }
       style={{ flex: 1, backgroundColor: c.bg }}
     >
+      <WorkoutBackdrop />
       <SetFocusProvider>
         <WeightFillProvider enabled={!completed}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 4,
-              paddingHorizontal: 8,
-              paddingVertical: 6,
-              borderBottomWidth: StyleSheet.hairlineWidth,
-              borderBottomColor: c.hairline,
-            }}
+          <WorkoutTopBar
+            onBack={() =>
+              editing ? cancelEdit(returnToTraining) : returnToTraining()
+            }
           >
-            <IconButton
-              icon="chevron-back"
-              label="Back to training"
-              onPress={() =>
-                editing ? cancelEdit(returnToTraining) : returnToTraining()
-              }
-            />
-            <View style={{ flex: 1, gap: 2 }}>
-              <Txt variant="headline" header numberOfLines={2}>
-                {workoutTitle(w.name)}
-              </Txt>
-              <Txt
-                variant="caption"
-                tone={editing ? "accent" : "secondary"}
-                // Wrap rather than cut the sets, volume or duration at large
-                // text sizes (the clock or Edit shares the row).
-                numberOfLines={2}
-              >
-                {status}
-              </Txt>
-            </View>
-            {completed ? (
-              reviewing && (
-                <TextButton
-                  title="Edit"
-                  accessibilityLabel="Edit workout"
-                  onPress={startEdit}
-                />
-              )
-            ) : (
-              <SessionClock workout={w} />
+            {reviewing && (
+              <OutlineButton
+                title="Edit"
+                accessibilityLabel="Edit workout"
+                icon="create-outline"
+                compact
+                onPress={startEdit}
+              />
             )}
             <OverflowMenu
               label="Workout options"
               title={w.name}
               actions={menu}
+              renderTrigger={MenuSquare}
             />
-          </View>
+          </WorkoutTopBar>
           {/* Android draws edge to edge, so the window no longer shrinks for
             the keyboard: lift the list and dock above it here. iOS insets the
             list instead (automaticallyAdjustKeyboardInsets). */}
@@ -553,15 +578,38 @@ export default function WorkoutScreen() {
             <ScrollView
               style={{ flex: 1 }}
               contentContainerStyle={{
-                paddingHorizontal: theme.spacing.screen,
-                paddingTop: theme.spacing.md,
-                paddingBottom: theme.spacing.xl,
-                gap: theme.spacing.group,
+                paddingHorizontal: forge.spacing.margin,
+                paddingTop: 4,
+                paddingBottom: 24,
+                gap: forge.spacing.cardGap,
               }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="interactive"
               automaticallyAdjustKeyboardInsets
             >
+              <WorkoutHero
+                overline={overline}
+                overlineTone={
+                  editing || !(completed || paused) ? "accent" : "secondary"
+                }
+                title={workoutTitle(w.name)}
+                plan={plan}
+                status={status}
+                statusTone={editing ? "accent" : "secondary"}
+              />
+              {!completed && (
+                <SessionCard
+                  workout={w}
+                  onPause={() => mutate(() => r.pauseWorkout(w.id))}
+                />
+              )}
+              {!completed && rows.length > 0 && (
+                <ProgressCard
+                  done={progress.done}
+                  total={progress.total}
+                  ratio={progress.ratio}
+                />
+              )}
               {reviewing && !!w.notes && (
                 <View
                   accessible
@@ -597,17 +645,16 @@ export default function WorkoutScreen() {
                 />
               ))}
               {!rows.length && (
-                <Txt tone="secondary">
+                <FText variant="body" tone="secondary">
                   {reviewing
                     ? "No exercises were logged in this workout."
                     : "Add your first exercise to start logging."}
-                </Txt>
+                </FText>
               )}
               {!reviewing && (
-                <Button
+                <OutlineButton
                   title="Add exercise"
                   icon="add"
-                  variant="secondary"
                   onPress={() => setPicker(true)}
                 />
               )}
@@ -618,26 +665,26 @@ export default function WorkoutScreen() {
                 style={{
                   flexDirection: "row",
                   gap: 10,
-                  paddingHorizontal: theme.spacing.screen,
+                  paddingHorizontal: forge.spacing.margin,
                   paddingVertical: 10,
                   borderTopWidth: StyleSheet.hairlineWidth,
-                  borderTopColor: c.hairline,
+                  borderTopColor: c.cardBorder,
                   backgroundColor: c.bg,
                 }}
               >
                 <View style={{ flex: 1 }}>
-                  <Button
+                  <OutlineButton
                     title="Cancel"
                     accessibilityLabel="Cancel editing"
-                    variant="secondary"
                     onPress={() => cancelEdit()}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Button
+                  <CtaButton
                     title="Save"
                     accessibilityLabel="Save changes"
                     icon="checkmark"
+                    compact
                     onPress={saveEdit}
                   />
                 </View>
@@ -647,29 +694,24 @@ export default function WorkoutScreen() {
               <SafeAreaView
                 edges={{ bottom: "maximum" }}
                 style={{
-                  flexDirection: "row",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                  gap: 10,
-                  paddingHorizontal: theme.spacing.screen,
+                  gap: forge.spacing.tight,
+                  paddingHorizontal: forge.spacing.margin,
                   paddingVertical: 10,
                   borderTopWidth: StyleSheet.hairlineWidth,
-                  borderTopColor: c.hairline,
+                  borderTopColor: c.cardBorder,
                   backgroundColor: c.bg,
                 }}
               >
                 {/* A paused workout offers Resume right where the rest timer
-                  sits; Finish stays the single primary action. */}
-                {w.status === "paused" ? (
-                  <View style={{ flexGrow: 1, flexBasis: 120 }}>
-                    <Button
-                      title="Resume"
-                      accessibilityLabel="Resume workout"
-                      icon="play"
-                      variant="secondary"
-                      onPress={() => mutate(() => r.pauseWorkout(w.id))}
-                    />
-                  </View>
+                  sits; Finish Workout stays the single primary action. */}
+                {paused ? (
+                  <OutlineButton
+                    title="Resume"
+                    accessibilityLabel="Resume workout"
+                    icon="play"
+                    tone="ember"
+                    onPress={() => mutate(() => r.pauseWorkout(w.id))}
+                  />
                 ) : (
                   <RestTimer />
                 )}
@@ -677,14 +719,13 @@ export default function WorkoutScreen() {
                   the rest timer, hide Finish. On iOS the keyboard covers the
                   dock and its toolbar shows the rest timer. */}
                 {!(Platform.OS === "android" && keyboard) && (
-                  <View style={{ flexGrow: 1, flexBasis: 120 }}>
-                    <Button
-                      title="Finish"
-                      accessibilityLabel="Finish workout"
-                      icon="checkmark"
-                      onPress={finish}
-                    />
-                  </View>
+                  <CtaButton
+                    title="Finish Workout"
+                    accessibilityLabel="Finish workout"
+                    icon="flag"
+                    compact={compactDock}
+                    onPress={finish}
+                  />
                 )}
               </SafeAreaView>
             )}

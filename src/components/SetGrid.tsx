@@ -23,7 +23,6 @@ import { Alert } from "../platform/alert";
 import { useRepo, mutate } from "../state";
 import {
   Txt,
-  IconButton,
   useColors,
   parseNumber,
   formatNumber,
@@ -40,7 +39,7 @@ import {
 } from "../domain/copy-forward";
 import type { WorkoutSet } from "../domain/types";
 import { restNotification } from "../notifications";
-import { theme } from "../theme";
+import { forge } from "../theme";
 import {
   setGridLayout,
   SET_COLUMN,
@@ -180,6 +179,7 @@ function NumberCell({
   order,
   placeholder,
   completed,
+  next = false,
   style,
 }: {
   label: string;
@@ -190,6 +190,8 @@ function NumberCell({
   order: number[];
   placeholder?: string;
   completed: boolean;
+  /** The set to log next: outlined in ember, as in the reference. */
+  next?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
@@ -238,7 +240,7 @@ function NumberCell({
           Platform.OS === "ios" && focus ? SET_KEYBOARD_ID : undefined
         }
         selectTextOnFocus
-        selectionColor={c.ember}
+        selectionColor={c.emberHot}
         maxFontSizeMultiplier={INPUT_MAX_SCALE}
         onFocus={() => {
           setDraft(formatNumber(value));
@@ -258,7 +260,7 @@ function NumberCell({
         }}
         style={{
           minHeight: 44,
-          borderRadius: 10,
+          borderRadius: forge.radii.input,
           paddingHorizontal: 4,
           paddingVertical: 6,
           textAlign: "center",
@@ -266,10 +268,17 @@ function NumberCell({
           fontSize: 17,
           fontWeight: "600",
           fontVariant: ["tabular-nums"],
-          backgroundColor:
-            completed && !focused ? "transparent" : c.surfaceRaised,
+          // Bordered boxes (reference): filled while open, outline only once
+          // the set is done; ember marks focus and the set to log next.
+          backgroundColor: completed && !focused ? "transparent" : c.cardRaised,
           borderWidth: 1,
-          borderColor: error ? c.error : focused ? c.ember : "transparent",
+          borderColor: error
+            ? c.error
+            : focused
+              ? c.emberHot
+              : next
+                ? c.emberMuted
+                : c.cardBorder,
         }}
       />
     </View>
@@ -362,8 +371,8 @@ function UsePrevious({
             paddingHorizontal: 6,
             borderRadius: 8,
             borderWidth: 1,
-            borderColor: c.hairline,
-            backgroundColor: pressed ? c.selected : "transparent",
+            borderColor: c.cardBorder,
+            backgroundColor: pressed ? c.cardRaised : "transparent",
           }}
         >
           {!wide && (
@@ -461,6 +470,68 @@ function SetNumber({
 
 // ---- Rows -------------------------------------------------------------------
 
+/**
+ * The completion control: an ember disc with a check once done, an empty
+ * ring before (reference). The whole 44 pt column is the target.
+ */
+function CheckDisc({
+  done,
+  n,
+  onPress,
+}: {
+  done: boolean;
+  n: number;
+  onPress?: () => void;
+}) {
+  const c = useColors();
+  const disc = (
+    <View
+      style={{
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        borderWidth: done ? 0 : 1.5,
+        borderColor: c.text3,
+        backgroundColor: done ? c.emberHot : "transparent",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {done && <Ionicons name="checkmark" size={17} color={c.onEmber} />}
+    </View>
+  );
+  const box: ViewStyle = {
+    width: CHECK_COLUMN,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  };
+  if (!onPress)
+    return (
+      <View
+        accessible
+        accessibilityLabel={`Set ${n} ${done ? "done" : "not done"}`}
+        style={box}
+      >
+        {disc}
+      </View>
+    );
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        done ? `Mark set ${n} incomplete` : `Complete set ${n}`
+      }
+      accessibilityState={{ selected: done }}
+      hitSlop={4}
+      onPress={onPress}
+      style={({ pressed }) => [box, { opacity: pressed ? 0.6 : 1 }]}
+    >
+      {disc}
+    </Pressable>
+  );
+}
+
 export const gridFields = (category: string, showRir: boolean): GridFields => ({
   secondary: category !== "duration",
   rir: category === "strength" && showRir,
@@ -483,6 +554,7 @@ export function SetRow({
   onDetails,
   startsRest = true,
   readOnly = false,
+  next = false,
 }: {
   set: WorkoutSet;
   category: string;
@@ -495,6 +567,8 @@ export function SetRow({
   readOnly?: boolean;
   /** False when reviewing a finished workout: no rest timer or reminder. */
   startsRest?: boolean;
+  /** The set to log next (ember-outlined inputs). */
+  next?: boolean;
 }) {
   const r = useRepo();
   const p = r.profile();
@@ -532,7 +606,11 @@ export function SetRow({
         () => {},
       );
       const deadline = Date.now() + s.rest * 1000;
-      mutate(() => r.setSetting("restDeadline", String(deadline)));
+      mutate(() => {
+        // The rest ring's full length (local display state).
+        r.setSetting("restTotal", String(s.rest));
+        r.setSetting("restDeadline", String(deadline));
+      });
       void restNotification(deadline).catch((e) =>
         Alert.alert("Rest saved; notification unavailable", String(e)),
       );
@@ -635,35 +713,16 @@ export function SetRow({
           focusKey={`${s.id}:${input.key}`}
           order={[...order, s.position, i]}
           completed={s.completed}
+          next={next}
         />
       )}
     </View>
   ));
-  const check = readOnly ? (
-    <View
-      accessible
-      accessibilityLabel={`Set ${n} ${s.completed ? "done" : "not done"}`}
-      style={{
-        width: CHECK_COLUMN,
-        minHeight: 44,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Ionicons
-        name={s.completed ? "checkmark-circle" : "remove-outline"}
-        size={s.completed ? 28 : 20}
-        color={s.completed ? c.success : c.text3}
-      />
-    </View>
-  ) : (
-    <IconButton
-      label={s.completed ? `Mark set ${n} incomplete` : `Complete set ${n}`}
-      selected={s.completed}
-      tone={s.completed ? "success" : "secondary"}
-      icon={s.completed ? "checkmark-circle" : "ellipse-outline"}
-      size={28}
-      onPress={toggle}
+  const check = (
+    <CheckDisc
+      done={s.completed}
+      n={n}
+      onPress={readOnly ? undefined : toggle}
     />
   );
   const spoken = previous ? spokenPrevious(previous, category, p.units) : "";
@@ -693,11 +752,10 @@ export function SetRow({
     <View
       style={{
         gap: 2,
-        marginHorizontal: -6,
-        paddingHorizontal: 6,
         paddingVertical: 4,
-        borderRadius: 12,
-        backgroundColor: s.completed ? c.successSubtle : "transparent",
+        // Hairline rows (reference); completion shows in the check disc.
+        borderTopWidth: forge.border.card,
+        borderTopColor: c.cardDivider,
       }}
     >
       {stacked ? (
@@ -847,9 +905,10 @@ export function SetGrid({
   const { width: windowWidth, fontScale } = useWindowDimensions();
   // Until measured: the screen minus its margins and the card's padding.
   const [width, setWidth] = useState(
-    windowWidth - 2 * theme.spacing.screen - 2 * theme.spacing.group,
+    windowWidth - 2 * forge.spacing.margin - 2 * forge.spacing.cardPadding,
   );
   const layout = setGridLayout(width, fontScale, gridFields(category, showRir));
+  const next = readOnly ? undefined : sets.find((s) => !s.completed)?.id;
   return (
     <View
       onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
@@ -871,6 +930,7 @@ export function SetGrid({
           onDetails={readOnly ? undefined : () => onDetails(s)}
           startsRest={startsRest}
           readOnly={readOnly}
+          next={s.id === next}
         />
       ))}
     </View>

@@ -126,3 +126,40 @@ Components never compute metrics: deltas and values are display text supplied by
 - Strips wrap to two columns.
 
 **Artwork:** `homeSession` and `homeTarget` have no approved artwork yet, so the hero and target cards show the graphical ember glow ([reforge/ASSETS.md](reforge/ASSETS.md)).
+
+## Active workout (Phase 7.2A)
+
+[Workout.tsx](../../src/screens/Workout.tsx) follows the approved Train reference, which shows the active workout rather than the Train hub. The frame is built from [workout/sections.tsx](../../src/screens/workout/sections.tsx) and a read-only model ([workout/model.ts](../../src/screens/workout/model.ts)). Logging stays in [WorkoutExerciseCard](../../src/components/WorkoutExerciseCard.tsx) and [SetGrid](../../src/components/SetGrid.tsx); only their presentation changed.
+
+| Reference | FORGE source |
+| --- | --- |
+| Wordmark and brand line | Top bar: back, `Wordmark`, the workout menu (bordered square). Bell and streak omitted inside the logger (D14, D22) |
+| Plate photograph | `workoutHero` has no approved artwork: ember glow behind the top of the screen |
+| "WORKOUT IN PROGRESS" | Overline for the state: in progress, paused, completed session or editing session |
+| "PUSH — CHEST & BACK" | `workoutTitle(name)` in the condensed hero face, up to two lines |
+| "Week 8 · Build Phase" | Program workouts: session week and phase; existing Paths: scheduled week and phase. Not a link (the logger is a full-screen modal). Absent for freestyle and template workouts |
+| (not in the reference) | The existing status line, kept: sets done, volume, Paused, Lower-fatigue, Completed date |
+| Session timer 32:18 | The live clock (`elapsedSeconds`, its own 1 s render) |
+| "Est. time left ~27 min" | **Omitted** (no estimator, D21). Replaced by the session's start time |
+| Pause (ember outline) | `pauseWorkout`. While paused the card shows a Paused badge and **Resume** takes the rest timer's place in the dock |
+| Workout progress, "3 / 6 exercises", "50%" | Exercises with every set completed (D23: the reference's unit). Sets stay in the status line |
+| Numbered exercise card, ember outline | The open exercise is `ForgeCard` `active`, with its number in an ember ring |
+| "Barbell • Chest" | `Exercise.equipment` and `muscle`, then the existing target line (sets × reps, RIR, rest) |
+| ⋮ and collapse chevron | The existing exercise menu (bordered square when open) and expand state |
+| SET / WEIGHT (KG) / REPS / STATUS | The existing grid, **all columns kept**: SET / PREV / KG / REPS / RIR / ✓ in wide, compact and stacked modes |
+| Bordered input boxes | Inputs are boxed. The set to log next is outlined in ember and focus is bright ember. Completed sets keep their values in an outline |
+| Ember check discs | Completion is an ember disc with a check (D7); green is no longer used for completed rows |
+| Rest timer ring beside the table | **In the dock** (D22): ring, "REST TIMER", remaining / full length, +30s and Skip. Beside the table it would force the grid out of its wide layout on every iPhone |
+| Add set (full width) | Bordered full-width row; copies the last set as before |
+| "Notes (optional)" | The exercise's notes row; opens Exercise settings, where notes are edited as before |
+| Collapsed exercise rows | Same card, collapsed: number, name, equipment · muscle, target line, sets done or an ember check, chevron, menu |
+| Finish Workout bar | `CtaButton` "Finish Workout" (54 pt; 48 pt on screens under 700 pt tall) opening the existing finish sheet |
+| Tab bar | Not shown: the logger stays a full-screen modal (D22) |
+
+**Rest length** (D24): starting rest also stores `restTotal` (a local settings key beside `restDeadline`; not synced or backed up) so the ring can show the fraction left. +30s adds exactly 30 s to the stored deadline and to the total. A missing or stale total starts the ring full.
+
+**Kept from the logger, not in the reference:**
+
+- Add exercise, Start rest (idle panel), default rest, the iOS keyboard toolbar (rest, Next, Done), reorder, rename, workout notes, save as template, discard or delete.
+- Advice and progression rows, Use previous, Set Details (set type, side, RPE, RIR, rest, tempo, notes, remove).
+- Paused, lower-fatigue, review and edit modes.

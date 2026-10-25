@@ -3,10 +3,8 @@ import { View, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRepo, mutate, confirm } from "../state";
 import {
-  Card,
   Txt,
   Button,
-  TextButton,
   IconButton,
   Field,
   NumberField,
@@ -18,6 +16,8 @@ import {
 import { OverflowMenu, type MenuAction } from "./system";
 import { ExercisePicker } from "./ExercisePicker";
 import { SetGrid, SetRow } from "./SetGrid";
+import { FText, ForgeCard, SquareIconButton } from "./reforge";
+import { forge } from "../theme";
 import { overload } from "../domain/metrics";
 import { targetProgression } from "../domain/progression";
 import {
@@ -141,11 +141,13 @@ function AdviceRow({
         gap: 8,
         minHeight: 44,
         paddingLeft: 12,
-        borderRadius: 12,
-        backgroundColor: c.surfaceRaised,
+        borderRadius: forge.radii.tile,
+        borderWidth: forge.border.card,
+        borderColor: c.cardBorder,
+        backgroundColor: c.cardRaised,
       }}
     >
-      <Ionicons name={icon} size={16} color={c.ember} />
+      <Ionicons name={icon} size={16} color={c.emberHot} />
       <Txt variant="caption" weight="600" numberOfLines={2} style={{ flex: 1 }}>
         {advice.headline}
       </Txt>
@@ -230,14 +232,95 @@ function NoteLine({
   );
 }
 
+/** The open card's exercise menu: the reference's bordered ⋮ square. */
+function MenuSquare({
+  onPress,
+  label,
+}: {
+  onPress: () => void;
+  label: string;
+}) {
+  return (
+    <SquareIconButton
+      icon="ellipsis-vertical"
+      label={label}
+      onPress={onPress}
+    />
+  );
+}
+
 /**
- * One exercise in the logger: name, a one-line target, optional advice, the
- * set grid and Add set. Infrequent actions live in the exercise menu; set
- * details open from the set number.
+ * The reference's "Notes (optional)" row: the exercise's notes or a prompt
+ * to add them. Opens Exercise settings, where notes are edited as before.
+ */
+function NotesRow({ notes, onPress }: { notes: string; onPress?: () => void }) {
+  const c = useColors();
+  const content = (
+    <>
+      <Ionicons name="document-text-outline" size={18} color={c.text2} />
+      <FText variant="label" tone="secondary">
+        Notes
+      </FText>
+      <FText
+        variant="label"
+        tone={notes ? "primary" : "secondary"}
+        numberOfLines={2}
+        style={{ flex: 1, opacity: notes ? 1 : 0.7 }}
+      >
+        {notes || "Optional · e.g. grip, setup, how it felt"}
+      </FText>
+    </>
+  );
+  const frame = {
+    minHeight: 44,
+    borderRadius: forge.radii.tile,
+    borderWidth: forge.border.card,
+    borderColor: c.cardBorder,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+  };
+  if (!onPress)
+    return (
+      <View
+        accessible
+        accessibilityLabel={`Exercise notes: ${notes}`}
+        style={frame}
+      >
+        {content}
+      </View>
+    );
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        notes ? `Exercise notes: ${notes}` : "Add exercise notes"
+      }
+      accessibilityHint="Edit notes, rest and superset"
+      onPress={onPress}
+      style={({ pressed }) => ({
+        ...frame,
+        backgroundColor: pressed ? c.cardRaised : c.cardBg,
+      })}
+    >
+      {content}
+    </Pressable>
+  );
+}
+
+/**
+ * One exercise in the logger (Phase 7.2A, after the Train reference): a
+ * numbered header with equipment, muscle and the target line; the open card
+ * is outlined in ember and holds advice, the set grid, Add set and notes.
+ * Infrequent actions live in the exercise menu; set details open from the
+ * set number.
  */
 export default function WorkoutExerciseCard({
   row: e,
   initialExpanded = false,
+  index,
   count,
   completedWorkout = false,
   readOnly = false,
@@ -409,9 +492,18 @@ export default function WorkoutExerciseCard({
         ),
     },
   ];
+  const active = expanded && !readOnly;
+  const meta = exercise
+    ? [exercise.equipment, exercise.muscle].filter(Boolean).join(" · ")
+    : "";
+  const complete = sets.length > 0 && done === sets.length;
   return (
-    <Card compact>
-      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
+    <ForgeCard
+      variant={active ? "active" : "default"}
+      padding={expanded ? forge.spacing.cardPadding : 12}
+      gap={forge.spacing.group}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${expanded ? "Collapse" : "Expand"} ${name}`}
@@ -420,34 +512,67 @@ export default function WorkoutExerciseCard({
             text: `${done} of ${sets.length} sets complete`,
           }}
           onPress={() => setExpanded(!expanded)}
-          style={{
+          style={({ pressed }) => ({
             flex: 1,
             minHeight: 44,
             flexDirection: "row",
             alignItems: "center",
-            gap: 8,
-          }}
+            gap: forge.spacing.group,
+            opacity: pressed ? 0.7 : 1,
+          })}
         >
+          {/* The exercise's number in the workout, ember while logging. */}
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              borderWidth: active ? 2 : 1,
+              borderColor: active ? c.emberHot : c.cardBorder,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <FText variant="label" weight="700">
+              {(index ?? 0) + 1}
+            </FText>
+          </View>
           <View style={{ flex: 1, gap: 2 }}>
-            <Txt variant="headline" numberOfLines={2}>
+            <FText variant="cardTitle" weight="700" numberOfLines={2}>
               {name}
-            </Txt>
+            </FText>
+            {!!meta && (
+              <FText variant="label" tone="secondary" numberOfLines={1}>
+                {meta}
+              </FText>
+            )}
             <Txt variant="caption" tone="secondary">
               {keepSegmentsTogether(summary)}
             </Txt>
           </View>
           {sets.length > 0 &&
-            (done === sets.length ? (
-              <Ionicons name="checkmark-circle" size={20} color={c.success} />
+            (complete ? (
+              <View
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 12,
+                  backgroundColor: c.emberHot,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="checkmark" size={16} color={c.onEmber} />
+              </View>
             ) : (
               <Txt variant="caption" tone="secondary" tabular>
                 {`${done}/${sets.length}`}
               </Txt>
             ))}
           <Ionicons
-            name={expanded ? "chevron-up" : "chevron-down"}
+            name={expanded ? "chevron-up" : "chevron-forward"}
             size={18}
-            color={c.text3}
+            color={c.text2}
           />
         </Pressable>
         {!readOnly && (
@@ -455,6 +580,8 @@ export default function WorkoutExerciseCard({
             label={`Options for ${name}`}
             title={name}
             actions={menu}
+            icon="ellipsis-vertical"
+            renderTrigger={expanded ? MenuSquare : undefined}
           />
         )}
       </View>
@@ -472,15 +599,6 @@ export default function WorkoutExerciseCard({
               label={`Program note: ${programItem.notes}`}
               hint="Opens progression and program notes"
               onPress={() => setSheet("progression")}
-            />
-          )}
-          {!!e.notes && (
-            <NoteLine
-              icon="create-outline"
-              text={e.notes}
-              label={`Exercise notes: ${e.notes}`}
-              hint="Edit notes, rest and superset"
-              onPress={readOnly ? undefined : () => setSheet("settings")}
             />
           )}
           {advice && !readOnly && (
@@ -512,28 +630,48 @@ export default function WorkoutExerciseCard({
             />
           )}
           {!readOnly && (
-            <View style={{ alignItems: "flex-start" }}>
-              <TextButton
-                title="Add set"
-                icon="add"
-                onPress={() =>
-                  mutate(() => {
-                    const prev = sets[sets.length - 1];
-                    return r.addSet(
-                      e.id,
-                      prev
-                        ? {
-                            weight: prev.weight,
-                            reps: prev.reps,
-                            rest: e.rest,
-                            kind: "working",
-                          }
-                        : {},
-                    );
-                  })
-                }
-              />
-            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add set"
+              onPress={() =>
+                mutate(() => {
+                  const prev = sets[sets.length - 1];
+                  return r.addSet(
+                    e.id,
+                    prev
+                      ? {
+                          weight: prev.weight,
+                          reps: prev.reps,
+                          rest: e.rest,
+                          kind: "working",
+                        }
+                      : {},
+                  );
+                })
+              }
+              style={({ pressed }) => ({
+                minHeight: 44,
+                borderRadius: forge.radii.tile,
+                borderWidth: forge.border.card,
+                borderColor: c.cardBorder,
+                backgroundColor: pressed ? c.cardRaised : c.cardBg,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              })}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={c.text} />
+              <FText variant="cardTitle">Add set</FText>
+            </Pressable>
+          )}
+          {/* The reference's inline notes row: the exercise's own notes,
+              edited in Exercise settings. */}
+          {(!readOnly || !!e.notes) && (
+            <NotesRow
+              notes={e.notes}
+              onPress={readOnly ? undefined : () => setSheet("settings")}
+            />
           )}
         </>
       )}
@@ -685,6 +823,6 @@ export default function WorkoutExerciseCard({
         onClose={close}
         onPick={(x) => mutate(() => r.editExercise(e.id, { exerciseId: x.id }))}
       />
-    </Card>
+    </ForgeCard>
   );
 }

@@ -64,11 +64,15 @@ export function ForgeCard({
     />
   );
   // iOS draws the glow outside the clipped panel; Android elevation cannot
-  // be tinted, so there the ember outline alone marks the active card.
+  // be tinted, so there the ember outline alone marks the active card. The
+  // opaque fill lets iOS shadow the rounded rectangle instead of rendering
+  // the card's content offscreen on every change (a logging card holds many
+  // inputs).
   const glow: ViewStyle | undefined =
     active && Platform.OS === "ios"
       ? {
           borderRadius: forge.radii.card,
+          backgroundColor: frame.backgroundColor,
           shadowColor: c.emberHot,
           shadowOpacity: 0.28,
           shadowRadius: 14,
