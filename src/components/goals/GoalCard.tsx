@@ -51,7 +51,7 @@ export function GoalCard({
         <View style={{ gap: theme.spacing.xs }}>
           <ProgressBar value={v.ratio} label={v.name} />
           {v.ratioLabel && (
-            <Txt variant="caption" tone="tertiary">
+            <Txt variant="caption" tone="secondary">
               {`${Math.round(v.ratio * 100)}% · ${v.ratioLabel}`}
             </Txt>
           )}

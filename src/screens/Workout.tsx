@@ -488,15 +488,15 @@ export default function WorkoutScreen() {
               }
             />
             <View style={{ flex: 1, gap: 2 }}>
-              <Txt variant="headline" header numberOfLines={1}>
+              <Txt variant="headline" header numberOfLines={2}>
                 {workoutTitle(w.name)}
               </Txt>
               <Txt
                 variant="caption"
                 tone={editing ? "accent" : "secondary"}
-                // Finished workouts share the row with Edit: wrap rather than
-                // cut the duration and volume at large text sizes.
-                numberOfLines={completed ? 2 : 1}
+                // Wrap rather than cut the sets, volume or duration at large
+                // text sizes (the clock or Edit shares the row).
+                numberOfLines={2}
               >
                 {status}
               </Txt>

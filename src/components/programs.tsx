@@ -71,7 +71,7 @@ export function WeekStrip({
             <Txt
               variant="caption"
               weight={training ? "700" : "500"}
-              tone={training ? "primary" : "tertiary"}
+              tone={training ? "primary" : "secondary"}
             >
               {name.charAt(0)}
             </Txt>
@@ -210,7 +210,7 @@ export function ExerciseLines({
           key={`${item.exerciseId}-${i}`}
           style={{ flexDirection: "row", gap: 10 }}
         >
-          <Txt variant="caption" tone="tertiary" tabular style={{ width: 18 }}>
+          <Txt variant="caption" tone="secondary" tabular style={{ width: 18 }}>
             {i + 1}
           </Txt>
           <View style={{ flex: 1, gap: 2 }}>
@@ -221,7 +221,7 @@ export function ExerciseLines({
               {prescriptionLine(item, setReduction)}
             </Txt>
             {item.notes && (
-              <Txt variant="caption" tone="tertiary">
+              <Txt variant="caption" tone="secondary">
                 {item.notes}
               </Txt>
             )}

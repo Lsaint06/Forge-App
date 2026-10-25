@@ -712,4 +712,178 @@ Modified (uncommitted):
 
 New: this audit and `tests/ui/wp6.test.tsx`. Nothing is committed or pushed. The emulator and Metro are stopped, and the emulator's text size is reset to 100 %.
 
-*End of WP6 Batch A. Not committed. Batches B and C and WP7 have not begun.*
+*End of WP6 Batch A (committed as `9dd09b3`).*
+
+---
+
+# Batch B — Implementation Results
+
+**Status:** implemented and verified; **not committed**; ready for the founder's iPhone review. Batch C and WP7 have not begun.
+
+## B1. Baseline
+
+`feat/forge-paths-foundation` at **`9dd09b3`** (WP6 audit + Batch A), equal to `origin`, with a clean working tree. Batch A was already committed and pushed before this brief, so there was no duplicate commit.
+
+## B2. Status
+
+| ID | Finding | Status |
+| --- | --- | --- |
+| F-04e | "Use previous" under 44 pt | **Fixed** in the wide and stacked grids. **Compact grid: accepted provisional limitation** (founder decision, B8) |
+| F-05 | Tertiary captions below 4.5:1 | **Fixed** |
+| F-06 | Selected segment relies on a subtle fill | **Fixed** |
+| F-07 | Truncated values and mid-word breaks | **Fixed** (confirmed instances) |
+| F-17 | Add food cramped at 200 % | **Fixed** |
+
+## B3. Files changed
+
+| File | Change |
+| --- | --- |
+| [ui.tsx](../../src/components/ui.tsx) | `textWidth` helper. Selected segment: 1 pt outline (`text3`) and weight 700 |
+| [charts.tsx](../../src/components/charts.tsx) | Low/High and axis captions in secondary text; selected-point description wraps to two lines |
+| [Progress.tsx](../../src/screens/Progress.tsx) | Overview tiles full width (they already sat one per line at half width); label and detail wrap; detail and record dates in secondary text |
+| [Workout.tsx](../../src/screens/Workout.tsx) | Header title and summary wrap to two lines |
+| [MacroSummary.tsx](../../src/components/nutrition/MacroSummary.tsx) | Three columns while each label fits, otherwise one macro per row (no shrinking in rows) |
+| [QuickAddSheet.tsx](../../src/components/nutrition/QuickAddSheet.tsx) | From 130 % text, the day, meal and search are the list's header, so they scroll with the foods |
+| [SetGrid.tsx](../../src/components/SetGrid.tsx) | Column captions never break mid-word; "Use previous" uses a 44 pt pressable in 44 pt rows |
+| [TrainingCalendar.tsx](../../src/screens/TrainingCalendar.tsx), [programs.tsx](../../src/components/programs.tsx), [LegacyPath.tsx](../../src/screens/LegacyPath.tsx), [You.tsx](../../src/screens/You.tsx), [Recovery.tsx](../../src/components/Recovery.tsx), [GoalCard.tsx](../../src/components/goals/GoalCard.tsx), [GoalSheet.tsx](../../src/components/goals/GoalSheet.tsx), [ScaleRow.tsx](../../src/components/checkins/ScaleRow.tsx), [CheckinSheet.tsx](../../src/components/checkins/CheckinSheet.tsx) | Meaningful captions from tertiary to secondary text |
+| [wp6-contrast.test.ts](../../tests/wp6-contrast.test.ts) (new) | 5 logic tests |
+| [wp6.test.tsx](../../tests/ui/wp6.test.tsx) | 7 UI tests added |
+
+## B4. Contrast (F-05, F-06)
+
+| Pair | Dark | Light | Need |
+| --- | --- | --- | --- |
+| Captions, secondary text on bg / surface / raised / completed set / selected | 8.33 / 7.67 / 6.83 / 6.11 / 5.05 | 6.51 / 7.23 / 6.10 / 6.09 / 7.23 | 4.5 ✓ |
+| Selected-segment outline (`text3`) vs the track | 3.43 | 4.00 | 3.0 ✓ |
+| Selected label (`text`) on its fill | 10.69 | 18.47 | 4.5 ✓ |
+| Unselected label (`text2`) on the track | 6.83 | 6.10 | 4.5 ✓ |
+
+**Hierarchy:** captions stay smaller (13 pt caption role), weight 500, in the secondary colour, below primary body text (14.5–18.5:1). Not every caption is equally prominent.
+
+**Tertiary is kept** only for:
+- disabled controls (date arrows, unavailable days, "next day", disabled rows and menu items);
+- non-text marks (the "–" no-data mark, rest-day icon);
+- the large metric placeholder (3:1 suffices for large text);
+- the design-system sample.
+
+A logic test pins this list, so a new use needs review. The palette is unchanged.
+
+## B5. Segmented controls (F-06)
+
+The chosen option has its fill, plus a 1 pt outline (≥ 3:1 against the track) and a bolder label (700 vs 600). The stacked layout keeps its ✓. Unselected options carry a transparent 1 pt border, so nothing shifts. The rule applies in the row, wrap, grid and stack layouts (tested at 100 %, 130 %, 200 % and 300 %). The `selected` state, values and callbacks are unchanged. The width estimate's 10 % margin covers the slightly wider bold label.
+
+## B6. Large-text layout (F-07)
+
+| Instance | Before | After |
+| --- | --- | --- |
+| Progress tiles | "16 of 18 se…", "VOLUME (…" | Full text at 100–200 %. The tiles were already one per line, but at half width because two 50 % tiles plus the card's 12 pt gap never fit one row; they now use the full width |
+| Workout header | "8 of 31 set…" / "5,360…" | Title and summary wrap to two lines at 130–200 % |
+| Nutrition macros | "PROTE / IN" | Three columns at 100–130 % on SE; one macro per row from 160 % (values no longer shrink in rows) |
+| Set grid "SET" caption | "SE / T" | One line, overflowing its narrow column centred (decorative header, hidden from screen readers) |
+| Chart description | "2 entr…" | Up to two lines, right-aligned |
+
+Units stay with their numbers ("160 g", "of 180 g", "5,360 kg"). Spoken labels are unchanged. No calculation changed.
+
+## B7. Add food at large text (F-17)
+
+From 130 % text, "Adding to …", the meal choice and Search are the **list's header**, so the whole sheet scrolls and foods get the sheet's full height (up to 90 %). At normal sizes the layout is unchanged, including the WP4A.1 small-phone keyboard behaviour.
+
+Unchanged:
+- **Create food** stays pinned (it moves to the list's end while typing, as before);
+- **Close** stays in the sheet header;
+- search, the library, Recent, Saved, + / Undo, portions, the meal and the 3,730-food catalogue.
+
+Verified on SE at 100–200 % (dark and light), with the keyboard open at 200 %: the query and the first result stay visible.
+
+## B8. "Use previous" (F-04e)
+
+- **Wide grid** (its own Prev column) and **stacked grid** (beside the set number): the pressable is now 44 pt tall and fills its 44 pt row. The 32 or 24 pt bordered chip is drawn inside it, so it looks the same, and the hitSlop is removed, so it can't overlap a neighbour.
+- **Compact grid** (a caption row under the cells): unchanged, a 24 pt chip with 10 pt hitSlop above and below (44 pt effective). That slop reaches about 8 pt into the input cells above and about 6 pt into the next set's row.
+- **Trade-off, for founder approval (not forced):** a non-overlapping 44 pt target there needs a 44 pt caption row, about **+20 pt per set** in the compact grid. The compact grid is used on narrow phones and at larger text, for example SE at 200 %.
+- **Options:**
+  - accept +20 pt per set;
+  - keep the current slop;
+  - move "Use previous" into the set's ⋯ details menu in compact mode (changes the logging flow).
+- **Recommended:** keep the current slop until the founder confirms on the iPhone whether taps near the input cells misfire.
+- Data and behaviour are unchanged. Using previous and then ✓ in quick succession logs 60 × 8 and completes the set (tested).
+- **Founder decision (2026-10-24):** keep the compact-grid layout and its current effective target (24 pt chip plus 10 pt hitSlop above and below). The row is **not** expanded by 20 pt, and the action does **not** move into a menu.
+- The overlapping hit area (about 8 pt into the input cells above, about 6 pt into the next set's row) is an **accepted, provisional limitation**, pending the founder's iPhone testing (B13 step 5).
+- The wide and stacked improvements stay. No further F-04e code changes are authorized.
+
+## B9. New automated tests
+
+**Logic, `wp6-contrast.test.ts` (5):**
+- dark and light secondary-text contrast on every surface;
+- dark and light selected-segment outline and labels;
+- the tertiary-usage allowlist.
+
+**UI, `wp6.test.tsx` (+7, 19 in total):**
+- the chosen segment is outlined and bold in all four layouts, follows taps and keeps its spoken state;
+- macros: columns at 100/130 %, rows at 160/200 %, with the same spoken labels and no shrinking in rows;
+- the workout header wraps a long title and summary;
+- "Use previous" target: 44 pt without slop when wide or stacked; 24 + 10 + 10 when compact;
+- "SET" stays on one line at 200 %;
+- Use previous then ✓ in one frame logs the previous result;
+- Add food at 100 % and 200 %: the controls scroll with the list only at 200 %; the meal choice, search, a library result added to the chosen meal, Create food and Close all work.
+
+## B10. Emulator observations (`forge-visual-harness/shots/android/p25/`)
+
+SE 375 pt, dark and light, 100/130/160/200 %:
+- **Progress** (`_progress.png`): the outlined choice is clear in both themes; tile details are complete.
+- **Nutrition** (`_nutrition.png`): macros in columns, then rows; "PROTEIN" intact.
+- **Add food** (`_addfood.png`, `_addfood-kb.png`): recent foods visible at every size; the search and a result stay visible above the keyboard at 200 %.
+- **Logger** (`_logger.png`): the header summary wraps; "SET KG REPS" stays whole at 200 %; "Previous 45×8" captions are intact.
+- Not re-captured: Batch A's segmented-control survey, and the standard and large phones (the layouts are proportional; SE is the constraining case).
+
+## B11. Protected-area review
+
+Presentation only. Unchanged:
+- programming and progression; set data; workout lifecycle and completion rules;
+- Forge Paths; the 18 curated programs (lock test passes);
+- nutrition calculations, food records and the catalogue (reproducible, same hash);
+- measurement, recovery and goal calculations; achievement snapshots;
+- the six-second Undo;
+- backup, sync, auth and schemas;
+- onboarding (ProfileForm untouched in Batch B);
+- splash and navigation.
+
+No dependencies were added.
+
+## B12. Deferred to Batch C (unchanged)
+
+- F-08: rest-timer speech;
+- F-10: Undo held across process death (D8);
+- F-11: performance (profile on the iPhone first, D10);
+- F-12: sheet focus entry and restoration;
+- F-13: Goals and Check-ins delete alerts.
+
+F-04e's compact grid is an accepted provisional limitation (B8), to revisit only if iPhone testing shows misfired taps.
+
+## B13. Founder iPhone acceptance (Batch B)
+
+1. **Contrast:** in dark and light, read Progress (record dates, Low/High), Goals (progress lines), You ("Training since…") and a program's exercise notes. Captions should be easy to read and still quieter than headings.
+2. **Selected segment:** on Progress, Measurements and You → Appearance, the chosen option is outlined and bold. It's obvious which is chosen even in bright light.
+3. **Larger Text** at the largest standard size and AX3:
+   - Progress tiles show "16 of 18 sessions" in full;
+   - a workout's header shows the sets and volume in full;
+   - Nutrition shows PROTEIN, CARBS and FAT whole;
+   - the set grid's "SET" is whole.
+4. **Add food at AX3:** choose a meal, search "egg", add one, Undo, scroll to Recent, open Create food, close the sheet.
+5. **Use previous:**
+   - on a standard iPhone, tap "45×8" in the Prev column, then ✓;
+   - at a larger text size (compact grid), tap "Previous …" under a set: does it ever catch taps meant for the KG or REPS cells above? Your answer decides B8.
+6. **Regression skim:** log a set normally, change a meal, switch Progress ranges.
+
+## B14. Working tree
+
+Modified (uncommitted):
+- `src/components/ui.tsx`, `SetGrid.tsx`, `charts.tsx`, `programs.tsx`, `Recovery.tsx`;
+- `src/components/nutrition/MacroSummary.tsx`, `QuickAddSheet.tsx`;
+- `src/components/checkins/CheckinSheet.tsx`, `ScaleRow.tsx`;
+- `src/components/goals/GoalCard.tsx`, `GoalSheet.tsx`;
+- `src/screens/Progress.tsx`, `Workout.tsx`, `TrainingCalendar.tsx`, `LegacyPath.tsx`, `You.tsx`;
+- `tests/ui/wp6.test.tsx`, this audit.
+
+New: `tests/wp6-contrast.test.ts`. Nothing is committed or pushed. The emulator and Metro are stopped, and the emulator's text size is reset to 100 %.
+
+*End of WP6 Batch B. Not committed. Batch C and WP7 have not begun.*

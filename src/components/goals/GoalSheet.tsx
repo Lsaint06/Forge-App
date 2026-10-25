@@ -387,7 +387,7 @@ export function GoalSheet({
               />
             </View>
             {!draft.convert && (
-              <Txt variant="caption" tone="tertiary">
+              <Txt variant="caption" tone="secondary">
                 {type === "volume"
                   ? "Now: counted over all your workouts."
                   : type === "duration"

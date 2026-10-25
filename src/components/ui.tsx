@@ -836,6 +836,16 @@ function emWidth(text: string) {
               : 0.52;
   return w;
 }
+/** Estimated one-line width of text in the system UI font, with a margin. */
+export function textWidth(
+  text: string,
+  size: number,
+  fontScale: number,
+  tracking = 0,
+) {
+  return emWidth(text) * size * fontScale * 1.1 + tracking * text.length;
+}
+
 /**
  * How a segmented control fits its width at the current text size: "row"
  * (every option on one line), "wrap" (a row whose options take up to two
@@ -944,6 +954,10 @@ export function SegmentedControl({
               paddingHorizontal: stack ? theme.spacing.group : SEGMENT_PAD,
               paddingVertical: 4,
               backgroundColor: selected ? c.selected : "transparent",
+              // The chosen option is outlined (at least 3:1 against the
+              // track) and bolder, so it doesn't rely on a subtle fill.
+              borderWidth: 1,
+              borderColor: selected ? c.text3 : "transparent",
             }}
           >
             <Text
@@ -952,7 +966,7 @@ export function SegmentedControl({
                 flexShrink: 1,
                 textAlign: stack ? "left" : "center",
                 color: selected ? c.text : c.text2,
-                fontWeight: "600",
+                fontWeight: selected ? "700" : "600",
                 fontSize: SEGMENT_FONT,
               }}
             >

@@ -280,7 +280,7 @@ export default function You() {
                 goal ?? "Goal not set",
               ].join(" · ")}
             </Txt>
-            <Txt variant="caption" tone="tertiary">
+            <Txt variant="caption" tone="secondary">
               {first ? `Training since ${monthYear(first)}` : "No workouts yet"}
             </Txt>
           </View>

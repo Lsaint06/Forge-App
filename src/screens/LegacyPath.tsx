@@ -445,7 +445,7 @@ export default function LegacyPath() {
                   >
                     <Txt
                       variant="caption"
-                      tone={today ? "primary" : "tertiary"}
+                      tone={today ? "primary" : "secondary"}
                       weight={today ? "700" : "500"}
                     >
                       {weekdayNames[i]!.charAt(0)}

@@ -90,7 +90,7 @@ export function RecoveryScreen({
                 : `Couldn't create a copy: ${result.message}`}
           </Txt>
         )}
-        <Txt variant="caption" tone="tertiary">
+        <Txt variant="caption" tone="secondary">
           If this keeps happening, keep FORGE installed: deleting the app
           deletes the data stored on this phone.
           {email ? ` Contact FORGE support at ${email}.` : ""}

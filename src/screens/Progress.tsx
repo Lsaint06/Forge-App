@@ -107,16 +107,16 @@ function Overview({
           key={s.label}
           accessible
           accessibilityLabel={`${s.label}: ${s.value}${s.detail ? `, ${s.detail}` : ""}`}
-          style={{ width: "50%", gap: 2, paddingRight: 8 }}
+          style={{ width: "100%", gap: 2 }}
         >
           <Txt variant="metric" numberOfLines={1}>
             {s.value}
           </Txt>
-          <Txt variant="overline" tone="secondary" numberOfLines={1}>
+          <Txt variant="overline" tone="secondary">
             {s.label}
           </Txt>
           {s.detail && (
-            <Txt variant="caption" tone="tertiary" numberOfLines={1}>
+            <Txt variant="caption" tone="secondary">
               {s.detail}
             </Txt>
           )}
@@ -445,7 +445,7 @@ function SessionLine({
       <Txt weight="600" tabular style={{ flex: 1 }}>
         {value}
       </Txt>
-      <Txt variant="caption" tone="tertiary">
+      <Txt variant="caption" tone="secondary">
         {dayLabel(date)}
       </Txt>
     </View>

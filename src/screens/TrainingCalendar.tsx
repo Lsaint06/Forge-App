@@ -173,7 +173,7 @@ export default function TrainingCalendar() {
             <Txt
               key={i}
               variant="caption"
-              tone="tertiary"
+              tone="secondary"
               align="center"
               style={{ flex: 1 }}
             >

@@ -146,7 +146,11 @@ export function QuickAddSheet({
   // While typing, the day and meal shrink to one line (none on short
   // screens) so more foods fit above the keyboard.
   const [typing, setTyping] = useState(false);
-  const short = useWindowDimensions().height < 740;
+  const window = useWindowDimensions();
+  const short = window.height < 740;
+  // At larger text the day, meal and search scroll with the foods (as the
+  // list's header), so results get the sheet's full height.
+  const roomy = (window.fontScale || 1) >= 1.3;
   useEffect(() => {
     const ios = Platform.OS === "ios";
     const show = Keyboard.addListener(
@@ -607,6 +611,34 @@ export function QuickAddSheet({
     />
   );
 
+  // The day, meal and search. They keep their size above the list (only the
+  // list gives way to the keyboard); at larger text they scroll with it.
+  const controls = (
+    <View style={{ flexShrink: 0, gap: theme.spacing.md }}>
+      {typing ? (
+        short ? null : (
+          <Txt tone="secondary">{`Adding to ${context}`}</Txt>
+        )
+      ) : (
+        <>
+          <Txt tone="secondary">{`Adding to ${dayTitle(day, today)}`}</Txt>
+          {mealControl}
+        </>
+      )}
+      <Field
+        label="Search foods"
+        value={query}
+        onChangeText={(text) => {
+          setQuery(text);
+          setShown(PAGE);
+        }}
+        placeholder="Food, e.g. chicken breast"
+        autoCorrect={false}
+        returnKeyType="search"
+      />
+    </View>
+  );
+
   return (
     <Sheet
       visible
@@ -615,32 +647,22 @@ export function QuickAddSheet({
       scroll={false}
       footer={typing ? undefined : createButton}
     >
-      {/* The controls keep their size; only the list gives way to the keyboard. */}
-      <View style={{ flexShrink: 0, gap: theme.spacing.md }}>
-        {typing ? (
-          short ? null : (
-            <Txt tone="secondary">{`Adding to ${context}`}</Txt>
-          )
-        ) : (
-          <>
-            <Txt tone="secondary">{`Adding to ${dayTitle(day, today)}`}</Txt>
-            {mealControl}
-          </>
-        )}
-        <Field
-          label="Search foods"
-          value={query}
-          onChangeText={(text) => {
-            setQuery(text);
-            setShown(PAGE);
-          }}
-          placeholder="Food, e.g. chicken breast"
-          autoCorrect={false}
-          returnKeyType="search"
-        />
-      </View>
-      <View style={{ height: 420, flexShrink: 1, minHeight: 0 }}>
+      {!roomy && controls}
+      <View
+        style={
+          roomy
+            ? { height: 2000, flexShrink: 1, minHeight: 0 }
+            : { height: 420, flexShrink: 1, minHeight: 0 }
+        }
+      >
         <FlatList
+          ListHeaderComponent={
+            roomy ? (
+              <View style={{ paddingBottom: theme.spacing.sm }}>
+                {controls}
+              </View>
+            ) : undefined
+          }
           data={nothingFound ? [] : items}
           keyExtractor={(item, i) =>
             item.type === "header"

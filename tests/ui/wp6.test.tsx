@@ -61,6 +61,12 @@ const ui =
   require("../../src/components/ui") as typeof import("../../src/components/ui");
 const WorkoutScreen = require("../../src/screens/Workout").default as React.FC;
 const ExerciseScreen = require("../../app/exercise").default as React.FC;
+const { SetGrid } =
+  require("../../src/components/SetGrid") as typeof import("../../src/components/SetGrid");
+const { MacroSummary } =
+  require("../../src/components/nutrition/MacroSummary") as typeof import("../../src/components/nutrition/MacroSummary");
+const { QuickAddSheet } =
+  require("../../src/components/nutrition/QuickAddSheet") as typeof import("../../src/components/nutrition/QuickAddSheet");
 const { ExercisePicker } =
   require("../../src/components/ExercisePicker") as typeof import("../../src/components/ExercisePicker");
 /* eslint-enable @typescript-eslint/no-require-imports */
@@ -520,5 +526,255 @@ test("in the logger, a double tap on a picker row adds one exercise row", async 
     expect(r.sets(r.workoutExercises(w.id)[0]!.id)).toHaveLength(1);
   } finally {
     db.close();
+  }
+});
+
+// ---- WP6 Batch B -------------------------------------------------------------
+
+const flat = (el: { props: { style?: unknown } }) =>
+  StyleSheet.flatten(el.props.style as ViewStyle) as ViewStyle & {
+    fontWeight?: string;
+  };
+const hidden = { includeHiddenElements: true };
+
+test("the chosen segment is outlined and bolder in every layout", async () => {
+  for (const fontScale of [1, 1.3, 2, 3]) {
+    mockDims.fontScale = fontScale;
+    const view = await render(<Ranges onPick={() => {}} />);
+    const chosen = view.getByRole("tab", { name: "12 weeks" });
+    const other = view.getByRole("tab", { name: "1 year" });
+    expect(flat(chosen).borderWidth).toBe(1);
+    expect(flat(chosen).borderColor).not.toBe("transparent");
+    expect(flat(other).borderColor).toBe("transparent");
+    expect(flat(view.getByText("12 weeks")).fontWeight).toBe("700");
+    expect(flat(view.getByText("1 year")).fontWeight).toBe("600");
+    // The outline moves with the choice; the spoken state follows.
+    await fireEvent.press(other);
+    expect(
+      flat(view.getByRole("tab", { name: "1 year" })).borderColor,
+    ).not.toBe("transparent");
+    expect(
+      view.getByRole("tab", { name: "1 year" }).props.accessibilityState,
+    ).toMatchObject({ selected: true });
+    await view.unmount();
+  }
+});
+
+test("macros keep three columns until a label can't fit, then take a row each", async () => {
+  const totals = { calories: 1234, protein: 160, carbs: 210, fat: 55 };
+  const targets = { calories: 2600, protein: 180, carbs: 300, fat: 75 };
+  const props = { totals, targets, personalized: true, onSetTargets: () => {} };
+  for (const [fontScale, direction] of [
+    [1, "row"],
+    [1.3, "row"],
+    [1.6, "column"],
+    [2, "column"],
+  ] as const) {
+    mockDims.fontScale = fontScale;
+    const view = await render(<MacroSummary {...props} />);
+    const protein = view.getByLabelText("Protein 160 g of 180 g");
+    // The macro's container decides the arrangement; spoken labels are unchanged.
+    // Columns share the width (flex 1); rows take the full width.
+    expect(flat(protein).flex).toBe(direction === "row" ? 1 : undefined);
+    expect(view.getByLabelText("Carbs 210 g of 300 g")).toBeTruthy();
+    expect(view.getByLabelText("Fat 55 g of 75 g")).toBeTruthy();
+    // In rows, values never shrink or cut.
+    const value = view.getByText("160 g");
+    expect(value.props.numberOfLines).toBe(direction === "row" ? 1 : undefined);
+    expect(value.props.adjustsFontSizeToFit).toBe(
+      direction === "row" ? true : undefined,
+    );
+    await view.unmount();
+  }
+});
+
+test("the workout header wraps a long name and its summary instead of cutting them", async () => {
+  const { r, db } = pathRepository();
+  fixture.r = r;
+  try {
+    const w = r.startWorkout("Upper body · heavy bench and weighted pull-ups");
+    const row = r.addExercise(w.id, "barbell-bench-press");
+    r.addSet(row.id, { weight: 100, reps: 5 });
+    const view = await render(<WorkoutScreen />);
+    expect(
+      view.getByRole("header", { name: /heavy bench/ }).props.numberOfLines,
+    ).toBe(2);
+    expect(view.getByText(/0 of 1 sets?/).props.numberOfLines).toBe(2);
+  } finally {
+    db.close();
+  }
+});
+
+const BASE = {
+  id: "s1",
+  exerciseRowId: "row",
+  position: 0,
+  weight: 0,
+  reps: 0,
+  duration: 0,
+  distance: 0,
+  rpe: null,
+  rir: null,
+  kind: "working" as const,
+  completed: false,
+  rest: 90,
+  tempo: "",
+  notes: "",
+  side: "both" as const,
+};
+function prevGrid() {
+  return (
+    <SetGrid
+      sets={[BASE]}
+      category="strength"
+      showRir={false}
+      previous={[{ ...BASE, weight: 60, reps: 8, completed: true }]}
+      order={0}
+      onDetails={() => {}}
+    />
+  );
+}
+test("Use previous has a 44 pt target that never reaches into neighbouring cells", async () => {
+  const { r, db } = pathRepository();
+  fixture.r = r;
+  try {
+    const target = async (width: number, fontScale: number) => {
+      Object.assign(mockDims, { width, fontScale });
+      const view = await render(prevGrid());
+      const el = view.getByLabelText("Use previous 60 kilograms for 8 reps");
+      const style = flat(el);
+      const slop = el.props.hitSlop as
+        { top?: number; bottom?: number } | undefined;
+      await view.unmount();
+      return { height: style.minHeight as number, slop };
+    };
+    // Wide grid (its own column) and stacked layout (beside the set number):
+    // the 44 pt row is the target; no hitSlop overlaps another control.
+    expect(await target(393, 1)).toEqual({ height: 44, slop: undefined });
+    expect(await target(300, 2)).toEqual({ height: 44, slop: undefined });
+    // Compact grid (under the cells): 24 pt plus 10 pt above and below.
+    // Documented trade-off: a full 44 pt row here would add 20 pt per set.
+    const compact = await target(320, 1);
+    expect(compact.height + compact.slop!.top! + compact.slop!.bottom!).toBe(
+      44,
+    );
+  } finally {
+    db.close();
+  }
+});
+
+test("a grid caption wider than its column stays on one line at large text", async () => {
+  const { r, db } = pathRepository();
+  fixture.r = r;
+  try {
+    Object.assign(mockDims, { width: 375, fontScale: 2 });
+    const view = await render(prevGrid());
+    const set = view.queryByText("Set", hidden);
+    // Where the header shows (compact and wide layouts), "SET" never breaks.
+    if (set) {
+      expect(set.props.numberOfLines).toBe(1);
+      expect(flat(set).width as number).toBeGreaterThanOrEqual(
+        ui.textWidth("SET", 11, 2, 1.6),
+      );
+    }
+  } finally {
+    db.close();
+  }
+});
+
+test("Use previous then ✓ in quick succession logs the previous result", async () => {
+  const { r, db } = pathRepository();
+  fixture.r = r;
+  try {
+    const before = r.startWorkout("Push");
+    const prevRow = r.addExercise(before.id, "barbell-bench-press");
+    r.editSet(r.addSet(prevRow.id, { weight: 60, reps: 8 }).id, {
+      completed: true,
+    });
+    r.finishWorkout(before.id);
+    const w = r.startWorkout("Push");
+    const row = r.addExercise(w.id, "barbell-bench-press");
+    r.addSet(row.id);
+    Object.assign(mockDims, { width: 393, fontScale: 1 });
+    const view = await render(<WorkoutScreen />);
+    const fillPrevious = findEventHandler(
+      view.getByLabelText("Use previous 60 kilograms for 8 reps"),
+      "press",
+      { bubbles: true },
+    ).handler!;
+    const done = findEventHandler(
+      view.getByLabelText("Complete set 1"),
+      "press",
+      {
+        bubbles: true,
+      },
+    ).handler!;
+    await act(async () => {
+      fillPrevious({ nativeEvent: {} });
+      done({ nativeEvent: {} });
+    });
+    expect(r.sets(row.id)[0]).toMatchObject({
+      weight: 60,
+      reps: 8,
+      completed: true,
+    });
+    expect(alert).not.toHaveBeenCalled();
+  } finally {
+    db.close();
+  }
+});
+
+function inScroll(view: RenderResult, label: string) {
+  return (
+    nodes(
+      view,
+      (n) =>
+        n.type === "RCTScrollView" &&
+        nodes(
+          { toJSON: () => n } as unknown as RenderResult,
+          (m) => m.props.accessibilityLabel === label,
+        ).length > 0,
+    ).length > 0
+  );
+}
+test("Add food at large text scrolls its controls with the foods; nothing is lost", async () => {
+  for (const fontScale of [1, 2]) {
+    const { r, db } = pathRepository();
+    fixture.r = r;
+    try {
+      Object.assign(mockDims, { width: 375, height: 667, fontScale });
+      const close = jest.fn();
+      const today = "2026-10-24";
+      const view = await render(
+        <QuickAddSheet
+          day={today}
+          today={today}
+          initialMeal="Dinner"
+          onClose={close}
+        />,
+      );
+      // At 200 % the day, meal and search are part of the scrolling list.
+      expect(inScroll(view, "Search foods")).toBe(fontScale === 2);
+      expect(
+        view.getByRole("tab", { name: "Dinner" }).props.accessibilityState,
+      ).toMatchObject({ selected: true });
+      await fireEvent.press(view.getByRole("tab", { name: "Lunch" }));
+      await fireEvent.changeText(
+        view.getByLabelText("Search foods"),
+        "egg whole boiled",
+      );
+      const add = view.getAllByLabelText(
+        /^Add 100 g of Egg, whole, boiled/,
+      )[0]!;
+      await fireEvent.press(add);
+      const [entry] = r.journal("nutrition");
+      expect(entry!.data).toMatchObject({ meal: "Lunch" });
+      expect(view.getByLabelText("Create food")).toBeTruthy();
+      await fireEvent.press(view.getByLabelText("Close"));
+      expect(close).toHaveBeenCalled();
+      await view.unmount();
+    } finally {
+      db.close();
+    }
   }
 });

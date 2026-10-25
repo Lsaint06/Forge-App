@@ -47,7 +47,7 @@ export function ScaleRow({
         }}
       >
         <Txt variant="headline">{scale.question}</Txt>
-        <Txt variant="caption" tone={isAnswer(value) ? "primary" : "tertiary"}>
+        <Txt variant="caption" tone={isAnswer(value) ? "primary" : "secondary"}>
           {shown}
         </Txt>
       </View>

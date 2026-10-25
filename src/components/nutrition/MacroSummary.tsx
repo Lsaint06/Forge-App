@@ -1,6 +1,6 @@
-import React from "react";
-import { View } from "react-native";
-import { Card, Txt, TextButton, ProgressBar } from "../ui";
+import React, { useState } from "react";
+import { View, useWindowDimensions } from "react-native";
+import { Card, Txt, TextButton, ProgressBar, textWidth } from "../ui";
 import { gramsText, type Totals } from "../../domain/nutrition";
 import type { Profile } from "../../domain/types";
 import { theme } from "../../theme";
@@ -32,6 +32,19 @@ export function MacroSummary({
     ["Carbs", totals.carbs, targets.carbs],
     ["Fat", totals.fat, targets.fat],
   ] as const;
+  // Three columns while every label fits its column on one line; otherwise
+  // one macro per row, so "PROTEIN" never breaks and nothing shrinks.
+  const window = useWindowDimensions();
+  const [rowWidth, setRowWidth] = useState<number>();
+  const fontScale = window.fontScale || 1;
+  const column =
+    ((rowWidth ??
+      window.width - 2 * theme.spacing.screen - 2 * theme.spacing.md) -
+      2 * theme.spacing.md) /
+    3;
+  const rows = macros.some(
+    ([label]) => textWidth(label.toUpperCase(), 11, fontScale, 1.6) > column,
+  );
   return (
     <Card>
       <View
@@ -58,7 +71,13 @@ export function MacroSummary({
       {showGoal && (
         <ProgressBar value={totals.calories / goal} label="Calories" />
       )}
-      <View style={{ flexDirection: "row", gap: theme.spacing.md }}>
+      <View
+        onLayout={(e) => setRowWidth(Math.round(e.nativeEvent.layout.width))}
+        style={{
+          flexDirection: rows ? "column" : "row",
+          gap: theme.spacing.md,
+        }}
+      >
         {macros.map(([label, value, target]) => {
           const against = personalized && target > 0;
           return (
@@ -70,17 +89,22 @@ export function MacroSummary({
                   ? `${label} ${gramsText(value)} of ${gramsText(target)}`
                   : `${label} ${gramsText(value)}`
               }
-              style={{ flex: 1, gap: 4 }}
+              style={rows ? { gap: 4 } : { flex: 1, gap: 4 }}
             >
               <Txt variant="overline" tone="secondary">
                 {label}
               </Txt>
-              <Txt tabular numberOfLines={1} fit>
+              <Txt tabular numberOfLines={rows ? undefined : 1} fit={!rows}>
                 {gramsText(value)}
               </Txt>
               {against && (
                 <>
-                  <Txt variant="caption" tone="secondary" numberOfLines={1} fit>
+                  <Txt
+                    variant="caption"
+                    tone="secondary"
+                    numberOfLines={rows ? undefined : 1}
+                    fit={!rows}
+                  >
                     {`of ${gramsText(target)}`}
                   </Txt>
                   <ProgressBar value={value / target} label={label} />

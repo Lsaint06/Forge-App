@@ -258,7 +258,7 @@ export function CheckinSheet({
             onPress={() => stepSleep(SLEEP_STEP)}
           />
         </View>
-        <Txt variant="caption" tone={hint ? "accent" : "tertiary"}>
+        <Txt variant="caption" tone={hint ? "accent" : "secondary"}>
           {hint ??
             (draft.sleep === undefined
               ? `Tap + or − to start from ${sleepText(lastSleep ?? 8)}. Steps of 15 minutes.`

@@ -27,6 +27,7 @@ import {
   useColors,
   parseNumber,
   formatNumber,
+  textWidth,
   useAnnouncedError,
   type NumberRule,
 } from "./ui";
@@ -318,52 +319,68 @@ function UsePrevious({
   spoken,
   onPress,
   wide,
+  inline = false,
   style,
 }: {
   text: string;
   spoken: string;
   onPress: () => void;
   wide: boolean;
+  /** Beside the set number (stacked layout), in a 44 pt row. */
+  inline?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
+  // In a 44 pt row (the wide grid's Prev column, or beside the set number
+  // when stacked) the whole row height is the target, so nothing overlaps.
+  // Under the cells (compact grid) a hitSlop extends the 24 pt chip.
+  const row = wide || inline;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Use previous ${spoken}`}
       accessibilityHint="Fills this set with your last result. You can still change it."
-      hitSlop={wide ? { top: 6, bottom: 6 } : { top: 10, bottom: 10 }}
+      hitSlop={row ? undefined : { top: 10, bottom: 10 }}
       onPress={onPress}
-      style={({ pressed }) => [
+      style={[
         {
-          flexDirection: "row",
-          alignItems: "center",
           justifyContent: "center",
           alignSelf: wide ? "stretch" : "flex-start",
-          gap: 4,
-          minHeight: wide ? 32 : 24,
-          paddingHorizontal: 6,
-          borderRadius: 8,
-          borderWidth: 1,
-          borderColor: c.hairline,
-          backgroundColor: pressed ? c.selected : "transparent",
+          minHeight: row ? 44 : 24,
         },
         style,
       ]}
     >
-      {!wide && (
-        <Ionicons name="arrow-redo-outline" size={12} color={c.text2} />
+      {({ pressed }) => (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 4,
+            minHeight: wide ? 32 : 24,
+            paddingHorizontal: 6,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: c.hairline,
+            backgroundColor: pressed ? c.selected : "transparent",
+          }}
+        >
+          {!wide && (
+            <Ionicons name="arrow-redo-outline" size={12} color={c.text2} />
+          )}
+          <Txt
+            variant="caption"
+            tone="secondary"
+            tabular
+            align="center"
+            numberOfLines={1}
+            fit={wide}
+          >
+            {wide ? text : `Previous ${text}`}
+          </Txt>
+        </View>
       )}
-      <Txt
-        variant="caption"
-        tone="secondary"
-        tabular
-        align="center"
-        numberOfLines={1}
-        fit={wide}
-      >
-        {wide ? text : `Previous ${text}`}
-      </Txt>
     </Pressable>
   );
 }
@@ -662,6 +679,7 @@ export function SetRow({
           spoken={spoken}
           onPress={usePrevious}
           wide={false}
+          inline={stacked}
         />
       </View>
     ) : (
@@ -758,11 +776,25 @@ function GridHeader({
 }) {
   const r = useRepo();
   const c = useColors();
+  const { fontScale } = useWindowDimensions();
   const fields = gridFields(category, showRir);
   const strength = category === "strength";
+  // A caption wider than its column (e.g. "SET" at large text) overflows it,
+  // centred, instead of breaking mid-word. The header is hidden from screen
+  // readers; every cell has its own label.
   const label = (text: string, style: ViewStyle) => (
-    <View style={style}>
-      <Txt variant="overline" tone="secondary" align="center">
+    <View style={[style, { alignItems: "center" }]}>
+      <Txt
+        variant="overline"
+        tone="secondary"
+        align="center"
+        numberOfLines={1}
+        style={{
+          width: Math.ceil(
+            textWidth(text.toUpperCase(), 11, fontScale || 1, 1.6) + 4,
+          ),
+        }}
+      >
         {text}
       </Txt>
     </View>

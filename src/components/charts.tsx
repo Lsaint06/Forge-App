@@ -136,10 +136,10 @@ export function BarChart({
           marginTop: 4,
         }}
       >
-        <Txt variant="caption" tone="tertiary">
+        <Txt variant="caption" tone="secondary">
           {startLabel}
         </Txt>
-        <Txt variant="caption" tone="tertiary">
+        <Txt variant="caption" tone="secondary">
           {endLabel}
         </Txt>
       </View>
@@ -236,7 +236,8 @@ export function LineChart({
         <Txt
           variant="caption"
           tone="secondary"
-          numberOfLines={1}
+          numberOfLines={2}
+          align="right"
           style={{ flexShrink: 1 }}
         >
           {hit?.description ?? ""}
@@ -329,10 +330,10 @@ export function LineChart({
       </Pressable>
       {points.length > 1 && (
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-          <Txt variant="caption" tone="tertiary">
+          <Txt variant="caption" tone="secondary">
             {`Low ${format(lo)}`}
           </Txt>
-          <Txt variant="caption" tone="tertiary">
+          <Txt variant="caption" tone="secondary">
             {`High ${format(hi)}`}
           </Txt>
         </View>
