@@ -105,6 +105,9 @@ export class Repository {
       [key, value],
     );
   }
+  clearSetting(key: string) {
+    this.db.run("DELETE FROM settings WHERE key=?", [key]);
+  }
   exercises(query = "", muscle = "All", equipment = "All") {
     return searchExercises(
       this.db

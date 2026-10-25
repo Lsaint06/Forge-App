@@ -886,4 +886,197 @@ Modified (uncommitted):
 
 New: `tests/wp6-contrast.test.ts`. Nothing is committed or pushed. The emulator and Metro are stopped, and the emulator's text size is reset to 100 %.
 
-*End of WP6 Batch B. Not committed. Batch C and WP7 have not begun.*
+*End of WP6 Batch B (committed as `8636804`).*
+
+---
+
+# Batch C — Implementation Results
+
+**Status:** implemented and verified; **not committed**; ready for the founder's final WP6 iPhone acceptance. WP7 has not begun.
+
+## C1. Baseline
+
+Batch B was already committed and pushed as **`8636804`** (including the F-04e founder decision), equal to `origin/feat/forge-paths-foundation`, with a clean tree. There was no duplicate commit.
+
+## C2. Files changed
+
+| File | Change |
+| --- | --- |
+| [Workout.tsx](../../src/screens/Workout.tsx) | Rest timer and keyboard-bar countdown: a stable name "Rest timer", with the countdown as the value ("1 minute 29 seconds remaining"). One "Rest started, …" and one "Rest over" announcement. New `spokenRest` |
+| [ui.tsx](../../src/components/ui.tsx) | `Sheet`: `accessibilityViewIsModal`; the title is one accessible header (with a ref); on `onShow`, focus moves to it **only while a screen reader is on** |
+| [system.tsx](../../src/components/system.tsx) | `OverflowMenu`: `accessibilityViewIsModal` |
+| [Goals.tsx](../../src/screens/Goals.tsx), [Checkins.tsx](../../src/screens/Checkins.tsx) | Delete confirmations name the item, explain the result and mention Undo; the destructive button is "Delete goal" / "Delete check-in" |
+| [wp6.test.tsx](../../tests/ui/wp6.test.tsx) | +4 tests |
+| [goals.test.tsx](../../tests/ui/goals.test.tsx), [checkins.test.tsx](../../tests/ui/checkins.test.tsx) | +1 test each; existing presses use the new button names (same guarantees) |
+| [workout-logger.test.tsx](../../tests/ui/workout-logger.test.tsx) | Timer query uses the new name and value (the same countdown guarantee) |
+| [design-system.test.tsx](../../tests/ui/design-system.test.tsx) | The scrim is now outside the accessible modal, so the sighted-tap tests query it with `includeHiddenElements` (assertions unchanged) |
+
+## C3. F-08: rest timer — implemented
+
+- **Before:** the label changed every second ("Rest, 1:29 remaining").
+- **Now:**
+  - the label is the stable "Rest timer"; the value is "1 minute 29 seconds remaining", read when the timer is focused;
+  - the `timer` role is kept; there is **no** live region;
+  - **"Rest started, 1 minute 30 seconds"** is announced once when rest begins (from a set or Start rest);
+  - **"Rest over"** is announced once when rest ends on its own;
+  - +30 and Skip announce nothing (their buttons are already spoken);
+  - reopening the screen while rest is running is silent.
+- **Unchanged:** the timer calculation (stored deadline), +30, Skip, notification scheduling and cancellation, and the haptic.
+- **Verified:** component tests (props, announcement counts, transitions); on device, the dock renders as before (`p26/se-rest-dock.png`).
+- **Not verified:** actual VoiceOver/TalkBack speech, and how VoiceOver polls a focused `timer` element. This is an iPhone check.
+
+## C4. F-10: Undo and interruption — partly verified; process death needs a founder decision
+
+**Current behaviour:**
+- Only Goals (delete, Mark as achieved) and Check-ins (delete) defer a write behind the 6-second Undo. Measurements and Nutrition delete immediately after confirmation; their Undo reverses a *save*.
+- A deferred write is committed when the 6 s timer ends, when another Undo replaces it, or when the screen closes.
+- Nothing listens for the app going to the background.
+
+**Verified (approved contract preserved):**
+- **Device** (`p26/standard-switch2-*.png`): delete a goal, switch to Settings and back within about 1.6 s. The goal is still pending with **Undo** offered; Undo at 2.0 s restores it; it stays after the window. Switching apps did **not** finalise the delete or shorten the window.
+- **Test:** an inactive → background → active cycle during the window writes nothing, and Undo restores the goal.
+
+**Open (not fixed):** if the OS ends FORGE's process inside the window, the in-memory pending delete is lost and the item comes back on the next launch. Data stays safe, but the deletion intent is lost (reproduced in the audit, F-10). Fixing this needs durable state, which is outside Batch C's authority.
+
+**Options for a founder decision (D15):**
+1. **Durable pending marker (recommended).**
+   - Store `{kind, id, data, expiresAt}` in the existing local `settings` key-value table. It is local-only: not synced, not in backups, no schema change. Clear it on Undo or commit.
+   - On the next launch or when the screen opens, an *expired* marker is committed; an *unexpired* one is re-offered with its remaining time.
+   - This keeps the 6-second contract, but adds a new persistence contract and a reconciliation at startup.
+2. **Commit when backgrounded:** rejected by the founder's boundary, since it shortens the window.
+3. **Keep current behaviour:** data-safe, and the rare process-death case brings the item back.
+
+## C5. F-11: logger performance — deferred (D10)
+
+- **Evidence:** the audit's emulator frame measurements (logger 47 % janky against a 6–8 % emulator baseline). Emulator GPU and CPU aren't representative of an iPhone.
+- **Code review** found no pathological high-frequency update: the session clock and rest timer re-render only themselves, and Android's keyboard bar renders nothing.
+- No specific defect could be reproduced or measured on a device, so per **D10** no optimisation was made and no benchmark is claimed.
+- **Next step, if needed:** profile the logger on the iPhone in production mode (`npx expo start --no-dev --minify`) with the 265-workout seed.
+
+## C6. F-12: sheet and menu focus — semantic improvements implemented
+
+| Requirement | Behaviour |
+| --- | --- |
+| Opening is understood | The title is one accessible **header**; with a screen reader running, focus moves to it once the sheet has finished opening (`onShow`), so the sheet's name is read first |
+| Background unavailable | Sheets and menus are `Modal`s (separate windows). Their content is `accessibilityViewIsModal` (iOS), and the scrim is not accessible |
+| No fighting focus | Focus moves once, only if a screen reader is on, and never on keystrokes. Keyboard focus is untouched |
+| Return on close | **Not changed:** platform default (iOS returns focus to the presenting element). To verify on the iPhone |
+| Dismiss, Cancel, Save | Unchanged (existing tests pass) |
+
+Applies to every `Sheet`: exercise picker, custom-exercise selects, Add food, measurement, check-in, goal, date sheets, information sheets. System alerts are native and need no change.
+
+## C7. F-13: destructive confirmations — implemented
+
+| Screen | Title | Message | Buttons |
+| --- | --- | --- | --- |
+| Goals | Delete goal? | "*Name*" will be removed from Goals, including any achievement recorded for it. Your workouts, measurements and food logs aren't affected. You can undo for a few seconds. | Cancel · **Delete goal** (destructive) |
+| Recovery | Delete check-in? | *Day*'s check-in (sleep and how you felt) will be removed from Recovery. Your workouts aren't affected. You can undo for a few seconds. | Cancel · **Delete check-in** (destructive) |
+
+The confirmation requirement, Undo, the six-second contract, and local data and sync behaviour are unchanged. Device evidence: `p26/standard-goal-confirm.png`, `standard-goal-cancelled.png`, `standard-checkin-confirm.png`.
+
+## C8. Automated results
+
+| Check | Result |
+| --- | --- |
+| Typecheck | Pass |
+| Lint | Pass (the existing WP3 test warning) |
+| Format | Pass |
+| Logic tests (including the curated program lock) | **339 / 339** |
+| UI tests | **28 suites, 294 / 294** (288 + 6 new) |
+| Food library | Reproducible: 3,730 foods, same hash |
+| iOS and Android export | Pass (7.7 MB each). Metro's parallel module counter varied between runs, 2,072–2,101 for Android against 2,280 for iOS; the bundle size is unchanged |
+
+**New tests:**
+- `spokenRest` wording;
+- rest timer: stable name, value, no live region, one start announcement, none for +30 or Skip;
+- natural end: one "Rest over", deadline cleared; a re-mounted running rest stays quiet;
+- sheet: modal isolation, the scrim hidden from readers, focus on the title only with a screen reader, Close unchanged;
+- goal delete: exact message, buttons, Cancel, nothing written during an app-switch cycle, Undo restores;
+- check-in delete: buttons, Cancel keeps the entry.
+
+## C9. Device and accessibility verification (`forge-visual-harness/shots/android/p26/`)
+
+**Tested on Android:**
+- the rest dock after completing a set;
+- the goal confirmation, Cancel, delete with Undo, the fast app switch and Undo;
+- the check-in confirmation (light);
+- the measurement sheet (unchanged appearance).
+
+**Inferred, not exercised:**
+- VoiceOver and TalkBack speech of the rest announcements;
+- focus moving to sheet titles and returning on close (TalkBack automation is unreliable on this image; section 3);
+- process-death behaviour beyond the audit's reproduction.
+
+## C10. Protected-area review
+
+Unchanged:
+- the 18 curated programs (lock passes), Forge Paths, programming and progression;
+- set data and the workout lifecycle;
+- rest timing and notifications (presentation and announcements only);
+- nutrition, measurement, recovery and goal calculations, and achievement snapshots;
+- the six-second Undo;
+- backup, sync, auth and schemas;
+- onboarding, splash and navigation;
+- F-04e's compact grid (founder decision).
+
+No dependencies were added.
+
+## C11. Known limitations
+
+- F-10 process death: open, founder decision **D15**.
+- F-11: unmeasured on the iPhone (D10).
+- Screen-reader speech, sheet focus and return focus are code-level and test-level only; they need the iPhone checks below.
+- F-04e compact-grid overlap: accepted, provisional.
+
+## C12. Final WP6 founder iPhone checklist
+
+1. **VoiceOver, rest:** complete a set. You should hear "Rest started, 1 minute 30 seconds" once. Focus the timer: "Rest timer, 1 minute … remaining". Leave it focused: is it quiet, or does it repeat? Wait for the end: you should hear "Rest over" once.
+2. **VoiceOver, sheets:** open Log measurement, Add food, New goal and the exercise picker. Focus should start on the sheet's title. Swiping can't reach the screen behind. A two-finger Z closes the sheet. Where does focus land after closing?
+3. **Deletes:** delete a goal and a check-in. The alert names the item and says your workouts aren't affected; the buttons read "Cancel" and "Delete goal" / "Delete check-in". Delete, switch apps within 3 seconds, come back and tap Undo: the item returns.
+4. **Batch A/B re-check:** larger text on Progress, Nutrition and Add food; the 0-rep set message; field errors spoken once.
+5. **Performance (optional, D10):** scroll a long workout. Note any stutter for profiling.
+6. **Compact "Use previous" (F-04e):** at a larger text size, do taps near the cells ever trigger it?
+
+## C13. Remaining founder decisions
+
+- **D15 (new):** F-10 process-death handling. Recommended option 1 (durable local marker; keeps the 6 s contract).
+- **D10:** the logger performance profile on the iPhone before any refactor.
+- **F-04e:** provisional; revisit only with an iPhone repro.
+
+## C14. Git status
+
+Modified, uncommitted:
+- `src/components/system.tsx`, `src/components/ui.tsx`;
+- `src/screens/Checkins.tsx`, `Goals.tsx`, `Workout.tsx`;
+- `tests/ui/checkins.test.tsx`, `design-system.test.tsx`, `goals.test.tsx`, `workout-logger.test.tsx`, `wp6.test.tsx`;
+- this audit.
+
+Nothing is committed or pushed. The emulator and Metro are stopped.
+
+*End of WP6 Batch C.*
+
+---
+
+# D15 — Durable Pending Deletions (outcome)
+
+- **The founder approved Option 1** with D15-a to D15-e as recommended and the added safeguards. The design and full results are in [PHASE_7B_WP6_D15_PENDING_DELETIONS_PLAN.md](PHASE_7B_WP6_D15_PENDING_DELETIONS_PLAN.md).
+- **F-10 is resolved.** A Goal or check-in deletion confirmed with Undo now completes even if the system ends FORGE inside the six seconds.
+- **How it works:**
+  - an intent marker in local settings (no schema change; never synced or backed up) is written before the item disappears and cleared before Undo restores it;
+  - completion deletes the record, queues its tombstone and clears the marker in one transaction;
+  - a reconcile at cold start completes expired markers. Markers still inside their window keep only their remaining time and are completed at the original deadline.
+- **Safety:**
+  - it acts only on the exact `id` and `kind`, and only on the confirmed version, so records changed since (for example by sync) are kept;
+  - it acts only while the same account owns the data;
+  - invalid markers are removed without touching data;
+  - restore and Delete everything clear markers.
+- **Unchanged:** the six-second Undo, backgrounding (never commits), "Mark as achieved", and every other delete flow.
+- **Tests:** 12 logic and 5 UI.
+- **Device-verified:** process death inside the window, then relaunch: deleted once, one tombstone.
+- **Totals after D15:** logic **351/351**, UI **28 suites, 299/299**.
+
+- **Final verification checkpoint:**
+  - **UI test failures:** two intermittent UI suite failures couldn't be reproduced in a bounded investigation (six full runs, plus load tests). A review of the D15 tests and their races with unmount, Undo timers and cleanup found no defect. The leading, unproven candidate is the splash suite's fake-timer tests running at about 80% of Jest's 5 s timeout. It is recorded as unresolved, with no code change (details in the D15 plan).
+  - **SQLite durability:** WAL with `synchronous=FULL`, from expo-sqlite's compiled default. Forge doesn't override it. Nothing was changed.
+
+*End of WP6 Batch C + D15. Not committed. WP7 has not begun.*

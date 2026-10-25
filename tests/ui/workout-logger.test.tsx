@@ -647,9 +647,12 @@ test("while resting, the dock shows the countdown with +30 s and Skip", async ()
     setSetting,
   } as unknown as ReturnType<typeof useRepo>);
   const view = await render(<RestTimer />);
+  // A stable name; the countdown is the value, read when focused.
   expect(
-    view.getByRole("timer", { name: /^Rest, 1:1\d remaining$/ }),
-  ).toBeTruthy();
+    view.getByRole("timer", { name: "Rest timer" }).props.accessibilityValue,
+  ).toEqual({
+    text: expect.stringMatching(/^1 minute 1\d seconds remaining$/),
+  });
   expect(view.queryByLabelText("Start rest")).toBeNull();
   await fireEvent.press(view.getByLabelText("+30 sec"));
   const extended = Number(setSetting.mock.calls.at(-1)![1]);

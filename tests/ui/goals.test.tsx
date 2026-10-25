@@ -1,5 +1,10 @@
 import React from "react";
-import { Alert } from "react-native";
+import { Alert, AppState } from "react-native";
+import {
+  markPending,
+  readPending,
+  reconcilePendingDeletes,
+} from "../../src/data/pending-deletes";
 import {
   render,
   fireEvent,
@@ -383,7 +388,7 @@ test("archive, restore and delete with Undo keep goals intact", async () => {
     await fireEvent.press(view.getByRole("button", { name: "Restore" }));
     expect(goals(r)[0]!.data).toEqual(g.data);
     await fireEvent.press(view.getByRole("button", { name: "Delete" }));
-    await act(async () => pressAlert("Delete goal?", "Delete"));
+    await act(async () => pressAlert("Delete goal?", "Delete goal"));
     expect(view.getByText("Deleted Train 3×")).toBeTruthy();
     expect(goals(r)).toHaveLength(1);
     await fireEvent.press(view.getByRole("button", { name: "Undo" }));
@@ -424,6 +429,151 @@ test("cards describe values with units, dates and basis; no raw errors anywhere"
       ),
     ).toBeTruthy();
     expect(view.queryByText(/[{}]|"code"|NaN|undefined/, hidden)).toBeNull();
+  } finally {
+    db.close();
+  }
+});
+
+// WP6 Batch C (F-13, F-10): the delete confirmation names the goal and its
+// consequence; nothing is written before the Undo window ends, and leaving
+// FORGE for another app neither shortens it nor finalises the delete.
+test("deleting a goal names it, explains the result, and writes nothing until Undo expires", async () => {
+  const { r, db } = setup();
+  try {
+    r.addJournal(
+      "goal",
+      { name: "Train 3×", metric: "workouts", target: 3 },
+      today,
+    );
+    const listeners: ((s: string) => void)[] = [];
+    const spy = jest
+      .spyOn(AppState, "addEventListener")
+      .mockImplementation((_type, fn) => {
+        listeners.push(fn as (s: string) => void);
+        return { remove: () => {} } as ReturnType<
+          typeof AppState.addEventListener
+        >;
+      });
+    const view = await render(<JournalScreen />);
+    await fireEvent.press(view.getByLabelText(/^Train 3×\. /));
+    await fireEvent.press(view.getByRole("button", { name: "Delete" }));
+    const call = alert.mock.calls.filter(([t]) => t === "Delete goal?").at(-1)!;
+    expect(call[1]).toBe(
+      '"Train 3×" will be removed from Goals, including any achievement recorded for it. Your workouts, measurements and food logs aren\'t affected. You can undo for a few seconds.',
+    );
+    expect(
+      (call[2] as { text: string; style?: string }[]).map((b) => [
+        b.text,
+        b.style,
+      ]),
+    ).toEqual([
+      ["Cancel", "cancel"],
+      ["Delete goal", "destructive"],
+    ]);
+    // Cancel: nothing changes.
+    await act(async () => pressAlert("Delete goal?", "Cancel"));
+    expect(goals(r)).toHaveLength(1);
+    await fireEvent.press(view.getByRole("button", { name: "Delete" }));
+    await act(async () => pressAlert("Delete goal?", "Delete goal"));
+    // Hidden, but not written while Undo is offered, even across an app switch.
+    expect(view.queryByLabelText(/^Train 3×\. /)).toBeNull();
+    for (const state of ["inactive", "background", "active"])
+      await act(async () => listeners.forEach((fn) => fn(state)));
+    expect(goals(r)).toHaveLength(1);
+    await fireEvent.press(view.getByRole("button", { name: "Undo" }));
+    expect(view.getByLabelText(/^Train 3×\. /)).toBeTruthy();
+    expect(goals(r)).toHaveLength(1);
+    spy.mockRestore();
+  } finally {
+    db.close();
+  }
+});
+
+// WP6 D15: durable pending deletions on the Goals screen.
+test("the delete is recorded durably before it shows, and Undo removes the record of it", async () => {
+  const { r, db } = setup();
+  try {
+    const g = r.addJournal(
+      "goal",
+      { name: "Train 3×", metric: "workouts", target: 3 },
+      today,
+    );
+    const view = await render(<JournalScreen />);
+    await fireEvent.press(view.getByLabelText(/^Train 3×\. /));
+    await fireEvent.press(view.getByRole("button", { name: "Delete" }));
+    await act(async () => pressAlert("Delete goal?", "Delete goal"));
+    expect(view.getByText("Deleted Train 3×")).toBeTruthy();
+    expect(readPending(r, "goal")).toMatchObject({ kind: "goal", id: g.id });
+    await fireEvent.press(view.getByRole("button", { name: "Undo" }));
+    expect(readPending(r, "goal")).toBeUndefined();
+    await view.unmount();
+    expect(goals(r)).toHaveLength(1);
+  } finally {
+    db.close();
+  }
+});
+
+test("FORGE closed mid-window: on reopening, Undo returns with only the time left", async () => {
+  const { r, db } = setup();
+  try {
+    const g = r.addJournal(
+      "goal",
+      { name: "Train 3×", metric: "workouts", target: 3 },
+      today,
+    );
+    markPending(r, "goal", g, Date.now() - 500);
+    const view = await render(<JournalScreen />);
+    // Still hidden, with Undo (about 5.5 s left, not a fresh 6 s).
+    expect(view.queryByLabelText(/^Train 3×\. /)).toBeNull();
+    expect(view.getByText("Deleted Train 3×")).toBeTruthy();
+    await fireEvent.press(view.getByRole("button", { name: "Undo" }));
+    expect(readPending(r, "goal")).toBeUndefined();
+    expect(view.getByLabelText(/^Train 3×\. /)).toBeTruthy();
+    await view.unmount();
+    expect(goals(r)).toHaveLength(1);
+  } finally {
+    db.close();
+  }
+});
+
+test("FORGE closed and reopened after the window: the delete has completed", async () => {
+  const { r, db } = setup();
+  try {
+    const g = r.addJournal(
+      "goal",
+      { name: "Train 3×", metric: "workouts", target: 3 },
+      today,
+    );
+    markPending(r, "goal", g, Date.now() - 10_000);
+    const view = await render(<JournalScreen />);
+    expect(goals(r)).toHaveLength(0);
+    expect(view.queryByText("Deleted Train 3×")).toBeNull();
+    expect(readPending(r, "goal")).toBeUndefined();
+  } finally {
+    db.close();
+  }
+});
+
+test("process ended mid-window: the next launch completes the delete exactly once", async () => {
+  const { r, db } = setup();
+  try {
+    const g = r.addJournal(
+      "goal",
+      { name: "Train 3×", metric: "workouts", target: 3 },
+      today,
+    );
+    const view = await render(<JournalScreen />);
+    await fireEvent.press(view.getByLabelText(/^Train 3×\. /));
+    await fireEvent.press(view.getByRole("button", { name: "Delete" }));
+    await act(async () => pressAlert("Delete goal?", "Delete goal"));
+    // The screen's memory is lost; a new launch reconciles from the database.
+    expect(reconcilePendingDeletes(r, Date.now() + 7000)).toEqual([]);
+    expect(goals(r)).toHaveLength(0);
+    // The old screen closing afterwards writes nothing more.
+    await view.unmount();
+    expect(r.outbox().filter((o) => o.id === g.id && o.deleted)).toHaveLength(
+      1,
+    );
   } finally {
     db.close();
   }

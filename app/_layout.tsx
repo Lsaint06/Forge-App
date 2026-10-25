@@ -4,7 +4,12 @@ import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { initializeRepository } from "../src/data/native";
+import { initializeRepository, repository } from "../src/data/native";
+import {
+  commitPending,
+  reconcilePendingDeletes,
+  remainingMs,
+} from "../src/data/pending-deletes";
 import { useApp } from "../src/state";
 import { Loading, dark, useColors } from "../src/components/ui";
 import * as SplashScreen from "expo-splash-screen";
@@ -69,9 +74,28 @@ function Ready() {
   useEffect(() => onIntroReplay(() => setIntro(true)), []);
   useEffect(() => {
     let mounted = true;
+    const timers: ReturnType<typeof setTimeout>[] = [];
     void initializeRepository()
       .then(() => {
         if (!mounted) return;
+        // Deletions interrupted by FORGE closing (D15): expired ones are
+        // completed now; the rest at their original deadline. Only at a cold
+        // start, so returning from the background never cuts a window short.
+        try {
+          for (const m of reconcilePendingDeletes(repository()))
+            timers.push(
+              setTimeout(() => {
+                try {
+                  if (commitPending(repository(), m.kind, m.id) !== "none")
+                    useApp.getState().touch();
+                } catch {
+                  // The marker stays; the next launch completes it.
+                }
+              }, remainingMs(m)),
+            );
+        } catch {
+          // Never blocks starting FORGE; markers are retried next launch.
+        }
         useApp.getState().touch();
         setReady(true);
       })
@@ -95,6 +119,7 @@ function Ready() {
     return () => {
       mounted = false;
       sub.remove();
+      timers.forEach(clearTimeout);
     };
   }, []);
   if (error) throw error;

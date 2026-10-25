@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   ScrollView,
@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   StyleSheet,
   BackHandler,
+  AccessibilityInfo,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -65,6 +66,15 @@ function useNow() {
   }, []);
   return now;
 }
+/** "1 minute 29 seconds": how the countdown is read aloud. */
+export function spokenRest(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  const part = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  return [m && part(m, "minute"), (s || !m) && part(s, "second")]
+    .filter(Boolean)
+    .join(" ");
+}
 function useRestLeft() {
   const r = useRepo();
   const now = useNow();
@@ -108,8 +118,20 @@ export function RestTimer() {
   const r = useRepo();
   const c = useColors();
   const { deadline, left } = useRestLeft();
+  // Screen readers hear when rest starts and when it ends, never every
+  // second; the countdown is the timer's value, read when it is focused.
+  const lastDeadline = useRef(deadline);
+  useEffect(() => {
+    const was = lastDeadline.current;
+    lastDeadline.current = deadline;
+    if (deadline > 0 && !(was > 0))
+      AccessibilityInfo.announceForAccessibility(
+        `Rest started, ${spokenRest(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))}`,
+      );
+  }, [deadline]);
   useEffect(() => {
     if (deadline > 0 && left === 0) {
+      AccessibilityInfo.announceForAccessibility("Rest over");
       r.setSetting("restDeadline", "0");
       useApp.getState().touch();
       void Haptics.notificationAsync(
@@ -152,7 +174,8 @@ export function RestTimer() {
       <View
         accessible
         accessibilityRole="timer"
-        accessibilityLabel={`Rest, ${timer(left)} remaining`}
+        accessibilityLabel="Rest timer"
+        accessibilityValue={{ text: `${spokenRest(left)} remaining` }}
         style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
       >
         <Ionicons name="timer" size={18} color={c.ember} />
@@ -215,7 +238,8 @@ function KeyboardBar() {
         {left > 0 && (
           <View
             accessible
-            accessibilityLabel={`Rest, ${timer(left)} remaining`}
+            accessibilityLabel="Rest timer"
+            accessibilityValue={{ text: `${spokenRest(left)} remaining` }}
             style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
           >
             <Ionicons name="timer" size={16} color={c.ember} />

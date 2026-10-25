@@ -1,5 +1,6 @@
 import React from "react";
 import { Alert } from "react-native";
+import { markPending, readPending } from "../../src/data/pending-deletes";
 import {
   render,
   fireEvent,
@@ -257,12 +258,12 @@ test("delete asks first, can be undone, and is written when the screen closes", 
       () =>
         expect(alert).toHaveBeenCalledWith(
           "Delete check-in?",
-          "Yesterday's check-in will be removed.",
+          "Yesterday's check-in (sleep and how you felt) will be removed from Recovery. Your workouts aren't affected. You can undo for a few seconds.",
           expect.any(Array),
         ),
       { timeout: 3000 },
     );
-    await act(async () => pressAlert("Delete check-in?", "Delete"));
+    await act(async () => pressAlert("Delete check-in?", "Delete check-in"));
     expect(view.queryByLabelText(/^Yesterday\. /)).toBeNull();
     expect(view.getByText("Deleted Yesterday's check-in")).toBeTruthy();
     await fireEvent.press(view.getByRole("button", { name: "Undo" }));
@@ -273,7 +274,7 @@ test("delete asks first, can be undone, and is written when the screen closes", 
     await waitFor(() => expect(alert).toHaveBeenCalledTimes(2), {
       timeout: 3000,
     });
-    await act(async () => pressAlert("Delete check-in?", "Delete"));
+    await act(async () => pressAlert("Delete check-in?", "Delete check-in"));
     expect(r.journal("recovery")).toHaveLength(1);
     await view.unmount();
     expect(r.journal("recovery")).toHaveLength(0);
@@ -345,6 +346,65 @@ test("scale answers are labelled radio buttons with both ends named", async () =
     await answer(view, "Ready to train", 3);
     expect(view.getByText("Optional")).toBeTruthy();
     expect(view.getByLabelText("Last night's sleep")).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
+// WP6 Batch C (F-13): a named, explained confirmation; Cancel deletes nothing.
+test("the check-in delete names the day and the result; Cancel keeps it", async () => {
+  const { r, db } = setup();
+  try {
+    add(r, yesterday);
+    const view = await render(<JournalScreen />);
+    await fireEvent.press(view.getByLabelText("Options for Yesterday"));
+    await fireEvent.press(view.getByRole("menuitem", { name: "Delete" }));
+    await waitFor(() => expect(alert).toHaveBeenCalled(), { timeout: 3000 });
+    const call = alert.mock.calls
+      .filter(([t]) => t === "Delete check-in?")
+      .at(-1)!;
+    expect(
+      (call[2] as { text: string; style?: string }[]).map((b) => [
+        b.text,
+        b.style,
+      ]),
+    ).toEqual([
+      ["Cancel", "cancel"],
+      ["Delete check-in", "destructive"],
+    ]);
+    await act(async () => pressAlert("Delete check-in?", "Cancel"));
+    expect(view.getByLabelText(/^Yesterday\. /)).toBeTruthy();
+    await view.unmount();
+    expect(r.journal("recovery")).toHaveLength(1);
+  } finally {
+    db.close();
+  }
+});
+
+// WP6 D15: durable pending deletions on the Recovery screen.
+test("a check-in delete is recorded before it shows; reopening mid-window keeps only the time left", async () => {
+  const { r, db } = setup();
+  try {
+    const e = add(r, yesterday);
+    const view = await render(<JournalScreen />);
+    await fireEvent.press(view.getByLabelText("Options for Yesterday"));
+    await fireEvent.press(view.getByRole("menuitem", { name: "Delete" }));
+    await waitFor(() => expect(alert).toHaveBeenCalled(), { timeout: 3000 });
+    await act(async () => pressAlert("Delete check-in?", "Delete check-in"));
+    expect(readPending(r, "recovery")).toMatchObject({ id: e.id });
+    await fireEvent.press(view.getByRole("button", { name: "Undo" }));
+    expect(readPending(r, "recovery")).toBeUndefined();
+    await view.unmount();
+    expect(r.journal("recovery")).toHaveLength(1);
+    // Closed by the system 0.5 s into a new deletion, then reopened.
+    markPending(r, "recovery", e, Date.now() - 500);
+    const again = await render(<JournalScreen />);
+    expect(again.queryByLabelText(/^Yesterday\. /)).toBeNull();
+    expect(again.getByText("Deleted Yesterday's check-in")).toBeTruthy();
+    await again.unmount();
+    // Leaving the screen completes it, as before.
+    expect(r.journal("recovery")).toHaveLength(0);
+    expect(readPending(r, "recovery")).toBeUndefined();
   } finally {
     db.close();
   }

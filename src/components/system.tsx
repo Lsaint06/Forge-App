@@ -254,6 +254,7 @@ export function OverflowMenu({
           />
           <SafeAreaView
             edges={["bottom"]}
+            accessibilityViewIsModal
             style={{
               paddingHorizontal: theme.spacing.sm,
               paddingBottom: theme.spacing.sm,

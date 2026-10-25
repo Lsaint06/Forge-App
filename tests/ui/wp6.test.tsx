@@ -59,7 +59,9 @@ jest.mock("../../src/notifications", () => ({
 const state = require("../../src/state") as typeof import("../../src/state");
 const ui =
   require("../../src/components/ui") as typeof import("../../src/components/ui");
-const WorkoutScreen = require("../../src/screens/Workout").default as React.FC;
+const WorkoutModule =
+  require("../../src/screens/Workout") as typeof import("../../src/screens/Workout");
+const WorkoutScreen = WorkoutModule.default as React.FC;
 const ExerciseScreen = require("../../app/exercise").default as React.FC;
 const { SetGrid } =
   require("../../src/components/SetGrid") as typeof import("../../src/components/SetGrid");
@@ -777,4 +779,102 @@ test("Add food at large text scrolls its controls with the foods; nothing is los
       db.close();
     }
   }
+});
+
+// ---- WP6 Batch C -------------------------------------------------------------
+
+test("rest is read aloud in words", () => {
+  expect(WorkoutModule.spokenRest(90)).toBe("1 minute 30 seconds");
+  expect(WorkoutModule.spokenRest(60)).toBe("1 minute");
+  expect(WorkoutModule.spokenRest(121)).toBe("2 minutes 1 second");
+  expect(WorkoutModule.spokenRest(5)).toBe("5 seconds");
+});
+
+test("the rest timer has a stable name, announces start and end once, and never per second", async () => {
+  const { r, db } = pathRepository();
+  fixture.r = r;
+  try {
+    const w = r.startWorkout("Push");
+    const row = r.addExercise(w.id, "barbell-bench-press");
+    r.addSet(row.id, { weight: 60, reps: 8 });
+    const view = await render(<WorkoutScreen />);
+    await fireEvent.press(view.getByLabelText("Complete set 1"));
+    const spoken = () => announce.mock.calls.map(([s]) => s as string);
+    expect(spoken().filter((s) => s.startsWith("Rest started"))).toEqual([
+      expect.stringMatching(/^Rest started, 1 minute (2\d|30) seconds$/),
+    ]);
+    const timerEl = view.getByRole("timer", { name: "Rest timer" });
+    expect(timerEl.props.accessibilityValue.text).toMatch(/remaining$/);
+    expect(timerEl.props.accessibilityLiveRegion).toBeUndefined();
+    // Extending rest changes the countdown, not the announcement count.
+    await fireEvent.press(view.getByLabelText("+30 sec"));
+    expect(spoken().filter((s) => s.startsWith("Rest started"))).toHaveLength(
+      1,
+    );
+    // Skipping is the lifter's own action: no "Rest over".
+    await fireEvent.press(view.getByLabelText("Skip"));
+    expect(Number(r.setting("restDeadline"))).toBe(0);
+    expect(spoken()).not.toContain("Rest over");
+  } finally {
+    db.close();
+  }
+});
+
+test("rest ending on its own is announced once and cleared; reopening a running rest is quiet", async () => {
+  const { r, db } = pathRepository();
+  fixture.r = r;
+  try {
+    r.startWorkout("Push");
+    r.setSetting("restDeadline", String(Date.now() + 60_000));
+    const running = await render(<WorkoutModule.RestTimer />);
+    expect(announce).not.toHaveBeenCalled();
+    await running.unmount();
+    r.setSetting("restDeadline", String(Date.now() - 1000));
+    await render(<WorkoutModule.RestTimer />);
+    await flush();
+    expect(announce.mock.calls.map(([s]) => s)).toEqual(["Rest over"]);
+    expect(r.setting("restDeadline")).toBe("0");
+  } finally {
+    db.close();
+  }
+});
+
+test("a sheet is a modal for screen readers and starts at its title", async () => {
+  const enabled = jest.spyOn(AccessibilityInfo, "isScreenReaderEnabled");
+  const send = jest
+    .spyOn(AccessibilityInfo, "sendAccessibilityEvent")
+    .mockImplementation(() => {});
+  const close = jest.fn();
+  const view = await render(
+    <ui.Sheet visible title="Log measurement" onClose={close}>
+      <ui.Field label="Value (kg)" value="" />
+    </ui.Sheet>,
+  );
+  const modal = nodes(view, (n) => n.props.onShow !== undefined)[0]!;
+  const show = modal.props.onShow as () => void;
+  // Background controls are out of reach; the scrim is not focusable.
+  expect(
+    nodes(view, (n) => n.props.accessibilityViewIsModal === true),
+  ).toHaveLength(1);
+  // The scrim is outside the modal view: hidden from screen readers.
+  expect(view.queryByTestId("sheet-backdrop")).toBeNull();
+  expect(view.getByTestId("sheet-backdrop", hidden).props.accessible).toBe(
+    false,
+  );
+  const title = view.getByRole("header", { name: "Log measurement" });
+  // No screen reader: focus is left alone.
+  enabled.mockResolvedValueOnce(false);
+  await act(async () => show());
+  expect(send).not.toHaveBeenCalled();
+  // With one: focus moves to the title once the sheet is shown.
+  enabled.mockResolvedValueOnce(true);
+  await act(async () => show());
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(send.mock.calls[0]![1]).toBe("focus");
+  expect(title).toBeTruthy();
+  // Close is unchanged.
+  await fireEvent.press(view.getByLabelText("Close"));
+  expect(close).toHaveBeenCalled();
+  enabled.mockRestore();
+  send.mockRestore();
 });

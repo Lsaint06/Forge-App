@@ -12,6 +12,14 @@ import { LineChart } from "../components/charts";
 import { GoalCard } from "../components/goals/GoalCard";
 import { GoalSheet, type GoalTarget } from "../components/goals/GoalSheet";
 import { useRepo, mutate } from "../state";
+import {
+  UNDO_MS,
+  cancelPending,
+  commitPending,
+  markPending,
+  readPending,
+  remainingMs,
+} from "../data/pending-deletes";
 import { goBack } from "../navigation";
 import { localDate, type Journal } from "../domain/types";
 import { goalSources } from "../data/goal-sources";
@@ -61,10 +69,26 @@ export default function Goals() {
   const [sheet, setSheet] = useState<GoalTarget>();
   const [open, setOpen] = useState<string>();
   const [showPast, setShowPast] = useState(false);
-  const [banner, setBanner] = useState<{ text: string; undo: () => void }>();
   // Deletions and confirmations wait until their Undo expires before they
-  // are written; leaving the screen writes them at once.
+  // are written; leaving the screen writes them at once. A deletion
+  // interrupted by FORGE closing comes back with only the time it had left.
   const deferred = useDeferred(r);
+  const [banner, setBanner] = useState<
+    | {
+        text: string;
+        undo: () => void;
+        /** Undo time left (under 6 s only when restored after a restart). */
+        ms?: number;
+      }
+    | undefined
+  >(() => {
+    const restored = deferred.restored;
+    if (!restored) return undefined;
+    const g = r.journal("goal").find((x) => x.id === restored.id) as
+      Goal | undefined;
+    const name = g ? evaluate(g, goalSources(r, today, p.units)).name : "goal";
+    return { text: `Deleted ${name}`, undo: deferred.cancel, ms: restored.ms };
+  });
   const held = deferred.held;
   const commit = deferred.commit;
   useEffect(() => {
@@ -72,7 +96,7 @@ export default function Goals() {
     const t = setTimeout(() => {
       setBanner(undefined);
       commit();
-    }, 6000);
+    }, banner.ms ?? UNDO_MS);
     return () => clearTimeout(t);
   }, [banner, commit]);
   const sources = goalSources(r, today, p.units);
@@ -94,22 +118,26 @@ export default function Goals() {
     AccessibilityInfo.announceForAccessibility(`${text}. Undo available.`);
   }
   function hold(next: Pending, text: string) {
-    deferred.hold(next);
+    if (!deferred.hold(next)) return;
     setBanner({ text, undo: deferred.cancel });
     AccessibilityInfo.announceForAccessibility(`${text}. Undo available.`);
   }
   function remove(v: GoalView) {
-    Alert.alert("Delete goal?", `"${v.name}" will be removed.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          setOpen(undefined);
-          hold({ kind: "delete", id: v.goal.id }, `Deleted ${v.name}`);
+    Alert.alert(
+      "Delete goal?",
+      `"${v.name}" will be removed from Goals, including any achievement recorded for it. Your workouts, measurements and food logs aren't affected. You can undo for a few seconds.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete goal",
+          style: "destructive",
+          onPress: () => {
+            setOpen(undefined);
+            hold({ kind: "delete", id: v.goal.id }, `Deleted ${v.name}`);
+          },
         },
-      },
-    ]);
+      ],
+    );
   }
   function achieve(v: GoalView) {
     hold(
@@ -406,16 +434,34 @@ function SourceChart({
   );
 }
 
-/** One write held back for Undo; written on commit or when the screen closes. */
+/**
+ * One write held back for Undo; written on commit or when the screen closes.
+ * A deletion is also recorded as a durable marker (D15), written before the
+ * goal disappears and removed before Undo shows it again, so it completes
+ * even if FORGE is closed by the system during the six seconds.
+ */
 function useDeferred(r: ReturnType<typeof useRepo>) {
-  const box = useRef<Pending>(undefined);
-  const [held, setHeld] = useState<Pending>();
+  const [restored] = useState(() => {
+    const m = readPending(r, "goal");
+    if (!m) return undefined;
+    const ms = remainingMs(m);
+    if (ms > 0) return { id: m.id, ms };
+    // Already expired: complete it (idempotent).
+    mutate(() => commitPending(r, "goal", m.id));
+    return undefined;
+  });
+  const box = useRef<Pending>(
+    restored ? { kind: "delete", id: restored.id } : undefined,
+  );
+  const [held, setHeld] = useState<Pending | undefined>(() =>
+    restored ? { kind: "delete", id: restored.id } : undefined,
+  );
   const write = useCallback(() => {
     const p = box.current;
     if (!p) return false;
     box.current = undefined;
     mutate(() => {
-      if (p.kind === "delete") r.deleteJournal(p.id);
+      if (p.kind === "delete") commitPending(r, "goal", p.id);
       else r.updateJournal(p.id, p.data);
     });
     return true;
@@ -427,14 +473,28 @@ function useDeferred(r: ReturnType<typeof useRepo>) {
   const hold = useCallback(
     (next: Pending) => {
       commit();
+      if (next.kind === "delete") {
+        const record = r.journal("goal").find((g) => g.id === next.id);
+        const marked = record
+          ? mutate(() => !!markPending(r, "goal", record))
+          : undefined;
+        if (!marked) return false;
+      }
       box.current = next;
       setHeld(next);
+      return true;
     },
-    [commit],
+    [commit, r],
   );
   const cancel = useCallback(() => {
+    const p = box.current;
+    if (
+      p?.kind === "delete" &&
+      !mutate(() => (cancelPending(r, "goal", p.id), true))
+    )
+      return;
     box.current = undefined;
     setHeld(undefined);
-  }, []);
-  return { held, commit, hold, cancel };
+  }, [r]);
+  return { held, commit, hold, cancel, restored };
 }

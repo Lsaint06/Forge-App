@@ -14,6 +14,14 @@ import {
 } from "../components/checkins/CheckinSheet";
 import { TrendCard } from "../components/checkins/TrendCard";
 import { useRepo, mutate } from "../state";
+import {
+  UNDO_MS,
+  cancelPending,
+  commitPending,
+  markPending,
+  readPending,
+  remainingMs,
+} from "../data/pending-deletes";
 import { goBack } from "../navigation";
 import { localDate } from "../domain/types";
 import { dayTitle, monthName, monthOf } from "../domain/calendar-dates";
@@ -54,21 +62,46 @@ export default function Checkins() {
   const today = localDate();
   const [sheet, setSheet] = useState<CheckinTarget>();
   const [shown, setShown] = useState(PAGE);
-  const [banner, setBanner] = useState<{ text: string; undo: () => void }>();
   // A deletion waits until its Undo has expired before it is written; leaving
-  // the screen writes it at once.
-  const pending = useRef<string>(undefined);
-  const [hidden, setHidden] = useState<string>();
+  // the screen writes it at once. Its intent is also a durable marker (D15),
+  // so it completes even if FORGE is closed by the system meanwhile. One
+  // interrupted that way comes back with only the Undo time it had left.
+  const [restored] = useState(() => restoredDelete(r));
+  const pending = useRef<string>(restored?.id);
+  const [hidden, setHidden] = useState<string | undefined>(restored?.id);
   function commitDelete() {
     if (writePending(r, pending)) setHidden(undefined);
   }
+  function undoDelete(id: string) {
+    // The marker goes first, so a restored entry can never be deleted later.
+    if (!mutate(() => (cancelPending(r, "recovery", id), true))) return;
+    pending.current = undefined;
+    setHidden(undefined);
+  }
+  const [banner, setBanner] = useState<
+    | {
+        text: string;
+        undo: () => void;
+        /** Undo time left (under 6 s only when restored after a restart). */
+        ms?: number;
+      }
+    | undefined
+  >(() =>
+    restored
+      ? {
+          text: restored.text,
+          undo: () => undoDelete(restored.id),
+          ms: restored.ms,
+        }
+      : undefined,
+  );
   useEffect(() => () => void writePending(r, pending), [r]);
   useEffect(() => {
     if (!banner) return;
     const t = setTimeout(() => {
       setBanner(undefined);
       if (writePending(r, pending)) setHidden(undefined);
-    }, 6000);
+    }, banner.ms ?? UNDO_MS);
     return () => clearTimeout(t);
   }, [banner, r]);
 
@@ -91,24 +124,20 @@ export default function Checkins() {
   function remove(e: Checkin) {
     Alert.alert(
       "Delete check-in?",
-      `${dayTitle(e.date, today)}'s check-in will be removed.`,
+      `${dayTitle(e.date, today)}'s check-in (sleep and how you felt) will be removed from Recovery. Your workouts aren't affected. You can undo for a few seconds.`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Delete",
+          text: "Delete check-in",
           style: "destructive",
           onPress: () => {
             commitDelete();
+            // Recorded durably before the entry disappears.
+            if (!mutate(() => !!markPending(r, "recovery", e))) return;
             pending.current = e.id;
             setHidden(e.id);
             const text = `Deleted ${dayTitle(e.date, today)}'s check-in`;
-            setBanner({
-              text,
-              undo: () => {
-                pending.current = undefined;
-                setHidden(undefined);
-              },
-            });
+            setBanner({ text, undo: () => undoDelete(e.id) });
             AccessibilityInfo.announceForAccessibility(
               `${text}. Undo available.`,
             );
@@ -313,6 +342,26 @@ function TodayDetails({ entry }: { entry: Checkin }) {
   );
 }
 
+/** A deletion interrupted by FORGE closing, still inside its Undo window. */
+function restoredDelete(r: ReturnType<typeof useRepo>) {
+  const m = readPending(r, "recovery");
+  if (!m) return undefined;
+  const ms = remainingMs(m);
+  if (!ms) {
+    // Already expired: complete it (idempotent).
+    mutate(() => commitPending(r, "recovery", m.id));
+    return undefined;
+  }
+  const e = r.journal("recovery").find((x) => x.id === m.id);
+  return {
+    id: m.id,
+    ms,
+    text: e
+      ? `Deleted ${dayTitle(e.date, localDate())}'s check-in`
+      : "Deleted check-in",
+  };
+}
+
 function writePending(
   r: ReturnType<typeof useRepo>,
   pending: React.RefObject<string | undefined>,
@@ -320,7 +369,7 @@ function writePending(
   const id = pending.current;
   if (!id) return false;
   pending.current = undefined;
-  mutate(() => r.deleteJournal(id));
+  mutate(() => commitPending(r, "recovery", id));
   return true;
 }
 

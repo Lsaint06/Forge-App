@@ -1143,14 +1143,22 @@ export function ProgressBar({
 export function SheetHeader({
   title,
   onClose,
+  titleRef,
 }: {
   title: string;
   onClose: () => void;
+  /** The heading, so a sheet can move screen-reader focus to it. */
+  titleRef?: React.Ref<React.ComponentRef<typeof View>>;
 }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-      <View style={{ flex: 1 }}>
-        <Txt variant="title" header numberOfLines={2}>
+      <View
+        ref={titleRef}
+        accessible
+        accessibilityRole="header"
+        style={{ flex: 1 }}
+      >
+        <Txt variant="title" numberOfLines={2}>
           {title}
         </Txt>
       </View>
@@ -1207,6 +1215,17 @@ export function Sheet({
   const c = useColors();
   const reduced = useReducedMotion();
   const requestClose = () => (unsaved ? confirmDiscard(onClose) : onClose());
+  // Once the sheet is on screen, a screen reader starts at its title. Only
+  // when one is running, and only after the sheet has finished opening.
+  const titleRef = useRef<React.ComponentRef<typeof View>>(null);
+  const focusTitle = () => {
+    void AccessibilityInfo.isScreenReaderEnabled()
+      .then((on) => {
+        if (on && titleRef.current)
+          AccessibilityInfo.sendAccessibilityEvent(titleRef.current, "focus");
+      })
+      .catch(() => {});
+  };
   return (
     <Modal
       visible={visible}
@@ -1214,6 +1233,7 @@ export function Sheet({
       animationType={reduced ? "none" : "fade"}
       onRequestClose={requestClose}
       onDismiss={onDismiss}
+      onShow={focusTitle}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -1227,6 +1247,7 @@ export function Sheet({
         />
         <SafeAreaView
           edges={["bottom"]}
+          accessibilityViewIsModal
           onAccessibilityEscape={requestClose}
           style={{
             backgroundColor: c.surface,
@@ -1249,7 +1270,11 @@ export function Sheet({
               backgroundColor: c.hairline,
             }}
           />
-          <SheetHeader title={title} onClose={requestClose} />
+          <SheetHeader
+            title={title}
+            onClose={requestClose}
+            titleRef={titleRef}
+          />
           {scroll ? (
             <ScrollView
               keyboardShouldPersistTaps="handled"

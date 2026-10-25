@@ -299,7 +299,9 @@ test("backdrop taps close informational sheets but never sheets holding input", 
       <Txt>Unsaved input</Txt>
     </Sheet>,
   );
-  await fireEvent.press(form.getByTestId("sheet-backdrop"));
+  await fireEvent.press(
+    form.getByTestId("sheet-backdrop", { includeHiddenElements: true }),
+  );
   expect(closeForm).not.toHaveBeenCalled();
   expect(form.getByText("Unsaved input")).toBeTruthy();
   await fireEvent.press(form.getByLabelText("Close"));
@@ -313,7 +315,9 @@ test("backdrop taps close informational sheets but never sheets holding input", 
     />,
   );
   await fireEvent.press(info.getByLabelText("About Rest"));
-  await fireEvent.press(info.getByTestId("sheet-backdrop"));
+  await fireEvent.press(
+    info.getByTestId("sheet-backdrop", { includeHiddenElements: true }),
+  );
   expect(info.queryByText(/Rest 3–5 minutes/)).toBeNull();
 });
 
@@ -340,7 +344,9 @@ test("unsaved input is never discarded silently by any close path", async () => 
     await act(async () => ancestor("onRequestClose")());
     await act(async () => ancestor("onAccessibilityEscape")());
     // Backdrop taps do nothing on input sheets.
-    await fireEvent.press(view.getByTestId("sheet-backdrop"));
+    await fireEvent.press(
+      view.getByTestId("sheet-backdrop", { includeHiddenElements: true }),
+    );
     expect(alert).toHaveBeenCalledTimes(3);
     expect(close).not.toHaveBeenCalled();
     const [title, , buttons] = alert.mock.calls[0]!;
