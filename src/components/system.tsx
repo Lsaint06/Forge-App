@@ -190,11 +190,14 @@ export function OverflowMenu({
   label = "More options",
   title,
   icon = "ellipsis-horizontal",
+  renderTrigger: Trigger,
 }: {
   actions: MenuAction[];
   label?: string;
   title?: string;
   icon?: IconName;
+  /** A custom trigger (e.g. a REFORGE bordered square); default: icon button. */
+  renderTrigger?: React.ComponentType<{ onPress: () => void; label: string }>;
 }) {
   const c = useColors();
   const reduced = useReducedMotion();
@@ -230,15 +233,16 @@ export function OverflowMenu({
     setOpen(false);
     setClosing((n) => n + 1);
   }
+  const openMenu = () => {
+    if (!pending.current) setOpen(true);
+  };
   return (
     <>
-      <IconButton
-        icon={icon}
-        label={label}
-        onPress={() => {
-          if (!pending.current) setOpen(true);
-        }}
-      />
+      {Trigger ? (
+        <Trigger onPress={openMenu} label={label} />
+      ) : (
+        <IconButton icon={icon} label={label} onPress={openMenu} />
+      )}
       <Modal
         visible={open}
         transparent

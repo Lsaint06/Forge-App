@@ -91,3 +91,38 @@ The minimum heights apply even where a reference draws a smaller control (Phase 
 Components never compute metrics: deltas and values are display text supplied by the screen.
 
 **Worklets.** Code inside `useAnimatedStyle` and other worklets runs on the UI thread. It may only use inline maths or other worklets. Calling a plain module function there crashed the Design System screen on iPhone in 7.1A. [tests/worklets.test.ts](../../tests/worklets.test.ts) compiles every source file that contains worklets with the app's Babel preset and fails on such a call.
+
+## Home (Phase 7.1B)
+
+[Home.tsx](../../src/screens/Home.tsx) follows the approved Home reference. It is built from these primitives plus [home/sections.tsx](../../src/screens/home/sections.tsx) and a read-only model ([home/model.ts](../../src/screens/home/model.ts)). Every value comes from existing code; Home adds no metric.
+
+| Reference | FORGE source |
+| --- | --- |
+| Wordmark and brand line | `BrandHeader` with "BUILT THROUGH DISCIPLINE" |
+| Notification bell | Omitted: FORGE has no notification centre |
+| Streak pill | `summary().streak` (consecutive days with a completed workout, as on Progress); opens Progress |
+| Greeting | Time of day and the profile's first name |
+| Subtitle | Static line from the reference |
+| Date | Today |
+| "Week 8 · Build Phase" | The current plan's week and phase (program phase name without its week range; Path Foundation/Evolution). Opens the plan |
+| Readiness strip | Today's recovery check-in exactly as recorded: self-rated readiness word, sleep, soreness, energy. No score; **HRV is not shown** (no data). Without a check-in: "How are you today? · Check in". Opens Recovery |
+| Today's session | `nextSession()`, unchanged, in all seven states. Exercise count and program level where known. The "…" menu lists existing destinations only. The "~60 min" chip and pager dots are omitted (no data) |
+| Progress snapshot | Latest weigh-in (else profile weight) with its date; this week's volume (Monday–Sunday), in Progress's compact form above 10,000 ("12.5k", spoken in full); day streak; this week's sessions against the weekly target, with days trained. **No comparison percentages.** Opens Progress |
+| Nutrition today | Today's totals; the ring and macro bars against targets only once they are the lifter's own. Opens the Nutrition tab |
+| Next target | Goals' own evaluation (`evaluate`): name, state, current value, target, progress bar. Opens Goals |
+| Below the reference | Last session (review) and Workout history |
+
+**Next-target rule** (`nextTarget`):
+
+1. Among active target goals (not weekly habits) with measured progress that are not yet reached, show the one closest to its target.
+2. Otherwise, show the newest active goal with a recorded value.
+3. Ties go to the most recently created goal.
+4. With no such goal, show "No active target" and a *Set a goal* button.
+
+**Responsive rules:**
+
+- The snapshot and nutrition cards sit side by side only where both fit: `pairFits(content, fontScale, 170)`, which means standard and large iPhones at default text size. Otherwise they stack, with the ring beside the macros.
+- The hero's decorative tagline appears only with at least 340 pt of content and text no larger than 1.2×.
+- Strips wrap to two columns.
+
+**Artwork:** `homeSession` and `homeTarget` have no approved artwork yet, so the hero and target cards show the graphical ember glow ([reforge/ASSETS.md](reforge/ASSETS.md)).

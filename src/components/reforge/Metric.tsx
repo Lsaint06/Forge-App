@@ -86,9 +86,18 @@ export function Metric({
 export function StatStrip({
   children,
   minColumn = 76,
+  gutter = forge.spacing.group,
+  weights,
 }: {
   children: React.ReactNode;
   minColumn?: number;
+  /** Space each side of the dividers. */
+  gutter?: number;
+  /**
+   * Relative column widths while every item shares one row (e.g. a wider
+   * column for a longer value); wrapped rows are always equal.
+   */
+  weights?: number[];
 }) {
   const c = useColors();
   const window = useWindowDimensions();
@@ -116,9 +125,10 @@ export function StatStrip({
             <View
               key={i}
               style={{
-                flex: 1,
-                paddingLeft: i === 0 ? 0 : forge.spacing.group,
-                paddingRight: forge.spacing.tight,
+                flex:
+                  weights && columns === items.length ? (weights[i] ?? 1) : 1,
+                paddingLeft: i === 0 ? 0 : gutter,
+                paddingRight: i === row.length - 1 ? 0 : gutter / 2,
                 borderLeftWidth: i === 0 ? 0 : forge.border.card,
                 borderLeftColor: c.cardDivider,
               }}

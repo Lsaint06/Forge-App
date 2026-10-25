@@ -214,6 +214,28 @@ test("metrics are read as one element; strips and chips stay readable", async ()
   ).toBeGreaterThanOrEqual(44);
 });
 
+test("strip weights apply while items share one row; wrapped rows are equal", async () => {
+  // Jest's window reports a 2× text scale, so columns need 2 × minColumn.
+  const strip = (
+    <StatStrip weights={[2, 1]} minColumn={60}>
+      <Text>Wide</Text>
+      <Text>Narrow</Text>
+    </StatStrip>
+  );
+  const view = await render(strip);
+  const column = (text: string) =>
+    flat(view.getByText(text).parent!.props.style).flex;
+  await fireEvent(view.getByTestId("stat-strip"), "layout", {
+    nativeEvent: { layout: { width: 300 } },
+  });
+  expect(column("Wide")).toBe(2);
+  expect(column("Narrow")).toBe(1);
+  await fireEvent(view.getByTestId("stat-strip"), "layout", {
+    nativeEvent: { layout: { width: 150 } },
+  });
+  expect(column("Wide")).toBe(1);
+});
+
 test("progress bars and rings expose their value", async () => {
   const view = await render(
     <>

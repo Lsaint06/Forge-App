@@ -25,6 +25,7 @@ export function HeroCard({
   artworkWidth = "60%",
   tagline,
   minHeight = 208,
+  padding = 20,
   style,
 }: {
   children: React.ReactNode;
@@ -33,6 +34,7 @@ export function HeroCard({
   /** Short decorative words stacked bottom-right ("STRONGER", …). */
   tagline?: string[];
   minHeight?: number;
+  padding?: number;
   style?: StyleProp<ViewStyle>;
 }) {
   const c = useColors();
@@ -106,7 +108,7 @@ export function HeroCard({
           { offset: 0.5, color: c.sheen, opacity: 0 },
         ]}
       />
-      <View style={{ padding: 20, gap: forge.spacing.group, flexGrow: 1 }}>
+      <View style={{ padding, gap: forge.spacing.group, flexGrow: 1 }}>
         {children}
       </View>
       {tagline && tagline.length > 0 && (

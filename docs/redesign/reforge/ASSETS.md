@@ -30,11 +30,15 @@ Numbers stay in the system face, as the references draw them.
 
 ## Images
 
-None yet. Hero artwork arrives in Phase 7.1B. Until a slot has approved artwork, `HeroCard` draws a graphical ember glow.
+None yet. Until a slot has approved artwork, `HeroCard` draws a graphical ember glow.
 
 | File | Slot | Source | Author | Licence / receipt | Model release | Added |
 | --- | --- | --- | --- | --- | --- | --- |
 | — | — | — | — | — | — | — |
+
+## Cancelled: plate artwork
+
+The weight-plate artwork direction (from an AI-generated reference) was cancelled by the founder on 2026-10-24. No renders were integrated or kept. A simpler artwork direction is pending.
 
 ## Existing brand assets reused (not modified)
 

@@ -61,20 +61,27 @@ function finished(r: Repo, name = "Freestyle") {
   return w;
 }
 
-test("Today is a plain heading with one primary action and no duplicated metrics", async () => {
+// Phase 7.1B: Home follows the approved REFORGE reference. Earlier versions
+// asserted a plain "Today" heading and no streak or metrics on Home (Design
+// System 2.0 rules); the reference greets the lifter and shows the day streak
+// and snapshots. The single primary action and its behaviour are unchanged.
+test("Home greets the lifter with one primary action", async () => {
   const { r, db } = pathRepository();
   try {
     r.saveProfile({ onboarded: true, name: "Alex Smith" });
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Home />);
-    expect(view.getByRole("header", { name: "Today" })).toBeTruthy();
-    expect(view.queryByText(/Ready, /)).toBeNull();
-    expect(view.queryByText("Completed sessions")).toBeNull();
-    expect(view.queryByText("Day streak")).toBeNull();
-    expect(view.queryByText(/Consistency starts/)).toBeNull();
+    expect(
+      view.getByRole("header", {
+        name: /^Good (morning|afternoon|evening), Alex\.$/,
+      }),
+    ).toBeTruthy();
+    expect(view.getByLabelText("0 day streak. Open progress")).toBeTruthy();
     expect(view.getByText("Nothing scheduled")).toBeTruthy();
-    // Today owns the one orange (primary) action.
-    expect(JSON.stringify(view.toJSON())).toContain(dark.ember);
+    // One primary (gradient) call to action.
+    expect(view.getAllByRole("button", { name: "Start workout" })).toHaveLength(
+      1,
+    );
     // No plan yet: no plan row; Forge Paths stays one tap away.
     expect(view.queryByLabelText(/^Your (program|Path):/)).toBeNull();
     await fireEvent.press(view.getByLabelText("Choose a Forge Path"));
@@ -116,7 +123,8 @@ test("Today starts the program session due today and links the plan", async () =
     enrollProgram(r, program, "2026-10-19");
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Home />);
-    expect(view.getByText("Scheduled today")).toBeTruthy();
+    // The reference's overline for a session due today.
+    expect(view.getByText("Today's session")).toBeTruthy();
     const session = program.phases[0]!.sessions[0]!.name;
     expect(view.getByText(session)).toBeTruthy();
     expect(view.getByText(`${program.name} · Week 1`)).toBeTruthy();
