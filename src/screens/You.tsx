@@ -363,6 +363,18 @@ export default function You() {
             </Txt>
           )}
         </View>
+        {/* Training history lives here (Phase 7.2B): with the lifetime
+            totals it reviews, edits and repeats. */}
+        <ListRow
+          icon="time-outline"
+          title="Training history"
+          subtitle={
+            done.length
+              ? `${done.length.toLocaleString()} completed ${done.length === 1 ? "workout" : "workouts"} · review, edit or repeat`
+              : "Finished workouts appear here"
+          }
+          onPress={() => router.push("/history")}
+        />
         <ListRow
           icon="stats-chart-outline"
           title="View progress"
@@ -430,11 +442,6 @@ export default function You() {
               : "Not set"
           }
           onPress={() => setEditor("nutrition")}
-        />
-        <ListRow
-          icon="time-outline"
-          title="Training history"
-          onPress={() => router.push("/history")}
         />
       </ListSection>
 

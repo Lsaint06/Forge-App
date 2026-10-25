@@ -12,7 +12,6 @@ import { libraryPrograms } from "../../src/programs";
 import { enrollProgram } from "../../src/data/programs";
 import { currentPath, pathSessions } from "../../src/data/paths";
 import { addDays } from "../../src/domain/paths/model";
-import { dark } from "../../src/components/ui";
 
 // Phase 3: Today's next-workout hero, the Train hub and the History screen.
 
@@ -219,7 +218,7 @@ test("Today keeps recovery check-in and the last session one tap away", async ()
   }
 });
 
-test("Train is a hub of rows with no orange primary button", async () => {
+test("Train is a hero, Start a workout and Training tools; history lives in You", async () => {
   const { r, db } = pathRepository();
   try {
     for (const name of ["A", "B", "C", "D"]) finished(r, name);
@@ -236,24 +235,28 @@ test("Train is a hub of rows with no orange primary button", async () => {
       ]);
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Train />);
-    // Rows only: the single compact Start buttons are tonal.
+    expect(view.getByRole("header", { name: "Train" })).toBeTruthy();
+    // Three template shortcuts (none trained yet: name order); the rest are
+    // one tap away.
     expect(view.getAllByText("Start")).toHaveLength(3);
-    expect(JSON.stringify(view.toJSON())).not.toContain(dark.ember);
     expect(view.queryByText("T4")).toBeNull();
+    expect(view.getByLabelText("Workout templates")).toBeTruthy();
     expect(view.getByText(`${libraryPrograms().length} curated programs`));
-    // Recent history shows three; the rest are in History.
-    expect(view.getByLabelText("Review D")).toBeTruthy();
-    expect(view.queryByLabelText("Review A")).toBeNull();
+    // One primary action, the hero's (no plan yet: Forge Paths).
+    expect(
+      view.getByRole("button", { name: "Browse Forge Paths" }),
+    ).toBeTruthy();
+    // History moved to You; the exercise shortcuts live in the library.
+    expect(view.queryByLabelText("Review D")).toBeNull();
+    expect(view.queryByLabelText("All history")).toBeNull();
+    expect(view.queryByLabelText("Search exercises")).toBeNull();
+    expect(view.queryByLabelText("Create custom exercise")).toBeNull();
     const routes: [string, unknown][] = [
+      ["Browse Forge Paths", "/forge-paths"],
       ["Forge Paths", "/forge-paths"],
       ["Workout templates", "/templates"],
       ["Exercise library", "/explore"],
-      ["Search exercises", { pathname: "/explore", params: { search: "1" } }],
-      [
-        "Create custom exercise",
-        { pathname: "/exercise", params: { custom: "new" } },
-      ],
-      ["All history", "/history"],
+      ["Training calendar", "/calendar"],
     ];
     for (const [label, route] of routes) {
       await fireEvent.press(view.getByLabelText(label));
@@ -377,7 +380,7 @@ test("History groups by month, opens review, and keeps Repeat and a confirmed De
   }
 });
 
-test("History back returns to the previous screen, or to Train from a link", async () => {
+test("History back returns to the previous screen, or to You from a link", async () => {
   const { r, db } = pathRepository();
   try {
     jest.mocked(useRepo).mockReturnValue(r);
@@ -387,7 +390,7 @@ test("History back returns to the previous screen, or to Train from a link", asy
     expect(router.back).toHaveBeenCalled();
     jest.mocked(router.canGoBack).mockReturnValueOnce(false);
     await fireEvent.press(view.getByLabelText("Back"));
-    expect(router.replace).toHaveBeenCalledWith("/(tabs)/train");
+    expect(router.replace).toHaveBeenCalledWith("/(tabs)/profile");
   } finally {
     db.close();
   }
@@ -396,9 +399,16 @@ test("History back returns to the previous screen, or to Train from a link", asy
 test("You → Training history opens the History screen", async () => {
   const { r, db } = pathRepository();
   try {
+    finished(r, "A");
+    finished(r, "B");
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Profile />);
-    await fireEvent.press(view.getByLabelText("Training history"));
+    // Beside the lifetime totals, with the real completed count.
+    const row = view.getByLabelText("Training history");
+    expect(row.props.accessibilityHint).toBe(
+      "2 completed workouts · review, edit or repeat",
+    );
+    await fireEvent.press(row);
     expect(router.push).toHaveBeenLastCalledWith("/history");
   } finally {
     db.close();

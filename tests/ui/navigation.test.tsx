@@ -66,9 +66,13 @@ test("five destinations navigate in order and resume keeps the persisted active 
     "progress",
     "profile",
   ]);
-  // Home's hero offers Resume, so the banner appears on the other tabs.
+  // Home's and Train's heroes offer Resume, so the banner appears on the
+  // other tabs.
   expect(view.queryByLabelText("Resume active workout")).toBeNull();
-  for (const tab of [1, 2, 3, 4]) {
+  mockTab.index = 1;
+  await view.rerender(<TabLayout />);
+  expect(view.queryByLabelText("Resume active workout")).toBeNull();
+  for (const tab of [2, 3, 4]) {
     mockTab.index = tab;
     await view.rerender(<TabLayout />);
     expect(view.getByText("Saved session")).toBeTruthy();

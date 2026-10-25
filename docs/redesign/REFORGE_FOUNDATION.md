@@ -83,6 +83,7 @@ The minimum heights apply even where a reference draws a smaller control (Phase 
 | `CtaButton`, `OutlineButton` (`ember` / `neutral`), `SquareIconButton` | Gradient primary action, outline actions, bordered icon control (44 pt minimum) |
 | `Metric`, `StatStrip` | Value, unit, label and optional delta text, read as one element. Strips wrap to two columns, then one |
 | `Tile`, `InfoChip`, `BadgePill`, `SectionLabel` | Small panels, facts, an ember pill, letter-spaced section labels |
+| `ForgeListRow` | Navigation row from the You reference's *Tools & Settings*: ember icon, bold title with its description beside it (below when space is short), optional value, chevron; 56 pt. Rows sit in a `ForgeCard` with no padding (Phase 7.2B) |
 | `ForgeProgress`, `ForgeRing` | Progress bar and ring with `progressbar` semantics |
 | `Gradient` | Linear or radial SVG gradient layer (react-native-svg; works in Expo Go). react-native-svg ignores a stop colour's alpha, so `Gradient` moves it into `stopOpacity` (`stopPaint`) |
 | `artwork` | Registry of licensed artwork slots (empty until 7.1B) |
@@ -163,3 +164,36 @@ Components never compute metrics: deltas and values are display text supplied by
 - Add exercise, Start rest (idle panel), default rest, the iOS keyboard toolbar (rest, Next, Done), reorder, rename, workout notes, save as template, discard or delete.
 - Advice and progression rows, Use previous, Set Details (set type, side, RPE, RIR, rest, tempo, notes, remove).
 - Paused, lower-fatigue, review and edit modes.
+
+## Train hub (Phase 7.2B)
+
+[Train.tsx](../../src/screens/Train.tsx) follows the approved 7.2B-0 hierarchy ([PHASE_7_2B_0_REFORGE_TRAIN_HUB.md](../audits/PHASE_7_2B_0_REFORGE_TRAIN_HUB.md)). It is built from [train/sections.tsx](../../src/screens/train/sections.tsx) and a read-only model ([train/model.ts](../../src/screens/train/model.ts)). There is no Train-hub reference: the brand header and hero follow Home, and the tools list follows You's *Tools & Settings*.
+
+**1. Hero.** Exactly one state, in priority order:
+
+| State | Shows | Actions |
+| --- | --- | --- |
+| Workout in progress / paused | "Workout in progress" or "Workout paused", the workout title, its plan, and sets done | **Resume workout** only |
+| Current program or Path | "Your program" or "Your Path", the plan name, week and phase (or Program complete / Cycle complete / Paused), the program's level, real session progress, and an *Up next* tile with when it is due | **Start workout** (due or missed) or **Start early** (upcoming), through `startNextSession` as on Home; **View plan** |
+| Plan without a next session | As above | **View plan** |
+| No plan | "No active plan" and "Find your program" | **Browse Forge Paths** |
+
+- The plan's next session comes from `programNext` and `pathSession` (the functions behind Home's `nextSession`). Train always shows the plan's own next session, even when Home leads with a calendar template due today.
+- Progress counts the plan's sessions: "7 of 36 sessions", or "7 sessions completed" for open-ended programs.
+
+**2. Start a workout.**
+
+- Empty workout.
+- Up to three template shortcuts, each opening the template sheet, with a Start button.
+- *Workout templates* with the count, or "Save a workout you repeat" when there are none.
+- Shortcut order: the template trained most recently first (from the workouts' existing `templateId`); untrained templates follow in name order. Nothing new is tracked.
+- While a workout is in progress, every start here is disabled ("Finish your current workout first"); the template sheet offers Resume.
+
+**3. Training tools.** Forge Paths ("N curated programs"), Exercise library (count) and Training calendar, as `ForgeListRow`s. Forge Paths stays listed even when the hero offers it, so the tools list never changes shape.
+
+**Moved or removed:**
+
+- Training history is in **You → Training snapshot**, with the completed count. Home (*Last session*, *Workout history*) and Progress (*More*) keep their links.
+- History's Back falls back to You.
+- *Search exercises* and *Create custom exercise* are inside the Exercise library. Their deep links (`/explore?search=1`, `/exercise?custom=new`) are unchanged.
+- The tab bar's resume strip is hidden on Train as on Home, because both heroes offer Resume.

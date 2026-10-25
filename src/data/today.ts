@@ -108,7 +108,8 @@ export function pathFocus(sessions: PathSession[], today = localDate()) {
   );
 }
 
-function pathSession(
+/** The current Path's session to offer (also used by the Train hub). */
+export function pathSession(
   r: Repository,
   today: string,
 ): Extract<NextSession, { kind: "path" }> | undefined {

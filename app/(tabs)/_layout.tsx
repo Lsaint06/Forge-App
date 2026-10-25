@@ -54,10 +54,11 @@ export default function TabLayout() {
             });
             if (!selected && !event.defaultPrevented) navigateToTab(route.key);
           }}
-          // Home's hero already offers Resume, so the strip shows on the
-          // other tabs only.
+          // Home's and Train's heroes already offer Resume, so the strip
+          // shows on the other tabs only.
           resume={
-            active && state.routes[state.index]?.name !== "index"
+            active &&
+            !["index", "train"].includes(state.routes[state.index]?.name ?? "")
               ? {
                   title: workoutTitle(active.name),
                   name: active.name,

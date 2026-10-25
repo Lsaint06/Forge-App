@@ -39,6 +39,7 @@ import {
   CtaButton,
   FText,
   ForgeCard,
+  ForgeListRow,
   ForgeProgress,
   ForgeRing,
   HeroCard,
@@ -200,6 +201,22 @@ function ReforgeReference({ onAction }: { onAction: (what: string) => void }) {
           </Tile>
         ))}
       </View>
+      <ForgeCard padding={0} gap={0}>
+        <ForgeListRow
+          icon="compass-outline"
+          title="List row"
+          description="Tools & Settings sample"
+          onPress={() => onAction("list row")}
+        />
+        <ForgeListRow
+          divider
+          icon="calendar-outline"
+          title="With value"
+          description="Description wraps below when space is short"
+          value="12"
+          onPress={() => onAction("list row value")}
+        />
+      </ForgeCard>
     </View>
   );
 }

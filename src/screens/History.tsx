@@ -30,7 +30,7 @@ export default function History() {
     <Screen
       title="History"
       eyebrow={`${done.length} ${done.length === 1 ? "workout" : "workouts"}`}
-      onBack={() => goBack("/(tabs)/train")}
+      onBack={() => goBack("/(tabs)/profile")}
     >
       {!done.length && (
         <Empty

@@ -13,6 +13,7 @@ import WorkoutExerciseCard, {
 } from "../../src/components/WorkoutExerciseCard";
 import WorkoutScreen, { RestTimer } from "../../src/screens/Workout";
 import Train from "../../app/(tabs)/train";
+import History from "../../app/history";
 import Explore from "../../app/explore";
 import {
   ExerciseVisual,
@@ -330,7 +331,10 @@ test("freestyle starts through repository and completed history remains reviewab
   const view = await render(<Train />);
   await fireEvent.press(view.getByLabelText("Start empty workout"));
   expect(r.startWorkout).toHaveBeenCalled();
-  await fireEvent.press(view.getByLabelText("Review Freestyle"));
+  // Finished workouts are reviewed from History (reached from You, Home and
+  // Progress since Phase 7.2B).
+  const history = await render(<History />);
+  await fireEvent.press(history.getByLabelText(/^Review Freestyle, /));
   expect(router.push).toHaveBeenCalledWith({
     pathname: "/workout",
     params: { id: "w" },
