@@ -28,8 +28,181 @@ import {
   textRoles,
   textRoleFor,
   sizeClass,
+  forgeText,
   type TextVariant,
+  type ForgeVariant,
 } from "../src/theme";
+import {
+  BadgePill,
+  BrandHeader,
+  CardHeader,
+  CtaButton,
+  FText,
+  ForgeCard,
+  ForgeProgress,
+  ForgeRing,
+  HeroCard,
+  InfoChip,
+  Metric,
+  OutlineButton,
+  SectionLabel,
+  SquareIconButton,
+  StatStrip,
+  Tile,
+} from "../src/components/reforge";
+
+// REFORGE primitives with illustrative values (development only; no screen
+// shows these numbers).
+function ReforgeReference({ onAction }: { onAction: (what: string) => void }) {
+  const c = useColors();
+  const swatches: [string, string][] = [
+    ["cardBg", c.cardBg],
+    ["cardBorder", c.cardBorder],
+    ["cardRaised", c.cardRaised],
+    ["emberHot", c.emberHot],
+    ["emberTop", c.emberTop],
+    ["emberBottom", c.emberBottom],
+    ["emberMuted", c.emberMuted],
+    ["emberTintStrong", c.emberTintStrong],
+    ["positive", c.positive],
+    ["tabBar", c.tabBar],
+  ];
+  return (
+    <View style={{ gap: 12 }}>
+      <SectionLabel title="REFORGE foundation" />
+      <BrandHeader>
+        <SquareIconButton
+          icon="ellipsis-horizontal"
+          label="Header action sample"
+          onPress={() => onAction("header")}
+        />
+        <BadgePill
+          icon="flame"
+          value="3"
+          accessibilityLabel="Badge sample, 3"
+        />
+      </BrandHeader>
+      <ForgeCard>
+        <CardHeader title="REFORGE type" />
+        {(Object.keys(forgeText) as ForgeVariant[]).map((v) => (
+          <View key={v} style={{ gap: 2 }}>
+            <FText variant="label" tone="secondary">
+              {v} · {forgeText[v].size}
+            </FText>
+            <FText variant={v}>
+              {v.endsWith("Metric") ? "1,940" : "Push — chest & back"}
+            </FText>
+          </View>
+        ))}
+      </ForgeCard>
+      <ForgeCard>
+        <CardHeader title="REFORGE colour" />
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {swatches.map(([name, value]) => (
+            <View key={name} style={{ width: 96, gap: 4 }}>
+              <View
+                style={{
+                  height: 28,
+                  borderRadius: 6,
+                  backgroundColor: value,
+                  borderWidth: 1,
+                  borderColor: c.cardBorder,
+                }}
+              />
+              <FText variant="label" tone="secondary" numberOfLines={1}>
+                {name}
+              </FText>
+            </View>
+          ))}
+        </View>
+      </ForgeCard>
+      <HeroCard tagline={["Stronger", "Disciplined", "Further"]}>
+        <FText variant="overline" tone="accent">
+          Hero card sample
+        </FText>
+        <FText variant="heroTitle" numberOfLines={3}>
+          Push — chest & back
+        </FText>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <InfoChip icon="barbell-outline" label="6 exercises" />
+          <InfoChip icon="stats-chart-outline" label="Intermediate" />
+        </View>
+        <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+          <View style={{ flex: 1 }}>
+            <CtaButton
+              title="Start workout"
+              icon="play"
+              onPress={() => onAction("cta")}
+            />
+          </View>
+          <SquareIconButton
+            icon="ellipsis-horizontal"
+            label="More options sample"
+            onPress={() => onAction("more")}
+          />
+        </View>
+      </HeroCard>
+      <ForgeCard>
+        <CardHeader
+          title="Card header"
+          trailing="See all"
+          onPress={() => onAction("card header")}
+        />
+        <StatStrip>
+          <Metric value="82.4" unit="kg" label="Sample" size="stat" />
+          <Metric value="7h 32m" label="Sample" size="stat" />
+          <Metric value="12" label="Sample" size="stat" />
+          <Metric
+            value="+18%"
+            label="Sample"
+            size="stat"
+            delta="Delta text"
+            deltaTone="positive"
+          />
+        </StatStrip>
+      </ForgeCard>
+      <ForgeCard variant="active">
+        <CardHeader title="Active card" tone="accent" />
+        <Metric value="1,940" unit="of 2,400 kcal" size="hero" />
+        <ForgeProgress value={0.81} label="Sample progress" />
+        <ForgeProgress value={0.6} label="Sample neutral" tone="neutral" />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+          <ForgeRing value={0.6} label="Sample ring" size={96}>
+            <FText variant="statMetric">60%</FText>
+          </ForgeRing>
+          <View style={{ flex: 1, gap: 8 }}>
+            <OutlineButton
+              title="Pause"
+              icon="pause"
+              tone="ember"
+              onPress={() => onAction("outline ember")}
+            />
+            <OutlineButton
+              title="View goals"
+              onPress={() => onAction("outline")}
+            />
+          </View>
+        </View>
+      </ForgeCard>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        {["Tile", "Selected"].map((t, i) => (
+          <Tile
+            key={t}
+            selected={i === 1}
+            accessibilityLabel={`${t} sample`}
+            onPress={() => onAction(t)}
+            style={{ flex: 1 }}
+          >
+            <FText variant="cardTitle">{t}</FText>
+            <FText variant="label" tone="secondary">
+              Tile sample
+            </FText>
+          </Tile>
+        ))}
+      </View>
+    </View>
+  );
+}
 
 // Development builds only: a living reference for FORGE Design System 2.0.
 export default function DesignSystem() {
@@ -105,6 +278,8 @@ export default function DesignSystem() {
           />
         ))}
       </ListSection>
+
+      <ReforgeReference onAction={setLast} />
 
       <Txt variant="overline" tone="secondary">
         Actions

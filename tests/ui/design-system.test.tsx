@@ -462,8 +462,30 @@ test("the development design-system reference renders every component", async ()
     "Surfaces",
     "Grouped rows",
     "Device QA",
+    "REFORGE foundation",
   ])
     expect(view.getByText(text)).toBeTruthy();
+  // Every REFORGE showcase component renders (Phase 7.1A device report:
+  // the animated progress bar crashed this screen on iPhone).
+  for (const label of [
+    "FORGE",
+    "Badge sample, 3",
+    "Header action sample",
+    "Start workout",
+    "More options sample",
+    "Card header, See all",
+    "Sample: 82.4 kg",
+    "Sample progress",
+    "Sample neutral",
+    "Sample ring",
+    "Pause",
+    "View goals",
+    "Tile sample",
+    "Selected sample",
+  ])
+    expect(view.getByLabelText(label)).toBeTruthy();
+  expect(view.getByText("6 exercises")).toBeTruthy();
+  expect(view.getByText("Hero card sample")).toBeTruthy();
   // The device QA menu opens the protected input sheet after closing.
   await fireEvent.press(view.getByLabelText("Menu chaining test"));
   await fireEvent.press(

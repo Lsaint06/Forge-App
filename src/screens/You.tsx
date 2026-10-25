@@ -447,7 +447,7 @@ export default function You() {
         <ListRow
           icon="restaurant-outline"
           title="Nutrition log"
-          onPress={() => journal("nutrition")}
+          onPress={() => router.navigate("/(tabs)/nutrition")}
         />
         <ListRow
           icon="pulse-outline"

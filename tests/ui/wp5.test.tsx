@@ -390,9 +390,10 @@ test("History shows the newest 60 workouts, then the rest in the same order", as
   }
 });
 
-test("an unknown link shows Page not found with a way back to Today", async () => {
+// Phase 7.1A renamed the Today tab to Home; the way back is labelled to match.
+test("an unknown link shows Page not found with a way back to Home", async () => {
   const view = await render(<NotFound />);
   expect(view.getByRole("header", { name: "Page not found" })).toBeTruthy();
-  await fireEvent.press(view.getByLabelText("Go to Today"));
+  await fireEvent.press(view.getByLabelText("Go to Home"));
   expect(router.replace).toHaveBeenCalledWith("/(tabs)");
 });

@@ -116,6 +116,9 @@ test("a brand-new lifter sees one clear first step, not empty charts", async () 
       "Goals",
     ])
       expect(view.getByLabelText(label)).toBeTruthy();
+    // Phase 7.1A: Nutrition is a tab; the row switches to it.
+    await fireEvent.press(view.getByLabelText("Nutrition"));
+    expect(router.navigate).toHaveBeenLastCalledWith("/(tabs)/nutrition");
   } finally {
     f.db.close();
   }

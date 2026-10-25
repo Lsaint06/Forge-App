@@ -15,6 +15,7 @@ import { Loading, dark, useColors } from "../src/components/ui";
 import * as SplashScreen from "expo-splash-screen";
 import { ForgeSplash } from "../src/components/splash/ForgeSplash";
 import { ErrorBoundary } from "../src/components/Recovery";
+import { loadBrandFonts } from "../src/fonts";
 import {
   finishIntro,
   introPending,
@@ -32,6 +33,8 @@ function nativeSplash(action: () => Promise<unknown>) {
 }
 // Keep the native launch screen up until the first in-app frame is ready.
 nativeSplash(() => SplashScreen.preventAutoHideAsync());
+// REFORGE display face: loads in parallel and never delays startup.
+loadBrandFonts();
 function Navigation() {
   const c = useColors();
   return (

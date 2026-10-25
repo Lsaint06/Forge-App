@@ -59,7 +59,7 @@ export default function SavedFoods() {
           ? `${foods.length} ${foods.length === 1 ? "food" : "foods"}`
           : undefined
       }
-      onBack={() => goBack("/(tabs)/profile")}
+      onBack={() => goBack("/(tabs)/nutrition")}
       footer={
         <Button
           title="Create food"

@@ -12,7 +12,7 @@ export default function NotFound() {
         detail="The link may be old or mistyped. Your data is unchanged."
         action={
           <Button
-            title="Go to Today"
+            title="Go to Home"
             icon="home-outline"
             onPress={() => router.replace("/(tabs)")}
           />

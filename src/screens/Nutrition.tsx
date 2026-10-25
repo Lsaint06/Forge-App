@@ -42,8 +42,12 @@ import { theme } from "../theme";
 // Nutrition: one day at a time. The day's intake (against the lifter's own
 // targets, once set), then each meal with its foods. Adding is one sheet:
 // recent and saved foods log in one tap, with Undo.
+//
+// Since Phase 7.1A this is the Nutrition tab (`tab`). `/journal?kind=nutrition`
+// still opens the same screen as a pushed page with Back, so older links and
+// deep links keep working.
 
-export default function Nutrition() {
+export default function Nutrition({ tab = false }: { tab?: boolean }) {
   const r = useRepo();
   // Coming back to FORGE on a new day moves "Today" along with it.
   const [, setWake] = useState(0);
@@ -180,7 +184,7 @@ export default function Nutrition() {
   return (
     <Screen
       title="Nutrition"
-      onBack={() => goBack("/(tabs)/profile")}
+      onBack={tab ? undefined : () => goBack("/(tabs)/nutrition")}
       footer={
         <Button
           title="Add food"

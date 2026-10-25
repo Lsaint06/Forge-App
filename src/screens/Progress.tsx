@@ -686,9 +686,7 @@ export default function Progress() {
         <ListRow
           icon="nutrition-outline"
           title="Nutrition"
-          onPress={() =>
-            router.push({ pathname: "/journal", params: { kind: "nutrition" } })
-          }
+          onPress={() => router.navigate("/(tabs)/nutrition")}
         />
         <ListRow
           icon="pulse-outline"
