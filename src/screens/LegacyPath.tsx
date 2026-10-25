@@ -407,7 +407,10 @@ export default function LegacyPath() {
               </Label>
             ))}
             <Label size={13}>{weekFocus(trainingWeeks[0] ?? 9)}</Label>
-            <View style={{ flexDirection: "row", gap: 3 }}>
+            {/* Seven 44 pt days fit a 375 pt phone: the row uses half the card's inset. */}
+            <View
+              style={{ flexDirection: "row", gap: 1, marginHorizontal: -8 }}
+            >
               {dates.map((date, i) => {
                 const sessions = stats.sessions.filter(
                   (s) => s.record.date === date,
@@ -427,6 +430,7 @@ export default function LegacyPath() {
                     }}
                     style={{
                       flex: 1,
+                      minWidth: 44,
                       minHeight: 80,
                       paddingVertical: 10,
                       alignItems: "center",

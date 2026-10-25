@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import {
@@ -11,6 +11,7 @@ import {
   SegmentedControl,
   Sheet,
   Empty,
+  FieldError,
   useColors,
 } from "../src/components/ui";
 import { ListRow, ListSection } from "../src/components/system";
@@ -309,7 +310,9 @@ function CustomExerciseForm({
   const muscleValue =
     muscle === OTHER ? (muscleText.trim() ? muscleText : "") : muscle;
   const gearValue = gear === OTHER ? (gearText.trim() ? gearText : "") : gear;
+  const saving = useRef(false);
   function save() {
+    if (saving.current) return;
     const problems: Record<string, string> = {};
     if (!name.trim()) problems.name = "Enter a name for this exercise.";
     if (!muscleValue) problems.muscle = "Choose the main muscle it works.";
@@ -319,6 +322,7 @@ function CustomExerciseForm({
     if (!instructions.trim()) problems.instructions = "Add at least one step.";
     setErrors(problems);
     if (Object.keys(problems).length) return;
+    saving.current = true;
     const data: Exercise = {
       id: e?.id ?? id(),
       name,
@@ -354,6 +358,7 @@ function CustomExerciseForm({
       return onSaved(e);
     const result = mutate(() => r.saveExercise(data));
     if (result) onSaved(result);
+    else saving.current = false;
   }
   return (
     <Screen
@@ -448,6 +453,7 @@ function SelectRow({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${label}, ${value || "not chosen"}. Choose ${label.toLowerCase()}`}
+        accessibilityHint={error ? `Error: ${error}` : undefined}
         onPress={() => setOpen(true)}
         style={({ pressed }) => ({
           minHeight: theme.heights.control,
@@ -468,11 +474,7 @@ function SelectRow({
         </Txt>
         <Txt tone="secondary">›</Txt>
       </Pressable>
-      {!!error && (
-        <Txt variant="caption" tone="error">
-          {error}
-        </Txt>
-      )}
+      <FieldError label={label} error={error} />
       <Sheet
         visible={open}
         onClose={() => setOpen(false)}

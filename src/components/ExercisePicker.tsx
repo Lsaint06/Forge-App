@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
 import { Sheet, Field, Txt, Chips, useColors } from "./ui";
 import { useRepo } from "../state";
@@ -25,6 +25,11 @@ export function ExercisePicker({
   const c = useColors();
   const [query, setQuery] = useState("");
   const [muscle, setMuscle] = useState("All");
+  // One pick per opening: a second tap before the sheet closes is ignored.
+  const picked = useRef(false);
+  useEffect(() => {
+    if (visible) picked.current = false;
+  }, [visible]);
   const muscles = [...new Set(r.exercises().map((e) => e.muscle))].sort();
   const list = r.exercises(query, muscle);
   return (
@@ -61,6 +66,8 @@ export function ExercisePicker({
               accessibilityLabel={`${action} ${e.name}`}
               accessibilityHint={`${e.muscle} · ${e.equipment}`}
               onPress={() => {
+                if (picked.current) return;
+                picked.current = true;
                 onPick(e);
                 onClose();
               }}

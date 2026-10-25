@@ -73,6 +73,10 @@ export default function Explore() {
           gap: 12,
           paddingBottom: 40,
         }}
+        ListHeaderComponentStyle={{
+          marginHorizontal: -theme.spacing.screen,
+          paddingHorizontal: theme.spacing.screen,
+        }}
         ListHeaderComponent={
           <View style={{ gap: 16, paddingBottom: 12 }}>
             <View style={{ gap: theme.spacing.xs }}>

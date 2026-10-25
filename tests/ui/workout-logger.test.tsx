@@ -163,7 +163,7 @@ test("curated program workouts open on a compact header, the target line and inl
     await fireEvent.changeText(view.getByLabelText("Set 1 RIR"), "25");
     expect(r.sets(row.id)[0]!.rir).toBeNull();
     expect(view.getByLabelText("Set 1 RIR").props.accessibilityHint).toBe(
-      "Enter a number from 0 to 20",
+      "Error: Enter a number from 0 to 20",
     );
   } finally {
     db.close();

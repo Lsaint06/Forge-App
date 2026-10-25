@@ -27,6 +27,7 @@ import {
   useColors,
   parseNumber,
   formatNumber,
+  useAnnouncedError,
   type NumberRule,
 } from "./ui";
 import { kgToLb, lbToKg } from "../domain/metrics";
@@ -198,6 +199,7 @@ function NumberCell({
   // Whether the text was changed during this focus.
   const [edited, setEdited] = useState(false);
   const [error, setError] = useState("");
+  useAnnouncedError(label, error);
   const orderKey = order.join(".");
   useEffect(() => {
     if (!focus || !ref.current) return;
@@ -221,7 +223,7 @@ function NumberCell({
       <TextInput
         ref={ref}
         accessibilityLabel={label}
-        accessibilityHint={error || undefined}
+        accessibilityHint={error ? `Error: ${error}` : undefined}
         value={edited ? draft : formatNumber(value)}
         placeholder={placeholder}
         placeholderTextColor={c.text3}

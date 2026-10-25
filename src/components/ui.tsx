@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -576,6 +576,7 @@ export function Field({
       )}
       <TextInput
         accessibilityLabel={label}
+        accessibilityHint={error ? `Error: ${error}` : undefined}
         placeholderTextColor={c.text2}
         selectionColor={c.ember}
         {...props}
@@ -603,6 +604,57 @@ export function Field({
           props.style,
         ]}
       />
+      <FieldError label={label} error={error} />
+    </View>
+  );
+}
+
+// Field errors for screen readers. React Native has no "invalid" state, so a
+// field carries its error in its hint ("Error: …"), the visible message sits
+// in a polite live region (TalkBack reads it when it appears or changes), and
+// iOS announces a new message once. Messages raised together, such as on a
+// failed Save, are spoken as one announcement; an unchanged message is not
+// repeated while it stays on screen.
+let spoken: string[] = [];
+export function announceTogether(text: string) {
+  const line = text.trim().replace(/[.\s]+$/, "");
+  if (!line || spoken.includes(line)) return;
+  spoken.push(line);
+  // Errors shown in the same render are collected, then spoken once.
+  if (spoken.length === 1)
+    void Promise.resolve().then(() => {
+      const all = `${spoken.join(". ")}.`;
+      spoken = [];
+      AccessibilityInfo.announceForAccessibility(all);
+    });
+}
+export function useAnnouncedError(label: string, error?: string) {
+  const last = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (error && error !== last.current && Platform.OS === "ios")
+      announceTogether(`${label}: ${error}`);
+    last.current = error || undefined;
+  }, [label, error]);
+}
+const UNMOUNTED_ERROR: ViewStyle = {
+  position: "absolute",
+  width: 0,
+  height: 0,
+};
+/** A field's visible error message, announced as described above. */
+export function FieldError({
+  label,
+  error,
+}: {
+  label: string;
+  error?: string;
+}) {
+  useAnnouncedError(label, error);
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={error ? undefined : UNMOUNTED_ERROR}
+    >
       {!!error && (
         <Txt variant="caption" tone="error">
           {error}
@@ -732,7 +784,7 @@ export function Chips({
             hitSlop={{ top: 4, bottom: 4 }}
             onPress={() => onChange(v)}
             style={({ pressed }) => ({
-              minHeight: 40,
+              minHeight: theme.heights.compact,
               justifyContent: "center",
               paddingHorizontal: 16,
               borderRadius: theme.radii.pill,
@@ -764,7 +816,72 @@ export function FilterChips(
   return <Chips bleed={theme.spacing.screen} {...props} />;
 }
 
-/** Two to five mutually exclusive options of equal weight. */
+const SEGMENT_INSET = 3;
+const SEGMENT_PAD = 6;
+const SEGMENT_FONT = 14;
+// Approximate advance widths (in em) of the system UI font at weight 600.
+function emWidth(text: string) {
+  let w = 0;
+  for (const ch of text)
+    w += /[ilj.,:;'|!]/.test(ch)
+      ? 0.26
+      : /[ftr ]/.test(ch)
+        ? 0.33
+        : /[mwMW]/.test(ch)
+          ? 0.78
+          : /[A-Z]/.test(ch)
+            ? 0.64
+            : /[0-9]/.test(ch)
+              ? 0.56
+              : 0.52;
+  return w;
+}
+/**
+ * How a segmented control fits its width at the current text size: "row"
+ * (every option on one line), "wrap" (a row whose options take up to two
+ * lines, never breaking a word), "grid" (four or six options in two
+ * columns, each on one line) or "stack" (one option per line). Text is
+ * never shrunk to fit.
+ */
+export function segmentLayout(
+  labels: string[],
+  width: number,
+  fontScale: number,
+): "row" | "wrap" | "grid" | "stack" {
+  const n = labels.length;
+  const per =
+    (width - 2 * SEGMENT_INSET - SEGMENT_INSET * (n - 1)) / n - 2 * SEGMENT_PAD;
+  // A margin for font differences between platforms.
+  const px = (s: string) => emWidth(s) * SEGMENT_FONT * fontScale * 1.1;
+  if (labels.every((l) => px(l) <= per)) return "row";
+  const space = px(" ");
+  const twoLines = (l: string) => {
+    let lines = 1;
+    let line = 0;
+    for (const word of l.split(/\s+/)) {
+      const w = px(word);
+      if (w > per) return false;
+      if (!line) line = w;
+      else if (line + space + w <= per) line += space + w;
+      else {
+        lines++;
+        line = w;
+      }
+    }
+    return lines <= 2;
+  };
+  if (labels.every(twoLines)) return "wrap";
+  const half = (width - 3 * SEGMENT_INSET) / 2 - 2 * SEGMENT_PAD;
+  if (n >= 4 && n % 2 === 0 && labels.every((l) => px(l) <= half))
+    return "grid";
+  return "stack";
+}
+
+/**
+ * Two to five mutually exclusive options of equal weight. At larger text
+ * sizes options wrap to two lines, then stack (with a check on the chosen
+ * one), so every label stays readable. Options are at least 44 pt tall.
+ */
 export function SegmentedControl({
   options,
   value,
@@ -777,23 +894,33 @@ export function SegmentedControl({
   label: string;
 }) {
   const c = useColors();
+  const window = useWindowDimensions();
+  const [width, setWidth] = useState<number>();
+  const items = options.map((option) =>
+    typeof option === "string" ? { value: option, label: option } : option,
+  );
+  const layout = segmentLayout(
+    items.map((o) => o.label),
+    width ?? window.width - 2 * theme.spacing.screen,
+    window.fontScale || 1,
+  );
+  const stack = layout === "stack";
+  const grid = layout === "grid";
   return (
     <View
       accessibilityRole="tablist"
       accessibilityLabel={label}
+      onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}
       style={{
-        flexDirection: "row",
+        flexDirection: stack ? "column" : "row",
+        flexWrap: grid ? "wrap" : "nowrap",
         backgroundColor: c.surfaceRaised,
         borderRadius: theme.radii.control,
-        padding: 3,
-        gap: 3,
+        padding: SEGMENT_INSET,
+        gap: SEGMENT_INSET,
       }}
     >
-      {options.map((option) => {
-        const o =
-          typeof option === "string"
-            ? { value: option, label: option }
-            : option;
+      {items.map((o) => {
         const selected = o.value === value;
         return (
           <Pressable
@@ -803,25 +930,37 @@ export function SegmentedControl({
             accessibilityState={{ selected }}
             onPress={() => onChange(o.value)}
             style={{
-              flex: 1,
-              minHeight: 38,
-              borderRadius: theme.radii.control - 3,
+              ...(stack
+                ? {}
+                : grid
+                  ? { flexGrow: 1, flexBasis: "40%" }
+                  : { flex: 1 }),
+              minHeight: theme.heights.compact,
+              borderRadius: theme.radii.control - SEGMENT_INSET,
+              flexDirection: "row",
               alignItems: "center",
-              justifyContent: "center",
-              paddingHorizontal: 6,
+              justifyContent: stack ? "space-between" : "center",
+              gap: theme.spacing.sm,
+              paddingHorizontal: stack ? theme.spacing.group : SEGMENT_PAD,
+              paddingVertical: 4,
               backgroundColor: selected ? c.selected : "transparent",
             }}
           >
             <Text
-              numberOfLines={1}
+              numberOfLines={stack ? undefined : 2}
               style={{
+                flexShrink: 1,
+                textAlign: stack ? "left" : "center",
                 color: selected ? c.text : c.text2,
                 fontWeight: "600",
-                fontSize: 14,
+                fontSize: SEGMENT_FONT,
               }}
             >
               {o.label}
             </Text>
+            {stack && selected && (
+              <Ionicons name="checkmark" size={18} color={c.text} />
+            )}
           </Pressable>
         );
       })}

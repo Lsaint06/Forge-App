@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Pressable, View } from "react-native";
-import { Field, Txt, SegmentedControl, parseNumber } from "../ui";
+import { Field, FieldError, Txt, SegmentedControl, parseNumber } from "../ui";
 import { NumberControl } from "../Stepper";
 import { DateSheet } from "../DateSheet";
 import {
@@ -193,11 +193,10 @@ export function FoodFields({
           max={1000}
           onChange={(quantity) => onChange({ quantity })}
         />
-        {!!errors.quantity && (
-          <Txt variant="caption" tone="error">
-            {errors.quantity}
-          </Txt>
-        )}
+        <FieldError
+          label={entry ? "Servings" : "Default servings"}
+          error={errors.quantity || undefined}
+        />
         {preview && (
           <Txt variant="caption" tone="secondary" tabular>
             {`Total ${preview}`}

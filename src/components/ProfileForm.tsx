@@ -16,7 +16,7 @@ import {
   Card,
   ProgressBar,
   Row,
-  Txt,
+  FieldError,
 } from "./ui";
 import {
   experienceChoices,
@@ -588,11 +588,14 @@ export function ProfileForm({
                           format={f.key === "rest" ? restText : String}
                           onChange={(v) => commit(f.key, v, onChange)}
                         />
-                        {errors[f.key] && (
-                          <Txt variant="caption" tone="error">
-                            {friendlyError(f.key, errors[f.key]?.message)}
-                          </Txt>
-                        )}
+                        <FieldError
+                          label={f.label}
+                          error={
+                            errors[f.key]
+                              ? friendlyError(f.key, errors[f.key]?.message)
+                              : undefined
+                          }
+                        />
                       </View>
                     ) : numeric.has(f.key) ? (
                       <NumberInput

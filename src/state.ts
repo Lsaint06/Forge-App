@@ -33,10 +33,29 @@ function isSchemaError(e: unknown) {
       Array.isArray((e as { issues?: unknown }).issues))
   );
 }
+/**
+ * The sentences written for a schema's own rules ("Enter repetitions,
+ * duration or distance before completing a set"). Built-in type and limit
+ * messages are technical and never shown.
+ */
+function authoredMessages(e: unknown) {
+  const issues = (e as { issues?: { code?: unknown; message?: unknown }[] })
+    .issues;
+  const messages = (issues ?? [])
+    .filter((i) => i.code === "custom" && typeof i.message === "string")
+    .map((i) => (i.message as string).trim())
+    .filter((m) => m && !/^invalid input/i.test(m))
+    .map((m) => (/[.!?]$/.test(m) ? m : `${m}.`));
+  return [...new Set(messages)];
+}
 /** What the lifter reads when a save fails; schema details never reach it. */
 export function saveErrorMessage(e: unknown) {
-  if (isSchemaError(e))
-    return "Some values couldn't be saved. Check the form and try again. Your existing data is unchanged.";
+  if (isSchemaError(e)) {
+    const authored = authoredMessages(e);
+    return authored.length
+      ? authored.join(" ")
+      : "Some values couldn't be saved. Check the form and try again. Your existing data is unchanged.";
+  }
   return e instanceof Error && e.message
     ? e.message
     : "Please try again. Your existing data is preserved.";
