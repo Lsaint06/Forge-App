@@ -105,7 +105,7 @@ test("the REFORGE frame: brand, title, subtitle, date and the streak", async () 
       "Consistency",
       "Strength",
       "Records",
-      "Volume",
+      "Training volume",
       "Training time",
       "More",
     ])
@@ -255,7 +255,7 @@ test("charts: weekly or monthly buckets per range, and pound axes for pound lift
     ] as const) {
       await fireEvent.press(view.getByRole("tab", { name: spoken }));
       expect(view.getByLabelText(`Workouts by ${bucket}`)).toBeTruthy();
-      expect(view.getByLabelText(`Working sets by ${bucket}`)).toBeTruthy();
+      expect(view.getByLabelText(`Volume by ${bucket}`)).toBeTruthy();
     }
     // The strength line, measured: its axis is in pounds (≈ 220–231 lb),
     // its callout too; stored kilograms are unchanged.

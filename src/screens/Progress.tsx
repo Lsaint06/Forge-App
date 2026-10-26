@@ -84,11 +84,15 @@ import {
   consistencyInfo,
   recordInfo,
   strengthInfo,
-  volumeInfo,
 } from "../domain/progress/explain";
 import { theme } from "../theme";
 import { TitleBlock } from "./home/sections";
 import { homeClock, planContext } from "./home/model";
+import {
+  BodyweightCard,
+  TrainingVolumeCard,
+  rangePhrase,
+} from "./progress/sections";
 
 // Progress (REFORGE frame since Phase 7.4B; sections from Design System 2.0,
 // Phase 5): am I showing up, am I getting stronger, what have I
@@ -476,63 +480,25 @@ function SessionLine({
   );
 }
 
-function Volume({
+/** Working sets by primary muscle over the range (unchanged since Phase 5). */
+function MuscleSets({
   model,
   window,
-  units,
 }: {
   model: ProgressModel;
   window: RangeWindow;
-  units: Units;
 }) {
   const c = useColors();
   const [all, setAll] = useState(false);
   const log = model.log.filter((e) => inWindow(e.date, window));
-  const periods = volumeBuckets(log, model.info, buckets(window));
-  const sets = periods.reduce((n, p) => n + p.workingSets, 0);
-  const load = periods.reduce((n, p) => n + p.loadVolume, 0);
   const muscles = muscleSets(log, model.info);
   const top = muscles[0]?.sets ?? 1;
+  if (!muscles.length) return null;
   return (
-    <Card>
-      <View style={{ flexDirection: "row", gap: 16 }}>
-        <View style={{ flex: 1 }}>
-          <Txt variant="metric">{compactNumber(sets)}</Txt>
-          <Txt variant="overline" tone="secondary">
-            Working sets
-          </Txt>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Txt variant="metric">{compactNumber(loadIn(load, units))}</Txt>
-          <Txt variant="overline" tone="secondary">
-            {`Volume (${units})`}
-          </Txt>
-        </View>
-      </View>
-      {sets > 0 && (
-        <ForgeBarChart
-          label={`Working sets by ${window.bucket}`}
-          height={104}
-          format={(n) => plural(n, "working set")}
-          bars={periods.map((p) => ({
-            key: p.start,
-            value: p.workingSets,
-            description: `${window.bucket === "week" ? `Week of ${shortDate(p.start)}` : monthName(p.start)} · ${plural(p.workingSets, "working set")} · ${compactNumber(loadIn(p.loadVolume, units))} ${units}`,
-            tick: tickOf(p.start, window),
-          }))}
-          startLabel={
-            window.bucket === "week"
-              ? shortDate(periods[0]!.start)
-              : monthName(periods[0]!.start)
-          }
-          endLabel={window.bucket === "week" ? "This week" : "This month"}
-        />
-      )}
-      {muscles.length > 0 && (
+    <>
+      <SectionTitle title="Sets by primary muscle" />
+      <Card>
         <View style={{ gap: 10 }}>
-          <Txt variant="overline" tone="secondary">
-            Sets by primary muscle
-          </Txt>
           {(all ? muscles : muscles.slice(0, 5)).map((m) => (
             <View
               key={m.muscle}
@@ -579,16 +545,21 @@ function Volume({
             />
           )}
         </View>
-      )}
-    </Card>
+      </Card>
+    </>
   );
 }
-
-function Body({ units }: { units: Units }) {
+/**
+ * Measurements other than bodyweight (which has its own card), within the
+ * selected range (7.4D, PD-2); all time on the new-lifter screen.
+ */
+function Body({ units, window }: { units: Units; window?: RangeWindow }) {
   const r = useRepo();
   // Spelling variants share a series, one point per day (the day's latest
   // entry), spaced by date (Phase 7B WP4B).
-  const series = seriesOf(r.journal("measurement"));
+  const series = seriesOf(r.journal("measurement")).filter(
+    (s) => !s.bodyweight,
+  );
   const labels = series.map((s, i) =>
     series.findIndex((o) => o.name === s.name) === i
       ? s.name
@@ -602,12 +573,17 @@ function Body({ units }: { units: Units }) {
   );
   const s = series[index]!;
   const name = labels[index]!;
+  // All time is every entry (Progress's all-time window starts at the first
+  // workout or plan).
+  const days =
+    window && window.key !== "all"
+      ? s.days.filter((d) => d.date >= window.from)
+      : s.days;
   // Over a year of entries, axis dates carry the month and year ("Mar 25").
   const long =
-    s.days.length > 1 &&
-    dayNumber(s.days[s.days.length - 1]!.date) - dayNumber(s.days[0]!.date) >
-      330;
-  const points = s.days.map((d) => ({
+    days.length > 1 &&
+    dayNumber(days[days.length - 1]!.date) - dayNumber(days[0]!.date) > 330;
+  const points = days.map((d) => ({
     key: d.date,
     value: toDisplay(d.value, d.entry.data.unit, units),
     description:
@@ -623,7 +599,7 @@ function Body({ units }: { units: Units }) {
   }));
   return (
     <>
-      <SectionTitle title="Body" />
+      <SectionTitle title="Measurements" />
       <Card>
         {series.length > 1 ? (
           <Chips
@@ -635,17 +611,23 @@ function Body({ units }: { units: Units }) {
         ) : (
           <Txt variant="headline">{name}</Txt>
         )}
-        <ForgeLineChart
-          label={`${name} trend`}
-          points={points}
-          x={s.days.map((d) => dayNumber(d.date))}
-          breakOver={GAP_DAYS}
-          resetKey={s.key}
-          format={(v) => {
-            const u = displayUnit(s.family, units);
-            return `${Math.round(v * 10) / 10} ${u}`;
-          }}
-        />
+        {points.length ? (
+          <ForgeLineChart
+            label={`${name} trend`}
+            points={points}
+            x={days.map((d) => dayNumber(d.date))}
+            breakOver={GAP_DAYS}
+            resetKey={`${s.key}-${window?.key ?? "all"}`}
+            format={(v) => {
+              const u = displayUnit(s.family, units);
+              return `${Math.round(v * 10) / 10} ${u}`;
+            }}
+          />
+        ) : (
+          <Txt tone="secondary">
+            {`No ${name} entries in ${window ? rangePhrase(window) : "all time"}.`}
+          </Txt>
+        )}
       </Card>
     </>
   );
@@ -695,6 +677,9 @@ export default function Progress() {
     model.events.length,
   );
   const plan = planStatus(r);
+  const bodyweight = seriesOf(r.journal("measurement")).find(
+    (s) => s.bodyweight,
+  );
   const context = plan ? planContext(r, today) : undefined;
   const frame = (children: React.ReactNode) => (
     <ForgeScreen
@@ -796,6 +781,7 @@ export default function Progress() {
     return frame(
       <>
         <Empty />
+        <BodyweightCard series={bodyweight} units={units} />
         <Body units={units} />
         {more}
       </>,
@@ -830,6 +816,11 @@ export default function Progress() {
       ? `${cons.dueDone} of ${plural(cons.due, "planned session")} done`
       : "Your plan's first sessions are ahead"
     : `${cons.activeWeeks} of ${cons.weeks} weeks with a workout`;
+  const volumeByPeriod = volumeBuckets(
+    model.log.filter((e) => inWindow(e.date, window)),
+    model.info,
+    buckets(window),
+  );
   return frame(
     <>
       <ForgeSegments
@@ -862,6 +853,25 @@ export default function Progress() {
           },
         ]}
       />
+      <BodyweightCard series={bodyweight} window={window} units={units} />
+      <TrainingVolumeCard
+        volume={volumeByPeriod}
+        workouts={periods}
+        window={window}
+        units={units}
+      />
+      {model.exercises.size > 0 && (
+        <>
+          <SectionTitle
+            title="Strength"
+            info={{
+              title: "How strength is measured",
+              paragraphs: strengthInfo,
+            }}
+          />
+          <Strength model={model} window={window} units={units} />
+        </>
+      )}
       <SectionTitle
         title="Consistency"
         info={{
@@ -901,18 +911,6 @@ export default function Progress() {
           </ListSection>
         </>
       )}
-      {model.exercises.size > 0 && (
-        <>
-          <SectionTitle
-            title="Strength"
-            info={{
-              title: "How strength is measured",
-              paragraphs: strengthInfo,
-            }}
-          />
-          <Strength model={model} window={window} units={units} />
-        </>
-      )}
       <SectionTitle
         title="Records"
         info={{ title: "How records work", paragraphs: recordInfo }}
@@ -944,11 +942,7 @@ export default function Progress() {
           onPress={() => router.push("/records")}
         />
       </ListSection>
-      <SectionTitle
-        title="Volume"
-        info={{ title: "How volume is counted", paragraphs: volumeInfo }}
-      />
-      <Volume model={model} window={window} units={units} />
+      <MuscleSets model={model} window={window} />
       <SectionTitle title="Training time" />
       <ListSection>
         <ListRow
@@ -961,7 +955,7 @@ export default function Progress() {
         />
         <ListRow title="Day streak" value={String(lifetime.streak)} />
       </ListSection>
-      <Body units={units} />
+      <Body units={units} window={window} />
       {more}
     </>,
   );

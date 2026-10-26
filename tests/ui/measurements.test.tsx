@@ -348,24 +348,25 @@ test("Progress → Body: variants share a series, one point a day, and switching
     m(r, "Waist", 84.5, "cm", addDays(today, -28));
     m(r, "Waist", 83.5, "cm", today);
     const view = await render(<Progress />);
-    // The default series is unchanged: the most recently logged one (Waist).
-    const chart = () => view.getByLabelText(/ trend$/);
-    expect(chart().props.accessibilityLabel).toBe("Waist trend");
+    // 7.4D: bodyweight has its own card; the other measurements keep theirs.
+    const waist = () => view.getByLabelText("Waist trend");
     expect(view.getByText("83.5 cm")).toBeTruthy();
-    // Select an older Waist point, then switch series.
+    // Select an older Waist point.
     await act(async () =>
-      chart().props.onAccessibilityAction({
+      waist().props.onAccessibilityAction({
         nativeEvent: { actionName: "decrement" },
       }),
     );
     expect(view.getByText("84.5 cm")).toBeTruthy();
-    await fireEvent.press(view.getByRole("button", { name: "Bodyweight" }));
-    expect(chart().props.accessibilityLabel).toBe("Bodyweight trend");
+    // Spelling variants share the bodyweight series, one point a day, and
+    // the latest entry of the day counts.
+    const chart = () => view.getByLabelText("Bodyweight trend");
     expect(view.getByText("82 kg")).toBeTruthy();
     expect(chart().props.accessibilityValue.text).toBe(
       `82 kg, ${dayLabel(yesterday)} · 2 entries`,
     );
     expect(view.queryByRole("button", { name: "Body weight" })).toBeNull();
+    expect(view.queryByRole("button", { name: "Bodyweight" })).toBeNull();
     // Four days for Bodyweight: the same-day pair is one point.
     for (let i = 0; i < 3; i++)
       await act(async () =>

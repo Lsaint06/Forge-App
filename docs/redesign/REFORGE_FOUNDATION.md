@@ -417,3 +417,14 @@ Unknown barcodes become the lifter's own foods, entered once from the package la
 | Dates | Up to four short dates under the plot ("Oct 5"; months "Oct"; "Mar 25" when body data spans over a year); bars without dates keep their start and end labels |
 | Selection | The selected point in an ember ring with a soft glow and a dashed drop line; its value in a raised callout above it ("112.5 kg", "3 workouts"); its description above the chart |
 | Unchanged | Data, aggregation, ranges, the 10 % minimum axis span, tap selection, the adjustable role, spoken label and value, swipe up and down |
+
+### Bodyweight and Training volume (Phase 7.4D)
+
+[progress/sections.tsx](../../src/screens/progress/sections.tsx) holds the two cards; the bodyweight change is [presentation/bodyweight.ts](../../src/domain/presentation/bodyweight.ts) (decision P1, unit-tested). Order (P4): range → Overview → **Bodyweight** → **Training volume** → Strength → Consistency → Saved plans → Records → Sets by primary muscle → Training time → Measurements → More.
+
+| Card | Presentation |
+| --- | --- |
+| Bodyweight | Header "BODYWEIGHT ›" (opens Measurements) with the change in ember on the right: "−1.2 kg (−1.4%)", whichever way (a gain is not shown as failure). **Current** (latest weigh-in, its date) and **Start** (where the range began: the last weigh-in before it, else the first in it); the range's weigh-ins as an ember line (gaps over 30 days unjoined). 4W / 12W / 1Y follow the range; **All** is every weigh-in. No weigh-in in the range: "No weigh-ins in the last 4 weeks." with the latest still shown; one weigh-in: no change, "Your trend line appears after your next weigh-in."; none ever: "Log bodyweight" |
+| Training volume | Header with "How volume is counted"; **Volume · Workouts** segments. Volume: the range's load (Σ weight × reps of working sets with external load) in the lifter's unit, its working sets beneath, ember bars per week or month ("14.2k kg"). Workouts: finished workouts, per week or month. Empty ranges say so |
+| Measurements | Other measurement series (bodyweight has its card), with chips, within the range (PD-2); All is every entry |
+| Sets by primary muscle | Unchanged content, its own section (7.4E restyles it) |
