@@ -53,3 +53,24 @@ export function gtinProblem(raw: unknown) {
   if (s.length < 8 || s.length > 14) return "bad-length";
   return gtin14(s) ? undefined : "bad-check-digit";
 }
+
+/** The food barcode types the scanner reads. */
+export const FOOD_BARCODES = ["ean13", "ean8", "upc_a", "upc_e"] as const;
+
+/**
+ * What a camera read means: its digits and, for a full 8-digit UPC-E, that
+ * symbology (so it is expanded, not read as EAN-8). iOS reports UPC-A as
+ * EAN-13 without its leading zero; GTIN-14 padding makes both the same code.
+ * A shortened UPC-E (no number system or check digit) is not completed.
+ */
+export function scannedCode(type: string | undefined, data: string) {
+  const digits = String(data).replace(/\s+/g, "");
+  const symbology: Symbology | undefined =
+    type === "upc_e" && digits.length === 8 ? "upc_e" : undefined;
+  return {
+    digits,
+    symbology,
+    gtin:
+      type === "upc_e" && digits.length < 8 ? null : gtin14(digits, symbology),
+  };
+}

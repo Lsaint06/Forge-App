@@ -351,3 +351,15 @@ Branded products from the bundled USDA Branded Foods catalogue (about 405,000 pr
 | Selected product | The 7.3D selected-food step: brand line; "Per 100 g" or "Per 100 ml"; portion chips **Grams** or **Millilitres** plus the label serving; values card "For 110 ml"; meal, "Logs to …", **Add to *meal***; source line with release, FDC ID and barcode |
 | Failure | "Branded foods couldn't be opened. Your logs are safe; try again." with **Try again**; the rest of the sheet keeps working |
 | Reopened entry | "FAIRLIFE · From USDA Branded Foods · FDC … · 1 serving = 110 ml · barcode …" |
+
+## Barcode scanner (Phase 7.3F)
+
+A step of the Add food sheet (no new screen), opened by the **Scan barcode** button beside the search field: a 48 pt raised square with the ember `barcode-outline` icon. Details: [PHASE_7_3F_BARCODE_SCANNER.md](../audits/PHASE_7_3F_BARCODE_SCANNER.md).
+
+| Part | Presentation |
+| --- | --- |
+| Camera | Dark viewport in a REFORGE card (radius `card`), four ember corner guides, no animation; torch toggle (44 pt) in the corner; one line: "Line up the barcode inside the frame. It scans on its own." |
+| Match | The 7.3D/7.3E food step; Back returns to the camera; after adding, "Added … to *meal*" with **Undo** above the results |
+| Not found | "Product not found" with the barcode, **Scan again**, **Search foods**, **Create food** |
+| Unreadable | "That barcode couldn't be read" with how to retry |
+| No camera | "Camera access is off" (**Allow camera** or **Open Settings**) or "Camera unavailable"; **Or type the barcode** with **Look up** always available |

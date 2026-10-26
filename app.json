@@ -19,6 +19,14 @@
     "plugins": [
       "expo-router",
       "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "FORGE uses the camera to scan food barcodes. Nothing is recorded or uploaded.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       "expo-secure-store",
       "expo-notifications",
       [

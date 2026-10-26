@@ -74,6 +74,7 @@ import { tryLoadFoodLibrary } from "../../data/food-catalog";
 import { BRANDED_CATALOG, BRANDED_RELEASE } from "../../data/branded-catalog";
 import { isBrandedId } from "../../domain/branded";
 import { useBrandedSearch } from "./useBrandedSearch";
+import { BarcodeScanner } from "./BarcodeScanner";
 import { dayTitle } from "../../domain/calendar-dates";
 import { forge, theme } from "../../theme";
 import {
@@ -93,7 +94,10 @@ type Step =
       choice: PortionChoice;
       opened: number;
       note?: string;
+      /** Opened from the barcode scanner: Back returns to it. */
+      from?: "scan";
     }
+  | { kind: "scan" }
   | { kind: "create" };
 
 /** Library results are shown this many at a time. */
@@ -134,6 +138,12 @@ export function QuickAddSheet({
   const [blank, setBlank] = useState<FoodDraft>(() => draftFrom());
   const [errors, setErrors] = useState<DraftErrors>({});
   const [saveFood, setSaveFood] = useState(true);
+  // The last product added from the scanner, for its Undo.
+  const [scanAdded, setScanAdded] = useState<{
+    key: string;
+    name: string;
+    meal: string;
+  } | null>(null);
   // Guards against a double tap logging twice before the screen updates.
   const busy = useRef(new Set<string>());
   // The list keeps its order while the sheet is open, so a tap never lands
@@ -316,12 +326,21 @@ export function QuickAddSheet({
   const backFooter = (add: React.ReactNode) => (
     <View style={{ flexDirection: "row", gap: forge.spacing.tight }}>
       <View style={{ flex: 1 }}>
-        <OutlineButton
-          title="Back"
-          icon="chevron-back"
-          accessibilityLabel="Back to foods"
-          onPress={() => setStep({ kind: "list" })}
-        />
+        {step.kind === "library" && step.from === "scan" ? (
+          <OutlineButton
+            title="Back"
+            icon="chevron-back"
+            accessibilityLabel="Back to scanner"
+            onPress={() => setStep({ kind: "scan" })}
+          />
+        ) : (
+          <OutlineButton
+            title="Back"
+            icon="chevron-back"
+            accessibilityLabel="Back to foods"
+            onPress={() => setStep({ kind: "list" })}
+          />
+        )}
       </View>
       <View style={{ flex: 2 }}>{add}</View>
     </View>
@@ -430,8 +449,17 @@ export function QuickAddSheet({
             compact
             disabled={!!error}
             onPress={() => {
-              if (logLibrary(food, choice, `libdetail:${step.opened}`))
+              if (logLibrary(food, choice, `libdetail:${step.opened}`)) {
+                // A scanned product is rarely among the results shown: its
+                // Undo stays at the top of the list instead.
+                if (step.from === "scan")
+                  setScanAdded({
+                    key: `lib:${food.id}`,
+                    name: food.name,
+                    meal,
+                  });
                 setStep({ kind: "list" });
+              }
             }}
           />,
         )}
@@ -590,6 +618,37 @@ export function QuickAddSheet({
       </Sheet>
     );
   }
+
+  if (step.kind === "scan")
+    return (
+      <Sheet
+        visible
+        onClose={onClose}
+        title="Scan barcode"
+        footer={
+          <OutlineButton
+            title="Back"
+            icon="chevron-back"
+            accessibilityLabel="Back to foods"
+            onPress={() => setStep({ kind: "list" })}
+          />
+        }
+      >
+        <BarcodeScanner
+          onFound={(food) =>
+            setStep({
+              kind: "library",
+              food,
+              choice: LABEL_SERVING,
+              opened: ++opens.current,
+              from: "scan",
+            })
+          }
+          onSearch={() => setStep({ kind: "list" })}
+          onCreate={startCreate}
+        />
+      </Sheet>
+    );
 
   if (creating)
     return (
@@ -771,8 +830,7 @@ export function QuickAddSheet({
 
   // The day, meal and search. They keep their size above the list (only the
   // list gives way to the keyboard); at larger text they scroll with it.
-  // Phase 7.3F adds the barcode scanner beside the search field (see
-  // docs/audits/PHASE_7_3D_FOOD_DISCOVERY.md); nothing is shown until then.
+  // The barcode scanner (Phase 7.3F) sits beside the search field.
   const controls = (
     <View style={{ flexShrink: 0, gap: forge.spacing.group }}>
       {typing ? (
@@ -787,15 +845,46 @@ export function QuickAddSheet({
           {mealControl}
         </>
       )}
-      <ForgeSearchField
-        label="Search foods"
-        value={query}
-        onChangeText={(text) => {
-          setQuery(text);
-          setShown(PAGE);
-        }}
-        placeholder="Food, e.g. chicken breast"
-      />
+      <View style={{ flexDirection: "row", gap: forge.spacing.tight }}>
+        <View style={{ flex: 1 }}>
+          <ForgeSearchField
+            label="Search foods"
+            value={query}
+            onChangeText={(text) => {
+              setQuery(text);
+              setShown(PAGE);
+            }}
+            placeholder="Food, e.g. chicken breast"
+          />
+        </View>
+        <ScanButton
+          onPress={() => {
+            Keyboard.dismiss();
+            setStep({ kind: "scan" });
+          }}
+        />
+      </View>
+      {scanAdded && added[scanAdded.key] && (
+        <View
+          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+          accessibilityLiveRegion="polite"
+        >
+          <Ionicons name="checkmark-circle" size={18} color={c.emberHot} />
+          <FText
+            variant="label"
+            weight="600"
+            numberOfLines={2}
+            style={{ flex: 1 }}
+          >
+            {`Added ${scanAdded.name} to ${scanAdded.meal}`}
+          </FText>
+          <TextButton
+            title="Undo"
+            accessibilityLabel={`Undo adding ${scanAdded.name}`}
+            onPress={() => undo(scanAdded.key, scanAdded.name)}
+          />
+        </View>
+      )}
     </View>
   );
 
@@ -1249,3 +1338,29 @@ const ResultRow = memo(function ResultRow({
     </View>
   );
 });
+
+/** The barcode scanner's entry, beside the search field. */
+function ScanButton({ onPress }: { onPress: () => void }) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Scan barcode"
+      accessibilityHint="Opens the camera to find a packaged food by its barcode"
+      onPress={onPress}
+      hitSlop={4}
+      style={({ pressed }) => ({
+        width: 48,
+        minHeight: 48,
+        borderRadius: forge.radii.input,
+        borderWidth: forge.border.card,
+        borderColor: c.cardBorder,
+        backgroundColor: pressed ? c.cardBg : c.cardRaised,
+        alignItems: "center",
+        justifyContent: "center",
+      })}
+    >
+      <Ionicons name="barcode-outline" size={24} color={c.emberHot} />
+    </Pressable>
+  );
+}

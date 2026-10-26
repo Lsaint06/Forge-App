@@ -117,8 +117,9 @@ test("search groups the lifter's foods before the library and says how many matc
     expect(view.getByText(/^\d[\d,]* foods?$/)).toBeTruthy();
     // Library rows say where their values come from.
     expect(view.getAllByText("USDA").length).toBeGreaterThan(0);
-    // No scanner yet: nothing that looks like one (Phase 7.3F).
-    expect(view.queryByLabelText(/scan|barcode/i)).toBeNull();
+    // The barcode scanner (Phase 7.3F) is one control beside the search.
+    expect(view.getAllByLabelText(/scan|barcode/i)).toHaveLength(1);
+    expect(view.getByRole("button", { name: "Scan barcode" })).toBeTruthy();
     // Clearing the search restores the lists.
     await fireEvent.press(view.getByLabelText("Clear search"));
     expect(view.getByRole("header", { name: "Recent" })).toBeTruthy();
@@ -273,7 +274,8 @@ test("compact iPhones and large text: controls stay reachable at 44 pt", async (
       "Decrease Servings by 0.25",
       "Increase Servings by 0.25",
       "Back to foods",
-      "Add Banana to Breakfast",
+      // The meal follows the time of day the test runs.
+      /^Add Banana to (Breakfast|Lunch|Dinner|Snacks)$/,
     ]) {
       const s = flat(view.getByLabelText(label));
       expect(Number(s.minHeight ?? s.height)).toBeGreaterThanOrEqual(44);
