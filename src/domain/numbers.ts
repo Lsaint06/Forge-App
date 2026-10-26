@@ -7,3 +7,14 @@
 export function decimalText(text: string) {
   return /^[^,.]*,[^,.]*$/.test(text) ? text.replace(",", ".") : text;
 }
+
+/**
+ * A number typed into a settings field (profile, targets): "2,5" or "2.5"
+ * → 2.5; "" → 0 (an empty field has always meant zero there); anything
+ * else, including a sign or a second point, → NaN, which validation refuses.
+ */
+export function readFormNumber(text: string) {
+  const t = decimalText(text.trim());
+  if (t === "") return 0;
+  return /^\d*\.?\d*$/.test(t) ? Number(t) : NaN;
+}

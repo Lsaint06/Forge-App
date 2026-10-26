@@ -155,10 +155,11 @@ test("the tab follows the reference: brand header, title, hero, goal, streak, me
         "Calorie goal: 1,770 kcal left. Edit your daily targets",
       ),
     );
-    expect(router.navigate).toHaveBeenLastCalledWith({
-      pathname: "/(tabs)/profile",
-      params: { edit: "nutrition" },
-    });
+    // 7.3G G2: targets are edited in context, not in You.
+    expect(view.getByRole("header", { name: "Daily targets" })).toBeTruthy();
+    expect(router.navigate).not.toHaveBeenCalled();
+    await fireEvent.press(view.getByRole("button", { name: "Cancel" }));
+    expect(view.queryByRole("header", { name: "Daily targets" })).toBeNull();
     // Streak: days logged, from the entries.
     expect(
       view.getByLabelText(/^Nutrition streak: 3 days logged in a row\./),
@@ -305,13 +306,12 @@ test("without the lifter's own targets, nothing is shown as a target", async () 
     await fireEvent.press(
       view.getByRole("button", { name: "Set your daily targets" }),
     );
-    expect(router.navigate).toHaveBeenCalledWith({
-      pathname: "/(tabs)/profile",
-      params: { edit: "nutrition" },
-    });
+    // 7.3G G2: the targets sheet opens in Nutrition.
+    expect(view.getByRole("header", { name: "Daily targets" })).toBeTruthy();
+    await fireEvent.press(view.getByRole("button", { name: "Cancel" }));
     // Without targets the card is not a shortcut to a number that isn't there.
     expect(view.queryByLabelText(/^Calorie goal: /)).toBeNull();
-    expect(router.navigate).toHaveBeenCalledTimes(1);
+    expect(router.navigate).not.toHaveBeenCalled();
   } finally {
     db.close();
   }

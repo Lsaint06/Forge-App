@@ -20,6 +20,7 @@ import { planStatus } from "../components/PlanRow";
 import { DaySwitcher } from "../components/DaySwitcher";
 import { QuickAddSheet } from "../components/nutrition/QuickAddSheet";
 import { HydrationSheet } from "../components/nutrition/HydrationSheet";
+import { TargetsSheet } from "../components/nutrition/TargetsSheet";
 import {
   fluidUnitOf,
   hydrationDay,
@@ -102,6 +103,8 @@ export default function Nutrition({ tab = false }: { tab?: boolean }) {
   const day = picked && picked < today ? picked : today;
   const [adding, setAdding] = useState<string>();
   const [hydrating, setHydrating] = useState(false);
+  // Daily targets are edited here, in context (7.3G G2).
+  const [targeting, setTargeting] = useState(false);
   const [editing, setEditing] = useState<FoodEditorTarget>();
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const [banner, setBanner] = useState<{ text: string; undo: () => void }>();
@@ -167,10 +170,7 @@ export default function Nutrition({ tab = false }: { tab?: boolean }) {
     AccessibilityInfo.announceForAccessibility(`${text}. Undo available.`);
   }
   function editTargets() {
-    router.navigate({
-      pathname: "/(tabs)/profile",
-      params: { edit: "nutrition" },
-    });
+    setTargeting(true);
   }
   function quickAdd(q: QuickFood) {
     const key = q.food.key;
@@ -409,6 +409,7 @@ export default function Nutrition({ tab = false }: { tab?: boolean }) {
           onClose={() => setHydrating(false)}
         />
       )}
+      {targeting && <TargetsSheet onClose={() => setTargeting(false)} />}
     </>
   );
 

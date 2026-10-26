@@ -155,10 +155,9 @@ test("an empty day explains logging, and default targets are never shown as targ
     await fireEvent.press(
       view.getByRole("button", { name: "Set your daily targets" }),
     );
-    expect(router.navigate).toHaveBeenCalledWith({
-      pathname: "/(tabs)/profile",
-      params: { edit: "nutrition" },
-    });
+    // 7.3G G2: the targets sheet opens in Nutrition, with no navigation.
+    expect(view.getByRole("header", { name: "Daily targets" })).toBeTruthy();
+    expect(router.navigate).not.toHaveBeenCalled();
   } finally {
     db.close();
   }

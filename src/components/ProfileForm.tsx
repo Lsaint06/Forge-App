@@ -28,7 +28,8 @@ import {
 
 import { enableNotifications, cancelAllNotifications } from "../notifications";
 import { Stepper } from "./Stepper";
-import { decimalText } from "../domain/numbers";
+import { readFormNumber } from "../domain/numbers";
+import { TARGET_HELP } from "../domain/targets";
 const numeric = new Set([
   "height",
   "weight",
@@ -145,11 +146,7 @@ const feetOf = (cm: number) =>
 const inchesOf = (cm: number) =>
   cm > 0 ? String(Math.round(cmToIn(cm)) % 12) : "";
 /** "2,5" or "2.5" → 2.5; "" → 0 (as before); anything else → NaN. */
-function readNumber(text: string) {
-  const t = decimalText(text.trim());
-  if (t === "") return 0;
-  return /^\d*\.?\d*$/.test(t) ? Number(t) : NaN;
-}
+const readNumber = readFormNumber;
 const restText = (seconds: number) =>
   `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
 
@@ -164,10 +161,8 @@ const fieldHelp: Partial<Record<keyof Profile, string>> = {
   repMin: "Choose whole reps from 1 to 100.",
   repMax: "Choose whole reps from 1 to 100.",
   frequency: "Choose 1 to 7 workouts a week.",
-  calories: "Enter a number from 0 to 20,000.",
-  protein: "Enter a number from 0 to 2,000.",
-  carbs: "Enter a number from 0 to 3,000.",
-  fat: "Enter a number from 0 to 2,000.",
+  // Shared with the Nutrition targets sheet (7.3G G2).
+  ...TARGET_HELP,
 };
 const rawValidation = /expected|invalid input|too (big|small)/i;
 /** A field's error for display: our own messages as written, raw ones replaced. */
