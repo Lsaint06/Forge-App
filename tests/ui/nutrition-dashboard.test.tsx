@@ -171,8 +171,11 @@ test("the tab follows the reference: brand header, title, hero, goal, streak, me
       ),
     ).toBeTruthy();
     expect(view.getAllByTestId("quick-add").length).toBeGreaterThan(0);
-    // Deferred features are not simulated.
-    expect(view.queryByText(/hydration/i)).toBeNull();
+    // Hydration (7.3C) is real: the day's water and no invented goal. Meal
+    // times are still not simulated.
+    expect(
+      view.getByLabelText("Hydration: 0 millilitres logged. Open hydration"),
+    ).toBeTruthy();
     expect(view.queryByText(/^\d+:\d+/)).toBeNull();
     // Add food stays pinned and opens the existing sheet.
     await fireEvent.press(view.getByRole("button", { name: "Add food" }));

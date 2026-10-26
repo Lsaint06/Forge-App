@@ -19,6 +19,13 @@ import { OverflowMenu, type MenuAction } from "../components/system";
 import { planStatus } from "../components/PlanRow";
 import { DaySwitcher } from "../components/DaySwitcher";
 import { QuickAddSheet } from "../components/nutrition/QuickAddSheet";
+import { HydrationSheet } from "../components/nutrition/HydrationSheet";
+import {
+  fluidUnitOf,
+  hydrationDay,
+  hydrationOf,
+  totalMl,
+} from "../domain/hydration";
 import {
   FoodEditorSheet,
   type FoodEditorTarget,
@@ -60,6 +67,7 @@ import {
   CalorieGoalCard,
   CardPair,
   EntryRow,
+  HydrationCard,
   MealRow,
   NutritionHero,
   QuickAddCard,
@@ -93,6 +101,7 @@ export default function Nutrition({ tab = false }: { tab?: boolean }) {
   const [picked, setPicked] = useState<string>();
   const day = picked && picked < today ? picked : today;
   const [adding, setAdding] = useState<string>();
+  const [hydrating, setHydrating] = useState(false);
   const [editing, setEditing] = useState<FoodEditorTarget>();
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const [banner, setBanner] = useState<{ text: string; undo: () => void }>();
@@ -127,15 +136,25 @@ export default function Nutrition({ tab = false }: { tab?: boolean }) {
   const savedFoods = r.journal("food");
   const when = day === today ? "today" : `on ${dayLabel(day)}`;
   const streak = loggingStreak(all, today);
-  const quick = quickAddFoods(all, savedFoods);
+  // Water (Phase 7.3C): its own records, never part of the food totals.
+  const water = hydrationDay(
+    totalMl(
+      r
+        .journal("hydration")
+        .filter((e) => e.date === day && hydrationOf(e.data)),
+    ),
+    p.waterGoal,
+    fluidUnitOf(p),
+  );
   const quickMeal = defaultMeal(now);
   const quickTarget =
     day === today ? quickMeal : `${quickMeal} · ${dayTitle(day, today)}`;
 
   const content = width - 2 * forge.spacing.margin;
   const side = pairFits(content, fontScale, 150);
+  const quick = quickAddFoods(all, savedFoods);
   // Quick add: two roomy columns at full width; one when text is large or
-  // the screen is narrow (and, from 7.3C, beside the Hydration card).
+  // the screen is narrow.
   const columns = stripColumns(
     content - 2 * forge.spacing.cardPadding,
     fontScale,
@@ -303,6 +322,9 @@ export default function Nutrition({ tab = false }: { tab?: boolean }) {
         personalized={personalized}
         stacked={fontScale >= 1.6}
       />
+      {/* Hydration right after the day's food, before the goal cards and
+          meals: its own compact card, sized to its content. */}
+      <HydrationCard view={water} onOpen={() => setHydrating(true)} />
       <CardPair
         side={side}
         ratio={1.2}
@@ -334,20 +356,13 @@ export default function Nutrition({ tab = false }: { tab?: boolean }) {
           </MealRow>
         ))}
       </ForgeCard>
-      {/* The Hydration card (Phase 7.3C) takes the right-hand place. */}
-      <CardPair
-        side={side}
-        left={(style) => (
-          <QuickAddCard
-            foods={quick}
-            target={quickTarget}
-            destination={`Adds to ${quickMeal} · ${dayTitle(day, today)}`}
-            columns={columns}
-            onAdd={quickAdd}
-            onOpen={() => setAdding(quickMeal)}
-            style={style}
-          />
-        )}
+      <QuickAddCard
+        foods={quick}
+        target={quickTarget}
+        destination={`Adds to ${quickMeal} · ${dayTitle(day, today)}`}
+        columns={columns}
+        onAdd={quickAdd}
+        onOpen={() => setAdding(quickMeal)}
       />
       {later.length > 0 && (
         <>
@@ -385,6 +400,13 @@ export default function Nutrition({ tab = false }: { tab?: boolean }) {
         <FoodEditorSheet
           target={editing}
           onClose={() => setEditing(undefined)}
+        />
+      )}
+      {hydrating && (
+        <HydrationSheet
+          day={day}
+          today={today}
+          onClose={() => setHydrating(false)}
         />
       )}
     </>

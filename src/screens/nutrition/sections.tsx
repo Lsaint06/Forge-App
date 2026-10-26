@@ -298,11 +298,7 @@ export function StreakCard({
 
 // ---- Two cards in a row ---------------------------------------------------------------
 
-/**
- * Two cards side by side when both fit, otherwise stacked. With no `right`
- * card the left one takes the full width: Quick add's partner, the Hydration
- * card, arrives in Phase 7.3C; nothing is drawn in its place until then.
- */
+/** Two cards side by side when both fit, otherwise stacked. */
 export function CardPair({
   side,
   left,
@@ -588,8 +584,8 @@ export function EntryRow({
 
 /**
  * The lifter's own recent and saved foods, one tap each, at the stated
- * portion, into the stated meal and day. Two columns at full width; one
- * column when the Hydration card (7.3C) sits beside it or text is large.
+ * portion, into the stated meal and day. Its own full-width card after the
+ * meals: two columns, or one on narrow screens and at large text.
  * The header opens Add food.
  */
 export function QuickAddCard({
@@ -675,6 +671,120 @@ export function QuickAddCard({
   );
 }
 
+// ---- Hydration ------------------------------------------------------------------------
+
+/**
+ * The day's water (Phase 7.3C): a compact, full-width card right under the
+ * calorie hero, sized to its content (never stretched to match another
+ * card). One row: drop, label, amount drunk and, against the lifter's own
+ * goal, the percentage; then a slim bar with what is left. Without a goal:
+ * the amount and a small "Set goal" chip, no empty bar. The whole card opens
+ * the hydration sheet; it never logs by itself (decision H4).
+ */
+export function HydrationCard({
+  view,
+  onOpen,
+}: {
+  view: {
+    total: string;
+    goal?: string;
+    ratio?: number;
+    percent?: number;
+    left?: string;
+    spoken: string;
+  };
+  onOpen: () => void;
+}) {
+  const c = useColors();
+  const hasGoal = view.ratio !== undefined;
+  return (
+    <ForgeCard
+      onPress={onOpen}
+      testID="hydration-card"
+      gap={10}
+      accessibilityLabel={`Hydration: ${view.spoken}. Open hydration`}
+      accessibilityHint={
+        hasGoal ? undefined : "No daily goal yet. Opens hydration to set one"
+      }
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: forge.radii.tile,
+            backgroundColor: c.hydrationTint,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Ionicons name="water" size={20} color={c.hydration} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <FText variant="overline" tone="secondary">
+            Hydration
+          </FText>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "baseline",
+              flexWrap: "wrap",
+              columnGap: 6,
+            }}
+          >
+            <FText variant="statMetric" numberOfLines={1}>
+              {view.total}
+            </FText>
+            <FText variant="label" tone="secondary" numberOfLines={1}>
+              {view.goal ? `of ${view.goal}` : "logged"}
+            </FText>
+          </View>
+        </View>
+        {hasGoal ? (
+          <FText
+            variant="cardTitle"
+            weight="700"
+            style={{ color: c.hydration }}
+          >
+            {`${view.percent}%`}
+          </FText>
+        ) : (
+          <View
+            style={{
+              minHeight: 28,
+              paddingHorizontal: 10,
+              justifyContent: "center",
+              borderRadius: forge.radii.pill,
+              borderWidth: forge.border.active,
+              borderColor: c.hydration,
+              backgroundColor: c.hydrationTint,
+            }}
+          >
+            <FText variant="label" weight="700" style={{ color: c.hydration }}>
+              Set goal
+            </FText>
+          </View>
+        )}
+        <Ionicons name="chevron-forward" size={16} color={c.text2} />
+      </View>
+      {hasGoal && (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={{ flex: 1 }}>
+            <ForgeProgress
+              value={view.ratio!}
+              label="Water"
+              tone="hydration"
+              height={6}
+            />
+          </View>
+          <FText variant="label" tone="secondary" numberOfLines={1}>
+            {view.left}
+          </FText>
+        </View>
+      )}
+    </ForgeCard>
+  );
+}
 // ---- Undo ----------------------------------------------------------------------------------
 
 /** The last change, with Undo; pinned above Add food so it is always seen. */

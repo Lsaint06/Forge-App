@@ -19,4 +19,6 @@ Known problems outside the current phase's scope, recorded so they are not lost.
 
 **Evidence:** the failures reproduce on the committed code `31d43a9` with all Phase 7.3B work stashed. They are not a regression. Both passed on Sunday 2026-10-25.
 
+**Re-verified (Phase 7.3C, Monday 2026-10-26):** with all 7.3C changes in place, the same two tests fail on Monday. The whole suite passes 11/11 when only `Date` is frozen at Tuesday 2026-10-27 noon (timers real, temporary Jest config outside the repository).
+
 **Proposed fix (test-only):** anchor the fixture to a fixed reference date instead of the real clock, or log week 0 on the most recent Tuesday on or before today. Progress production logic needs no change.

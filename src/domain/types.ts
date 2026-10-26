@@ -23,6 +23,11 @@ export type Profile = {
   protein: number;
   carbs: number;
   fat: number;
+  // Hydration (Phase 7.3C). Optional: absent on older profiles. A daily
+  // goal in millilitres, only when the lifter sets one, and their fluid
+  // unit (absent: follows `units`).
+  waterGoal?: number;
+  fluidUnit?: "ml" | "oz";
 };
 export type Workout = {
   id: string;
@@ -101,7 +106,8 @@ export type JournalKind =
   | "goal"
   | "food"
   | "schedule"
-  | "program";
+  | "program"
+  | "hydration";
 export type Journal = {
   id: string;
   kind: JournalKind;

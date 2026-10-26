@@ -38,6 +38,8 @@ import { compactNumber, loadText } from "../domain/progress/format";
 import { progressModel } from "../data/progress";
 import { membership } from "../domain/membership";
 import { TARGETS_SAVED, targetsPersonalized } from "../domain/nutrition";
+import { fluidUnitOf, unitLabel, volumeText } from "../domain/hydration";
+import { HydrationSettings } from "../components/nutrition/HydrationSheet";
 import { cloudClient } from "../cloud/client";
 import { theme } from "../theme";
 
@@ -181,6 +183,7 @@ export default function You() {
   const params = useLocalSearchParams<{ edit?: string }>();
   const p = r.profile();
   const [editor, setEditor] = useState<Editor>();
+  const [hydration, setHydration] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [info, setInfo] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
@@ -444,6 +447,16 @@ export default function You() {
           }
           onPress={() => setEditor("nutrition")}
         />
+        <ListRow
+          icon="water-outline"
+          title="Hydration"
+          subtitle={`${
+            p.waterGoal === undefined
+              ? "No daily goal"
+              : `${volumeText(p.waterGoal, fluidUnitOf(p))} a day`
+          } · ${unitLabel(fluidUnitOf(p))}`}
+          onPress={() => setHydration(true)}
+        />
       </ListSection>
 
       <ListSection title="Health & body">
@@ -636,6 +649,14 @@ export default function You() {
             }}
           />
         )}
+      </Sheet>
+      {/* The same goal and unit fields as the hydration sheet (7.3C, H8). */}
+      <Sheet
+        visible={hydration}
+        onClose={() => setHydration(false)}
+        title="Hydration"
+      >
+        <HydrationSettings />
       </Sheet>
     </Screen>
   );

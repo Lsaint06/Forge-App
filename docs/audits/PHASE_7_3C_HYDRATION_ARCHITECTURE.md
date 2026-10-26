@@ -1,6 +1,6 @@
 # Project REFORGE — Phase 7.3C: Hydration Architecture (proposal)
 
-**Status:** approved in principle (§10); implementation not yet authorized. **No hydration code, data or UI has been written.** The current 7.3B dashboard keeps the Hydration card's place beside Quick add and draws nothing there (no placeholder values).
+**Status:** approved (§10) and **implemented in Phase 7.3C** (§11); awaiting founder review. Not committed. The current 7.3B dashboard keeps the Hydration card's place beside Quick add and draws nothing there (no placeholder values).
 
 **Founder requirement (7.3 amendment).** Hydration appears in the approved Nutrition mockup and is a **mandatory** Phase 7.3 feature:
 
@@ -198,3 +198,29 @@ The mockup uses blue for hydration, outside the REFORGE ember palette. The propo
 - preset and custom adds with Undo;
 - edit and delete with confirm;
 - large text and 44 pt targets.
+
+## 11. Implementation (Phase 7.3C)
+
+| Area | Files |
+| --- | --- |
+| Domain | [hydration.ts](../../src/domain/hydration.ts): conversion (exact US fl oz), display, parsing, limits, totals, the day view. [types.ts](../../src/domain/types.ts): `hydration` kind; optional `waterGoal` / `fluidUnit`. [validation.ts](../../src/domain/validation.ts): hydration rule (no food keys; 1–5,000 mL; amount and unit together and consistent), profile fields (500–10,000 mL), **unknown-kind guard** |
+| Data | [repository.ts](../../src/data/repository.ts): stored records may carry a kind from a newer build (type only; no SQL or behaviour change for known kinds) |
+| UI | [HydrationSheet.tsx](../../src/components/nutrition/HydrationSheet.tsx) (sheet + `HydrationSettings`); `HydrationCard` in [nutrition/sections.tsx](../../src/screens/nutrition/sections.tsx); [Nutrition.tsx](../../src/screens/Nutrition.tsx); You → Hydration ([You.tsx](../../src/screens/You.tsx)); `hydration` / `hydrationTint` tokens ([theme.ts](../../src/theme.ts)); `ForgeProgress` `hydration` tone |
+| Tests | [hydration.test.ts](../../tests/hydration.test.ts) (9): conversions and round trips, display, input checks, H9, validation, **food totals, calorie goals, Quick add and the nutrition streak unchanged with water logged**, offline writes and queued sync and tombstones, backup round trip with an **unknown future kind kept and re-exported unchanged**, sync apply / delete / unknown kind kept / bad water refused. [hydration.test.tsx](../../tests/ui/hydration.test.tsx) (8): card states and no log on open, presets once per tap with Undo, custom amounts, fl oz, edit and delete, personal goal and the same goal in You, past day, compact / large text, wide-phone layout |
+
+**Unknown-kind guard (H7).** `journalSchema.kind` accepts any well-formed kind: lower-case letters, digits and hyphens, at most 40 characters. Known kinds keep their full per-kind validation. An unknown kind from a restore or a sync download is:
+
+- stored as recorded;
+- exported in backups unchanged;
+- never shown or counted by this build.
+
+Malformed kinds are still refused. Nothing is silently discarded.
+
+**Limits for older development builds.** Builds from before this change, including any Expo Go session still running older code, reject `hydration` records:
+
+- restoring a newer backup fails as a whole;
+- a sync download reports an error for the record.
+
+Update every development device before restoring or syncing data that contains water entries. No store build exists yet, so no released version is affected.
+
+**Layout (founder correction after iPhone review).** Hydration is its own compact, full-width card directly below the calorie hero and above the goal cards and meals, sized to its content. Quick add is its own full-width card after the meals. The earlier side-by-side pairing, which stretched the Hydration card and buried it below the meals, was removed.

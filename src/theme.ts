@@ -55,6 +55,10 @@ const dark = {
   // Faint top-light on cards and the ember glow behind the selected tab.
   sheen: "rgba(255,255,255,0.035)",
   emberGlow: "rgba(244,117,34,0.2)",
+  // Hydration only (Phase 7.3C, decision H5): a restrained blue for the
+  // water bar, drop and amounts, and a faint tint behind its controls.
+  hydration: "#5AAEF5",
+  hydrationTint: "#0D1A26",
 } as const;
 
 const light = {
@@ -91,6 +95,8 @@ const light = {
   tabBar: "#FFFFFF",
   sheen: "rgba(255,255,255,0)",
   emberGlow: "rgba(194,65,12,0.11)",
+  hydration: "#1764B8",
+  hydrationTint: "#E9F2FC",
 } as const;
 
 export type Palette = {

@@ -150,7 +150,10 @@ export function BadgePill({
   );
 }
 
-/** Thin progress bar: ember for the measured goal, neutral for context. */
+/**
+ * Thin progress bar: ember for the measured goal, neutral for context,
+ * hydration blue for water (Phase 7.3C).
+ */
 export function ForgeProgress({
   value,
   label,
@@ -159,7 +162,7 @@ export function ForgeProgress({
 }: {
   value: number;
   label: string;
-  tone?: "accent" | "neutral";
+  tone?: "accent" | "neutral" | "hydration";
   height?: number;
 }) {
   const c = useColors();
@@ -199,7 +202,12 @@ export function ForgeProgress({
           {
             height,
             borderRadius: height / 2,
-            backgroundColor: tone === "accent" ? c.emberHot : c.text2,
+            backgroundColor:
+              tone === "accent"
+                ? c.emberHot
+                : tone === "hydration"
+                  ? c.hydration
+                  : c.text2,
           },
           fill,
         ]}

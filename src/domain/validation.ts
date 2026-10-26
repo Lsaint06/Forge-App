@@ -4,6 +4,13 @@ import {
   enrollmentDataSchema,
   programSessionLogSchema,
 } from "./programs/enrollment";
+import {
+  MAX_ENTRY_ML,
+  MAX_GOAL_ML,
+  MIN_ENTRY_ML,
+  MIN_GOAL_ML,
+  toMl,
+} from "./hydration";
 const nonnegative = z.number().finite().min(0);
 export const profileSchema = z
   .object({
@@ -30,6 +37,8 @@ export const profileSchema = z
     protein: nonnegative.max(2000),
     carbs: nonnegative.max(3000),
     fat: nonnegative.max(2000),
+    waterGoal: z.number().finite().min(MIN_GOAL_ML).max(MAX_GOAL_ML).optional(),
+    fluidUnit: z.enum(["ml", "oz"]).optional(),
   })
   .refine((p) => p.repMin <= p.repMax, {
     message: "Minimum reps must not exceed maximum reps",
@@ -109,17 +118,27 @@ export const templateSchema = z.object({
   exercises: z.array(prescriptionSchema).max(100),
   updatedAt: nonnegative,
 });
+/** Journal kinds this build understands (Phase 7.3C adds `hydration`). */
+export const journalKinds = [
+  "measurement",
+  "nutrition",
+  "recovery",
+  "goal",
+  "food",
+  "schedule",
+  "program",
+  "hydration",
+] as const;
+export const isKnownJournalKind = (kind: string) =>
+  (journalKinds as readonly string[]).includes(kind);
 export const journalSchema = z.object({
   id: z.string().min(1),
-  kind: z.enum([
-    "measurement",
-    "nutrition",
-    "recovery",
-    "goal",
-    "food",
-    "schedule",
-    "program",
-  ]),
+  // Phase 7.3C (H7): a kind this build doesn't know, written by a newer
+  // FORGE, is kept exactly as recorded rather than rejected or discarded
+  // (restores and sync downloads store it, backups export it unchanged).
+  // Only its shape is checked; known kinds keep their full rules in
+  // validateJournal.
+  kind: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/),
   date: z.iso.date(),
   data: z.record(
     z.string(),
@@ -162,6 +181,21 @@ export function validateJournal(
     z.string().trim().min(1).parse(data.name);
     for (const k of ["calories", "protein", "carbs", "fat"]) n(k, 20000);
     n("quantity", 1000, 0.01);
+  }
+  if (kind === "hydration") {
+    // Water is never food: it carries no energy or macros (decision H1).
+    for (const k of ["calories", "protein", "carbs", "fat", "quantity"])
+      if (k in data) throw new Error("Hydration records carry no food values");
+    n("ml", MAX_ENTRY_ML, MIN_ENTRY_ML);
+    if ("amount" in data !== "unit" in data)
+      throw new Error("A hydration amount needs its unit");
+    if ("unit" in data) {
+      const unit = z.enum(["ml", "oz"]).parse(data.unit);
+      const amount = n("amount", 1_000_000, 0);
+      // The canonical millilitres must be the amount as typed.
+      if (Math.abs(toMl(amount, unit) - Number(data.ml)) > 0.01)
+        throw new Error("Hydration amount and millilitres disagree");
+    }
   }
   if (kind === "measurement") {
     z.string().trim().min(1).parse(data.name);

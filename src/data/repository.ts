@@ -729,7 +729,9 @@ export class Repository {
         updatedAt: j.updated_at,
       }));
   }
-  private putJournal(j: Journal) {
+  // Restores and sync downloads may carry a kind written by a newer FORGE;
+  // it is stored as recorded (Phase 7.3C, H7). App code only adds known kinds.
+  private putJournal(j: Omit<Journal, "kind"> & { kind: string }) {
     journalSchema.parse(j);
     validateJournal(j.kind, j.data);
     this.db.run(
