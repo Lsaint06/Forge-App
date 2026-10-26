@@ -16,7 +16,13 @@
     "test:ui": "jest --runInBand",
     "programs:publish": "tsx scripts/publish-programs.ts",
     "food-library:build": "tsx scripts/food-library/build.ts",
-    "food-library:check": "tsx scripts/food-library/build.ts --offline --check"
+    "food-library:check": "tsx scripts/food-library/build.ts --offline --check",
+    "branded:build": "tsx scripts/branded-catalog/build.ts",
+    "branded:check": "tsx scripts/branded-catalog/build.ts --check",
+    "branded:ensure": "tsx scripts/branded-catalog/build.ts --ensure",
+    "prestart": "npm run branded:ensure",
+    "preexport": "npm run branded:ensure",
+    "eas-build-post-install": "npm run branded:ensure"
   },
   "dependencies": {
     "@expo/metro-runtime": "~58.0.15",

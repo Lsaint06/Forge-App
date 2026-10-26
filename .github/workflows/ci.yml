@@ -21,6 +21,14 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit
+      # The branded-food catalogue is generated from the pinned USDA release
+      # (204 MB download, verified by SHA-256), never committed. The archive
+      # is cached between runs; see scripts/branded-catalog.
+      - uses: actions/cache@v4
+        with:
+          path: .cache/branded-catalog
+          key: usda-branded-${{ hashFiles('scripts/branded-catalog/sources.json') }}
+      - run: npm run branded:ensure
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run format:check

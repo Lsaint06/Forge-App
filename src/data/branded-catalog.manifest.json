@@ -1,0 +1,28 @@
+{
+  "generatedBy": "scripts/branded-catalog/build.ts",
+  "schema": 3,
+  "release": "2026-04-30",
+  "catalog": "usda-branded-2026-04-30",
+  "file": "usda-branded-2026-04-30.db",
+  "contentSha256": "73f6a877ff592b7735e77ec5f293304352d8929c83b69b9d09cf9d603708ad9e",
+  "products": 404982,
+  "barcodes": 395354,
+  "brands": 35999,
+  "categories": 249,
+  "perHundredMl": 54030,
+  "source": {
+    "release": "2026-04-30",
+    "label": "USDA FoodData Central, Global Branded Food Products Database",
+    "url": "https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_branded_food_json_2026-04-30.zip",
+    "bytes": 204270542,
+    "sha256": "57b0f122e61cf2840f03c11e9520275d0d2018dc036e16273fcd3cd370db2256",
+    "attribution": "U.S. Department of Agriculture, Agricultural Research Service. FoodData Central: USDA Global Branded Food Products Database. fdc.nal.usda.gov. Public-domain data (CC0 1.0). Selected by FORGE; USDA does not endorse this app.",
+    "records": 455458
+  },
+  "reference": {
+    "bytes": 62058496,
+    "sha256": "5b7120a6d2fec1d28503ad21d60acd7a89496046b07b11ea8191dd309a9b8158",
+    "sqlite": "3.53.4",
+    "node": "24.22.0"
+  }
+}

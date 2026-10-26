@@ -52,22 +52,32 @@ import {
 } from "../../domain/nutrition";
 import {
   DEFAULT_GRAMS,
+  DEFAULT_ML,
   MAX_COUNT,
   MAX_GRAMS,
+  MAX_ML,
   MIN_COUNT,
   MIN_GRAMS,
+  MIN_ML,
+  amountText,
+  basisOf,
   choiceError,
   entryFromLibrary,
+  portionAmount,
   searchLibrary,
-  totalGrams,
-  valuesForGrams,
+  totalAmount,
+  valuesForAmount,
   type LibraryFood,
   type PortionChoice,
 } from "../../domain/food-library";
 import { tryLoadFoodLibrary } from "../../data/food-catalog";
+import { BRANDED_CATALOG, BRANDED_RELEASE } from "../../data/branded-catalog";
+import { isBrandedId } from "../../domain/branded";
+import { useBrandedSearch } from "./useBrandedSearch";
 import { dayTitle } from "../../domain/calendar-dates";
 import { forge, theme } from "../../theme";
 import {
+  brandedResult,
   choicePortion,
   choiceResult,
   libraryResult,
@@ -89,13 +99,18 @@ type Step =
 /** Library results are shown this many at a time. */
 const PAGE = 30;
 
+/** A label serving, then the food's own unit: what a branded food opens with. */
+const LABEL_SERVING: PortionChoice = { kind: "portion", index: 0, count: 1 };
+
 /**
  * Adding food to a day: recent and saved foods first, then the built-in
- * USDA food library, all searched together. + logs a food at its usual
- * servings (a library food at 100 g) into the chosen meal, and Undo takes it
- * back; tapping a food first lets the amount and meal be adjusted; Create
- * food logs a new one from its label. Everything happens inside this one
- * sheet, so iOS never has to stack another sheet on it. Mount it when needed.
+ * USDA food library, then branded products from the bundled USDA Branded
+ * Foods catalogue, all searched together. + logs a food at its usual
+ * servings (a library food at 100 g, a branded product at its label serving)
+ * into the chosen meal, and Undo takes it back; tapping a food first lets
+ * the amount and meal be adjusted; Create food logs a new one from its
+ * label. Everything happens inside this one sheet, so iOS never has to
+ * stack another sheet on it. Mount it when needed.
  */
 export function QuickAddSheet({
   day,
@@ -140,6 +155,13 @@ export function QuickAddSheet({
     [library, searched],
   );
   const [shown, setShown] = useState(PAGE);
+  // Branded products: searched on SQLite's thread once the query settles.
+  const {
+    results: branded,
+    more: moreBranded,
+    retry: retryBranded,
+    pending: brandedPending,
+  } = useBrandedSearch(searched);
   // While typing, the day and meal shrink to one line (none on short
   // screens) so more foods fit above the keyboard.
   const [typing, setTyping] = useState(false);
@@ -194,11 +216,15 @@ export function QuickAddSheet({
       guard,
     );
   }
+  /** The catalogue version a library or branded food is logged from. */
+  const catalogOf = (food: LibraryFood) =>
+    isBrandedId(food.id) ? BRANDED_CATALOG : library?.version;
   function logLibrary(food: LibraryFood, choice: PortionChoice, guard: string) {
-    if (!library || choiceError(food, choice)) return false;
+    const catalogVersion = catalogOf(food);
+    if (!catalogVersion || choiceError(food, choice)) return false;
     return logData(
       `lib:${food.id}`,
-      entryFromLibrary(food, choice, library.version, meal),
+      entryFromLibrary(food, choice, catalogVersion, meal),
       food.name,
       guard,
     );
@@ -221,8 +247,10 @@ export function QuickAddSheet({
   }
   /** Saves the chosen portion of a library food as the lifter's own food. */
   function saveCopy(food: LibraryFood, choice: PortionChoice, guard: string) {
-    if (!library || step.kind !== "library" || busy.current.has(guard)) return;
-    const data = foodFromEntry(entryFromLibrary(food, choice, library.version));
+    const catalogVersion = catalogOf(food);
+    if (!catalogVersion || step.kind !== "library" || busy.current.has(guard))
+      return;
+    const data = foodFromEntry(entryFromLibrary(food, choice, catalogVersion));
     if (isDuplicateFood(r.journal("food"), data)) {
       setStep({ ...step, note: "Already in your saved foods" });
       return;
@@ -366,16 +394,22 @@ export function QuickAddSheet({
     );
   }
 
-  if (step.kind === "library" && library) {
+  if (step.kind === "library" && (library || isBrandedId(step.food.id))) {
     const { food, choice } = step;
+    const brandedFood = isBrandedId(food.id);
+    const unit = basisOf(food);
+    const unitWord = unit === "ml" ? "Millilitres" : "Grams";
     const error = choiceError(food, choice);
-    const grams = totalGrams(food, choice);
-    const v = valuesForGrams(food, Number.isFinite(grams) ? grams : 0);
+    const total = totalAmount(food, choice);
+    const v = valuesForAmount(food, Number.isFinite(total) ? total : 0);
     const units = [
-      "Grams",
-      ...food.portions.map((p) => `${p.label} · ${amount(p.grams)} g`),
+      unitWord,
+      ...food.portions.map(
+        (p) => `${p.label} · ${amountText(portionAmount(p), unit)}`,
+      ),
     ];
-    const unit = choice.kind === "grams" ? "Grams" : units[choice.index + 1]!;
+    const chosen =
+      choice.kind === "portion" ? units[choice.index + 1]! : unitWord;
     const setChoice = (next: PortionChoice) =>
       setStep({ ...step, choice: next, note: undefined });
     const fdcId = food.id.split(":")[1];
@@ -404,35 +438,45 @@ export function QuickAddSheet({
       >
         <View style={{ gap: forge.spacing.cardGap }}>
           <View style={{ gap: 4 }}>
+            {food.brand && (
+              <FText variant="label" weight="700" tone="secondary">
+                {food.brand}
+              </FText>
+            )}
             {(food.description !== food.name || food.name.length > 48) && (
               <FText variant="label" tone="secondary">
                 {`USDA: ${food.description}`}
               </FText>
             )}
             <FText variant="label" tone="secondary">
-              {`Per 100 g: ${kcalText(food.kcal)} · P ${amount(food.protein)} g · C ${amount(food.carbs)} g · F ${amount(food.fat)} g`}
+              {`Per 100 ${unit}: ${kcalText(food.kcal)} · P ${amount(food.protein)} g · C ${amount(food.carbs)} g · F ${amount(food.fat)} g`}
             </FText>
           </View>
           <Section title="Portion">
             <ForgeChips
               values={units}
-              value={unit}
+              value={chosen}
               onChange={(u) => {
                 const i = units.indexOf(u);
                 setChoice(
-                  i <= 0
+                  i > 0
                     ? {
-                        kind: "grams",
-                        grams:
-                          choice.kind === "grams"
-                            ? choice.grams
-                            : DEFAULT_GRAMS,
-                      }
-                    : {
                         kind: "portion",
                         index: i - 1,
                         count: choice.kind === "portion" ? choice.count : 1,
-                      },
+                      }
+                    : unit === "ml"
+                      ? {
+                          kind: "ml",
+                          ml: choice.kind === "ml" ? choice.ml : DEFAULT_ML,
+                        }
+                      : {
+                          kind: "grams",
+                          grams:
+                            choice.kind === "grams"
+                              ? choice.grams
+                              : DEFAULT_GRAMS,
+                        },
                 );
               }}
             />
@@ -447,6 +491,18 @@ export function QuickAddSheet({
                 max={MAX_GRAMS}
                 unit="grams"
                 onChange={(g) => setChoice({ kind: "grams", grams: g })}
+              />
+            ) : choice.kind === "ml" ? (
+              <ForgeStepper
+                key="ml"
+                label="Millilitres"
+                value={choice.ml}
+                step={10}
+                min={MIN_ML}
+                floor={10}
+                max={MAX_ML}
+                unit="millilitres"
+                onChange={(ml) => setChoice({ kind: "ml", ml })}
               />
             ) : (
               <ForgeStepper
@@ -463,12 +519,14 @@ export function QuickAddSheet({
             )}
           </Section>
           <ValuesCard
-            heading={error ? "Check the amount" : `For ${amount(grams)} g`}
+            heading={
+              error ? "Check the amount" : `For ${amountText(total, unit)}`
+            }
             calories={v.calories}
             protein={v.protein}
             carbs={v.carbs}
             fat={v.fat}
-            detail={error ?? `${amount(grams)} g`}
+            detail={error ?? amountText(total, unit)}
             error={!!error}
           />
           <Section title="Meal">
@@ -512,7 +570,9 @@ export function QuickAddSheet({
           </Pressable>
           <View style={{ gap: 2 }}>
             <FText variant="label" tone="secondary">
-              {`Source: USDA FoodData Central, ${library.releases[food.id.split(":")[0]!] ?? "FoodData Central"}, FDC ${fdcId}. Public-domain data; values per 100 g as published.`}
+              {brandedFood
+                ? `Source: USDA FoodData Central, Branded Foods (${BRANDED_RELEASE}), FDC ${fdcId}${food.barcode ? `, barcode ${food.barcode}` : ""}. Manufacturer label data, values per 100 ${unit}; public domain. USDA does not endorse FORGE.`
+                : `Source: USDA FoodData Central, ${library?.releases[food.id.split(":")[0]!] ?? "FoodData Central"}, FDC ${fdcId}. Public-domain data; values per 100 g as published.`}
             </FText>
             <View style={{ alignItems: "flex-start", marginLeft: -8 }}>
               <TextButton
@@ -609,11 +669,13 @@ export function QuickAddSheet({
     );
 
   type Item =
-    | { type: "header"; title: string; count?: number }
-    | { type: "note"; text: string; retry?: boolean }
+    | { type: "header"; title: string; count?: number; countText?: string }
+    | { type: "note"; text: string; retry?: boolean; retryBranded?: boolean }
     | { type: "food"; food: FoodChoice }
     | { type: "library"; food: LibraryFood }
-    | { type: "more"; remaining: number };
+    | { type: "branded"; food: LibraryFood }
+    | { type: "more"; remaining: number }
+    | { type: "more-branded" };
   const libraryItems: Item[] = !library
     ? [
         {
@@ -642,6 +704,32 @@ export function QuickAddSheet({
             : []),
         ]
       : [];
+  // Branded products follow the lifter's own foods and the common foods.
+  const brandedItems: Item[] =
+    !searched || branded.query !== searched
+      ? []
+      : branded.status === "error"
+        ? [
+            {
+              type: "note",
+              text: branded.error ?? "",
+              retryBranded: true,
+            },
+          ]
+        : branded.foods.length
+          ? [
+              {
+                type: "header",
+                title: "Brands · USDA Branded",
+                countText: `${branded.broad ? "1,000+" : branded.total.toLocaleString()} ${branded.total === 1 ? "product" : "products"}`,
+              },
+              ...branded.foods.map((food) => ({
+                type: "branded" as const,
+                food,
+              })),
+              ...(branded.more ? [{ type: "more-branded" as const }] : []),
+            ]
+          : [];
   const items: Item[] = [
     ...(!query.trim() && !recent.length && !saved.length
       ? [
@@ -660,9 +748,16 @@ export function QuickAddSheet({
       : []),
     ...saved.map((food) => ({ type: "food" as const, food })),
     ...libraryItems,
+    ...brandedItems,
   ];
+  // "No matches" waits for the branded search, so it never flashes first.
   const nothingFound =
-    !!query.trim() && !recent.length && !saved.length && !libraryItems.length;
+    !!query.trim() &&
+    !recent.length &&
+    !saved.length &&
+    !libraryItems.length &&
+    !brandedItems.length &&
+    !brandedPending;
   // Pinned below the list; while typing it moves to the end of the list so
   // results fit above the keyboard on small phones.
   const createButton = (
@@ -721,6 +816,7 @@ export function QuickAddSheet({
         }
       >
         <FlatList
+          testID="food-results"
           ListHeaderComponent={
             roomy ? (
               <View style={{ paddingBottom: theme.spacing.sm }}>
@@ -734,7 +830,7 @@ export function QuickAddSheet({
               ? `h:${item.title}`
               : item.type === "food"
                 ? `${item.food.source}:${item.food.key}`
-                : item.type === "library"
+                : item.type === "library" || item.type === "branded"
                   ? `lib:${item.food.id}`
                   : `${item.type}:${i}`
           }
@@ -753,14 +849,22 @@ export function QuickAddSheet({
             ) : undefined
           }
           ListEmptyComponent={
-            <View style={{ paddingVertical: forge.spacing.cardGap, gap: 6 }}>
-              <FText variant="cardTitle" weight="700">
-                No matches
-              </FText>
-              <FText variant="body" tone="secondary">
-                {`No foods match “${query.trim()}”. Check the spelling, try fewer words, or create it from its label below.`}
-              </FText>
-            </View>
+            nothingFound ? (
+              <View style={{ paddingVertical: forge.spacing.cardGap, gap: 6 }}>
+                <FText variant="cardTitle" weight="700">
+                  No matches
+                </FText>
+                <FText variant="body" tone="secondary">
+                  {`No foods match “${query.trim()}”. Check the spelling, try fewer words, or create it from its label below.`}
+                </FText>
+              </View>
+            ) : brandedPending && query.trim() ? (
+              <View style={{ paddingVertical: forge.spacing.cardGap }}>
+                <FText variant="label" tone="secondary">
+                  Searching branded foods…
+                </FText>
+              </View>
+            ) : undefined
           }
           renderItem={({ item }) => {
             if (item.type === "header")
@@ -786,6 +890,11 @@ export function QuickAddSheet({
                       {`${item.count.toLocaleString()} ${item.count === 1 ? "food" : "foods"}`}
                     </FText>
                   )}
+                  {item.countText !== undefined && (
+                    <FText variant="label" tone="secondary">
+                      {item.countText}
+                    </FText>
+                  )}
                 </View>
               );
             if (item.type === "note")
@@ -803,6 +912,15 @@ export function QuickAddSheet({
                       />
                     </View>
                   )}
+                  {item.retryBranded && (
+                    <View style={{ alignItems: "flex-start", marginLeft: -8 }}>
+                      <TextButton
+                        title="Try again"
+                        accessibilityLabel="Try loading branded foods again"
+                        onPress={retryBranded}
+                      />
+                    </View>
+                  )}
                 </View>
               );
             if (item.type === "more")
@@ -815,6 +933,38 @@ export function QuickAddSheet({
                   />
                 </View>
               );
+            if (item.type === "more-branded")
+              return (
+                <View style={{ alignItems: "center", paddingVertical: 4 }}>
+                  <TextButton
+                    title="Show more products"
+                    accessibilityLabel="Show more branded products"
+                    onPress={moreBranded}
+                  />
+                </View>
+              );
+            if (item.type === "branded") {
+              const food = item.food;
+              const result = brandedResult(food);
+              return (
+                <ResultRow
+                  result={result}
+                  added={!!added[result.key]}
+                  onAdd={() =>
+                    logLibrary(food, LABEL_SERVING, `quick:${result.key}`)
+                  }
+                  onUndo={() => undo(result.key, food.name)}
+                  onOpen={() =>
+                    setStep({
+                      kind: "library",
+                      food,
+                      choice: LABEL_SERVING,
+                      opened: ++opens.current,
+                    })
+                  }
+                />
+              );
+            }
             if (item.type === "library") {
               const food = item.food;
               const result = libraryResult(food);

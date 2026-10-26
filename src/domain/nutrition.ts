@@ -147,34 +147,44 @@ export type FoodChoice = {
 };
 
 /**
- * Provenance of a food logged from the built-in library: its catalog ID and
- * version, the edible grams of one serving, and whether the values were
- * edited since. Only well-formed keys are read; anything else is ignored.
+ * Provenance of a food logged from the built-in library or the branded
+ * catalogue: its catalog ID and version, the amount of one serving (grams,
+ * or millilitres for a product measured per 100 ml), the brand and barcode
+ * of a branded product, and whether the values were edited since. Only
+ * well-formed keys are read; anything else is ignored.
  */
 export type SourceMeta = {
   sourceId?: string;
   sourceCatalog?: string;
   sourceGrams?: number;
+  sourceMl?: number;
+  sourceBarcode?: string;
+  sourceBrand?: string;
   sourceEdited?: boolean;
 };
+const positive = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v) && v > 0;
 export function sourceMeta(data: NutritionData): SourceMeta | undefined {
   if (typeof data.sourceId !== "string" || !data.sourceId) return undefined;
   const meta: SourceMeta = { sourceId: data.sourceId };
   if (typeof data.sourceCatalog === "string")
     meta.sourceCatalog = data.sourceCatalog;
+  if (positive(data.sourceGrams)) meta.sourceGrams = data.sourceGrams;
+  if (positive(data.sourceMl)) meta.sourceMl = data.sourceMl;
   if (
-    typeof data.sourceGrams === "number" &&
-    Number.isFinite(data.sourceGrams) &&
-    data.sourceGrams > 0
+    typeof data.sourceBarcode === "string" &&
+    /^\d{14}$/.test(data.sourceBarcode)
   )
-    meta.sourceGrams = data.sourceGrams;
+    meta.sourceBarcode = data.sourceBarcode;
+  if (typeof data.sourceBrand === "string" && data.sourceBrand.trim())
+    meta.sourceBrand = data.sourceBrand;
   if (data.sourceEdited === true) meta.sourceEdited = true;
   return meta;
 }
 
 /**
  * Provenance after an edit: changed values mark the food as edited (it is no
- * longer the library's values), and a changed serving drops the weight that
+ * longer the library's values), and a changed serving drops the amount that
  * described the old one. Records without provenance are returned unchanged.
  */
 export function withSourceEdits(
@@ -185,7 +195,10 @@ export function withSourceEdits(
   const next = { ...merged };
   if (["name", "calories", "protein", "carbs", "fat"].some((k) => k in changes))
     next.sourceEdited = true;
-  if ("serving" in changes) delete next.sourceGrams;
+  if ("serving" in changes) {
+    delete next.sourceGrams;
+    delete next.sourceMl;
+  }
   return next;
 }
 
@@ -194,9 +207,12 @@ const norm = (v: unknown) =>
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
-/** Identity of a food: its name, serving and per-serving values. */
+/**
+ * Identity of a food: its name, serving and per-serving values, and its
+ * brand when it has one (two brands' products can share a name and values).
+ */
 export function foodKey(data: NutritionData) {
-  return [
+  const key = [
     norm(data.name),
     norm(data.serving),
     num(data.calories),
@@ -204,6 +220,9 @@ export function foodKey(data: NutritionData) {
     num(data.carbs),
     num(data.fat),
   ].join("|");
+  const brand =
+    typeof data.sourceBrand === "string" ? norm(data.sourceBrand) : "";
+  return brand ? `${key}|${brand}` : key;
 }
 /** Whether a food with the same name, serving and values is already saved. */
 export const isDuplicateFood = (foods: Journal[], data: NutritionData) =>
@@ -239,13 +258,15 @@ export function foodChoices(
   recentLimit = 8,
 ) {
   const q = norm(query);
-  // Every word typed must start a word of the name or serving, in any order:
-  // "oats dry" finds "Oats, … dry", and "cooked" never finds "uncooked".
+  // Every word typed must start a word of the name, serving or brand, in
+  // any order: "oats dry" finds "Oats, … dry", and "cooked" never finds
+  // "uncooked".
   const words = q.split(/[^a-z0-9]+/).filter(Boolean);
   const matches = (c: FoodChoice) => {
-    const text = `${norm(c.name)} ${norm(c.serving)}`
-      .split(/[^a-z0-9]+/)
-      .filter(Boolean);
+    const text =
+      `${norm(c.name)} ${norm(c.serving)} ${norm(c.meta?.sourceBrand)}`
+        .split(/[^a-z0-9]+/)
+        .filter(Boolean);
     return words.every((w) => text.some((t) => t.startsWith(w)));
   };
   const seen = new Set<string>();

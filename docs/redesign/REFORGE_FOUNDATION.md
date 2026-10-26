@@ -338,3 +338,16 @@ The Add food sheet ([QuickAddSheet.tsx](../../src/components/nutrition/QuickAddS
 | States | First use explains; zero results: "No matches" with **Create**; library error with **Try again** |
 
 New REFORGE primitives in [reforge/Field.tsx](../../src/components/reforge/Field.tsx): `ForgeField`, `ForgeNumberField`, `ForgeStepper`, `ForgeChips`. They behave exactly like the 2.0 controls, which remain for other screens.
+
+## Branded foods (Phase 7.3E)
+
+Branded products from the bundled USDA Branded Foods catalogue (about 405,000 products, offline) extend the 7.3D Add food sheet without a new screen. Architecture and measurements: [PHASE_7_3E_BRANDED_FOOD_ARCHITECTURE.md](../audits/PHASE_7_3E_BRANDED_FOOD_ARCHITECTURE.md) §0.
+
+| Part | Presentation |
+| --- | --- |
+| Order | Recent / Eaten before → Saved foods → Common foods or Food library · USDA → **Brands · USDA Branded** (with "N products" or "1,000+ products") |
+| Branded row | Product name as published (two lines); **brand line**; "label serving · kcal" (for example "1 BAR (60 g) · 210 kcal"); "USDA Branded" pill; 44 pt ember **+** logs one label serving, then "✓ Added · Undo" |
+| Paging | 30 at a time, then **Show more products**; "Searching branded foods…" while a search runs; "No matches" only once the search has answered |
+| Selected product | The 7.3D selected-food step: brand line; "Per 100 g" or "Per 100 ml"; portion chips **Grams** or **Millilitres** plus the label serving; values card "For 110 ml"; meal, "Logs to …", **Add to *meal***; source line with release, FDC ID and barcode |
+| Failure | "Branded foods couldn't be opened. Your logs are safe; try again." with **Try again**; the rest of the sheet keeps working |
+| Reopened entry | "FAIRLIFE · From USDA Branded Foods · FDC … · 1 serving = 110 ml · barcode …" |

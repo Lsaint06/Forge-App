@@ -4,7 +4,15 @@ import {
   kcalText,
   type FoodChoice,
 } from "../../domain/nutrition";
-import type { LibraryFood } from "../../domain/food-library";
+import {
+  amountText,
+  basisOf,
+  portionAmount,
+  portionLabel,
+  valuesForAmount,
+  type LibraryFood,
+} from "../../domain/food-library";
+import { isBrandedId } from "../../domain/branded";
 
 // Food discovery results (Phase 7.3D): one presentation shape for every
 // source, so rows never assume a food is generic. Today's sources are the
@@ -13,7 +21,7 @@ import type { LibraryFood } from "../../domain/food-library";
 // changing the rows. Fields are filled only from data a source really has:
 // nothing (brand, barcode, completeness) is inferred or invented.
 
-export type ResultSource = "recent" | "saved" | "library";
+export type ResultSource = "recent" | "saved" | "library" | "branded";
 
 export type FoodResult = {
   /** Stable list key, unique across sources. */
@@ -51,16 +59,20 @@ export const choicePortion = (f: Pick<FoodChoice, "quantity" | "serving">) =>
 export function choiceResult(food: FoodChoice): FoodResult {
   const portion = choicePortion(food);
   const kcal = kcalText(food.calories * food.quantity);
+  const branded = isBrandedId(food.meta?.sourceId);
   return {
     key: `${food.source}:${food.key}`,
     source: food.source,
     title: food.name,
+    ...(food.meta?.sourceBrand ? { brand: food.meta.sourceBrand } : {}),
     detail: `${portion} · ${kcal}`,
-    // Logged from the library before: still a USDA value.
+    // Logged from the library or branded catalogue before: still USDA values.
     provenance: food.meta?.sourceId
       ? food.meta.sourceEdited
         ? "Based on USDA"
-        : "USDA"
+        : branded
+          ? "USDA Branded"
+          : "USDA"
       : undefined,
     label: `${food.name}, ${portion}, ${kcal}`,
     addLabel: `Add ${food.name}`,
@@ -82,5 +94,33 @@ export function libraryResult(food: LibraryFood): FoodResult {
     addLabel: `Add 100 g of ${food.name}`,
     undoLabel: `Undo adding ${food.name}`,
     hint: "Choose a portion and meal before adding",
+  };
+}
+
+/**
+ * A branded product from the bundled USDA Branded Foods catalogue, at its
+ * label serving: what + logs. Brand and barcode are the product's own.
+ */
+export function brandedResult(food: LibraryFood): FoodResult {
+  const serving = food.portions[0];
+  const unit = basisOf(food);
+  const portion = serving ? portionLabel(serving) : amountText(100, unit);
+  const kcal = kcalText(
+    valuesForAmount(food, serving ? portionAmount(serving) : 100).calories,
+  );
+  const brand = food.brand ?? "";
+  return {
+    // The same key the sheet logs under, so Added and Undo find it.
+    key: `lib:${food.id}`,
+    source: "branded",
+    title: food.name,
+    ...(brand ? { brand } : {}),
+    ...(food.barcode ? { barcode: food.barcode } : {}),
+    detail: `${portion} · ${kcal}`,
+    provenance: "USDA Branded",
+    label: `${food.name}${brand ? `, ${brand}` : ""}, ${portion}, ${kcal}`,
+    addLabel: `Add ${portion} of ${food.name}`,
+    undoLabel: `Undo adding ${food.name}`,
+    hint: "Choose an amount and meal before adding",
   };
 }

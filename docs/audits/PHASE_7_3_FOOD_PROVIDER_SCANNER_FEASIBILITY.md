@@ -2,6 +2,8 @@
 
 **Status:** research only, for founder review. **No provider or scanner integration is authorized.** Nothing in the app, data or dependencies was changed.
 
+> **Correction (Phase 7.3E, 2026-10-26):** measured on the actual 2026-04-30 release, USDA Branded Foods holds **455,458 products** (the latest version of each), not "~1.5–2 M". About **405,000** pass the proposed quality rules. Bulk releases have been irregular (2025-04-24, 2025-12-18, 2026-04-30) rather than strictly April and October. See [PHASE_7_3E_BRANDED_FOOD_ARCHITECTURE.md](PHASE_7_3E_BRANDED_FOOD_ARCHITECTURE.md).
+
 **Gate for:** 7.3E (branded foods) and 7.3F (barcode scanning). See [PHASE_7_3A_REFORGE_NUTRITION_ARCHITECTURE.md](PHASE_7_3A_REFORGE_NUTRITION_ARCHITECTURE.md) §7 and §10.
 
 **Method:**

@@ -150,9 +150,11 @@ export function FoodEditorSheet({
 }
 
 /**
- * Where a library food's values came from, and the weight eaten, so a
- * reopened entry reads plainly ("USDA FNDDS · FDC 2707154 · 2 × 50 g =
- * 100 g"). Edited values are labelled as based on, not from, USDA.
+ * Where a library or branded food's values came from, and the amount eaten,
+ * so a reopened entry reads plainly ("USDA FNDDS · FDC 2707154 · 2 × 50 g =
+ * 100 g", or "QUEST · USDA Branded Foods · FDC 2758974 · 1 serving = 60 g ·
+ * barcode 00888849000708"). Edited values are labelled as based on, not
+ * from, USDA.
  */
 function SourceNote({
   data,
@@ -163,14 +165,16 @@ function SourceNote({
 }) {
   const meta = data && sourceMeta(data);
   if (!meta?.sourceId) return null;
-  const weight = meta.sourceGrams
+  const per = meta.sourceGrams ?? meta.sourceMl;
+  const unit = meta.sourceMl !== undefined && !meta.sourceGrams ? "ml" : "g";
+  const weight = per
     ? quantity === 1
-      ? ` · 1 serving = ${amount(meta.sourceGrams)} g`
-      : ` · ${amount(quantity)} × ${amount(meta.sourceGrams)} g = ${amount(meta.sourceGrams * quantity)} g`
+      ? ` · 1 serving = ${amount(per)} ${unit}`
+      : ` · ${amount(quantity)} × ${amount(per)} ${unit} = ${amount(per * quantity)} ${unit}`
     : "";
   return (
     <FText variant="label" tone="secondary">
-      {`${meta.sourceEdited ? "Based on " : "From "}${sourceLabel(meta.sourceId)}${meta.sourceEdited ? " (values edited)" : ""}${weight}`}
+      {`${meta.sourceBrand ? `${meta.sourceBrand} · ` : ""}${meta.sourceEdited ? "Based on " : "From "}${sourceLabel(meta.sourceId)}${meta.sourceEdited ? " (values edited)" : ""}${weight}${meta.sourceBarcode ? ` · barcode ${meta.sourceBarcode}` : ""}`}
     </FText>
   );
 }

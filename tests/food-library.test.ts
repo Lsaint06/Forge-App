@@ -658,7 +658,9 @@ test("every catalog food has complete, finite, non-negative values per 100 g and
     for (const v of [f.kcal, f.protein, f.carbs, f.fat])
       assert.ok(Number.isFinite(v) && v >= 0, f.id);
     assert.ok(f.protein + f.carbs + f.fat <= 101, f.id);
-    for (const p of f.portions) assert.ok(p.grams > 0 && p.grams <= 5000, f.id);
+    // Generic library portions are always weights (never millilitres).
+    for (const p of f.portions)
+      assert.ok(p.grams !== undefined && p.grams > 0 && p.grams <= 5000, f.id);
   }
   assert.deepEqual(
     lib.featured.map((f) => f.id),

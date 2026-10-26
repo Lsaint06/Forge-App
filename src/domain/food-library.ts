@@ -5,8 +5,23 @@ import type { NutritionData } from "./nutrition";
 // per 100 g edible portion, exactly as published. Logging a library food
 // stores an independent snapshot of the chosen portion in the journal, so
 // history never depends on the catalog (see the WP4A.1 plan).
+//
+// Phase 7.3E adds branded products from the bundled USDA Branded Foods
+// catalogue through the same types and functions. A branded product may be
+// measured per 100 ml instead of per 100 g; its amounts are then always in
+// millilitres. Grams and millilitres are never converted into each other.
 
-export type LibraryPortion = { label: string; grams: number };
+/** What a food's values are measured per 100 of. */
+export type NutrientBasis = "g" | "ml";
+
+/**
+ * A documented household portion and its amount in the food's own unit:
+ * grams for the generic library and per-100 g products, millilitres for
+ * per-100 ml products. Exactly one of grams and ml is set.
+ */
+export type LibraryPortion =
+  | { label: string; grams: number; ml?: undefined }
+  | { label: string; ml: number; grams?: undefined };
 export type LibraryFood = {
   /** Namespaced source identity, e.g. "fndds:2707154". Never a journal ID. */
   id: string;
@@ -14,7 +29,7 @@ export type LibraryFood = {
   /** The original USDA description. */
   description: string;
   family: string;
-  /** Per 100 g: kcal and grams. */
+  /** Per 100 g (or per 100 ml when basis is "ml"): kcal and grams. */
   kcal: number;
   protein: number;
   carbs: number;
@@ -22,6 +37,12 @@ export type LibraryFood = {
   portions: LibraryPortion[];
   /** Curation hint: everyday preparations rank higher among equals. */
   rank: number;
+  /** Absent for the generic library, which is always per 100 g. */
+  basis?: NutrientBasis;
+  /** Branded products only: the brand as published. */
+  brand?: string;
+  /** Branded products only, when the product has a valid barcode (GTIN-14). */
+  barcode?: string;
 };
 type Indexed = {
   food: LibraryFood;
@@ -61,6 +82,7 @@ export const FAMILY_LABELS: Record<string, string> = {
 const SOURCE_LABELS: Record<string, string> = {
   fndds: "USDA FNDDS",
   sr: "USDA SR Legacy",
+  "usda-branded": "USDA Branded Foods",
 };
 
 /** "USDA FNDDS · FDC 2707154" for a library food. */
@@ -309,15 +331,28 @@ export function searchLibrary(lib: FoodLibrary, query: string, limit = 200) {
 /** Typed grams: 0.1 g to 5 kg. */
 export const MIN_GRAMS = 0.1;
 export const MAX_GRAMS = 5000;
+/** Typed millilitres (foods measured per 100 ml): 0.1 ml to 5 l. */
+export const MIN_ML = 0.1;
+export const MAX_ML = 5000;
 /** Household portions: 0.01 to 100 of the documented portion. */
 export const MIN_COUNT = 0.01;
 export const MAX_COUNT = 100;
 /** The amount logged by + (and offered first): 100 g. */
 export const DEFAULT_GRAMS = 100;
+/** The millilitres offered first for a food measured per 100 ml. */
+export const DEFAULT_ML = 100;
 
 export type PortionChoice =
   | { kind: "grams"; grams: number }
+  | { kind: "ml"; ml: number }
   | { kind: "portion"; index: number; count: number };
+
+/** The unit a food is measured in: grams unless its source says millilitres. */
+export const basisOf = (food: Pick<LibraryFood, "basis">): NutrientBasis =>
+  food.basis ?? "g";
+
+/** A portion's amount, in the unit its food is measured in. */
+export const portionAmount = (p: LibraryPortion) => p.ml ?? p.grams;
 
 export type Values = {
   calories: number;
@@ -327,12 +362,14 @@ export type Values = {
 };
 
 /**
- * Values for an edible weight: value per 100 g × grams / 100. Only binary
- * floating-point noise is removed (to a millionth), so 0.28 × 150 / 100 is
- * stored as 0.42, not 0.42000000000000004; nothing meaningful is rounded.
+ * Values for an amount in the food's own unit: value per 100 × amount / 100
+ * (grams for foods per 100 g, millilitres for foods per 100 ml; never
+ * converted). Only binary floating-point noise is removed (to a millionth),
+ * so 0.28 × 150 / 100 is stored as 0.42, not 0.42000000000000004; nothing
+ * meaningful is rounded.
  */
-export function valuesForGrams(food: LibraryFood, grams: number): Values {
-  const at = (per100: number) => Math.round(per100 * grams * 1e4) / 1e6;
+export function valuesForAmount(food: LibraryFood, amount: number): Values {
+  const at = (per100: number) => Math.round(per100 * amount * 1e4) / 1e6;
   return {
     calories: at(food.kcal),
     protein: at(food.protein),
@@ -341,53 +378,95 @@ export function valuesForGrams(food: LibraryFood, grams: number): Values {
   };
 }
 
-const gramsText = (g: number) => `${String(Math.round(g * 100) / 100)} g`;
+/** Values for an edible weight of a food measured per 100 g. */
+export const valuesForGrams = (food: LibraryFood, grams: number): Values =>
+  valuesForAmount(food, grams);
 
-/** "1 cup (158 g)" for a household portion. */
+const gramsText = (g: number) => `${String(Math.round(g * 100) / 100)} g`;
+const mlText = (ml: number) => `${String(Math.round(ml * 100) / 100)} ml`;
+
+/** "150 g" or "240 ml": an amount in a food's unit. */
+export const amountText = (n: number, unit: NutrientBasis) =>
+  unit === "ml" ? mlText(n) : gramsText(n);
+
+/** "1 cup (158 g)" or "1 bottle (340 ml)" for a household portion. */
 export const portionLabel = (p: LibraryPortion) =>
-  `${p.label} (${gramsText(p.grams)})`;
+  p.ml !== undefined
+    ? `${p.label} (${mlText(p.ml)})`
+    : `${p.label} (${gramsText(p.grams)})`;
 
 /**
- * What one serving of a choice is: its description and edible weight, and
- * how many of them were eaten. Grams are one serving of that weight; a
- * household portion keeps its documented weight and counts portions.
+ * One serving of a choice: its description and amount (grams for foods per
+ * 100 g, millilitres for foods per 100 ml), and how many were eaten.
  */
-export function servingOf(food: LibraryFood, choice: PortionChoice) {
+export type Serving =
+  | { serving: string; grams: number; quantity: number }
+  | { serving: string; ml: number; quantity: number };
+
+/** The amount of one serving, in its food's unit. */
+export const servingAmount = (s: Serving) => ("ml" in s ? s.ml : s.grams);
+
+/**
+ * What one serving of a choice is: its description and amount, and how many
+ * of them were eaten. A typed amount is one serving of that amount; a
+ * household portion keeps its documented amount and counts portions.
+ */
+export function servingOf(food: LibraryFood, choice: PortionChoice): Serving {
   if (choice.kind === "grams")
     return {
       serving: gramsText(choice.grams),
       grams: choice.grams,
       quantity: 1,
     };
+  if (choice.kind === "ml")
+    return { serving: mlText(choice.ml), ml: choice.ml, quantity: 1 };
   const p = food.portions[choice.index];
   if (!p) throw new Error("Unknown portion");
-  return { serving: portionLabel(p), grams: p.grams, quantity: choice.count };
+  return p.ml !== undefined
+    ? { serving: portionLabel(p), ml: p.ml, quantity: choice.count }
+    : { serving: portionLabel(p), grams: p.grams, quantity: choice.count };
 }
 
-/** Total edible grams of a choice. */
+/** Total amount of a choice, in the food's unit (g or ml). */
+export function totalAmount(food: LibraryFood, choice: PortionChoice) {
+  const s = servingOf(food, choice);
+  return servingAmount(s) * s.quantity;
+}
+
+/** Total edible grams of a choice (foods measured per 100 g only). */
 export function totalGrams(food: LibraryFood, choice: PortionChoice) {
   const s = servingOf(food, choice);
-  return s.grams * s.quantity;
+  return ("grams" in s ? s.grams : Number.NaN) * s.quantity;
 }
 
 /** Why a choice can't be logged, or undefined when it can. */
 export function choiceError(food: LibraryFood, choice: PortionChoice) {
+  const unit = basisOf(food);
   if (choice.kind === "grams") {
+    if (unit !== "g") return "Measure this food in millilitres";
     if (
       !Number.isFinite(choice.grams) ||
       choice.grams < MIN_GRAMS ||
       choice.grams > MAX_GRAMS
     )
       return `Enter ${MIN_GRAMS} to ${MAX_GRAMS} g`;
-  } else if (
-    !food.portions[choice.index] ||
-    !Number.isFinite(choice.count) ||
-    choice.count < MIN_COUNT ||
-    choice.count > MAX_COUNT
-  )
-    return `Enter ${MIN_COUNT} to ${MAX_COUNT} portions`;
-  const { grams } = servingOf(food, choice);
-  const v = valuesForGrams(food, grams);
+  } else if (choice.kind === "ml") {
+    if (unit !== "ml") return "Measure this food in grams";
+    if (!Number.isFinite(choice.ml) || choice.ml < MIN_ML || choice.ml > MAX_ML)
+      return `Enter ${MIN_ML} to ${MAX_ML} ml`;
+  } else {
+    const p = food.portions[choice.index];
+    if (
+      !p ||
+      !Number.isFinite(choice.count) ||
+      choice.count < MIN_COUNT ||
+      choice.count > MAX_COUNT
+    )
+      return `Enter ${MIN_COUNT} to ${MAX_COUNT} portions`;
+    if ((p.ml !== undefined) !== (unit === "ml"))
+      return "This portion is not in the food's unit";
+  }
+  const v = valuesForAmount(food, servingAmount(servingOf(food, choice)));
   // The journal accepts at most 20,000 per value for one serving.
   if (Object.values(v).some((n) => n > 20000))
     return "That's more than one entry can hold. Log it in smaller parts.";
@@ -399,13 +478,18 @@ export const SOURCE_KEYS = [
   "sourceId",
   "sourceCatalog",
   "sourceGrams",
+  "sourceMl",
+  "sourceBarcode",
+  "sourceBrand",
   "sourceEdited",
 ] as const;
 
 /**
  * A journal snapshot of a library food: the values of one serving of the
  * chosen portion, how many servings, and where they came from. The entry
- * keeps these values for good; it never looks the catalog up again.
+ * keeps these values for good; it never looks the catalog up again. A
+ * branded product also records its brand and barcode when it has them, and
+ * one serving's amount in millilitres when it is measured per 100 ml.
  */
 export function entryFromLibrary(
   food: LibraryFood,
@@ -414,7 +498,7 @@ export function entryFromLibrary(
   meal?: string,
 ): NutritionData {
   const s = servingOf(food, choice);
-  const v = valuesForGrams(food, s.grams);
+  const v = valuesForAmount(food, servingAmount(s));
   return {
     name: food.name,
     ...(meal === undefined ? {} : { meal }),
@@ -426,6 +510,8 @@ export function entryFromLibrary(
     serving: s.serving,
     sourceId: food.id,
     sourceCatalog: catalog,
-    sourceGrams: s.grams,
+    ...("ml" in s ? { sourceMl: s.ml } : { sourceGrams: s.grams }),
+    ...(food.brand ? { sourceBrand: food.brand } : {}),
+    ...(food.barcode ? { sourceBarcode: food.barcode } : {}),
   };
 }
