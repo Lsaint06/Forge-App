@@ -4,7 +4,6 @@ import { router } from "expo-router";
 import { NUTRITION_TODAY } from "../navigation";
 import { Ionicons } from "@expo/vector-icons";
 import {
-  Screen,
   Card,
   Txt,
   Button,
@@ -14,9 +13,21 @@ import {
   SegmentedControl,
   useColors,
 } from "../components/ui";
+import {
+  BadgePill,
+  CtaButton,
+  ForgeCard,
+  ForgeEmpty,
+  ForgeScreen,
+  ForgeSegments,
+  Metric as ForgeMetric,
+  SectionLabel,
+  StatStrip,
+} from "../components/reforge";
 import { ListRow, ListSection, InfoButton } from "../components/system";
 import { BarChart, Legend, LineChart } from "../components/charts";
 import { AchievementCard } from "../components/design";
+import { planStatus } from "../components/PlanRow";
 import { useRepo, useApp } from "../state";
 import { localDate } from "../domain/types";
 import { achievements, elapsedSeconds, summary } from "../domain/metrics";
@@ -66,7 +77,7 @@ import {
   type ExerciseProgress,
   type ProgressModel,
 } from "../data/progress";
-import { dayLabel } from "../domain/training-display";
+import { dayLabel, longDayLabel } from "../domain/training-display";
 import {
   consistencyInfo,
   recordInfo,
@@ -74,12 +85,23 @@ import {
   volumeInfo,
 } from "../domain/progress/explain";
 import { theme } from "../theme";
+import { TitleBlock } from "./home/sections";
+import { homeClock, planContext } from "./home/model";
 
-// Progress (Design System 2.0, Phase 5): am I showing up, am I getting
-// stronger, what have I accomplished. Every number is derived from stored
-// workouts and plans on demand; see docs/PROGRESS_METRICS.md.
+// Progress (REFORGE frame since Phase 7.4B; sections from Design System 2.0,
+// Phase 5): am I showing up, am I getting stronger, what have I
+// accomplished. Every number is derived from stored workouts and plans on
+// demand; see docs/PROGRESS_METRICS.md.
 
 type Units = "kg" | "lb";
+
+/** The reference's short range labels; screen readers hear `rangeLabels`. */
+const SHORT_RANGE: Record<RangeKey, string> = {
+  "4w": "4W",
+  "12w": "12W",
+  "1y": "1Y",
+  all: "All",
+};
 
 const monthName = (date: string) =>
   new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
@@ -96,34 +118,30 @@ const plural = (n: number, word: string) =>
 const periodName = (p: PeriodSummary, w: RangeWindow) =>
   w.bucket === "week" ? `Week of ${shortDate(p.start)}` : monthName(p.start);
 
+/**
+ * The range at a glance, directly under the range control. Equal columns
+ * while they fit; two, then one per row with larger text (WP6: values and
+ * labels never shrink below legibility).
+ */
 function Overview({
   stats,
 }: {
   stats: { value: string; label: string; detail?: string }[];
 }) {
   return (
-    <Card style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 18 }}>
-      {stats.map((s) => (
-        <View
-          key={s.label}
-          accessible
-          accessibilityLabel={`${s.label}: ${s.value}${s.detail ? `, ${s.detail}` : ""}`}
-          style={{ width: "100%", gap: 2 }}
-        >
-          <Txt variant="metric" numberOfLines={1}>
-            {s.value}
-          </Txt>
-          <Txt variant="overline" tone="secondary">
-            {s.label}
-          </Txt>
-          {s.detail && (
-            <Txt variant="caption" tone="secondary">
-              {s.detail}
-            </Txt>
-          )}
-        </View>
-      ))}
-    </Card>
+    <ForgeCard>
+      <StatStrip minColumn={70}>
+        {stats.map((s) => (
+          <ForgeMetric
+            key={s.label}
+            size="stat"
+            value={s.value}
+            label={s.label}
+            delta={s.detail}
+          />
+        ))}
+      </StatStrip>
+    </ForgeCard>
   );
 }
 
@@ -135,26 +153,18 @@ function SectionTitle({
   info?: { title: string; paragraphs: string[] };
 }) {
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: -theme.spacing.sm,
-        paddingLeft: theme.spacing.xs,
-      }}
-    >
-      <Txt variant="overline" tone="secondary" header>
-        {title}
-      </Txt>
-      {info && (
-        <InfoButton
-          title={info.title}
-          paragraphs={info.paragraphs}
-          label={info.title}
-        />
-      )}
-    </View>
+    <SectionLabel
+      title={title}
+      trailing={
+        info && (
+          <InfoButton
+            title={info.title}
+            paragraphs={info.paragraphs}
+            label={info.title}
+          />
+        )
+      }
+    />
   );
 }
 
@@ -616,23 +626,19 @@ function Body({ units }: { units: Units }) {
 }
 
 function Empty() {
-  const c = useColors();
   return (
-    <Card style={{ padding: 20 }}>
-      <Ionicons name="trending-up-outline" size={28} color={c.text2} />
-      <Txt variant="title" header>
-        Your progress starts here
-      </Txt>
-      <Txt tone="secondary">
-        Finish a workout and Forge charts how consistently you train, how your
-        lifts move and every record you set — all from what you log.
-      </Txt>
-      <Button
-        title="Start a workout"
-        icon="play"
-        onPress={() => router.navigate("/(tabs)")}
-      />
-    </Card>
+    <ForgeEmpty
+      title="Your progress starts here"
+      detail="Finish a workout and Forge charts how consistently you train, how your lifts move and every record you set — all from what you log."
+      action={
+        <CtaButton
+          compact
+          title="Start a workout"
+          icon="play"
+          onPress={() => router.navigate("/(tabs)")}
+        />
+      }
+    />
   );
 }
 
@@ -640,7 +646,7 @@ export default function Progress() {
   const r = useRepo();
   const revision = useApp((s) => s.revision);
   const units = r.profile().units;
-  const today = localDate();
+  const { now, today } = homeClock();
   const [range, setRange] = useState<RangeKey>("12w");
   const [milestones, setMilestones] = useState(false);
   // The repository is mutable; `revision` changes whenever stored data does.
@@ -649,15 +655,55 @@ export default function Progress() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const input = useMemo(() => consistencyInput(r, today), [r, revision, today]);
   const workouts = r.workouts();
-  const lifetime = summary(workouts, (id) => r.workoutSets(id));
+  // Lifetime totals read every workout's sets, so they are computed once per
+  // data change (and per day, for the streak), not on every range tap or
+  // render (7.4B, PD-1). Same function, same inputs.
+  const lifetime = useMemo(
+    () => summary(r.workouts(), (id) => r.workoutSets(id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [r, revision, today],
+  );
   const earned = achievements(
     lifetime.count,
     lifetime.totalVolume,
     model.events.length,
   );
+  const plan = planStatus(r);
+  const context = plan ? planContext(r, today) : undefined;
+  const frame = (children: React.ReactNode) => (
+    <ForgeScreen
+      brand={
+        <BadgePill
+          icon="flame"
+          value={String(lifetime.streak)}
+          accessibilityLabel={`${lifetime.streak} day streak`}
+        />
+      }
+    >
+      <TitleBlock
+        greeting="Progress"
+        subtitle="Evidence of a stronger you. Keep building."
+        date={dayLabel(today)}
+        spokenDate={longDayLabel(now)}
+        plan={
+          plan
+            ? {
+                text: context
+                  ? `Week ${context.week} · ${context.phase}`
+                  : plan.title,
+                label: `${plan.kind === "program" ? "Your program" : "Your Path"}: ${plan.title}`,
+                open: plan.open,
+              }
+            : undefined
+        }
+      />
+      {children}
+    </ForgeScreen>
+  );
   const more = (
     <>
-      <ListSection title="More">
+      <SectionTitle title="More" />
+      <ListSection>
         <ListRow
           icon="time-outline"
           title="Training history"
@@ -721,12 +767,12 @@ export default function Progress() {
     </>
   );
   if (!input.workouts.length)
-    return (
-      <Screen title="Progress">
+    return frame(
+      <>
         <Empty />
         <Body units={units} />
         {more}
-      </Screen>
+      </>,
     );
   const window = rangeWindow(range, today, firstActivity(input));
   const weeks = weekSummaries(input, weekStarts(window));
@@ -758,16 +804,17 @@ export default function Progress() {
       ? `${cons.dueDone} of ${plural(cons.due, "planned session")} done`
       : "Your plan's first sessions are ahead"
     : `${cons.activeWeeks} of ${cons.weeks} weeks with a workout`;
-  return (
-    <Screen title="Progress">
-      <SegmentedControl
-        label="Time range"
+  return frame(
+    <>
+      <ForgeSegments
+        accessibilityLabel="Time range"
         options={(Object.keys(rangeLabels) as RangeKey[]).map((k) => ({
           value: k,
-          label: rangeLabels[k],
+          label: SHORT_RANGE[k],
+          accessibilityLabel: rangeLabels[k],
         }))}
         value={range}
-        onChange={(v) => setRange(v as RangeKey)}
+        onChange={setRange}
       />
       <Overview
         stats={[
@@ -803,27 +850,30 @@ export default function Progress() {
         anyPlan={anyPlan}
       />
       {legacy.length > 0 && (
-        <ListSection title="Saved plans">
-          {legacy.map((program) => {
-            const a = programAdherence(
-              r
-                .journal("schedule")
-                .filter((j) => j.data.programId === program.id)
-                .map((j) => ({
-                  date: j.date,
-                  templateId: String(j.data.templateId),
-                })),
-              workouts,
-            );
-            return (
-              <ListRow
-                key={program.id}
-                title={String(program.data.name)}
-                subtitle={`${a.completed} of ${a.due} due sessions completed on their planned dates`}
-              />
-            );
-          })}
-        </ListSection>
+        <>
+          <SectionTitle title="Saved plans" />
+          <ListSection>
+            {legacy.map((program) => {
+              const a = programAdherence(
+                r
+                  .journal("schedule")
+                  .filter((j) => j.data.programId === program.id)
+                  .map((j) => ({
+                    date: j.date,
+                    templateId: String(j.data.templateId),
+                  })),
+                workouts,
+              );
+              return (
+                <ListRow
+                  key={program.id}
+                  title={String(program.data.name)}
+                  subtitle={`${a.completed} of ${a.due} due sessions completed on their planned dates`}
+                />
+              );
+            })}
+          </ListSection>
+        </>
       )}
       {model.exercises.size > 0 && (
         <>
@@ -873,7 +923,8 @@ export default function Progress() {
         info={{ title: "How volume is counted", paragraphs: volumeInfo }}
       />
       <Volume model={model} window={window} units={units} />
-      <ListSection title="Training time">
+      <SectionTitle title="Training time" />
+      <ListSection>
         <ListRow
           title="Average workout"
           value={`${Math.round(inRange.length ? minutes / inRange.length : 0)} min`}
@@ -886,6 +937,6 @@ export default function Progress() {
       </ListSection>
       <Body units={units} />
       {more}
-    </Screen>
+    </>,
   );
 }

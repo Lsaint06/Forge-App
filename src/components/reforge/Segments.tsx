@@ -13,15 +13,19 @@ export function ForgeSegments<T extends string>({
   options,
   value,
   onChange,
+  accessibilityLabel,
 }: {
   options: { value: T; label: string; accessibilityLabel?: string }[];
   value: T;
   onChange: (value: T) => void;
+  /** Names the whole control ("Time range"). */
+  accessibilityLabel?: string;
 }) {
   const c = useColors();
   return (
     <View
       accessibilityRole="tablist"
+      accessibilityLabel={accessibilityLabel}
       style={{
         flexDirection: "row",
         minHeight: forge.heights.compact + 6,

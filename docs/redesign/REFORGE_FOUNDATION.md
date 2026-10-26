@@ -387,3 +387,20 @@ Unknown barcodes become the lifter's own foods, entered once from the package la
 | Personal food step | Brand line; ember origin line "Your food · values from your package label" or "Your correction · used instead of USDA's values"; barcode; **½ · 1 · 1½ · 2** chips and the **Servings** stepper "× 1 can"; "1 serving = 1 can (355 ml)"; values card "For 1½ × 1 can · 532.5 ml"; meal and **Add to *meal***; action rows **Edit food / Edit correction**, **Remove correction**, **Use USDA values** |
 | Branded product step | Adds a **Correct nutrition** action row under **Save to my foods** |
 | Rows | Provenance pill "Your label" or "Your correction"; Saved foods subtitle "Your label · Dr Pepper · 1 can (355 ml) · P 0 g …" |
+
+## Progress (Phase 7.4B: frame)
+
+[Progress.tsx](../../src/screens/Progress.tsx) follows the approved Progress reference ([progress-approved-2026-10-24.png](reforge/references/progress-approved-2026-10-24.png)) with the 7.4A decisions ([PHASE_7_4A_REFORGE_PROGRESS_AUDIT.md](../audits/PHASE_7_4A_REFORGE_PROGRESS_AUDIT.md)). 7.4B builds the frame. The sections keep their earlier styling until 7.4C–F.
+
+| Reference | FORGE source |
+| --- | --- |
+| Wordmark and brand line | `ForgeScreen` / `BrandHeader` |
+| Notification bell | Omitted (D14) |
+| Streak pill | `summary().streak`, the same day streak as Home and Nutrition. Not a link on Progress itself |
+| Title, subtitle | "Progress", "Evidence of a stronger you. Keep building." (P11), in Home's `TitleBlock` |
+| Date, "Week 8 · Build Phase" | Today; the current plan's week and phase when one is active (opens the plan). Nothing without a plan |
+| Range 7D \| 4W \| 12W \| 1Y \| All | `ForgeSegments`, labelled "4W · 12W · 1Y · All" and spoken "4 weeks … All time"; **12 weeks by default** (P3); no 7D (P2) |
+| (Not in the reference) Overview | The range's workouts, on-plan % or active weeks, records and volume, in a `ForgeCard` `StatStrip` (four columns, then two, then one with larger text) |
+| Section headings | `SectionLabel` overlines with each section's existing information button |
+
+**Lifetime totals (PD-1).** Workouts, total volume and the streak are computed once per data change (`revision`) and per day, not on every render. Range taps read no workout sets: at 300 workouts the median tap fell from 69 to 23 ms in tests.
