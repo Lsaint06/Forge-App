@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { router } from "expo-router";
+import { NUTRITION_TODAY } from "../navigation";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Screen,
@@ -686,7 +687,7 @@ export default function Progress() {
         <ListRow
           icon="nutrition-outline"
           title="Nutrition"
-          onPress={() => router.navigate("/(tabs)/nutrition")}
+          onPress={() => router.navigate(NUTRITION_TODAY)}
         />
         <ListRow
           icon="pulse-outline"

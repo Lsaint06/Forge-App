@@ -8,3 +8,13 @@ export function goBack(fallback: Href = "/(tabs)") {
   if (router.canGoBack()) router.back();
   else router.replace(fallback);
 }
+
+/**
+ * Nutrition, showing today (Phase 7.3G G4). Links from other screens (Home's
+ * "Nutrition today" card, Progress, You) open today even if a past day was
+ * left selected; the tab bar itself keeps the lifter's place.
+ */
+export const NUTRITION_TODAY = {
+  pathname: "/(tabs)/nutrition",
+  params: { day: "today" },
+} as const;

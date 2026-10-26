@@ -1,6 +1,7 @@
 import React from "react";
 import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
+import { NUTRITION_TODAY } from "../../navigation";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors, type IconName } from "../../components/ui";
 import {
@@ -537,7 +538,7 @@ export function NutritionToday({
   ].join(", ");
   return (
     <ForgeCard
-      onPress={() => router.navigate("/(tabs)/nutrition")}
+      onPress={() => router.navigate(NUTRITION_TODAY)}
       accessibilityLabel="Nutrition today"
       accessibilityHint={spoken}
       style={style}

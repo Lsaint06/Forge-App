@@ -404,7 +404,10 @@ test("nutrition today shows the day's totals against the lifter's own targets an
       within(card).getByLabelText("Calories").props.accessibilityValue,
     ).toEqual({ min: 0, max: 100, now: 26 });
     await fireEvent.press(card);
-    expect(router.navigate).toHaveBeenLastCalledWith("/(tabs)/nutrition");
+    expect(router.navigate).toHaveBeenLastCalledWith({
+      pathname: "/(tabs)/nutrition",
+      params: { day: "today" },
+    });
   } finally {
     db.close();
   }

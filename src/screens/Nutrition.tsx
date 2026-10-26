@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, AppState, useWindowDimensions } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Alert } from "../platform/alert";
 import {
   BadgePill,
@@ -101,6 +101,17 @@ export default function Nutrition({ tab = false }: { tab?: boolean }) {
   // An unset day follows today; a chosen past day stays put.
   const [picked, setPicked] = useState<string>();
   const day = picked && picked < today ? picked : today;
+  // Links from Home, Progress and You ask for today (G4); the tab bar keeps
+  // the lifter's place. Honoured once per request, then cleared.
+  const params = useLocalSearchParams<{ day?: string }>();
+  const [asked, setAsked] = useState<string>();
+  if (params.day !== asked) {
+    setAsked(params.day);
+    if (params.day === "today") setPicked(undefined);
+  }
+  useEffect(() => {
+    if (params.day) router.setParams({ day: undefined });
+  }, [params.day]);
   const [adding, setAdding] = useState<string>();
   const [hydrating, setHydrating] = useState(false);
   // Daily targets are edited here, in context (7.3G G2).

@@ -23,7 +23,7 @@ jest.mock("../../src/state", () => ({
     { getState: () => ({ touch: jest.fn() }) },
   ),
 }));
-const mockParams: { kind?: string } = {};
+const mockParams: { kind?: string; day?: string } = {};
 jest.mock("expo-router", () => ({
   router: {
     push: jest.fn(),
@@ -39,6 +39,7 @@ jest.mock("expo-router", () => ({
 beforeEach(() => {
   jest.clearAllMocks();
   mockParams.kind = "nutrition";
+  delete mockParams.day;
 });
 
 const today = localDate();
@@ -112,6 +113,53 @@ test("Saved foods returns to Nutrition when opened directly", async () => {
     const view = await render(<SavedFoods />);
     await fireEvent.press(view.getByLabelText("Back"));
     expect(router.replace).toHaveBeenCalledWith("/(tabs)/nutrition");
+  } finally {
+    db.close();
+  }
+});
+
+// Phase 7.3G G4: links from Home, Progress and You open today; the tab bar
+// keeps the lifter's place; a past day returns to today in one tap.
+test("a link asking for today resets a past day; otherwise the tab keeps its place", async () => {
+  const { r, db } = pathRepository();
+  try {
+    r.saveProfile({ onboarded: true });
+    r.addJournal("nutrition", oats, today);
+    r.addJournal("nutrition", { ...oats, name: "Rice" }, addDays(today, -1));
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<NutritionTab />);
+    await fireEvent.press(view.getByLabelText("Previous day"));
+    expect(view.getByLabelText(/^Breakfast, .*1 food: Rice$/)).toBeTruthy();
+    // Coming back via the tab bar (no request): still yesterday.
+    await view.rerender(<NutritionTab />);
+    expect(view.getByLabelText(/^Breakfast, .*1 food: Rice$/)).toBeTruthy();
+    expect(router.setParams).not.toHaveBeenCalled();
+    // "Nutrition today" from Home: today, and the request is cleared.
+    mockParams.day = "today";
+    await view.rerender(<NutritionTab />);
+    expect(view.getByLabelText(/^Breakfast, .*1 food: Oats$/)).toBeTruthy();
+    expect(view.queryByLabelText(/1 food: Rice$/)).toBeNull();
+    expect(router.setParams).toHaveBeenCalledWith({ day: undefined });
+  } finally {
+    db.close();
+  }
+});
+
+test("Back to today appears only on a past day and returns to today", async () => {
+  const { r, db } = pathRepository();
+  try {
+    r.saveProfile({ onboarded: true });
+    r.addJournal("nutrition", oats, today);
+    r.addJournal("nutrition", { ...oats, name: "Rice" }, addDays(today, -3));
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<NutritionTab />);
+    expect(view.queryByRole("button", { name: "Back to today" })).toBeNull();
+    for (let i = 0; i < 3; i++)
+      await fireEvent.press(view.getByLabelText("Previous day"));
+    expect(view.getByLabelText(/^Breakfast, .*1 food: Rice$/)).toBeTruthy();
+    await fireEvent.press(view.getByRole("button", { name: "Back to today" }));
+    expect(view.getByLabelText(/^Breakfast, .*1 food: Oats$/)).toBeTruthy();
+    expect(view.queryByRole("button", { name: "Back to today" })).toBeNull();
   } finally {
     db.close();
   }

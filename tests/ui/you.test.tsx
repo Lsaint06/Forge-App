@@ -191,7 +191,10 @@ test("account, history, journals and data actions stay reachable", async () => {
     }
     // Phase 7.1A: Nutrition is a tab; the row switches to it.
     await fireEvent.press(view.getByLabelText("Nutrition log"));
-    expect(router.navigate).toHaveBeenLastCalledWith("/(tabs)/nutrition");
+    expect(router.navigate).toHaveBeenLastCalledWith({
+      pathname: "/(tabs)/nutrition",
+      params: { day: "today" },
+    });
     await fireEvent.press(view.getByLabelText("Privacy & training guidance"));
     expect(view.getByText(/No advertising or analytics SDK/)).toBeTruthy();
     expect(view.getByLabelText("Export backup")).toBeTruthy();

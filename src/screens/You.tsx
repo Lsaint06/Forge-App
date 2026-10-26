@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Pressable, Switch } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { NUTRITION_TODAY } from "../navigation";
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { Alert } from "../platform/alert";
@@ -468,7 +469,7 @@ export default function You() {
         <ListRow
           icon="restaurant-outline"
           title="Nutrition log"
-          onPress={() => router.navigate("/(tabs)/nutrition")}
+          onPress={() => router.navigate(NUTRITION_TODAY)}
         />
         <ListRow
           icon="pulse-outline"
