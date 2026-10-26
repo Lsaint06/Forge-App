@@ -76,7 +76,7 @@ The two affected tests were "several weeks of history…" and "Records lists…"
 
 The app was right and the fixture was wrong:
 
-- Progress opens on **4 weeks**. Without that session, Back Squat has one session in range and no trend, so Bench is correctly listed first.
+- Progress opens on 12 weeks; the test then switches to **4 weeks**. In that range, without the missing session, Back Squat has one session and no trend, so Bench is correctly listed first.
 - Records correctly shows 115 kg, not 117.5 kg.
 
 **Fix** ([progress.test.tsx](../../tests/ui/progress.test.tsx)): the fixture anchors on `mondayOf(today − 2 days)`. The newest Tuesday is then always 1–7 days ago, at any hour on any weekday. No assertion was weakened or skipped.
