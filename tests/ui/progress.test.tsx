@@ -69,25 +69,27 @@ function logWorkout(
   return w;
 }
 // Eight weeks: bench every Tuesday, adding 2.5 kg a week; squat every other
-// week at the same load; overhead press on Thursdays.
+// week at the same load; overhead press on Thursdays. The latest Tuesday is
+// always 1–7 days ago, so every session is in the past whatever the weekday
+// or hour (anchoring on this week's Monday dropped the latest session when
+// the suite ran on a Monday).
 function history(f: Fixture) {
-  const thisWeek = mondayOf(today);
+  const lastWeek = mondayOf(addDays(today, -2));
   for (let week = 7; week >= 0; week--) {
-    const monday = addDays(thisWeek, -week * 7);
+    const monday = addDays(lastWeek, -week * 7);
     const load = 100 + (7 - week) * 2.5;
-    if (addDays(monday, 1) <= today)
-      logWorkout(f, addDays(monday, 1), [
+    logWorkout(f, addDays(monday, 1), [
+      [
+        "barbell-bench-press",
         [
-          "barbell-bench-press",
-          [
-            [load, 5],
-            [load, 5],
-          ],
+          [load, 5],
+          [load, 5],
         ],
-        ...(week % 2 === 0
-          ? ([["back-squat", [[140, 5]]]] as [string, [number, number][]][])
-          : []),
-      ]);
+      ],
+      ...(week % 2 === 0
+        ? ([["back-squat", [[140, 5]]]] as [string, [number, number][]][])
+        : []),
+    ]);
     if (week > 0)
       logWorkout(f, addDays(monday, 3), [["overhead-press", [[50, 8]]]]);
   }

@@ -65,8 +65,6 @@ const WorkoutScreen = WorkoutModule.default as React.FC;
 const ExerciseScreen = require("../../app/exercise").default as React.FC;
 const { SetGrid } =
   require("../../src/components/SetGrid") as typeof import("../../src/components/SetGrid");
-const { MacroSummary } =
-  require("../../src/components/nutrition/MacroSummary") as typeof import("../../src/components/nutrition/MacroSummary");
 const { QuickAddSheet } =
   require("../../src/components/nutrition/QuickAddSheet") as typeof import("../../src/components/nutrition/QuickAddSheet");
 const { ExercisePicker } =
@@ -558,34 +556,6 @@ test("the chosen segment is outlined and bolder in every layout", async () => {
     expect(
       view.getByRole("tab", { name: "1 year" }).props.accessibilityState,
     ).toMatchObject({ selected: true });
-    await view.unmount();
-  }
-});
-
-test("macros keep three columns until a label can't fit, then take a row each", async () => {
-  const totals = { calories: 1234, protein: 160, carbs: 210, fat: 55 };
-  const targets = { calories: 2600, protein: 180, carbs: 300, fat: 75 };
-  const props = { totals, targets, personalized: true, onSetTargets: () => {} };
-  for (const [fontScale, direction] of [
-    [1, "row"],
-    [1.3, "row"],
-    [1.6, "column"],
-    [2, "column"],
-  ] as const) {
-    mockDims.fontScale = fontScale;
-    const view = await render(<MacroSummary {...props} />);
-    const protein = view.getByLabelText("Protein 160 g of 180 g");
-    // The macro's container decides the arrangement; spoken labels are unchanged.
-    // Columns share the width (flex 1); rows take the full width.
-    expect(flat(protein).flex).toBe(direction === "row" ? 1 : undefined);
-    expect(view.getByLabelText("Carbs 210 g of 300 g")).toBeTruthy();
-    expect(view.getByLabelText("Fat 55 g of 75 g")).toBeTruthy();
-    // In rows, values never shrink or cut.
-    const value = view.getByText("160 g");
-    expect(value.props.numberOfLines).toBe(direction === "row" ? 1 : undefined);
-    expect(value.props.adjustsFontSizeToFit).toBe(
-      direction === "row" ? true : undefined,
-    );
     await view.unmount();
   }
 });

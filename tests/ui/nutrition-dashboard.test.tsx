@@ -14,6 +14,7 @@ import { useRepo } from "../../src/state";
 import { pathRepository } from "../path-fixture";
 import { addDays } from "../../src/domain/paths/model";
 import { localDate } from "../../src/domain/types";
+import { theme } from "../../src/theme";
 import {
   TARGETS_SAVED,
   defaultMeal,
@@ -30,13 +31,19 @@ jest.mock("react-native/Libraries/Utilities/useWindowDimensions", () => ({
   __esModule: true,
   default: () => mockDims,
 }));
+// The app profile only carries the theme here; undefined is the default.
+let mockProfile: { theme: "dark" | "light" } | undefined;
 jest.mock("../../src/state", () => ({
   useRepo: jest.fn(),
   mutate: (fn: () => unknown) => fn(),
   confirm: jest.fn(),
   useApp: Object.assign(
-    (selector: (s: { revision: number; profile: undefined }) => unknown) =>
-      selector({ revision: 0, profile: undefined }),
+    (
+      selector: (s: {
+        revision: number;
+        profile: typeof mockProfile;
+      }) => unknown,
+    ) => selector({ revision: 0, profile: mockProfile }),
     { getState: () => ({ touch: jest.fn() }) },
   ),
 }));
@@ -56,6 +63,7 @@ jest.mock("expo-router", () => ({
 beforeEach(() => {
   jest.clearAllMocks();
   Object.assign(mockDims, { width: 393, height: 852, fontScale: 1 });
+  mockProfile = undefined;
   mockParams.kind = "nutrition";
 });
 
@@ -360,6 +368,41 @@ test("compact iPhones and large text: cards stack, macros stack, targets stay 44
     ).toBeGreaterThanOrEqual(44);
     // No decorative tagline when there is no room for it.
     expect(view.queryByText("Tomorrows")).toBeNull();
+  } finally {
+    db.close();
+  }
+});
+
+// Phase 7.3H: light mode reaches the dashboard and the sheets it opens.
+test("light mode: the dashboard, targets and hydration sheets use the light palette", async () => {
+  mockProfile = { theme: "light" };
+  const { r, db } = pathRepository();
+  try {
+    seed(r);
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<NutritionTab />);
+    const color = (el: { props: { style?: unknown } }) =>
+      (StyleSheet.flatten(el.props.style as ViewStyle) as { color?: string })
+        .color;
+    const light = theme.palettes.light;
+    expect(color(view.getByRole("header", { name: "Nutrition" }))).toBe(
+      light.text,
+    );
+    expect(
+      color(view.getByRole("header", { name: "Today's nutrition" })),
+    ).not.toBe(theme.palettes.dark.text);
+    await fireEvent.press(
+      view.getByLabelText(
+        "Calorie goal: 1,770 kcal left. Edit your daily targets",
+      ),
+    );
+    expect(color(view.getByText("Daily targets"))).toBe(light.text);
+    await fireEvent.press(view.getByRole("button", { name: "Cancel" }));
+    await fireEvent.press(
+      view.getByLabelText("Hydration: 0 millilitres logged. Open hydration"),
+    );
+    // The sheet's title (the dashboard card is labelled Hydration too).
+    expect(color(view.getAllByText("Hydration").at(-1)!)).toBe(light.text);
   } finally {
     db.close();
   }

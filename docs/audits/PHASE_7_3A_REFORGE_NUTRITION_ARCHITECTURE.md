@@ -209,13 +209,13 @@ Each checkpoint:
 
 | Checkpoint | Scope | Status |
 | --- | --- | --- |
-| **7.3B** | Nutrition dashboard transformation and visual refinement | Authorized; built, in founder review |
-| **7.3C** | Hydration tracking and dashboard integration | Architecture proposed ([PHASE_7_3C_HYDRATION_ARCHITECTURE.md](PHASE_7_3C_HYDRATION_ARCHITECTURE.md)); implementation needs founder approval |
-| **7.3D** | Food discovery, search, serving selection and logging redesign | After 7.3C |
-| **7.3E** | Branded foods, real product data and catalogue expansion | Gated by the feasibility report (§10) |
-| **7.3F** | Barcode scanning and product lookup | Gated by the feasibility report (§10) |
-| **7.3G** | Saved foods, goals, history and supporting screens | After 7.3F |
-| **7.3H** | Final integration, accuracy, performance and visual QA | Last |
+| **7.3B** | Nutrition dashboard transformation and visual refinement | Done (`c77c2a0`) |
+| **7.3C** | Hydration tracking and dashboard integration | Done (`45bb509`; [PHASE_7_3C_HYDRATION_ARCHITECTURE.md](PHASE_7_3C_HYDRATION_ARCHITECTURE.md)) |
+| **7.3D** | Food discovery, search, serving selection and logging redesign | Done (`5bb9171`) |
+| **7.3E** | Branded foods, real product data and catalogue expansion | Done (`e41bd41`): 404,982 USDA branded products |
+| **7.3F** | Barcode scanning and product lookup | Done: scanner `4b0e354`; Smart Servings `7f5207b`; personal barcode foods and corrections `53229ee`. Open Food Facts (M3.2) blocked pending licensing |
+| **7.3G** | Saved foods, goals, history and supporting screens | Done: G1 `e5f5f8b`, G2 `339c009`, G4 `6a85e0c`. G3 (history screen) declined by the founder |
+| **7.3H** | Final integration, accuracy, performance and visual QA | In verification ([PHASE_7_3H_NUTRITION_VERIFICATION.md](PHASE_7_3H_NUTRITION_VERIFICATION.md)) |
 
 ### 7.3B — Nutrition dashboard transformation
 
