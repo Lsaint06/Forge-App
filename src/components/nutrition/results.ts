@@ -13,6 +13,7 @@ import {
   type LibraryFood,
 } from "../../domain/food-library";
 import { isBrandedId } from "../../domain/branded";
+import { isPersonalId } from "../../domain/personal-foods";
 
 // Food discovery results (Phase 7.3D): one presentation shape for every
 // source, so rows never assume a food is generic. Today's sources are the
@@ -60,20 +61,28 @@ export function choiceResult(food: FoodChoice): FoodResult {
   const portion = choicePortion(food);
   const kcal = kcalText(food.calories * food.quantity);
   const branded = isBrandedId(food.meta?.sourceId);
+  const own =
+    food.personal?.kind ??
+    (isPersonalId(food.meta?.sourceId) ? "food" : undefined);
   return {
     key: `${food.source}:${food.key}`,
     source: food.source,
     title: food.name,
     ...(food.meta?.sourceBrand ? { brand: food.meta.sourceBrand } : {}),
     detail: `${portion} · ${kcal}`,
-    // Logged from the library or branded catalogue before: still USDA values.
-    provenance: food.meta?.sourceId
-      ? food.meta.sourceEdited
-        ? "Based on USDA"
-        : branded
-          ? "USDA Branded"
-          : "USDA"
-      : undefined,
+    // A personal barcode food or correction is the lifter's own (7.3F.2);
+    // logged from the library or branded catalogue before: still USDA values.
+    provenance: own
+      ? own === "correction"
+        ? "Your correction"
+        : "Your label"
+      : food.meta?.sourceId
+        ? food.meta.sourceEdited
+          ? "Based on USDA"
+          : branded
+            ? "USDA Branded"
+            : "USDA"
+        : undefined,
     label: `${food.name}, ${portion}, ${kcal}`,
     addLabel: `Add ${food.name}`,
     undoLabel: `Undo adding ${food.name}`,

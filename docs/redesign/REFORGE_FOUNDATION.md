@@ -360,7 +360,7 @@ A step of the Add food sheet (no new screen), opened by the **Scan barcode** but
 | --- | --- |
 | Camera | Dark viewport in a REFORGE card (radius `card`), four ember corner guides, no animation; torch toggle (44 pt) in the corner; one line: "Line up the barcode inside the frame. It scans on its own." |
 | Match | The 7.3D/7.3E food step; Back returns to the camera; after adding, "Added … to *meal*" with **Undo** above the results |
-| Not found | "Product not found" with the barcode, **Scan again**, **Search foods**, **Create food** |
+| Not found | "Product not found" with the barcode, **Create food from this barcode** (primary, Phase 7.3F.2 M2), **Scan again**, **Search foods** |
 | Unreadable | "That barcode couldn't be read" with how to retry |
 | No camera | "Camera access is off" (**Allow camera** or **Open Settings**) or "Camera unavailable"; **Or type the barcode** with **Look up** always available |
 
@@ -376,3 +376,14 @@ Branded foods open on one manufacturer serving by name, the same from search and
 | Explanation | "1 serving = 1 stick (32 g)" or "Whole package = 591 ml · about 2.46 servings"; a secondary note when the name comes from the package, another listing, an "about" count, or when the label only states a weight ("Label serving: 1.15 oz") |
 | Values card | "For 1½ × 1 stick · 48 g", then kcal and protein, carbs, fat for that amount |
 | Generic foods | Unchanged ("Portions", Grams first) |
+
+## Personal barcode foods and corrections (Phase 7.3F.2 M2)
+
+Unknown barcodes become the lifter's own foods, entered once from the package label; a branded product's values can be corrected for the lifter alone. Both are saved foods, inside the Add food sheet. Details: [PHASE_7_3F_2_PERSONAL_FOODS.md](../audits/PHASE_7_3F_2_PERSONAL_FOODS.md).
+
+| Part | Presentation |
+| --- | --- |
+| Label form | Sheet title "New food from barcode", "Correct nutrition", "Edit food" or "Edit correction". The barcode as printed with an ember `barcode-outline` icon and "From your scan" (never typed); **Food name**, **Brand (optional)**; a **Serving size** card (Serving name, Amount with **g / ml** segments, "1 serving = 1 can (355 ml)"); a **Nutrition facts** card with **Per serving / Per 100 ml** segments, calories, protein, carbs, fat, and the saved serving previewed ("1 can (355 ml): 150 kcal · P 0 g · C 41 g · F 0 g"); an ember note when calories look far from the macros. Footer: **Back**, **Save food** / **Save correction** |
+| Personal food step | Brand line; ember origin line "Your food · values from your package label" or "Your correction · used instead of USDA's values"; barcode; **½ · 1 · 1½ · 2** chips and the **Servings** stepper "× 1 can"; "1 serving = 1 can (355 ml)"; values card "For 1½ × 1 can · 532.5 ml"; meal and **Add to *meal***; action rows **Edit food / Edit correction**, **Remove correction**, **Use USDA values** |
+| Branded product step | Adds a **Correct nutrition** action row under **Save to my foods** |
+| Rows | Provenance pill "Your label" or "Your correction"; Saved foods subtitle "Your label · Dr Pepper · 1 can (355 ml) · P 0 g …" |

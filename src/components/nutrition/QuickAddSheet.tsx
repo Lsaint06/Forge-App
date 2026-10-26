@@ -30,13 +30,14 @@ import {
 } from "../reforge";
 import {
   FoodFields,
+  LabelFields,
   draftFrom,
   readDraft,
   sameDraft,
   type DraftErrors,
   type FoodDraft,
 } from "./FoodForm";
-import { useRepo, mutate } from "../../state";
+import { useRepo, mutate, confirm } from "../../state";
 import {
   MEALS,
   entryFromFood,
@@ -47,9 +48,24 @@ import {
   isDuplicateFood,
   kcalText,
   amount,
+  savedChoice,
   type FoodChoice,
   type NutritionData,
 } from "../../domain/nutrition";
+import {
+  correctionDraft,
+  correctionOf,
+  displayBarcode,
+  findPersonal,
+  labelDraftForBarcode,
+  labelDraftFrom,
+  personalConflict,
+  readLabelDraft,
+  type CorrectionOf,
+  type LabelDraft,
+  type LabelErrors,
+} from "../../domain/personal-foods";
+import type { Journal } from "../../domain/types";
 import {
   DEFAULT_GRAMS,
   DEFAULT_ML,
@@ -72,7 +88,11 @@ import {
   type PortionChoice,
 } from "../../domain/food-library";
 import { tryLoadFoodLibrary } from "../../data/food-catalog";
-import { BRANDED_CATALOG, BRANDED_RELEASE } from "../../data/branded-catalog";
+import {
+  BRANDED_CATALOG,
+  BRANDED_RELEASE,
+  brandedByBarcode,
+} from "../../data/branded-catalog";
 import { isBrandedId, servingNote } from "../../domain/branded";
 import { useBrandedSearch } from "./useBrandedSearch";
 import { BarcodeScanner } from "./BarcodeScanner";
@@ -88,7 +108,19 @@ import {
 
 type Step =
   | { kind: "list" }
-  | { kind: "detail"; food: FoodChoice; quantity: number; opened: number }
+  | {
+      kind: "detail";
+      food: FoodChoice;
+      quantity: number;
+      opened: number;
+      /** Opened from the barcode scanner: Back returns to it. */
+      from?: "scan";
+      /** A personal food's catalogue product, when the catalogue has one. */
+      usda?: LibraryFood | null;
+      /** Personal records sharing this barcode (more than one: synced). */
+      count?: number;
+      note?: string;
+    }
   | {
       kind: "library";
       food: LibraryFood;
@@ -99,7 +131,18 @@ type Step =
       from?: "scan";
     }
   | { kind: "scan" }
-  | { kind: "create" };
+  | { kind: "create" }
+  | {
+      // A barcode food or a correction, from its package label (7.3F.2 M2).
+      kind: "label";
+      mode: "food" | "correction";
+      /** The catalogue product being corrected (or shadowed), if known. */
+      product?: LibraryFood;
+      /** The saved record being edited. */
+      editing?: Journal;
+      from?: "scan";
+      back: Step;
+    };
 
 /** Library results are shown this many at a time. */
 const PAGE = 30;
@@ -139,6 +182,12 @@ export function QuickAddSheet({
   const [blank, setBlank] = useState<FoodDraft>(() => draftFrom());
   const [errors, setErrors] = useState<DraftErrors>({});
   const [saveFood, setSaveFood] = useState(true);
+  // The label form of a barcode food or correction (Phase 7.3F.2 M2).
+  const [label, setLabel] = useState<LabelDraft>(() =>
+    labelDraftForBarcode(""),
+  );
+  const [labelBlank, setLabelBlank] = useState<LabelDraft>(label);
+  const [labelErrors, setLabelErrors] = useState<LabelErrors>({});
   // The last product added from the scanner, for its Undo.
   const [scanAdded, setScanAdded] = useState<{
     key: string;
@@ -150,7 +199,8 @@ export function QuickAddSheet({
   // The list keeps its order while the sheet is open, so a tap never lands
   // on a food that just moved. Foods created here join the top.
   const [history, setHistory] = useState(() => r.journal("nutrition"));
-  const { recent, saved } = foodChoices(history, r.journal("food"), query);
+  const savedFoods = r.journal("food");
+  const { recent, saved } = foodChoices(history, savedFoods, query);
   // The library is read-only and offline; searching it is deferred so
   // typing stays responsive.
   const [catalog, setCatalog] = useState(tryLoadFoodLibrary);
@@ -199,7 +249,9 @@ export function QuickAddSheet({
   const creating = step.kind === "create";
   // Choosing a meal alone is not work to lose.
   const dirty =
-    creating && !sameDraft({ ...draft, meal: "" }, { ...blank, meal: "" });
+    (creating && !sameDraft({ ...draft, meal: "" }, { ...blank, meal: "" })) ||
+    (step.kind === "label" &&
+      JSON.stringify(label) !== JSON.stringify(labelBlank));
   const opens = useRef(0);
 
   function logData(
@@ -277,6 +329,198 @@ export function QuickAddSheet({
       `Saved ${food.name} to your foods`,
     );
   }
+  // ---- Personal barcode foods and corrections (Phase 7.3F.2 M2) ----------
+
+  /** The lifter's own food for a barcode or catalogue product, if any. */
+  function personalFor(target: { barcode?: string; sourceId?: string }) {
+    const hit = findPersonal(r.journal("food"), target);
+    return hit && { choice: savedChoice(hit.food), count: hit.count };
+  }
+  function openPersonal(
+    food: FoodChoice,
+    usda: LibraryFood | null | undefined,
+    from: "scan" | undefined,
+    count = 1,
+    note?: string,
+  ) {
+    setStep({
+      kind: "detail",
+      food,
+      quantity: food.quantity,
+      opened: ++opens.current,
+      from,
+      usda: usda ?? null,
+      count,
+      note,
+    });
+  }
+  /**
+   * A catalogue product, as the lifter knows it: their correction (or own
+   * food for its barcode) first, the same whether scanned or searched.
+   */
+  function openBranded(food: LibraryFood, from?: "scan") {
+    const mine = personalFor({ barcode: food.barcode, sourceId: food.id });
+    if (mine) return openPersonal(mine.choice, food, from, mine.count);
+    setStep({
+      kind: "library",
+      food,
+      choice: LABEL_SERVING,
+      opened: ++opens.current,
+      from,
+    });
+  }
+  function startLabel(
+    fresh: LabelDraft,
+    next: Omit<Extract<Step, { kind: "label" }>, "kind">,
+  ) {
+    busy.current.delete("label");
+    setLabel(fresh);
+    setLabelBlank(fresh);
+    setLabelErrors({});
+    setStep({ kind: "label", ...next });
+  }
+  /** An unknown scanned barcode: its form, with the barcode carried in. */
+  function startBarcodeFood(gtin: string) {
+    startLabel(labelDraftForBarcode(gtin), {
+      mode: "food",
+      from: "scan",
+      back: { kind: "scan" },
+    });
+  }
+  function startCorrection(food: LibraryFood) {
+    const mine = personalFor({ barcode: food.barcode, sourceId: food.id });
+    if (mine?.choice.id) return startEdit(mine.choice, food);
+    startLabel(correctionDraft(food), {
+      mode: "correction",
+      product: food,
+      from: step.kind === "library" ? step.from : undefined,
+      back: step,
+    });
+  }
+  function startEdit(food: FoodChoice, usda?: LibraryFood | null) {
+    const record = r.journal("food").find((f) => f.id === food.id);
+    if (!record || !food.personal) return;
+    startLabel(labelDraftFrom(record.data), {
+      mode: food.personal.kind,
+      editing: record,
+      ...(usda ? { product: usda } : {}),
+      from:
+        step.kind === "detail" || step.kind === "library"
+          ? step.from
+          : undefined,
+      back: step,
+    });
+  }
+  function saveLabel() {
+    if (step.kind !== "label" || busy.current.has("label")) return;
+    const { editing, product } = step;
+    let target: Parameters<typeof readLabelDraft>[1] = { kind: "food" };
+    if (step.mode === "correction") {
+      const of: CorrectionOf = product
+        ? correctionOf(product, BRANDED_CATALOG)
+        : { sourceId: String(editing?.data.sourceId ?? "") };
+      // An edit keeps the identity the correction was made against.
+      if (editing) {
+        of.sourceId = String(editing.data.sourceId ?? of.sourceId);
+        if (typeof editing.data.sourceCatalog === "string")
+          of.sourceCatalog = editing.data.sourceCatalog;
+        else delete of.sourceCatalog;
+      }
+      target = { kind: "correction", of };
+    }
+    const result = readLabelDraft(label, target);
+    if ("errors" in result) {
+      setLabelErrors(result.errors);
+      return;
+    }
+    const foods = r.journal("food");
+    const conflict = personalConflict(foods, result.data, editing?.id);
+    if (conflict) {
+      setLabelErrors({
+        form: `You've already saved this barcode as “${String(conflict.data.name)}”. Scan it to open that food, or edit it in Saved foods.`,
+      });
+      return;
+    }
+    busy.current.add("label");
+    const saved = mutate(() => {
+      if (!editing) return r.addJournal("food", result.data);
+      r.updateJournal(editing.id, result.data);
+      return r.journal("food").find((f) => f.id === editing.id);
+    });
+    if (!saved) {
+      busy.current.delete("label");
+      return;
+    }
+    const name = String(result.data.name);
+    AccessibilityInfo.announceForAccessibility(`Saved ${name}`);
+    openPersonal(
+      savedChoice(saved),
+      product,
+      step.from,
+      1,
+      editing
+        ? "Changes saved. Entries already logged keep their values."
+        : step.mode === "correction"
+          ? "Correction saved. FORGE will use your values for this product."
+          : "Saved. FORGE will recognize this barcode next time.",
+    );
+  }
+  /**
+   * The catalogue's own product behind a personal record: at hand when it
+   * was opened from a scan or search, otherwise looked up by its barcode
+   * (offline). Opens it untouched.
+   */
+  async function showUsda(usda: LibraryFood | null, barcode?: string) {
+    if (step.kind !== "detail") return;
+    const from = step.from;
+    let food = usda;
+    if (!food && barcode) {
+      try {
+        food = await brandedByBarcode(barcode);
+      } catch {
+        food = null;
+      }
+    }
+    if (!food) {
+      setStep((s) =>
+        s.kind === "detail"
+          ? { ...s, note: "USDA's version of this product isn't available." }
+          : s,
+      );
+      return;
+    }
+    setStep({
+      kind: "library",
+      food,
+      choice: LABEL_SERVING,
+      opened: ++opens.current,
+      from,
+    });
+  }
+  function removeCorrection(food: FoodChoice, usda: LibraryFood | null) {
+    const id = food.id;
+    if (!id) return;
+    confirm(
+      "Remove correction?",
+      `${food.name} will show USDA's values again. Entries you've already logged keep their values.`,
+      () => {
+        r.deleteJournal(id);
+        if (usda)
+          setStep({
+            kind: "library",
+            food: usda,
+            choice: LABEL_SERVING,
+            opened: ++opens.current,
+            from: step.kind === "detail" ? step.from : undefined,
+            note: undefined,
+          });
+        else setStep({ kind: "list" });
+        AccessibilityInfo.announceForAccessibility("Correction removed");
+      },
+      { action: "Remove correction" },
+    );
+  }
+
   function startCreate() {
     busy.current.delete("create");
     const fresh = { ...draftFrom(), name: query.trim() };
@@ -327,7 +571,17 @@ export function QuickAddSheet({
   const backFooter = (add: React.ReactNode) => (
     <View style={{ flexDirection: "row", gap: forge.spacing.tight }}>
       <View style={{ flex: 1 }}>
-        {step.kind === "library" && step.from === "scan" ? (
+        {step.kind === "label" ? (
+          <OutlineButton
+            title="Back"
+            icon="chevron-back"
+            accessibilityLabel={
+              step.back.kind === "scan" ? "Back to scanner" : "Back"
+            }
+            onPress={() => setStep(step.back)}
+          />
+        ) : (step.kind === "library" || step.kind === "detail") &&
+          step.from === "scan" ? (
           <OutlineButton
             title="Back"
             icon="chevron-back"
@@ -355,6 +609,8 @@ export function QuickAddSheet({
     const { food, quantity } = step;
     const totals = (n: number) => n * quantity;
     const r0 = choiceResult(food);
+    const own = food.personal;
+    const setQuantity = (q: number) => setStep({ ...step, quantity: q });
     return (
       <Sheet
         visible
@@ -367,49 +623,151 @@ export function QuickAddSheet({
             icon="add"
             compact
             onPress={() => {
-              log(food, quantity, `detail:${step.opened}`);
+              if (!log(food, quantity, `detail:${step.opened}`)) return;
+              // A scanned food's Undo stays at the top of the list.
+              if (step.from === "scan")
+                setScanAdded({ key: food.key, name: food.name, meal });
               setStep({ kind: "list" });
             }}
           />,
         )}
       >
-        <View style={{ gap: forge.spacing.cardGap }}>
-          <View style={{ gap: 4 }}>
-            {r0.provenance && (
+        {own ? (
+          <View style={{ gap: forge.spacing.cardGap }}>
+            <View style={{ gap: 4 }}>
+              {own.brand && (
+                <FText variant="label" weight="700" tone="secondary">
+                  {own.brand}
+                </FText>
+              )}
+              <OriginLine
+                icon={
+                  own.kind === "correction"
+                    ? "create-outline"
+                    : "person-circle-outline"
+                }
+                text={
+                  own.kind === "correction"
+                    ? "Your correction · used instead of USDA's values"
+                    : "Your food · values from your package label"
+                }
+              />
+              {own.barcode && (
+                <FText variant="label" tone="secondary">
+                  {`Barcode ${displayBarcode(own.barcode)}`}
+                </FText>
+              )}
+              {(step.count ?? 1) > 1 && (
+                <FText variant="label" tone="secondary">
+                  {`${step.count} of your saved foods use this barcode. Showing the most recently updated.`}
+                </FText>
+              )}
+              {step.note && (
+                <FText variant="label" weight="600" tone="accent">
+                  {step.note}
+                </FText>
+              )}
+            </View>
+            <Section title="Amount">
+              <ForgeChips
+                values={QUICK.map((q) => q.text)}
+                value={QUICK.find((q) => q.count === quantity)?.text ?? ""}
+                onChange={(t) => {
+                  const q = QUICK.find((x) => x.text === t);
+                  if (q) setQuantity(q.count);
+                }}
+              />
+              <ForgeStepper
+                label="Servings"
+                value={quantity}
+                step={0.25}
+                min={0.01}
+                floor={0.25}
+                max={1000}
+                unit={`× ${own.servingName}`}
+                onChange={setQuantity}
+              />
               <FText variant="label" tone="secondary">
-                {`Values: ${r0.provenance}`}
+                {`1 serving = ${food.serving || own.servingName}`}
               </FText>
-            )}
-            <FText variant="label" tone="secondary">
-              {food.serving
-                ? `1 serving = ${food.serving} · ${kcalText(food.calories)} · P ${gramsText(food.protein)} · C ${gramsText(food.carbs)} · F ${gramsText(food.fat)}`
-                : `Per serving: ${kcalText(food.calories)} · P ${gramsText(food.protein)} · C ${gramsText(food.carbs)} · F ${gramsText(food.fat)}`}
-            </FText>
-          </View>
-          <Section title="Amount">
-            <ForgeStepper
-              label="Servings"
-              value={quantity}
-              step={0.25}
-              min={0.01}
-              floor={0.25}
-              max={1000}
-              unit={food.serving ? `× ${food.serving}` : "servings"}
-              onChange={(q) => setStep({ ...step, quantity: q })}
+            </Section>
+            <ValuesCard
+              heading={`For ${quantity === 1 ? "" : `${countText(quantity)} × `}${own.servingName}${own.amount !== undefined && own.unit ? ` · ${amountText(own.amount * quantity, own.unit)}` : ""}`}
+              calories={totals(food.calories)}
+              protein={totals(food.protein)}
+              carbs={totals(food.carbs)}
+              fat={totals(food.fat)}
             />
-          </Section>
-          <ValuesCard
-            heading={`For ${choicePortion({ quantity, serving: food.serving })}`}
-            calories={totals(food.calories)}
-            protein={totals(food.protein)}
-            carbs={totals(food.carbs)}
-            fat={totals(food.fat)}
-          />
-          <Section title="Meal">
-            {mealControl}
-            {destination}
-          </Section>
-        </View>
+            <Section title="Meal">
+              {mealControl}
+              {destination}
+            </Section>
+            {food.id && (
+              <ActionRow
+                icon="create-outline"
+                title={
+                  own.kind === "correction" ? "Edit correction" : "Edit food"
+                }
+                detail="Change the values from the package label"
+                onPress={() => startEdit(food, step.usda)}
+              />
+            )}
+            {own.kind === "correction" && food.id && (
+              <ActionRow
+                icon="arrow-undo-outline"
+                title="Remove correction"
+                detail="Go back to USDA's values for this product"
+                onPress={() => removeCorrection(food, step.usda ?? null)}
+              />
+            )}
+            {(step.usda || (own.kind === "correction" && own.barcode)) && (
+              <ActionRow
+                icon="document-text-outline"
+                title="Use USDA values"
+                detail="USDA Branded Foods also has this product"
+                onPress={() => void showUsda(step.usda ?? null, own.barcode)}
+              />
+            )}
+          </View>
+        ) : (
+          <View style={{ gap: forge.spacing.cardGap }}>
+            <View style={{ gap: 4 }}>
+              {r0.provenance && (
+                <FText variant="label" tone="secondary">
+                  {`Values: ${r0.provenance}`}
+                </FText>
+              )}
+              <FText variant="label" tone="secondary">
+                {food.serving
+                  ? `1 serving = ${food.serving} · ${kcalText(food.calories)} · P ${gramsText(food.protein)} · C ${gramsText(food.carbs)} · F ${gramsText(food.fat)}`
+                  : `Per serving: ${kcalText(food.calories)} · P ${gramsText(food.protein)} · C ${gramsText(food.carbs)} · F ${gramsText(food.fat)}`}
+              </FText>
+            </View>
+            <Section title="Amount">
+              <ForgeStepper
+                label="Servings"
+                value={quantity}
+                step={0.25}
+                min={0.01}
+                floor={0.25}
+                max={1000}
+                unit={food.serving ? `× ${food.serving}` : "servings"}
+                onChange={(q) => setStep({ ...step, quantity: q })}
+              />
+            </Section>
+            <ValuesCard
+              heading={`For ${choicePortion({ quantity, serving: food.serving })}`}
+              calories={totals(food.calories)}
+              protein={totals(food.protein)}
+              carbs={totals(food.carbs)}
+              fat={totals(food.fat)}
+            />
+            <Section title="Meal">
+              {mealControl}
+              {destination}
+            </Section>
+          </View>
+        )}
       </Sheet>
     );
   }
@@ -636,6 +994,14 @@ export function QuickAddSheet({
               )}
             </View>
           </Pressable>
+          {brandedFood && (
+            <ActionRow
+              icon="create-outline"
+              title="Correct nutrition"
+              detail="Your package differs? Save your label's values for this product"
+              onPress={() => startCorrection(food)}
+            />
+          )}
           <View style={{ gap: 2 }}>
             <FText variant="label" tone="secondary">
               {brandedFood
@@ -675,20 +1041,77 @@ export function QuickAddSheet({
         }
       >
         <BarcodeScanner
-          onFound={(food) =>
-            setStep({
-              kind: "library",
-              food,
-              choice: LABEL_SERVING,
-              opened: ++opens.current,
-              from: "scan",
-            })
-          }
+          onFound={(food) => openBranded(food, "scan")}
+          findPersonal={(gtin) => personalFor({ barcode: gtin })?.choice}
+          onPersonal={(food, usda) => {
+            const hit = personalFor({ barcode: food.personal?.barcode });
+            openPersonal(food, usda, "scan", hit?.count ?? 1);
+          }}
           onSearch={() => setStep({ kind: "list" })}
-          onCreate={startCreate}
+          onCreate={startBarcodeFood}
         />
       </Sheet>
     );
+
+  if (step.kind === "label") {
+    const correction = step.mode === "correction";
+    return (
+      <Sheet
+        visible
+        onClose={onClose}
+        title={
+          correction
+            ? step.editing
+              ? "Edit correction"
+              : "Correct nutrition"
+            : step.editing
+              ? "Edit food"
+              : "New food from barcode"
+        }
+        unsaved={dirty}
+        footer={backFooter(
+          <CtaButton
+            title={correction ? "Save correction" : "Save food"}
+            icon="checkmark"
+            compact
+            onPress={saveLabel}
+          />,
+        )}
+      >
+        <View style={{ gap: forge.spacing.cardGap }}>
+          <FText variant="body" tone="secondary">
+            {correction
+              ? "USDA's values for this product are filled in. Change what differs from your package. The USDA record itself is never changed."
+              : "Enter the values from the package's Nutrition Facts label. You'll only do this once: scanning this barcode opens your food next time."}
+          </FText>
+          <LabelFields
+            draft={label}
+            onChange={(patch) => {
+              setLabel((d) => ({ ...d, ...patch }));
+              setLabelErrors((e) => {
+                const next = { ...e };
+                delete next.form;
+                for (const key of Object.keys(patch))
+                  if (key === "perServing" || key === "per100")
+                    for (const k of ["calories", "protein", "carbs", "fat"])
+                      delete next[k as keyof LabelErrors];
+                  else delete next[key as keyof LabelErrors];
+                return next;
+              });
+            }}
+            errors={labelErrors}
+            barcodeNote={
+              correction
+                ? "Barcode of the USDA product"
+                : step.editing
+                  ? "Linked barcode"
+                  : "From your scan"
+            }
+          />
+        </View>
+      </Sheet>
+    );
+  }
 
   if (creating)
     return (
@@ -803,7 +1226,22 @@ export function QuickAddSheet({
             : []),
         ]
       : [];
-  // Branded products follow the lifter's own foods and the common foods.
+  // Branded products follow the lifter's own foods and the common foods. A
+  // product the lifter corrected is shown (and logged) as the correction,
+  // once: not again here when Recent or Saved already lists it.
+  const listed = new Set(
+    [...recent, ...saved].map((c) => c.id).filter(Boolean),
+  );
+  const correctionFor = (food: LibraryFood) =>
+    findPersonal(savedFoods, { barcode: food.barcode, sourceId: food.id })
+      ?.food;
+  const brandedShown =
+    branded.status === "error"
+      ? []
+      : branded.foods.filter((food) => {
+          const mine = correctionFor(food);
+          return !mine || !listed.has(mine.id);
+        });
   const brandedItems: Item[] =
     !searched || branded.query !== searched
       ? []
@@ -815,14 +1253,14 @@ export function QuickAddSheet({
               retryBranded: true,
             },
           ]
-        : branded.foods.length
+        : brandedShown.length
           ? [
               {
                 type: "header",
                 title: "Brands · USDA Branded",
                 countText: `${branded.broad ? "1,000+" : branded.total.toLocaleString()} ${branded.total === 1 ? "product" : "products"}`,
               },
-              ...branded.foods.map((food) => ({
+              ...brandedShown.map((food) => ({
                 type: "branded" as const,
                 food,
               })),
@@ -1074,6 +1512,22 @@ export function QuickAddSheet({
               );
             if (item.type === "branded") {
               const food = item.food;
+              const mine = correctionFor(food);
+              if (mine) {
+                // What the row shows is what + logs: the correction.
+                const choice = savedChoice(mine);
+                return (
+                  <ResultRow
+                    result={choiceResult(choice)}
+                    added={!!added[choice.key]}
+                    onAdd={() =>
+                      log(choice, choice.quantity, `quick:${choice.key}`)
+                    }
+                    onUndo={() => undo(choice.key, choice.name)}
+                    onOpen={() => openBranded(food)}
+                  />
+                );
+              }
               const result = brandedResult(food);
               return (
                 <ResultRow
@@ -1083,14 +1537,7 @@ export function QuickAddSheet({
                     logLibrary(food, LABEL_SERVING, `quick:${result.key}`)
                   }
                   onUndo={() => undo(result.key, food.name)}
-                  onOpen={() =>
-                    setStep({
-                      kind: "library",
-                      food,
-                      choice: LABEL_SERVING,
-                      opened: ++opens.current,
-                    })
-                  }
+                  onOpen={() => openBranded(food)}
                 />
               );
             }
@@ -1406,6 +1853,71 @@ function ScanButton({ onPress }: { onPress: () => void }) {
 }
 
 /** Quick serving amounts for branded foods. */
+/** Where a personal food's values come from (7.3F.2 M2), with its icon. */
+function OriginLine({
+  icon,
+  text,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  text: string;
+}) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Ionicons name={icon} size={16} color={c.emberHot} />
+      <FText variant="label" weight="600" style={{ flexShrink: 1 }}>
+        {text}
+      </FText>
+    </View>
+  );
+}
+
+/** A secondary action in a food step ("Correct nutrition", "Edit food"). */
+function ActionRow({
+  icon,
+  title,
+  detail,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  title: string;
+  detail: string;
+  onPress: () => void;
+}) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={detail}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: forge.heights.compact,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        paddingHorizontal: forge.spacing.group,
+        paddingVertical: 8,
+        borderRadius: forge.radii.tile,
+        borderWidth: forge.border.card,
+        borderColor: c.cardBorder,
+        backgroundColor: pressed ? c.cardRaised : c.cardBg,
+      })}
+    >
+      <Ionicons name={icon} size={20} color={c.emberHot} />
+      <View style={{ flex: 1 }}>
+        <FText variant="label" weight="700">
+          {title}
+        </FText>
+        <FText variant="label" tone="secondary">
+          {detail}
+        </FText>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={c.text2} />
+    </Pressable>
+  );
+}
+
 const QUICK = [
   { text: "½", count: 0.5 },
   { text: "1", count: 1 },

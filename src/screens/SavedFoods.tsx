@@ -8,6 +8,7 @@ import {
 import { useRepo, confirm } from "../state";
 import { goBack } from "../navigation";
 import { amount, kcalText } from "../domain/nutrition";
+import { personalInfo } from "../domain/personal-foods";
 import type { Journal } from "../domain/types";
 
 // Saved foods: the lifter's own library of label values, searchable. Logged
@@ -40,16 +41,32 @@ export default function SavedFoods() {
     );
 
   function remove(f: Journal) {
+    const own = personalInfo(f.data);
+    const effect =
+      own?.kind === "correction"
+        ? " Scanning or opening the product will show USDA's values again."
+        : own?.kind === "food"
+          ? " Scanning its barcode will show Product not found again."
+          : "";
     confirm(
-      "Delete saved food?",
-      `${String(f.data.name)} will be removed from your saved foods. Entries you've already logged keep their values.`,
+      own?.kind === "correction" ? "Remove correction?" : "Delete saved food?",
+      `${String(f.data.name)} will be removed from your saved foods.${effect} Entries you've already logged keep their values.`,
       () => r.deleteJournal(f.id),
-      { action: "Delete food" },
+      {
+        action:
+          own?.kind === "correction" ? "Remove correction" : "Delete food",
+      },
     );
   }
   const macros = (f: Journal) =>
     // Non-breaking spaces keep each value with its unit.
     `P\u00a0${amount(Number(f.data.protein))}\u00a0g · C\u00a0${amount(Number(f.data.carbs))}\u00a0g · F\u00a0${amount(Number(f.data.fat))}\u00a0g`;
+  /** "Your label · Dr Pepper · ": a personal barcode food's origin. */
+  const origin = (f: Journal) => {
+    const own = personalInfo(f.data);
+    if (!own) return "";
+    return `${own.kind === "correction" ? "Your correction" : "Your label"}${own.brand ? ` · ${own.brand}` : ""} · `;
+  };
 
   return (
     <Screen
@@ -86,7 +103,7 @@ export default function SavedFoods() {
                   <ListRow
                     key={f.id}
                     title={name}
-                    subtitle={`${String(f.data.serving ?? "").trim() || "1 serving"} · ${macros(f)}`}
+                    subtitle={`${origin(f)}${String(f.data.serving ?? "").trim() || "1 serving"} · ${macros(f)}`}
                     value={per}
                     chevron={false}
                     accessibilityLabel={`Edit ${name}`}
@@ -103,7 +120,10 @@ export default function SavedFoods() {
                               setEditing({ kind: "food", food: f }),
                           },
                           {
-                            label: "Delete",
+                            label:
+                              personalInfo(f.data)?.kind === "correction"
+                                ? "Remove correction"
+                                : "Delete",
                             icon: "trash-outline",
                             destructive: true,
                             onPress: () => remove(f),

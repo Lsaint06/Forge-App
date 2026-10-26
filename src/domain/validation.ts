@@ -11,6 +11,8 @@ import {
   MIN_GOAL_ML,
   toMl,
 } from "./hydration";
+import { gtin14 } from "./barcode";
+import { MAX_SERVING_NAME } from "./personal-foods";
 const nonnegative = z.number().finite().min(0);
 export const profileSchema = z
   .object({
@@ -181,6 +183,22 @@ export function validateJournal(
     z.string().trim().min(1).parse(data.name);
     for (const k of ["calories", "protein", "carbs", "fat"]) n(k, 20000);
     n("quantity", 1000, 0.01);
+  }
+  // Phase 7.3F.2 M2: a personal barcode food is its barcode, which must be a
+  // valid GTIN-14 (never repaired); a correction's barcode, when it has one,
+  // too. Other personal kinds a newer FORGE may add are kept as recorded.
+  if (
+    kind === "food" &&
+    (data.personalKind === "food" || data.personalKind === "correction")
+  ) {
+    const barcode = data.sourceBarcode;
+    if (
+      (data.personalKind === "food" || barcode !== undefined) &&
+      !(typeof barcode === "string" && gtin14(barcode) === barcode)
+    )
+      throw new Error("A personal food's barcode must be a valid GTIN-14");
+    if ("servingName" in data)
+      z.string().trim().min(1).max(MAX_SERVING_NAME).parse(data.servingName);
   }
   if (kind === "hydration") {
     // Water is never food: it carries no energy or macros (decision H1).

@@ -1,5 +1,6 @@
 import { defaults, type Journal, type Profile } from "./types";
 import { nutritionTotals } from "./metrics";
+import { personalInfo, type PersonalInfo } from "./personal-foods";
 
 // Nutrition logging rules. Entries and saved foods are journal records whose
 // shapes predate this module: every helper reads them defensively, never
@@ -144,6 +145,10 @@ export type FoodChoice = {
   source: "recent" | "saved";
   /** Where a food from the built-in library came from (copied along). */
   meta?: SourceMeta;
+  /** The saved food this choice is (its journal ID), when it is one. */
+  id?: string;
+  /** A personal barcode food or correction (Phase 7.3F.2 M2). */
+  personal?: PersonalInfo;
 };
 
 /**
@@ -231,6 +236,7 @@ export const isDuplicateFood = (foods: Journal[], data: NutritionData) =>
 function choice(data: NutritionData, source: FoodChoice["source"]): FoodChoice {
   const q = num(data.quantity);
   const meta = sourceMeta(data);
+  const personal = personalInfo(data);
   return {
     key: foodKey(data),
     name: String(data.name ?? "").trim(),
@@ -242,8 +248,15 @@ function choice(data: NutritionData, source: FoodChoice["source"]): FoodChoice {
     serving: String(data.serving ?? "").trim(),
     source,
     ...(meta ? { meta } : {}),
+    ...(personal ? { personal } : {}),
   };
 }
+
+/** A saved food as a choice to log, with its journal ID. */
+export const savedChoice = (food: Journal): FoodChoice => ({
+  ...choice(food.data, "saved"),
+  id: food.id,
+});
 
 /**
  * Foods to offer for logging: recently eaten foods first (most recent first,
@@ -271,6 +284,13 @@ export function foodChoices(
   };
   const seen = new Set<string>();
   const recent: FoodChoice[] = [];
+  // A recent food that is also saved opens as the saved food (a personal
+  // barcode food keeps its serving step when reached from Recent).
+  const savedByKey = new Map<string, FoodChoice>();
+  for (const f of foods) {
+    const c = savedChoice(f);
+    if (c.name && !savedByKey.has(c.key)) savedByKey.set(c.key, c);
+  }
   const latest = [...entries].sort((a, b) => b.createdAt - a.createdAt);
   for (const e of latest) {
     // Searching looks through everything eaten before, not just the latest.
@@ -278,10 +298,15 @@ export function foodChoices(
     const c = choice(e.data, "recent");
     if (!c.name || seen.has(c.key)) continue;
     seen.add(c.key);
+    const same = savedByKey.get(c.key);
+    if (same?.personal) {
+      c.id = same.id;
+      c.personal = same.personal;
+    }
     if (matches(c)) recent.push(c);
   }
   const saved = foods
-    .map((f) => choice(f.data, "saved"))
+    .map(savedChoice)
     .filter((c) => c.name && !seen.has(c.key) && matches(c))
     .filter((c, i, all) => all.findIndex((x) => x.key === c.key) === i)
     .sort((a, b) =>

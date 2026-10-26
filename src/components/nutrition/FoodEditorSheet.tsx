@@ -5,6 +5,7 @@ import { Sheet, confirmDiscard } from "../ui";
 import { CtaButton, FText, OutlineButton } from "../reforge";
 import {
   FoodFields,
+  LabelFields,
   draftFrom,
   readDraft,
   sameDraft,
@@ -21,6 +22,14 @@ import {
   type NutritionData,
 } from "../../domain/nutrition";
 import { sourceLabel } from "../../domain/food-library";
+import {
+  labelDraftFrom,
+  personalConflict,
+  personalInfo,
+  readLabelDraft,
+  type LabelDraft,
+  type LabelErrors,
+} from "../../domain/personal-foods";
 import type { Journal } from "../../domain/types";
 import { forge } from "../../theme";
 
@@ -28,11 +37,125 @@ export type FoodEditorTarget =
   { kind: "entry"; entry: Journal } | { kind: "food"; food?: Journal };
 
 /**
- * Edits a logged entry, or creates or edits a saved food. Saving changes
- * only the fields that were edited and runs once even if tapped twice;
- * closing with changes asks first. Mount it when needed.
+ * Edits a logged entry, or creates or edits a saved food. A personal
+ * barcode food or correction (Phase 7.3F.2 M2) is edited with its label
+ * form, so its barcode and serving stay linked. Mount it when needed.
  */
 export function FoodEditorSheet({
+  target,
+  onClose,
+}: {
+  target: FoodEditorTarget;
+  onClose: () => void;
+}) {
+  if (target.kind === "food" && target.food && personalInfo(target.food.data))
+    return <PersonalFoodEditor food={target.food} onClose={onClose} />;
+  return <GenericFoodEditor target={target} onClose={onClose} />;
+}
+
+function PersonalFoodEditor({
+  food,
+  onClose,
+}: {
+  food: Journal;
+  onClose: () => void;
+}) {
+  const r = useRepo();
+  const info = personalInfo(food.data)!;
+  const [initial] = useState<LabelDraft>(() => labelDraftFrom(food.data));
+  const [draft, setDraft] = useState(initial);
+  const [errors, setErrors] = useState<LabelErrors>({});
+  const saving = useRef(false);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+  const correction = info.kind === "correction";
+  function cancel() {
+    if (dirty) confirmDiscard(onClose);
+    else onClose();
+  }
+  function save() {
+    if (saving.current) return;
+    const result = readLabelDraft(
+      draft,
+      correction
+        ? {
+            kind: "correction",
+            of: {
+              sourceId: String(food.data.sourceId ?? ""),
+              ...(typeof food.data.sourceCatalog === "string"
+                ? { sourceCatalog: food.data.sourceCatalog }
+                : {}),
+            },
+          }
+        : { kind: "food" },
+    );
+    if ("errors" in result) {
+      setErrors(result.errors);
+      return;
+    }
+    const conflict = personalConflict(r.journal("food"), result.data, food.id);
+    if (conflict) {
+      setErrors({
+        form: `You've already saved this barcode as “${String(conflict.data.name)}”.`,
+      });
+      return;
+    }
+    saving.current = true;
+    const ok = mutate(() => {
+      r.updateJournal(food.id, result.data);
+      return true;
+    });
+    if (!ok) {
+      saving.current = false;
+      return;
+    }
+    onClose();
+  }
+  return (
+    <Sheet
+      visible
+      onClose={onClose}
+      title={correction ? "Edit correction" : "Edit food"}
+      unsaved={dirty}
+      footer={
+        <View style={{ flexDirection: "row", gap: forge.spacing.tight }}>
+          <View style={{ flex: 1 }}>
+            <OutlineButton title="Cancel" onPress={cancel} />
+          </View>
+          <View style={{ flex: 2 }}>
+            <CtaButton
+              compact
+              title="Save"
+              accessibilityLabel={correction ? "Save correction" : "Save food"}
+              icon="checkmark"
+              onPress={save}
+            />
+          </View>
+        </View>
+      }
+    >
+      <View style={{ gap: forge.spacing.cardGap }}>
+        <FText variant="label" tone="secondary">
+          {correction
+            ? `Your correction of ${sourceLabel(String(food.data.sourceId ?? ""))}. Entries already logged keep their values.`
+            : "Your food, from its package label. Entries already logged keep their values."}
+        </FText>
+        <LabelFields
+          draft={draft}
+          onChange={(patch) => {
+            setDraft((d) => ({ ...d, ...patch }));
+            setErrors({});
+          }}
+          errors={errors}
+          barcodeNote={
+            correction ? "Barcode of the USDA product" : "Linked barcode"
+          }
+        />
+      </View>
+    </Sheet>
+  );
+}
+
+function GenericFoodEditor({
   target,
   onClose,
 }: {

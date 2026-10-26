@@ -98,6 +98,8 @@ const SOURCE_LABELS: Record<string, string> = {
 /** "USDA FNDDS · FDC 2707154" for a library food. */
 export function sourceLabel(id: string) {
   const [source, fdcId] = id.split(":");
+  // Phase 7.3F.2 M2: a personal barcode food's values are the lifter's own.
+  if (source === "personal") return "your package label";
   return `${SOURCE_LABELS[source ?? ""] ?? "USDA"} · FDC ${fdcId}`;
 }
 

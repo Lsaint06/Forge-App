@@ -19,30 +19,41 @@ import { CtaButton, FText, OutlineButton } from "../reforge";
 import { forge } from "../../theme";
 import { FOOD_BARCODES, scannedCode } from "../../domain/barcode";
 import type { LibraryFood } from "../../domain/food-library";
+import type { FoodChoice } from "../../domain/nutrition";
 import { brandedByBarcode, brandedProblem } from "../../data/branded-catalog";
 
 type Phase =
   | { kind: "scanning" }
   | { kind: "looking"; code: string }
-  | { kind: "not-found"; code: string }
+  | { kind: "not-found"; code: string; gtin: string }
   | { kind: "unreadable" }
   | { kind: "error"; message: string };
 
 /**
  * The barcode scanner (Phase 7.3F): the back camera, a framing guide and a
- * typed fallback. A code is looked up in the bundled USDA Branded Foods
- * catalogue (offline); a match goes to the usual food step, where nothing is
- * logged until the lifter adds it. The camera runs only while this is shown,
- * stops reading once a code is found, and asks for permission only here.
+ * typed fallback. A code is looked up first among the lifter's own barcode
+ * foods (Phase 7.3F.2 M2), then in the bundled USDA Branded Foods catalogue
+ * (offline); a match goes to the usual food step, where nothing is logged
+ * until the lifter adds it. An unknown code can become a personal food,
+ * carried into the form so it is never typed again. The camera runs only
+ * while this is shown, stops reading once a code is found, and asks for
+ * permission only here.
  */
 export function BarcodeScanner({
   onFound,
+  findPersonal,
+  onPersonal,
   onSearch,
   onCreate,
 }: {
   onFound: (food: LibraryFood, code: string) => void;
+  /** The lifter's own food for a canonical GTIN-14, if any (synchronous). */
+  findPersonal?: (gtin: string) => FoodChoice | undefined;
+  /** Opens the lifter's own food; the catalogue's product, when it has one. */
+  onPersonal?: (food: FoodChoice, usda: LibraryFood | null) => void;
   onSearch: () => void;
-  onCreate: () => void;
+  /** Creates a food for an unknown barcode (canonical GTIN-14). */
+  onCreate: (gtin: string) => void;
 }) {
   const c = useColors();
   const window = useWindowDimensions();
@@ -86,13 +97,28 @@ export function BarcodeScanner({
     }
     setPhase({ kind: "looking", code: code.digits });
     try {
+      // The lifter's own food for this barcode comes first, and works even
+      // when the catalogue can't be opened.
+      const mine = findPersonal?.(code.gtin);
+      if (mine && onPersonal) {
+        let usda: LibraryFood | null = null;
+        try {
+          usda = await brandedByBarcode(code.digits, code.symbology);
+        } catch {
+          usda = null;
+        }
+        if (!mounted.current) return;
+        void Haptics.selectionAsync().catch(() => {});
+        onPersonal(mine, usda);
+        return;
+      }
       const food = await brandedByBarcode(code.digits, code.symbology);
       if (!mounted.current) return;
       if (food) {
         void Haptics.selectionAsync().catch(() => {});
         onFound(food, code.digits);
       } else {
-        setPhase({ kind: "not-found", code: code.digits });
+        setPhase({ kind: "not-found", code: code.digits, gtin: code.gtin });
         AccessibilityInfo.announceForAccessibility("Product not found");
       }
     } catch (e) {
@@ -353,7 +379,7 @@ function Status({
   camera: boolean;
   onAgain: () => void;
   onSearch: () => void;
-  onCreate: () => void;
+  onCreate: (gtin: string) => void;
 }) {
   if (phase.kind === "scanning")
     return (
@@ -405,23 +431,21 @@ function Status({
           Product not found
         </FText>
         <FText variant="body" tone="secondary">
-          {`Barcode ${phase.code} isn't in FORGE's offline USDA branded foods. Search for it by name, or create it from its label.`}
+          {`Barcode ${phase.code} isn't in FORGE's offline USDA branded foods. Add it once from the package label and FORGE will recognize it next time.`}
         </FText>
       </View>
-      {again}
+      <CtaButton
+        title="Create food from this barcode"
+        icon="add"
+        onPress={() => onCreate(phase.gtin)}
+      />
       <View style={{ flexDirection: "row", gap: forge.spacing.tight }}>
+        <View style={{ flex: 1 }}>{again}</View>
         <View style={{ flex: 1 }}>
           <OutlineButton
             title="Search foods"
             icon="search"
             onPress={onSearch}
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <OutlineButton
-            title="Create food"
-            icon="create-outline"
-            onPress={onCreate}
           />
         </View>
       </View>

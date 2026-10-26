@@ -13,6 +13,14 @@ import {
 } from "../../domain/nutrition";
 import { dayTitle } from "../../domain/calendar-dates";
 import { localDate } from "../../domain/types";
+import {
+  displayBarcode,
+  energyWarning,
+  servingLabel,
+  servingValues,
+  type LabelDraft,
+  type LabelErrors,
+} from "../../domain/personal-foods";
 import { forge } from "../../theme";
 
 // The fields of a food or a logged entry: label values per serving, the
@@ -287,3 +295,199 @@ export function FoodFields({
     </View>
   );
 }
+
+/**
+ * The label form for a barcode-linked food or a correction (Phase 7.3F.2
+ * M2): the scanned barcode (shown, never typed), name and brand, the serving
+ * as printed ("1 can", 355 ml), and the Nutrition Facts values, read per
+ * serving (the usual label) or per 100 g / 100 ml. The values per serving
+ * that will be saved are previewed, so a per-100 conversion can be checked
+ * before saving.
+ */
+export function LabelFields({
+  draft,
+  onChange,
+  errors,
+  barcodeNote,
+}: {
+  draft: LabelDraft;
+  onChange: (patch: Partial<LabelDraft>) => void;
+  errors: LabelErrors;
+  /** Where the barcode came from ("From your scan"). */
+  barcodeNote: string;
+}) {
+  const c = useColors();
+  const per100 = draft.basis === "100";
+  const values = per100 ? draft.per100 : draft.perServing;
+  const setValue = (key: keyof typeof values, v: string) =>
+    onChange(
+      per100
+        ? { per100: { ...draft.per100, [key]: v } }
+        : { perServing: { ...draft.perServing, [key]: v } },
+    );
+  const macro = (key: keyof typeof values, label: string) => (
+    <ForgeField
+      key={key}
+      label={label}
+      value={values[key]}
+      keyboardType="decimal-pad"
+      error={errors[key]}
+      onChangeText={(v) => setValue(key, v)}
+    />
+  );
+  const amount = Number(draft.amount.replace(",", "."));
+  const serving =
+    servingLabel(
+      draft.household,
+      draft.amount.trim() && Number.isFinite(amount) && amount > 0
+        ? amount
+        : undefined,
+      draft.unit,
+    ) ?? "1 serving";
+  const preview = servingValues(draft);
+  const warning = preview && energyWarning(preview);
+  const card = {
+    gap: forge.spacing.group,
+    padding: forge.spacing.cardPadding,
+    borderRadius: forge.radii.card,
+    borderWidth: forge.border.card,
+    borderColor: c.cardBorder,
+    backgroundColor: c.cardBg,
+  };
+  return (
+    <View style={{ gap: forge.spacing.cardGap }}>
+      {!!draft.barcode && (
+        <View
+          accessible
+          accessibilityLabel={`Barcode ${displayBarcode(draft.barcode)}, ${barcodeNote}`}
+          style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+        >
+          <Ionicons name="barcode-outline" size={22} color={c.emberHot} />
+          <View style={{ flex: 1 }}>
+            <FText
+              variant="body"
+              weight="700"
+              style={{ fontVariant: ["tabular-nums"], letterSpacing: 1 }}
+            >
+              {displayBarcode(draft.barcode)}
+            </FText>
+            <FText variant="label" tone="secondary">
+              {barcodeNote}
+            </FText>
+          </View>
+        </View>
+      )}
+      {errors.barcode && (
+        <FText variant="label" tone="error">
+          {errors.barcode}
+        </FText>
+      )}
+      <ForgeField
+        label="Food name"
+        value={draft.name}
+        autoCapitalize="words"
+        placeholder="As on the package, e.g. Dr Pepper"
+        error={errors.name}
+        onChangeText={(v) => onChange({ name: v })}
+      />
+      <ForgeField
+        label="Brand (optional)"
+        value={draft.brand}
+        autoCapitalize="words"
+        placeholder="e.g. Keurig Dr Pepper"
+        error={errors.brand}
+        onChangeText={(v) => onChange({ brand: v })}
+      />
+      <View style={card}>
+        <FText variant="overline" tone="secondary" header>
+          Serving size
+        </FText>
+        <ForgeField
+          label="Serving name (optional)"
+          value={draft.household}
+          placeholder="e.g. 1 can, 1 bar, 2 cookies"
+          error={errors.household}
+          onChangeText={(v) => onChange({ household: v })}
+        />
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-end",
+            gap: forge.spacing.tight,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <ForgeField
+              label={`Amount (${draft.unit})`}
+              value={draft.amount}
+              keyboardType="decimal-pad"
+              placeholder={draft.unit === "ml" ? "e.g. 355" : "e.g. 40"}
+              error={errors.amount}
+              onChangeText={(v) => onChange({ amount: v })}
+            />
+          </View>
+          <View style={{ width: 128, paddingBottom: errors.amount ? 22 : 0 }}>
+            <ForgeSegments
+              options={[
+                { value: "g", label: "g", accessibilityLabel: "Grams" },
+                { value: "ml", label: "ml", accessibilityLabel: "Millilitres" },
+              ]}
+              value={draft.unit}
+              onChange={(unit) => onChange({ unit })}
+            />
+          </View>
+        </View>
+        <FText variant="label" tone="secondary">
+          {`1 serving = ${serving}. As printed on the label; grams and millilitres are never converted.`}
+        </FText>
+      </View>
+      <View style={card}>
+        <FText variant="overline" tone="secondary" header>
+          Nutrition facts
+        </FText>
+        <ForgeSegments
+          options={[
+            { value: "serving", label: "Per serving" },
+            { value: "100", label: `Per 100 ${draft.unit}` },
+          ]}
+          value={draft.basis}
+          onChange={(basis) => onChange({ basis })}
+        />
+        <FText variant="label" tone="secondary">
+          {per100
+            ? `Values for 100 ${draft.unit}. FORGE works out one serving from the amount above.`
+            : "Values for one serving, as the Nutrition Facts label lists them."}
+        </FText>
+        {macro("calories", "Calories (kcal)")}
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: forge.spacing.tight,
+          }}
+        >
+          {macro("protein", "Protein (g)")}
+          {macro("carbs", "Carbs (g)")}
+          {macro("fat", "Fat (g)")}
+        </View>
+        {preview && (
+          <FText variant="label" weight="600">
+            {`${capitalizeFirst(serving)}: ${kcalText(preview.calories)} · P ${gramsText(preview.protein)} · C ${gramsText(preview.carbs)} · F ${gramsText(preview.fat)}`}
+          </FText>
+        )}
+        {warning && (
+          <FText variant="label" tone="accent">
+            {warning}
+          </FText>
+        )}
+      </View>
+      {errors.form && (
+        <FText variant="label" tone="error">
+          {errors.form}
+        </FText>
+      )}
+    </View>
+  );
+}
+
+const capitalizeFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

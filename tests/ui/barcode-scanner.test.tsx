@@ -281,8 +281,14 @@ test("an unknown barcode is a normal result: scan again, search or create", asyn
     expect(view.getByLabelText("Search foods")).toBeTruthy();
     await fireEvent.press(view.getByLabelText("Scan barcode"));
     await scan({ type: "ean13", data: "4006381333931" });
-    await fireEvent.press(view.getByRole("button", { name: "Create food" }));
-    expect(view.getByRole("header", { name: "New food" })).toBeTruthy();
+    // Phase 7.3F.2 M2: the barcode is carried into a label form.
+    await fireEvent.press(
+      view.getByRole("button", { name: "Create food from this barcode" }),
+    );
+    expect(
+      view.getByRole("header", { name: "New food from barcode" }),
+    ).toBeTruthy();
+    expect(view.getByText("4006381333931")).toBeTruthy();
     expect(entries(r)).toHaveLength(0);
   } finally {
     db.close();
