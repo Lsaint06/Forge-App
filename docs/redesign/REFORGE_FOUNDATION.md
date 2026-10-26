@@ -231,3 +231,24 @@ You's "No active plan" row counts the published programs (`libraryPrograms()`) i
 - **Content:** numbered exercise cards; the open one has an ember outline and number ring, and only one is open at a time.
 - **Heading:** "Exercises · N" overline with *Reorder*.
 - **Buttons:** *Add exercise* as an outline button; footer *Cancel* (outline) and *Save template* (gradient).
+
+## Exercise detail and anatomy atlas (Phase 7.2C-3B)
+
+[Exercise.tsx](../../src/screens/Exercise.tsx) (`/exercise?id=`, `?custom=new`) uses `ForgeSubScreen`, with **Add to workout** pinned.
+
+| Part | Presentation |
+| --- | --- |
+| Header | Overline (ember): primary group · movement pattern. Condensed name. Difficulty · sides |
+| Chips | Always three, always in this order: **equipment · movement pattern · measured by** (Strength / Timed / Distance), as in the approved prototype. A blank field is left out, never shown empty |
+| Muscles worked | [MuscleAtlas](../../src/components/anatomy/MuscleAtlas.tsx): front and back figures side by side (up to 300 pt tall, smaller on compact iPhones), then the legend. Each figure stacks the flat body, the lit regions (ember primary, copper secondary) and the lighting overlay as plain images; no SVG filters, no animation |
+| Legend | Primary and Secondary rows: group labels and named muscles. A muscle the figures cannot show is named with "Not visible on the figures" |
+| Full body | No highlight; "Full body · conditioning. No single muscle group leads this movement." |
+| No muscle recorded | "No muscle group recorded for this exercise." |
+| Guide | Numbered steps (ember numbers), common mistakes, safety |
+| History | Strength chart, *Your records* rows with the Epley note, *Recent sessions* rows; unchanged labels and values |
+| Custom | *Edit custom exercise* (outline). The custom form uses the same frame; its fields and validation are unchanged (shared controls, C5) |
+| Credit | "Anatomy illustration credits" link at the end of the page: authors, CC BY-SA 4.0 and links ([credits.ts](../../src/anatomy/credits.ts)) |
+
+**Accessibility:** the two figures are one image whose label is the full text equivalent ("Muscle diagram, front and back. Primary: Chest, pectoralis major. Secondary: …"). Each legend row is one element. Colour is never the only cue.
+
+Mapping and assets: [PHASE_7_2C_3A_ANATOMY_FOUNDATION.md](../audits/PHASE_7_2C_3A_ANATOMY_FOUNDATION.md).
