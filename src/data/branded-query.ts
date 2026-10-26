@@ -4,6 +4,7 @@
 // the whole catalogue.
 import { gtin14, type Symbology } from "../domain/barcode";
 import { catalogKey, type BrandedProduct } from "../domain/branded";
+import { SERVING_SOURCES } from "../domain/servings";
 
 /** Runs SQL against the catalogue. */
 export type Runner = {
@@ -19,7 +20,9 @@ export const PAGE = 30;
 export const MIN_CHARS = 2;
 
 const COLUMNS = `p.id, p.fdc_id AS fdcId, p.name, b.name AS brand, p.basis,
-  p.serving, p.household, p.kcal, p.protein, p.carbs, p.fat, p.gtin`;
+  p.serving, p.household, p.kcal, p.protein, p.carbs, p.fat, p.gtin,
+  (SELECT name FROM serving_label WHERE id = p.serving_label) AS servingLabel,
+  p.serving_source AS servingSource, p.package`;
 type Row = {
   id: number;
   fdcId: number;
@@ -33,6 +36,9 @@ type Row = {
   carbs: number;
   fat: number;
   gtin: number | null;
+  servingLabel: string;
+  servingSource: number;
+  package: number | null;
 };
 // Values are stored × 1000 as integers (lossless: no published value has
 // more than three decimals).
@@ -50,6 +56,9 @@ function product(r: Row): BrandedProduct {
     protein: unscale(r.protein),
     carbs: unscale(r.carbs),
     fat: unscale(r.fat),
+    servingLabel: r.servingLabel,
+    servingSource: SERVING_SOURCES[r.servingSource] ?? "serving",
+    ...(r.package === null ? {} : { package: unscale(r.package) }),
     ...(r.gtin === null ? {} : { gtin: String(r.gtin).padStart(14, "0") }),
   };
 }

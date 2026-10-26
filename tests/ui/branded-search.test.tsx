@@ -15,6 +15,8 @@ const food = (i: number) =>
     basis: "g",
     serving: 60,
     household: "1 BAR",
+    servingLabel: "1 BAR",
+    servingSource: "label",
     kcal: 350,
     protein: 35,
     carbs: 36.7,

@@ -61,6 +61,7 @@ import {
   MIN_ML,
   amountText,
   basisOf,
+  portionLabel,
   choiceError,
   entryFromLibrary,
   portionAmount,
@@ -72,7 +73,7 @@ import {
 } from "../../domain/food-library";
 import { tryLoadFoodLibrary } from "../../data/food-catalog";
 import { BRANDED_CATALOG, BRANDED_RELEASE } from "../../data/branded-catalog";
-import { isBrandedId } from "../../domain/branded";
+import { isBrandedId, servingNote } from "../../domain/branded";
 import { useBrandedSearch } from "./useBrandedSearch";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { dayTitle } from "../../domain/calendar-dates";
@@ -421,14 +422,19 @@ export function QuickAddSheet({
     const error = choiceError(food, choice);
     const total = totalAmount(food, choice);
     const v = valuesForAmount(food, Number.isFinite(total) ? total : 0);
-    const units = [
-      unitWord,
-      ...food.portions.map(
-        (p) => `${p.label} · ${amountText(portionAmount(p), unit)}`,
-      ),
-    ];
+    const portionChips = food.portions.map(
+      (p) =>
+        `${brandedFood ? capitalize(p.label) : p.label} · ${amountText(portionAmount(p), unit)}`,
+    );
+    // Branded products lead with their servings; grams or millilitres last.
+    const units = brandedFood
+      ? [...portionChips, unitWord]
+      : [unitWord, ...portionChips];
     const chosen =
-      choice.kind === "portion" ? units[choice.index + 1]! : unitWord;
+      choice.kind === "portion" ? portionChips[choice.index]! : unitWord;
+    const serving = food.portions[0];
+    const whole = brandedFood && choice.kind === "portion" && choice.index > 0;
+    const note = brandedFood ? servingNote(food) : undefined;
     const setChoice = (next: PortionChoice) =>
       setStep({ ...step, choice: next, note: undefined });
     const fdcId = food.id.split(":")[1];
@@ -485,12 +491,12 @@ export function QuickAddSheet({
               values={units}
               value={chosen}
               onChange={(u) => {
-                const i = units.indexOf(u);
+                const i = portionChips.indexOf(u);
                 setChoice(
-                  i > 0
+                  i >= 0
                     ? {
                         kind: "portion",
-                        index: i - 1,
+                        index: i,
                         count: choice.kind === "portion" ? choice.count : 1,
                       }
                     : unit === "ml"
@@ -533,22 +539,56 @@ export function QuickAddSheet({
                 onChange={(ml) => setChoice({ kind: "ml", ml })}
               />
             ) : (
-              <ForgeStepper
-                key={`portion-${choice.index}`}
-                label="Portions"
-                value={choice.count}
-                step={0.25}
-                min={MIN_COUNT}
-                floor={0.25}
-                max={MAX_COUNT}
-                unit={portionName ? `× ${portionName}` : "portions"}
-                onChange={(n) => setChoice({ ...choice, count: n })}
-              />
+              <>
+                {brandedFood && (
+                  <ForgeChips
+                    values={QUICK.map((q) => q.text)}
+                    value={
+                      QUICK.find((q) => q.count === choice.count)?.text ?? ""
+                    }
+                    onChange={(t) => {
+                      const q = QUICK.find((x) => x.text === t);
+                      if (q) setChoice({ ...choice, count: q.count });
+                    }}
+                  />
+                )}
+                <ForgeStepper
+                  key={`portion-${choice.index}`}
+                  label={
+                    brandedFood ? (whole ? "Packages" : "Servings") : "Portions"
+                  }
+                  value={choice.count}
+                  step={0.25}
+                  min={MIN_COUNT}
+                  floor={0.25}
+                  max={MAX_COUNT}
+                  unit={portionName ? `× ${portionName}` : "portions"}
+                  onChange={(n) => setChoice({ ...choice, count: n })}
+                />
+              </>
+            )}
+            {brandedFood && serving && (
+              <View style={{ gap: 2 }}>
+                <FText variant="label" tone="secondary">
+                  {whole
+                    ? `Whole package = ${amountText(portionAmount(food.portions[1]!), unit)}${food.servingInfo?.servingsPerPackage ? ` · about ${amount(food.servingInfo.servingsPerPackage)} servings` : ""}`
+                    : `1 serving = ${portionLabel(serving)}`}
+                </FText>
+                {note && (
+                  <FText variant="label" tone="secondary">
+                    {note}
+                  </FText>
+                )}
+              </View>
             )}
           </Section>
           <ValuesCard
             heading={
-              error ? "Check the amount" : `For ${amountText(total, unit)}`
+              error
+                ? "Check the amount"
+                : brandedFood && choice.kind === "portion" && portionName
+                  ? `For ${choice.count === 1 ? "" : `${countText(choice.count)} × `}${portionName} · ${amountText(total, unit)}`
+                  : `For ${amountText(total, unit)}`
             }
             calories={v.calories}
             protein={v.protein}
@@ -1364,3 +1404,21 @@ function ScanButton({ onPress }: { onPress: () => void }) {
     </Pressable>
   );
 }
+
+/** Quick serving amounts for branded foods. */
+const QUICK = [
+  { text: "½", count: 0.5 },
+  { text: "1", count: 1 },
+  { text: "1½", count: 1.5 },
+  { text: "2", count: 2 },
+];
+const FRACTIONS: Record<number, string> = {
+  0.25: "¼",
+  0.5: "½",
+  0.75: "¾",
+  1.5: "1½",
+  2.5: "2½",
+};
+/** "½", "1½", "3": a serving count as people say it. */
+const countText = (n: number) => FRACTIONS[n] ?? amount(n);
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

@@ -50,6 +50,10 @@ export type Accepted = {
   basis: "g" | "ml";
   serving: number;
   household: string;
+  /** The household text as published (for serving recovery). */
+  householdRaw: string;
+  /** The package size as published ("1.15 OZ/32 G"). */
+  packageText: string;
   kcal: number;
   protein: number;
   carbs: number;
@@ -202,6 +206,8 @@ export function judge(f: Rec): { reason: Reason } | { product: Accepted } {
       basis,
       serving: Math.round(size * 100) / 100,
       household: house.text,
+      householdRaw: str(f.householdServingFullText),
+      packageText: str(f.packageWeight),
       kcal,
       protein,
       carbs,

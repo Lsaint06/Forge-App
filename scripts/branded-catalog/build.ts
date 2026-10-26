@@ -86,6 +86,13 @@ export type Manifest = {
   brands: number;
   categories: number;
   perHundredMl: number;
+  /** Smart servings (Phase 7.3F.1): where each serving name comes from. */
+  servings: {
+    sources: Record<string, number>;
+    householdKinds: Record<string, number>;
+    labels: number;
+    wholePackage: number;
+  };
   source: Omit<Source, "member" | "root"> & { records: number };
   reference: { bytes: number; sha256: string; sqlite: string; node: string };
 };
@@ -155,6 +162,11 @@ async function curate() {
   return { records, accepted, excluded };
 }
 
+const sortedRecord = (r: Record<string, number>) =>
+  Object.fromEntries(
+    Object.entries(r).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
+  );
+
 const tally = <T>(items: T[], key: (t: T) => string) => {
   const m = new Map<string, number>();
   for (const i of items) m.set(key(i), (m.get(key(i)) ?? 0) + 1);
@@ -205,6 +217,27 @@ function report(
     "",
     `Barcode versions whose values conflicted (newest kept): ${superseded.filter((s) => s.conflict).length.toLocaleString("en-US")}.`,
     "",
+    "## Servings (Phase 7.3F.1)",
+    "",
+    "Every product offers one manufacturer serving (its metric serving). Its name comes from:",
+    "",
+    "| Source | Products | Share |",
+    "| --- | ---: | ---: |",
+    ...Object.entries(manifest.servings.sources).map(
+      ([k, n]) =>
+        `| ${SOURCE_NAMES[k] ?? k} | ${n.toLocaleString("en-US")} | ${((100 * n) / manifest.products).toFixed(1)}% |`,
+    ),
+    "",
+    `Whole-package option (a package of 1.1–4.5 servings): ${manifest.servings.wholePackage.toLocaleString("en-US")} products. Distinct serving names: ${manifest.servings.labels.toLocaleString("en-US")}.`,
+    "",
+    "How the household text read:",
+    "",
+    "| Household text | Products |",
+    "| --- | ---: |",
+    ...Object.entries(manifest.servings.householdKinds).map(
+      ([k, n]) => `| ${k} | ${n.toLocaleString("en-US")} |`,
+    ),
+    "",
     "## Identity",
     "",
     `- Content digest (all rows, any SQLite version): \`${manifest.contentSha256}\``,
@@ -231,6 +264,15 @@ function report(
     supersededTsv: `${supersededTsv}\n`,
   };
 }
+
+const SOURCE_NAMES: Record<string, string> = {
+  label: 'Named unit from the label ("1 stick")',
+  measure: 'Household measure from the label ("1/2 cup")',
+  about: 'Recovered "about N units"',
+  sibling: "Named unit from another listing of the same product",
+  package: 'Single-serve package ("1 package")',
+  serving: '"1 serving" (metric serving only)',
+};
 
 function readManifest() {
   return existsSync(manifestFile)
@@ -312,6 +354,12 @@ async function main() {
     brands: written.brands,
     categories: written.categories,
     perHundredMl: written.perHundredMl,
+    servings: {
+      sources: sortedRecord(written.servingSources),
+      householdKinds: sortedRecord(written.householdKinds),
+      labels: written.servingLabels,
+      wholePackage: written.wholePackage,
+    },
     source: {
       release: source.release,
       label: source.label,

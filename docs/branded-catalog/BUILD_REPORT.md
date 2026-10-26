@@ -52,8 +52,36 @@ Every excluded FDC ID is listed with its reason in [excluded.tsv](excluded.tsv);
 
 Barcode versions whose values conflicted (newest kept): 4,336.
 
+## Servings (Phase 7.3F.1)
+
+Every product offers one manufacturer serving (its metric serving). Its name comes from:
+
+| Source | Products | Share |
+| --- | ---: | ---: |
+| Named unit from the label ("1 stick") | 149,296 | 36.9% |
+| Household measure from the label ("1/2 cup") | 142,357 | 35.2% |
+| "1 serving" (metric serving only) | 96,743 | 23.9% |
+| Single-serve package ("1 package") | 11,900 | 2.9% |
+| Recovered "about N units" | 3,024 | 0.7% |
+| Named unit from another listing of the same product | 1,662 | 0.4% |
+
+Whole-package option (a package of 1.1–4.5 servings): 79,396 products. Distinct serving names: 9,855.
+
+How the household text read:
+
+| Household text | Products |
+| --- | ---: |
+| named | 149,296 |
+| measure | 142,357 |
+| metric | 95,306 |
+| empty | 11,476 |
+| about | 3,024 |
+| generic | 2,386 |
+| conflict | 925 |
+| long | 212 |
+
 ## Identity
 
-- Content digest (all rows, any SQLite version): `73f6a877ff592b7735e77ec5f293304352d8929c83b69b9d09cf9d603708ad9e`
-- Reference file: 62,058,496 bytes, SHA-256 `5b7120a6d2fec1d28503ad21d60acd7a89496046b07b11ea8191dd309a9b8158` (SQLite 3.53.4, Node 24.22.0)
-- Brands 35,999, categories 249, schema 3
+- Content digest (all rows, any SQLite version): `5c8a57883d7f447b347a28d60d795a83b71bbb5d7d040762835c862c817fa727`
+- Reference file: 64,737,280 bytes, SHA-256 `85046234248e0976369e4212c5678902819bfa070830fbeba72833cea8471995` (SQLite 3.53.4, Node 24.22.0)
+- Brands 35,999, categories 249, schema 4

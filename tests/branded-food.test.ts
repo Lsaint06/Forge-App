@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   BRANDED_PREFIX,
   brandedFood,
-  servingLabel,
+  servingNote,
   type BrandedProduct,
 } from "../src/domain/branded";
 import {
@@ -52,6 +52,8 @@ const questBar: BrandedProduct = {
   basis: "g",
   serving: 60,
   household: "1 BAR",
+  servingLabel: "1 BAR",
+  servingSource: "label",
   kcal: 350,
   protein: 35,
   carbs: 36.7,
@@ -66,6 +68,8 @@ const milk: BrandedProduct = {
   basis: "ml",
   serving: 240,
   household: "1 cup (240 mL)",
+  servingLabel: "1 cup",
+  servingSource: "measure",
   kcal: 62.5,
   protein: 5.42,
   carbs: 2.5,
@@ -86,12 +90,7 @@ test("a branded product becomes a library food with its label serving in its own
   assert.deepEqual(shake.portions, [{ label: "1 cup", ml: 240 }]);
   assert.equal(portionLabel(shake.portions[0]!), "1 cup (240 ml)");
   assert.equal("barcode" in shake, false, "no barcode is invented");
-  assert.equal(servingLabel(""), "1 serving");
-  assert.equal(servingLabel("1 container (150g)"), "1 container");
-  assert.equal(
-    servingLabel("3/4 cup (20g) (age 1-3 years)"),
-    "3/4 cup (20g) (age 1-3 years)",
-  );
+  assert.equal(servingNote(bar), undefined, "a label name needs no note");
   assert.equal(sourceLabel(bar.id), "USDA Branded Foods · FDC 2758974");
 });
 
@@ -367,4 +366,76 @@ test("branded entries survive backup, restore and sync exactly; catalogue change
     a.db.close();
     b.db.close();
   }
+});
+
+test("smart servings: the catalogue's serving name, a whole package when offered, never a converted unit", () => {
+  const stick = brandedFood({
+    ...questBar,
+    fdcId: 2365336,
+    name: "MILD ORIGINAL BEEF STICK",
+    brand: "CHOMPS",
+    serving: 32,
+    household: "1.15 oz",
+    servingLabel: "1 package",
+    servingSource: "package",
+    kcal: 281,
+    protein: 28.1,
+    carbs: 0,
+    fat: 18.8,
+  });
+  assert.deepEqual(stick.portions, [{ label: "1 package", grams: 32 }]);
+  assert.equal(servingNote(stick), "The package holds one serving");
+  const fallback = brandedFood({
+    ...questBar,
+    household: "1.15 oz",
+    servingLabel: "1 serving",
+    servingSource: "serving",
+  });
+  assert.equal(portionLabel(fallback.portions[0]!), "1 serving (60 g)");
+  assert.equal(servingNote(fallback), "Label serving: 1.15 oz");
+  const sibling = brandedFood({
+    ...questBar,
+    servingLabel: "1 Stick",
+    servingSource: "sibling",
+  });
+  assert.match(servingNote(sibling)!, /another listing of this product/);
+  // A 20 fl oz bottle of 240 ml servings also offers the whole bottle.
+  const bottle = brandedFood({
+    ...milk,
+    serving: 240,
+    servingLabel: "1 serving",
+    servingSource: "serving",
+    package: 591,
+  });
+  assert.deepEqual(bottle.portions, [
+    { label: "1 serving", ml: 240 },
+    { label: "whole package", ml: 591 },
+  ]);
+  assert.equal(bottle.servingInfo?.servingsPerPackage, 591 / 240);
+  // Serving quantities: ½, 1, 1½ and 2 servings, and the whole package.
+  for (const count of [0.5, 1, 1.5, 2]) {
+    const e = entryFromLibrary(
+      stick,
+      { kind: "portion", index: 0, count },
+      CATALOG,
+    );
+    assert.equal(e.serving, "1 package (32 g)");
+    assert.equal(e.quantity, count);
+    assert.equal(e.sourceGrams, 32);
+    close(Number(e.calories) * count, 89.92 * count);
+    close(Number(e.protein) * count, 8.992 * count);
+  }
+  const all = entryFromLibrary(
+    bottle,
+    { kind: "portion", index: 1, count: 1 },
+    CATALOG,
+  );
+  assert.equal(all.serving, "whole package (591 ml)");
+  assert.equal(all.sourceMl, 591);
+  assert.equal("sourceGrams" in all, false);
+  close(Number(all.calories), 369.375);
+  assert.equal(
+    totalAmount(bottle, { kind: "portion", index: 1, count: 2 }),
+    1182,
+  );
 });

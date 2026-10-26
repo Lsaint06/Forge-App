@@ -43,6 +43,16 @@ export type LibraryFood = {
   brand?: string;
   /** Branded products only, when the product has a valid barcode (GTIN-14). */
   barcode?: string;
+  /**
+   * Branded products only: where the serving's name comes from, the label's
+   * household text, and how many servings the whole package holds. For
+   * display; amounts and values never depend on it.
+   */
+  servingInfo?: {
+    source: string;
+    household: string;
+    servingsPerPackage?: number;
+  };
 };
 type Indexed = {
   food: LibraryFood;

@@ -363,3 +363,16 @@ A step of the Add food sheet (no new screen), opened by the **Scan barcode** but
 | Not found | "Product not found" with the barcode, **Scan again**, **Search foods**, **Create food** |
 | Unreadable | "That barcode couldn't be read" with how to retry |
 | No camera | "Camera access is off" (**Allow camera** or **Open Settings**) or "Camera unavailable"; **Or type the barcode** with **Look up** always available |
+
+## Smart servings (Phase 7.3F.1)
+
+Branded foods open on one manufacturer serving by name, the same from search and scan. Details: [PHASE_7_3F_1_SMART_SERVINGS.md](../audits/PHASE_7_3F_1_SMART_SERVINGS.md) §0.
+
+| Part | Presentation |
+| --- | --- |
+| Row | "1 stick (32 g) · 90 kcal", "1 serving (240 ml) · 101 kcal"; + logs one serving |
+| Serving chips | The serving first ("1 Stick · 32 g"), then "Whole package · 591 ml" when offered, then Grams or Millilitres |
+| Quick amounts | **½ · 1 · 1½ · 2** chips above the stepper ("Servings", or "Packages" for the whole package) |
+| Explanation | "1 serving = 1 stick (32 g)" or "Whole package = 591 ml · about 2.46 servings"; a secondary note when the name comes from the package, another listing, an "about" count, or when the label only states a weight ("Label serving: 1.15 oz") |
+| Values card | "For 1½ × 1 stick · 48 g", then kcal and protein, carbs, fat for that amount |
+| Generic foods | Unchanged ("Portions", Grams first) |

@@ -1,15 +1,37 @@
 {
   "generatedBy": "scripts/branded-catalog/build.ts",
-  "schema": 3,
+  "schema": 4,
   "release": "2026-04-30",
   "catalog": "usda-branded-2026-04-30",
   "file": "usda-branded-2026-04-30.db",
-  "contentSha256": "73f6a877ff592b7735e77ec5f293304352d8929c83b69b9d09cf9d603708ad9e",
+  "contentSha256": "5c8a57883d7f447b347a28d60d795a83b71bbb5d7d040762835c862c817fa727",
   "products": 404982,
   "barcodes": 395354,
   "brands": 35999,
   "categories": 249,
   "perHundredMl": 54030,
+  "servings": {
+    "sources": {
+      "label": 149296,
+      "measure": 142357,
+      "serving": 96743,
+      "package": 11900,
+      "about": 3024,
+      "sibling": 1662
+    },
+    "householdKinds": {
+      "named": 149296,
+      "measure": 142357,
+      "metric": 95306,
+      "empty": 11476,
+      "about": 3024,
+      "generic": 2386,
+      "conflict": 925,
+      "long": 212
+    },
+    "labels": 9855,
+    "wholePackage": 79396
+  },
   "source": {
     "release": "2026-04-30",
     "label": "USDA FoodData Central, Global Branded Food Products Database",
@@ -20,8 +42,8 @@
     "records": 455458
   },
   "reference": {
-    "bytes": 62058496,
-    "sha256": "5b7120a6d2fec1d28503ad21d60acd7a89496046b07b11ea8191dd309a9b8158",
+    "bytes": 64737280,
+    "sha256": "85046234248e0976369e4212c5678902819bfa070830fbeba72833cea8471995",
     "sqlite": "3.53.4",
     "node": "24.22.0"
   }

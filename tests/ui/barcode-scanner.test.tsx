@@ -8,7 +8,10 @@ import {
 } from "@testing-library/react-native";
 import JournalScreen from "../../src/screens/Journal";
 import { useRepo } from "../../src/state";
-import { brandedByBarcode } from "../../src/data/branded-catalog";
+import {
+  brandedByBarcode,
+  searchBranded,
+} from "../../src/data/branded-catalog";
 import { brandedFood } from "../../src/domain/branded";
 import { pathRepository } from "../path-fixture";
 import { localDate } from "../../src/domain/types";
@@ -95,6 +98,8 @@ const COKE = brandedFood({
   basis: "ml",
   serving: 355,
   household: "1 can",
+  servingLabel: "1 can",
+  servingSource: "label",
   kcal: 39.4,
   protein: 0,
   carbs: 10.98,
@@ -204,7 +209,7 @@ test("a scanned can opens its product once; nothing is logged until Add, then Un
     expect(entries(r)).toHaveLength(0);
     // Two cans, at lunch.
     for (let i = 0; i < 4; i++)
-      await fireEvent.press(view.getByLabelText("Increase Portions by 0.25"));
+      await fireEvent.press(view.getByLabelText("Increase Servings by 0.25"));
     await fireEvent.press(view.getByRole("tab", { name: "Lunch" }));
     expect(view.getByText(/Logs to Lunch · Today/)).toBeTruthy();
     expect(entries(r)).toHaveLength(0);
@@ -400,6 +405,65 @@ test("closing the sheet while a lookup is running logs nothing and opens nothing
     ).toBeNull();
     expect(view.getByLabelText("Search foods")).toBeTruthy();
     expect(entries(r)).toHaveLength(0);
+  } finally {
+    db.close();
+  }
+});
+
+test("scanning and searching the same product give the same serving and the same entry", async () => {
+  const { r, db } = setup();
+  try {
+    const STICK = brandedFood({
+      id: 30,
+      fdcId: 2365336,
+      name: "MILD ORIGINAL BEEF STICK, MILD ORIGINAL BEEF",
+      brand: "CHOMPS",
+      basis: "g",
+      serving: 32,
+      household: "1.15 oz",
+      servingLabel: "1 package",
+      servingSource: "package",
+      kcal: 281,
+      protein: 28.1,
+      carbs: 0,
+      fat: 18.8,
+      gtin: "00856584004183",
+    });
+    jest.mocked(brandedByBarcode).mockResolvedValue(STICK);
+    jest
+      .mocked(searchBranded)
+      .mockResolvedValue({ foods: [STICK], total: 1, broad: false });
+    const view = await render(<JournalScreen />);
+    await openScanner(view, "Snacks");
+    await scan({ type: "upc_a", data: "856584004183" });
+    expect(view.getByText("1 serving = 1 package (32 g)")).toBeTruthy();
+    await fireEvent.press(view.getByRole("button", { name: "1½" }));
+    await fireEvent.press(
+      view.getByLabelText(
+        "Add MILD ORIGINAL BEEF STICK, MILD ORIGINAL BEEF to Snacks",
+      ),
+    );
+    await fireEvent.changeText(view.getByLabelText("Search foods"), "chomps");
+    await fireEvent.press(
+      view.getByLabelText(
+        "MILD ORIGINAL BEEF STICK, MILD ORIGINAL BEEF, CHOMPS, 1 package (32 g), 90 kcal",
+      ),
+    );
+    expect(view.getByText("1 serving = 1 package (32 g)")).toBeTruthy();
+    await fireEvent.press(view.getByRole("button", { name: "1½" }));
+    await fireEvent.press(
+      view.getByLabelText(
+        "Add MILD ORIGINAL BEEF STICK, MILD ORIGINAL BEEF to Snacks",
+      ),
+    );
+    const [a, b] = entries(r);
+    expect(a!.data).toEqual(b!.data);
+    expect(a!.data).toMatchObject({
+      serving: "1 package (32 g)",
+      quantity: 1.5,
+      sourceGrams: 32,
+      sourceBarcode: "00856584004183",
+    });
   } finally {
     db.close();
   }

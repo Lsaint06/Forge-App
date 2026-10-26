@@ -3,9 +3,10 @@
 // from USDA FoodData Central Branded Foods by scripts/branded-catalog and
 // shipped inside the app; see docs/audits/PHASE_7_3E_BRANDED_FOOD_ARCHITECTURE.md.
 import type { LibraryFood, LibraryPortion } from "./food-library";
+import type { ServingSource } from "./servings";
 
 /** The catalogue layout this build reads. Bumped on any table change. */
-export const BRANDED_SCHEMA = 3;
+export const BRANDED_SCHEMA = 4;
 
 /** Namespace of a branded product's source identity ("usda-branded:2758974"). */
 export const BRANDED_PREFIX = "usda-branded";
@@ -43,10 +44,16 @@ export type BrandedProduct = {
   name: string;
   brand: string;
   basis: "g" | "ml";
-  /** Label serving in the basis unit. */
+  /** One manufacturer serving, in the basis unit. */
   serving: number;
-  /** Household serving text ("1 bar", "2/3 cup"), or "" when unusable. */
+  /** Household serving text as published ("1.15 oz", "1 bar"), or "". */
   household: string;
+  /** The serving's name ("1 stick", "1 package", "1 serving"). */
+  servingLabel: string;
+  /** Where that name comes from (domain/servings.ts). */
+  servingSource: ServingSource;
+  /** The whole package, in the basis unit, when it is a few servings. */
+  package?: number;
   kcal: number;
   protein: number;
   carbs: number;
@@ -55,25 +62,20 @@ export type BrandedProduct = {
   gtin?: string;
 };
 
-// An amount the label repeats in its household text ("1 cup (240 mL)"): the
-// portion label shows the amount once, from the serving size.
-const REPEATED_AMOUNT = /\s*\(\s*\d+(?:\.\d+)?\s*(?:g|grams?|ml|mls)\s*\)\s*$/i;
-
-/** The label serving's description: the household text, or "1 serving". */
-export function servingLabel(household: string) {
-  return household.replace(REPEATED_AMOUNT, "").trim() || "1 serving";
-}
+/** The whole package's portion name. */
+export const WHOLE_PACKAGE = "whole package";
 
 /**
  * A branded product as a library food, so it is chosen, measured and logged
- * exactly like a generic one. Its only portion is the label serving, in the
+ * exactly like a generic one. Its first portion is one manufacturer serving
+ * under its catalogue name ("1 stick (32 g)", "1 serving (28 g)"); a whole
+ * package follows when the package is a few servings. Amounts are in the
  * product's own unit (grams or millilitres). Brand and barcode are carried
  * only when the product has them.
  */
 export function brandedFood(p: BrandedProduct): LibraryFood {
-  const label = servingLabel(p.household);
-  const portion: LibraryPortion =
-    p.basis === "ml" ? { label, ml: p.serving } : { label, grams: p.serving };
+  const portion = (label: string, amount: number): LibraryPortion =>
+    p.basis === "ml" ? { label, ml: amount } : { label, grams: amount };
   return {
     id: `${BRANDED_PREFIX}:${p.fdcId}`,
     name: p.name,
@@ -83,10 +85,31 @@ export function brandedFood(p: BrandedProduct): LibraryFood {
     protein: p.protein,
     carbs: p.carbs,
     fat: p.fat,
-    portions: [portion],
+    portions: [
+      portion(p.servingLabel, p.serving),
+      ...(p.package ? [portion(WHOLE_PACKAGE, p.package)] : []),
+    ],
     rank: 0,
     basis: p.basis,
     brand: p.brand,
     ...(p.gtin ? { barcode: p.gtin } : {}),
+    servingInfo: {
+      source: p.servingSource,
+      household: p.household,
+      ...(p.package ? { servingsPerPackage: p.package / p.serving } : {}),
+    },
   };
+}
+
+/** What the food step says about a branded serving's name, or undefined. */
+export function servingNote(food: LibraryFood) {
+  const info = food.servingInfo;
+  if (!info) return undefined;
+  if (info.source === "sibling")
+    return "Serving name from another listing of this product";
+  if (info.source === "package") return "The package holds one serving";
+  if (info.source === "about") return "Count as printed on the label";
+  if (info.source === "serving" && info.household)
+    return `Label serving: ${info.household}`;
+  return undefined;
 }

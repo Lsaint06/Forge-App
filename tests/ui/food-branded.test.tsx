@@ -63,6 +63,8 @@ const QUEST = brandedFood({
   basis: "g",
   serving: 60,
   household: "1 BAR",
+  servingLabel: "1 BAR",
+  servingSource: "label",
   kcal: 350,
   protein: 35,
   carbs: 36.7,
@@ -77,6 +79,8 @@ const MILK = brandedFood({
   basis: "ml",
   serving: 240,
   household: "1 cup (240 mL)",
+  servingLabel: "1 cup",
+  servingSource: "label",
   kcal: 62.5,
   protein: 5.42,
   carbs: 2.5,
@@ -311,6 +315,8 @@ test("branded results come after the lifter's foods and the common foods", async
         basis: "g",
         serving: 150,
         household: "1 CONTAINER",
+        servingLabel: "1 CONTAINER",
+        servingSource: "label",
         kcal: 80,
         protein: 8.67,
         carbs: 10,
@@ -393,8 +399,8 @@ test("compact iPhones and large text: branded rows and their controls stay reach
     expect(Number(add.height)).toBeGreaterThanOrEqual(44);
     await fireEvent.press(view.getByLabelText(QUEST_ROW));
     for (const label of [
-      "Decrease Portions by 0.25",
-      "Increase Portions by 0.25",
+      "Decrease Servings by 0.25",
+      "Increase Servings by 0.25",
       "Back to foods",
       "Add PROTEIN BAR, COOKIES & CREAM to Lunch",
     ]) {
@@ -406,6 +412,214 @@ test("compact iPhones and large text: branded rows and their controls stay reach
         /Branded Foods \(2026-04-30\), FDC 2758974, barcode 00888849000708/,
       ),
     ).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
+// ---- Smart servings (Phase 7.3F.1) -----------------------------------------
+
+const STICK = brandedFood({
+  id: 30,
+  fdcId: 2365336,
+  name: "MILD ORIGINAL BEEF STICK, MILD ORIGINAL BEEF",
+  brand: "CHOMPS",
+  basis: "g",
+  serving: 32,
+  household: "1.15 oz",
+  servingLabel: "1 package",
+  servingSource: "package",
+  kcal: 281,
+  protein: 28.1,
+  carbs: 0,
+  fat: 18.8,
+  gtin: "00856584004183",
+});
+const BOTTLE = brandedFood({
+  id: 31,
+  fdcId: 2743966,
+  name: "FIZZWELL SODA BOTTLE, 20 FL OZ",
+  brand: "FIZZWELL",
+  basis: "ml",
+  serving: 240,
+  household: "8 fl oz",
+  servingLabel: "1 serving",
+  servingSource: "serving",
+  package: 591,
+  kcal: 42,
+  protein: 0,
+  carbs: 11,
+  fat: 0,
+});
+
+test("a weight-only product opens on one serving by name, with ½ · 1 · 1½ · 2 and exact values", async () => {
+  const { r, db } = setup();
+  try {
+    catalogue([STICK]);
+    const view = await render(<JournalScreen />);
+    await fireEvent.press(view.getByLabelText("Add to Snacks"));
+    await search(view, "chomps");
+    // The row names the serving, never "1.15 oz".
+    const row =
+      "MILD ORIGINAL BEEF STICK, MILD ORIGINAL BEEF, CHOMPS, 1 package (32 g), 90 kcal";
+    expect(view.getByLabelText(row)).toBeTruthy();
+    expect(view.queryByText(/1\.15 oz \(/)).toBeNull();
+    await fireEvent.press(view.getByLabelText(row));
+    // The serving leads; grams come last.
+    const buttons = view.getAllByRole("button");
+    const servingChip = view.getByRole("button", { name: "1 package · 32 g" });
+    expect(servingChip.props.accessibilityState?.selected).toBe(true);
+    expect(buttons.indexOf(servingChip)).toBeLessThan(
+      buttons.indexOf(view.getByRole("button", { name: "Grams" })),
+    );
+    expect(view.getByText("1 serving = 1 package (32 g)")).toBeTruthy();
+    expect(view.getByText("The package holds one serving")).toBeTruthy();
+    expect(view.getByText("For 1 package · 32 g")).toBeTruthy();
+    expect(
+      view.getByLabelText("90 kcal, protein 9 g, carbs 0 g, fat 6 g, 32 g"),
+    ).toBeTruthy();
+    const cases: [string, string, string][] = [
+      [
+        "½",
+        "For ½ × 1 package · 16 g",
+        "45 kcal, protein 4 g, carbs 0 g, fat 3 g, 16 g",
+      ],
+      [
+        "1½",
+        "For 1½ × 1 package · 48 g",
+        "135 kcal, protein 13 g, carbs 0 g, fat 9 g, 48 g",
+      ],
+      [
+        "2",
+        "For 2 × 1 package · 64 g",
+        "180 kcal, protein 18 g, carbs 0 g, fat 12 g, 64 g",
+      ],
+    ];
+    for (const [quick, heading, values] of cases) {
+      await fireEvent.press(view.getByRole("button", { name: quick }));
+      expect(view.getByText(heading)).toBeTruthy();
+      expect(view.getByLabelText(values)).toBeTruthy();
+    }
+    // The stepper names servings; nothing is logged yet.
+    expect(view.getByLabelText("Increase Servings by 0.25")).toBeTruthy();
+    expect(entries(r)).toHaveLength(0);
+    await fireEvent.press(
+      view.getByLabelText(
+        "Add MILD ORIGINAL BEEF STICK, MILD ORIGINAL BEEF to Snacks",
+      ),
+    );
+    expect(entries(r)[0]!.data).toEqual({
+      name: "MILD ORIGINAL BEEF STICK, MILD ORIGINAL BEEF",
+      meal: "Snacks",
+      calories: 89.92,
+      protein: 8.992,
+      carbs: 0,
+      fat: 6.016,
+      quantity: 2,
+      serving: "1 package (32 g)",
+      sourceId: "usda-branded:2365336",
+      sourceCatalog: "usda-branded-2026-04-30",
+      sourceGrams: 32,
+      sourceBrand: "CHOMPS",
+      sourceBarcode: "00856584004183",
+    });
+    await fireEvent.press(
+      view.getByLabelText(
+        "Undo adding MILD ORIGINAL BEEF STICK, MILD ORIGINAL BEEF",
+      ),
+    );
+    expect(entries(r)).toHaveLength(0);
+  } finally {
+    db.close();
+  }
+});
+
+test("one serving and the whole package are different amounts, both exact", async () => {
+  const { r, db } = setup();
+  try {
+    catalogue([BOTTLE]);
+    const view = await render(<JournalScreen />);
+    await fireEvent.press(view.getByLabelText("Add to Lunch"));
+    await search(view, "fizzwell");
+    await fireEvent.press(
+      view.getByLabelText(
+        "FIZZWELL SODA BOTTLE, 20 FL OZ, FIZZWELL, 1 serving (240 ml), 101 kcal",
+      ),
+    );
+    expect(view.getByText("1 serving = 1 serving (240 ml)")).toBeTruthy();
+    expect(view.getByText("Label serving: 8 fl oz")).toBeTruthy();
+    expect(
+      view.getByLabelText("101 kcal, protein 0 g, carbs 26 g, fat 0 g, 240 ml"),
+    ).toBeTruthy();
+    await fireEvent.press(
+      view.getByRole("button", { name: "Whole package · 591 ml" }),
+    );
+    expect(
+      view.getByText("Whole package = 591 ml · about 2.46 servings"),
+    ).toBeTruthy();
+    expect(view.getByText("For whole package · 591 ml")).toBeTruthy();
+    expect(
+      view.getByLabelText("248 kcal, protein 0 g, carbs 65 g, fat 0 g, 591 ml"),
+    ).toBeTruthy();
+    expect(view.getByLabelText("Increase Packages by 0.25")).toBeTruthy();
+    // No grams for a drink: millilitres are the precise option.
+    expect(view.queryByRole("button", { name: "Grams" })).toBeNull();
+    expect(view.getByRole("button", { name: "Millilitres" })).toBeTruthy();
+    await fireEvent.press(
+      view.getByLabelText("Add FIZZWELL SODA BOTTLE, 20 FL OZ to Lunch"),
+    );
+    expect(entries(r)[0]!.data).toMatchObject({
+      serving: "whole package (591 ml)",
+      quantity: 1,
+      calories: 248.22,
+      sourceMl: 591,
+    });
+    expect("sourceGrams" in entries(r)[0]!.data).toBe(false);
+  } finally {
+    db.close();
+  }
+});
+
+test("history keeps its own serving: an older entry and a new one both read as logged", async () => {
+  const { r, db } = setup();
+  try {
+    // Logged before smart servings, with the label's old wording.
+    const old = r.addJournal(
+      "nutrition",
+      {
+        name: "MILD ORIGINAL BEEF STICK, MILD ORIGINAL BEEF",
+        meal: "Snacks",
+        calories: 89.92,
+        protein: 8.992,
+        carbs: 0,
+        fat: 6.016,
+        quantity: 1,
+        serving: "1.15 oz (32 g)",
+        sourceId: "usda-branded:2365336",
+        sourceCatalog: "usda-branded-2026-04-30",
+        sourceGrams: 32,
+        sourceBrand: "CHOMPS",
+      },
+      localDate(),
+    );
+    const before = JSON.stringify(old);
+    catalogue([STICK]);
+    const view = await render(<JournalScreen />);
+    await fireEvent.press(view.getByRole("button", { name: "Add food" }));
+    await fireEvent.press(view.getByRole("tab", { name: "Snacks" }));
+    await search(view, "chomps");
+    await fireEvent.press(
+      view.getByLabelText(
+        "Add 1 package (32 g) of MILD ORIGINAL BEEF STICK, MILD ORIGINAL BEEF",
+      ),
+    );
+    expect(JSON.stringify(entries(r).find((e) => e.id === old.id))).toBe(
+      before,
+    );
+    const added = entries(r).find((e) => e.id !== old.id)!;
+    expect(added.data.serving).toBe("1 package (32 g)");
+    expect(old.data.serving).toBe("1.15 oz (32 g)");
+    expect(entries(r).map((e) => e.data.calories)).toEqual([89.92, 89.92]);
   } finally {
     db.close();
   }

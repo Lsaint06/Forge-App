@@ -13,6 +13,8 @@
 
 ---
 
+> **Phase 7.3F.1 update:** the catalogue is now **schema 4** (64,737,280 bytes). It adds serving names, their sources and whole-package amounts; see [PHASE_7_3F_1_SMART_SERVINGS.md](PHASE_7_3F_1_SMART_SERVINGS.md) §0. Products, barcodes and exclusions are unchanged.
+
 ## 0. M2: production integration (implemented)
 
 ### 0.1 Final catalogue
