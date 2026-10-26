@@ -16,6 +16,7 @@ import {
   FText,
   ForgeCard,
   ForgeEmpty,
+  ForgeLineChart,
   ForgeSubScreen,
   InfoChip,
   OutlineButton,
@@ -27,10 +28,10 @@ import { muscleMap } from "../anatomy/mapping";
 import { useRepo, mutate } from "../state";
 import { goBack } from "../navigation";
 import { id, type Exercise } from "../domain/types";
-import { LineChart } from "../components/charts";
 import { exerciseProgress } from "../data/progress";
 import { defaultMetric, progressionSeries } from "../domain/progress/strength";
 import { estimateText, loadText, setText } from "../domain/progress/format";
+import { loadIn } from "../domain/workout-display";
 import { dayLabel } from "../domain/training-display";
 import { forge, theme } from "../theme";
 import {
@@ -225,7 +226,7 @@ function ExerciseDetail({
         <View style={{ gap: 8 }}>
           <SectionLabel title="Strength history" />
           <ForgeCard>
-            <LineChart
+            <ForgeLineChart
               label={`${e.name} ${metric === "e1rm" ? "estimated 1RM" : metric === "top" ? "heaviest set" : "most reps"} by session`}
               format={(v) =>
                 metric === "reps"
@@ -234,10 +235,15 @@ function ExerciseDetail({
                     ? estimateText(v, units)
                     : loadText(v, units)
               }
+              axisValue={(v) => (metric === "reps" ? v : loadIn(v, units))}
               points={progressionSeries(progress.bests, metric).map((p) => ({
                 key: p.workoutId,
                 value: p.value,
                 description: dayLabel(p.date),
+                tick: new Date(`${p.date}T12:00:00`).toLocaleDateString(
+                  undefined,
+                  { month: "short", day: "numeric" },
+                ),
               }))}
             />
             <FText variant="label" tone="secondary">

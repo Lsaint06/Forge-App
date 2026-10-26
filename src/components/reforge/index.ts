@@ -31,6 +31,12 @@ export {
   ForgeChips,
 } from "./Field";
 export { ForgeSegments } from "./Segments";
+export {
+  ForgeLineChart,
+  ForgeBarChart,
+  type ForgePoint,
+  type ForgeBar,
+} from "./Charts";
 export { ForgeTabBar, type TabSpec } from "./TabBar";
 export { artwork, type Artwork, type ArtworkSlot } from "./artwork";
 export { stripColumns, pairFits } from "./layout";

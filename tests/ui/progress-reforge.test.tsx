@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet } from "react-native";
-import { render, fireEvent, within } from "@testing-library/react-native";
+import { render, fireEvent, within, act } from "@testing-library/react-native";
 import { router } from "expo-router";
 import Progress from "../../app/(tabs)/progress";
 import { useRepo } from "../../src/state";
@@ -233,6 +233,48 @@ test("PD-1: lifetime totals are computed once per data change, never per range t
     await view.rerender(<Progress />);
     expect(view.getByLabelText("2 day streak")).toBeTruthy();
     expect(direct().streak).toBe(2);
+  } finally {
+    f.db.close();
+  }
+});
+
+// Phase 7.4C: the REFORGE charts on Progress, across ranges and units.
+test("charts: weekly or monthly buckets per range, and pound axes for pound lifters", async () => {
+  const f = pathRepository();
+  try {
+    f.r.saveProfile({ units: "lb" });
+    logWorkout(f, addDays(today, -9), 100);
+    logWorkout(f, addDays(today, -2), 105);
+    jest.mocked(useRepo).mockReturnValue(f.r);
+    const view = await render(<Progress />);
+    for (const [spoken, bucket] of [
+      ["4 weeks", "week"],
+      ["12 weeks", "week"],
+      ["1 year", "month"],
+      ["All time", "week"],
+    ] as const) {
+      await fireEvent.press(view.getByRole("tab", { name: spoken }));
+      expect(view.getByLabelText(`Workouts by ${bucket}`)).toBeTruthy();
+      expect(view.getByLabelText(`Working sets by ${bucket}`)).toBeTruthy();
+    }
+    // The strength line, measured: its axis is in pounds (≈ 220–231 lb),
+    // its callout too; stored kilograms are unchanged.
+    const chart = view.getByLabelText(/by session$/);
+    await act(async () => {
+      fireEvent(chart, "layout", {
+        nativeEvent: { layout: { x: 0, y: 0, width: 280, height: 150 } },
+      });
+    });
+    expect(
+      view.getByLabelText(/by session$/).props.accessibilityValue.text,
+    ).toMatch(/ lb, /);
+    const axis = view.container
+      .queryAll((n) => n.type === "Text")
+      .map((n) => [n.props.children].flat().join(""))
+      .filter((t) => /^\d+$/.test(t))
+      .map(Number);
+    expect(Math.max(...axis)).toBeGreaterThan(200);
+    expect(f.r.workoutSets(f.r.workouts()[0]!.id)[0]!.weight).toBe(105);
   } finally {
     f.db.close();
   }

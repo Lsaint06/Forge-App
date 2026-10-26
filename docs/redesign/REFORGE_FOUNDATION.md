@@ -404,3 +404,16 @@ Unknown barcodes become the lifter's own foods, entered once from the package la
 | Section headings | `SectionLabel` overlines with each section's existing information button |
 
 **Lifetime totals (PD-1).** Workouts, total volume and the streak are computed once per data change (`revision`) and per day, not on every render. Range taps read no workout sets: at 300 workouts the median tap fell from 69 to 23 ms in tests.
+
+### Charts (Phase 7.4C)
+
+[Charts.tsx](../../src/components/reforge/Charts.tsx) (`ForgeLineChart`, `ForgeBarChart`) draws Progress and Exercise detail charts to the reference and the Phase 7.0 conventions (§6.9). The Design System 2.0 [charts.tsx](../../src/components/charts.tsx) is unchanged: **Goals keeps it until 7.5**.
+
+| Element | Presentation |
+| --- | --- |
+| Line | 2 pt `emberHot` line; a vertical ember gradient area (28 % → 0) under each joined run; 2.5 pt ember dots up to 40 points; gaps over `breakOver` stay unjoined |
+| Bars | `emberHot` bars with 3 pt top corners (selected 100 %, others 70 %); planned amounts as `text3` outlines behind them; legend "Completed" in ember |
+| Grid and axis | Four gridlines (bars: whole round steps from 0), the floor solid and the rest dashed (`cardBorder`); values on the left in the new `axis` text role (12 pt, tabular; text size capped at 1.5×), in the lifter's units (`axisValue`), without units; "12K" above 10,000 |
+| Dates | Up to four short dates under the plot ("Oct 5"; months "Oct"; "Mar 25" when body data spans over a year); bars without dates keep their start and end labels |
+| Selection | The selected point in an ember ring with a soft glow and a dashed drop line; its value in a raised callout above it ("112.5 kg", "3 workouts"); its description above the chart |
+| Unchanged | Data, aggregation, ranges, the 10 % minimum axis span, tap selection, the adjustable role, spoken label and value, swipe up and down |

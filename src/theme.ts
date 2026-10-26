@@ -345,6 +345,8 @@ export const forgeText = {
   },
   button: { size: 17, lineHeight: 22, weight: "700", tracking: 0.1 },
   tabLabel: { size: 11, lineHeight: 13, weight: "600", tracking: 0.2 },
+  // Chart axis values and dates (Phase 7.4C).
+  axis: { size: 12, lineHeight: 15, weight: "500", tracking: 0, tabular: true },
 } as const satisfies Record<string, ForgeRole>;
 export type ForgeVariant = keyof typeof forgeText;
 
@@ -385,6 +387,9 @@ export const forgeMaxFontScale: Partial<Record<ForgeVariant, number>> = {
   statMetric: 1.5,
   tagline: 1.2,
   tabLabel: 1.3,
+  // Axis labels grow with text size but keep the chart's plot area usable;
+  // every value is also in the selected-point readout and spoken value.
+  axis: 1.5,
 };
 
 export const forge = {

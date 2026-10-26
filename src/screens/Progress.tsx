@@ -19,13 +19,15 @@ import {
   ForgeCard,
   ForgeEmpty,
   ForgeScreen,
+  ForgeBarChart,
+  ForgeLineChart,
   ForgeSegments,
   Metric as ForgeMetric,
   SectionLabel,
   StatStrip,
 } from "../components/reforge";
 import { ListRow, ListSection, InfoButton } from "../components/system";
-import { BarChart, Legend, LineChart } from "../components/charts";
+import { Legend } from "../components/charts";
 import { AchievementCard } from "../components/design";
 import { planStatus } from "../components/PlanRow";
 import { useRepo, useApp } from "../state";
@@ -113,6 +115,13 @@ const shortDate = (date: string) =>
     month: "short",
     day: "numeric",
   });
+/** An axis date for a week ("Oct 5") or a month ("Oct"). */
+const tickOf = (date: string, w: RangeWindow) =>
+  w.bucket === "week"
+    ? shortDate(date)
+    : new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
+        month: "short",
+      });
 const plural = (n: number, word: string) =>
   `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 const periodName = (p: PeriodSummary, w: RangeWindow) =>
@@ -191,13 +200,15 @@ function Consistency({
   return (
     <Card>
       <Txt variant="headline">{summaryText}</Txt>
-      <BarChart
+      <ForgeBarChart
         label={`Workouts by ${window.bucket}`}
+        format={(n) => plural(n, "workout")}
         bars={periods.map((p) => ({
           key: p.start,
           value: p.completed,
           ...(p.planned ? { target: p.planned } : {}),
           description: describe(p),
+          tick: tickOf(p.start, window),
         }))}
         startLabel={
           window.bucket === "week"
@@ -209,7 +220,7 @@ function Consistency({
       {anyPlan && (
         <Legend
           items={[
-            { label: "Completed", color: c.success },
+            { label: "Completed", color: c.emberHot },
             { label: "Planned", color: c.text3, outline: true },
           ]}
         />
@@ -374,13 +385,15 @@ function Strength({
         />
       )}
       {series.length ? (
-        <LineChart
+        <ForgeLineChart
           label={`${exercise.name}, ${metric === "e1rm" ? "estimated 1RM" : metric === "top" ? "heaviest set" : "most reps"} by session`}
           format={format}
+          axisValue={(v) => (metric === "reps" ? v : loadIn(v, units))}
           points={series.map((s) => ({
             key: s.workoutId,
             value: s.value,
             description: dayLabel(s.date),
+            tick: shortDate(s.date),
           }))}
         />
       ) : (
@@ -497,13 +510,15 @@ function Volume({
         </View>
       </View>
       {sets > 0 && (
-        <BarChart
+        <ForgeBarChart
           label={`Working sets by ${window.bucket}`}
-          height={72}
+          height={104}
+          format={(n) => plural(n, "working set")}
           bars={periods.map((p) => ({
             key: p.start,
             value: p.workingSets,
             description: `${window.bucket === "week" ? `Week of ${shortDate(p.start)}` : monthName(p.start)} · ${plural(p.workingSets, "working set")} · ${compactNumber(loadIn(p.loadVolume, units))} ${units}`,
+            tick: tickOf(p.start, window),
           }))}
           startLabel={
             window.bucket === "week"
@@ -587,6 +602,11 @@ function Body({ units }: { units: Units }) {
   );
   const s = series[index]!;
   const name = labels[index]!;
+  // Over a year of entries, axis dates carry the month and year ("Mar 25").
+  const long =
+    s.days.length > 1 &&
+    dayNumber(s.days[s.days.length - 1]!.date) - dayNumber(s.days[0]!.date) >
+      330;
   const points = s.days.map((d) => ({
     key: d.date,
     value: toDisplay(d.value, d.entry.data.unit, units),
@@ -594,6 +614,12 @@ function Body({ units }: { units: Units }) {
       d.count > 1
         ? `${dayLabel(d.date)} · ${d.count} entries`
         : dayLabel(d.date),
+    tick: long
+      ? new Date(`${d.date}T12:00:00`).toLocaleDateString(undefined, {
+          month: "short",
+          year: "2-digit",
+        })
+      : shortDate(d.date),
   }));
   return (
     <>
@@ -609,7 +635,7 @@ function Body({ units }: { units: Units }) {
         ) : (
           <Txt variant="headline">{name}</Txt>
         )}
-        <LineChart
+        <ForgeLineChart
           label={`${name} trend`}
           points={points}
           x={s.days.map((d) => dayNumber(d.date))}
