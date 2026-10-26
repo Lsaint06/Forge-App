@@ -183,4 +183,75 @@ export const OVERRIDES: Record<string, Override> = {
       reason: "hip abduction: gluteus medius",
     },
   ),
+  // Phase 7.2C-3D accuracy review.
+  // Lifts from the floor and hip snaps: the gluteus maximus is a prime mover
+  // of hip extension alongside the hamstrings, not a secondary. Romanian and
+  // stiff-leg deadlifts and good mornings keep the hamstring emphasis.
+  ...group(
+    [
+      "conventional-deadlift",
+      "sumo-deadlift",
+      "deficit-deadlift",
+      "paused-deadlift",
+      "trap-bar-deadlift",
+      "snatch-grip-deadlift",
+      "rack-pull",
+      "dumbbell-deadlift",
+      "kettlebell-deadlift",
+    ],
+    {
+      primary: [ENTRY.hamstrings, ENTRY.glutes],
+      secondary: [],
+      reason:
+        "deadlift: hip extension by the gluteus maximus and hamstrings together",
+    },
+  ),
+  ...group(
+    ["kettlebell-swing", "single-arm-kettlebell-swing", "cable-pull-through"],
+    {
+      primary: [ENTRY.glutes, ENTRY.hamstrings],
+      secondary: [],
+      reason: "hip snap: hip extension led by the gluteus maximus",
+    },
+  ),
+  // Trunk rotation and side bending are oblique actions; flexion keeps both.
+  ...group(
+    [
+      "russian-twist",
+      "heel-touch",
+      "cable-woodchop",
+      "reverse-cable-woodchop",
+      "medicine-ball-rotational-throw",
+      "cable-side-bend",
+      "dumbbell-side-bend",
+      "side-plank",
+      "side-plank-hip-lift",
+    ],
+    {
+      primary: [ENTRY.obliques],
+      reason: "rotation / lateral flexion: external and internal obliques",
+    },
+  ),
+  // Bent-knee calf raises shorten the gastrocnemius, so the soleus leads
+  // (Signorile et al., J Strength Cond Res 2002;16(3):433–439).
+  ...group(["seated-calf-raise", "bent-knee-calf-raise"], {
+    primary: [ENTRY.soleus],
+    secondary: [ENTRY.gastrocnemius],
+    reason: "bent-knee calf raise: soleus leads; gastrocnemius assists",
+  }),
+  // Pronated curls shift work to the brachioradialis (Kleiber et al.,
+  // Front Physiol 2015;6:215). Neutral (hammer) grips are left unchanged.
+  ...group(
+    ["reverse-dumbbell-curl", "reverse-barbell-curl", "cable-reverse-curl"],
+    {
+      primary: [ENTRY.biceps, ENTRY.brachioradialis],
+      reason: "pronated curl: brachioradialis works with the biceps",
+    },
+  ),
+  // Protraction with straight elbows: no elbow extension or shoulder flexion.
+  "scapular-push-up": {
+    primary: [ENTRY.protractors],
+    secondary: [],
+    reason: "scapular protraction: serratus anterior and pectoralis minor",
+  },
 };

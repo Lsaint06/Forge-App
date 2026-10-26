@@ -1,11 +1,10 @@
 import type { Exercise } from "../../domain/types";
-import { muscleMap } from "../../anatomy/mapping";
+import { muscleMap, primaryLabel } from "../../anatomy/mapping";
 
 // Exercise Library rows (Phase 7.2C-3C). Read-only formatting. The primary
-// muscle is the catalogue group (what the Muscle filter uses); secondary
-// muscles come from the reviewed anatomy map, so a row never lists a muscle
-// the exercise's detail screen says it does not train (e.g. triceps on a
-// fly).
+// and secondary muscles are the anatomy map's own words (7.2C-3D), so a row
+// never contradicts the exercise's detail screen (e.g. triceps on a fly,
+// glutes on hip adduction). The Muscle filter still uses the catalogue group.
 
 const sentence = (s: string) =>
   s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
@@ -23,16 +22,18 @@ export function exerciseRowText(
   e: Pick<Exercise, "id" | "muscle" | "secondary" | "pattern" | "equipment">,
 ): ExerciseRowText {
   const map = muscleMap(e);
+  const primary = primaryLabel(map, e.muscle);
+  const shown = new Set(map.primary.map((p) => p.label));
   const secondary = [
-    ...new Set(map.secondary.map((s) => s.label).filter((l) => l !== e.muscle)),
+    ...new Set(map.secondary.map((s) => s.label).filter((l) => !shown.has(l))),
   ];
   const detail = [e.equipment, sentence(e.pattern)].filter(Boolean).join(" · ");
   const spoken = [
-    e.muscle,
+    primary,
     secondary.length ? `also ${secondary.join(", ")}` : "",
     detail,
   ]
     .filter(Boolean)
     .join(" · ");
-  return { primary: e.muscle, secondary, detail, spoken };
+  return { primary, secondary, detail, spoken };
 }

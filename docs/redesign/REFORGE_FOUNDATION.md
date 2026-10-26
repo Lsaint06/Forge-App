@@ -243,13 +243,13 @@ You's "No active plan" row counts the published programs (`libraryPrograms()`) i
 | Header | Overline (ember): primary group · movement pattern. Condensed name. Difficulty · sides |
 | Chips | Always three, always in this order: **equipment · movement pattern · measured by** (Strength / Timed / Distance), as in the approved prototype. A blank field is left out, never shown empty |
 | Muscles worked | [MuscleAtlas](../../src/components/anatomy/MuscleAtlas.tsx): front and back figures side by side (up to 300 pt tall, smaller on compact iPhones), then the legend. Each figure stacks the flat body, the lit regions (ember primary, copper secondary) and the lighting overlay as plain images; no SVG filters, no animation |
-| Legend | Primary and Secondary rows: group labels and named muscles. A muscle the figures cannot show is named with "Not visible on the figures" |
-| Full body | No highlight; "Full body · conditioning. No single muscle group leads this movement." |
+| Legend | Primary and Secondary rows: group labels and named muscles. A muscle the figures cannot show is named with "Not highlighted on the figures", or "*name* not highlighted" when the rest of the row is drawn (7.2C-3D). Swatches have a 1 pt edge in the highlight's darker tone for 3:1 contrast |
+| Full body | No highlight; "Full body · conditioning. Muscle use depends on the machine and technique, so no single group is highlighted." |
 | No muscle recorded | "No muscle group recorded for this exercise." |
 | Guide | Numbered steps (ember numbers), common mistakes, safety |
 | History | Strength chart, *Your records* rows with the Epley note, *Recent sessions* rows; unchanged labels and values |
 | Custom | *Edit custom exercise* (outline). The custom form uses the same frame; its fields and validation are unchanged (shared controls, C5) |
-| Credit | "Anatomy illustration credits" link at the end of the page: authors, CC BY-SA 4.0 and links ([credits.ts](../../src/anatomy/credits.ts)) |
+| Credit | "Anatomy illustration credits" link at the end of the page: authors, CC BY-SA 4.0, the original OpenStax figure (CC BY 4.0) and links ([credits.ts](../../src/anatomy/credits.ts)) |
 
 **Accessibility:** the two figures are one image whose label is the full text equivalent ("Muscle diagram, front and back. Primary: Chest, pectoralis major. Secondary: …"). Each legend row is one element. Colour is never the only cue.
 
@@ -270,7 +270,7 @@ Mapping and assets: [PHASE_7_2C_3A_ANATOMY_FOUNDATION.md](../audits/PHASE_7_2C_3
 
 **Muscles:**
 
-- The primary is the catalogue group (what the Muscle filter uses).
+- The primary is the anatomy legend's own wording (`primaryLabel`), shared with the detail heading, for example "Side deltoids" or "Adductors" (7.2C-3D). The Muscle filter and sort still use the catalogue group.
 - Secondary muscles come from the reviewed anatomy map ([explore/model.ts](../../src/screens/explore/model.ts)), so a row never lists a muscle its detail screen excludes. For example, a fly lists front deltoids, not triceps.
 
 **Removed:** `MuscleIllustration`, `ExerciseVisual`, `ExerciseCard` and the empty `exerciseMedia` registry. That means no doodle figures, green highlights, "Muscle illustration" / "Media available" captions or thumbnail containers. Anatomy appears only on the exercise detail screen.

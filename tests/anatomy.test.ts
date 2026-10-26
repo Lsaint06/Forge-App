@@ -2,7 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { litRegions, muscleMap, spokenMuscles } from "../src/anatomy/mapping";
+import {
+  litRegions,
+  muscleMap,
+  primaryLabel,
+  spokenMuscles,
+} from "../src/anatomy/mapping";
 import { ENTRY, groupEntry } from "../src/anatomy/groups";
 import { OVERRIDES } from "../src/anatomy/overrides";
 import type { RegionId } from "../src/anatomy/types";
@@ -79,10 +84,14 @@ test("overrides name real exercises and never add a muscle group", () => {
   for (const [id, o] of Object.entries(OVERRIDES)) {
     const e = byId(id);
     assert.ok(o.reason.length > 10, `${id} documents a reason`);
-    // Secondary overrides only remove or narrow what the catalogue lists.
+    // Secondary overrides only remove, narrow or demote what the catalogue
+    // lists (a bent-knee calf raise shows the gastrocnemius as secondary).
     if (o.secondary) {
-      const listed = e.secondary
-        .map((g) => groupEntry(g, e.pattern, "secondary"))
+      const listed = [e.muscle, ...e.secondary]
+        .flatMap((g) => [
+          groupEntry(g, e.pattern, "primary"),
+          groupEntry(g, e.pattern, "secondary"),
+        ])
         .filter(Boolean)
         .flatMap((x) => x!.regions);
       for (const rid of regions(o.secondary))
@@ -150,10 +159,131 @@ test("hip, knee and back corrections are conservative", () => {
   assert.deepEqual(regions(muscleMap(byId("dumbbell-pullover")).primary), [
     "back.latissimus-dorsi",
   ]);
-  // Deadlifts show what the catalogue lists; erectors await review (A2).
+  // 7.2C-3D: floor deadlifts show the gluteus maximus as a prime mover with
+  // the hamstrings; Romanian deadlifts keep the hamstring emphasis.
+  // Erectors await catalogue review (A2, C-5).
   const dl = muscleMap(byId("conventional-deadlift"));
-  assert.deepEqual(regions(dl.primary), ["back.hamstrings"]);
-  assert.deepEqual(regions(dl.secondary), ["back.gluteus-maximus"]);
+  assert.deepEqual(regions(dl.primary), [
+    "back.hamstrings",
+    "back.gluteus-maximus",
+  ]);
+  assert.deepEqual(dl.secondary, []);
+  const rdl = muscleMap(byId("romanian-deadlift"));
+  assert.deepEqual(regions(rdl.primary), ["back.hamstrings"]);
+  assert.deepEqual(regions(rdl.secondary), ["back.gluteus-maximus"]);
+  assert.deepEqual(labels(muscleMap(byId("kettlebell-swing")).primary), [
+    "Glutes",
+    "Hamstrings",
+  ]);
+});
+
+// Which catalogue group each atlas entry belongs to. Exhaustive, so a new
+// entry must declare its group.
+const GROUP_OF = {
+  chest: "Chest",
+  protractors: "Chest",
+  deltoids: "Shoulders",
+  pressDeltoids: "Shoulders",
+  frontDeltoids: "Shoulders",
+  sideDeltoids: "Shoulders",
+  rearDeltoids: "Shoulders",
+  externalRotators: "Shoulders",
+  internalRotators: "Shoulders",
+  lats: "Back",
+  upperBack: "Back",
+  retractors: "Back",
+  traps: "Back",
+  biceps: "Biceps",
+  brachioradialis: "Biceps",
+  triceps: "Triceps",
+  core: "Core",
+  obliques: "Core",
+  quadriceps: "Quadriceps",
+  hamstrings: "Hamstrings",
+  glutes: "Glutes",
+  gluteMedius: "Glutes",
+  adductors: "Adductors",
+  calves: "Calves",
+  soleus: "Calves",
+  gastrocnemius: "Calves",
+  tibialis: "Tibialis",
+} satisfies Record<keyof typeof ENTRY, string>;
+
+test("overrides only use muscle groups the catalogue lists for the exercise", () => {
+  // Hip adduction is filed under Glutes; the adductor display is the one
+  // documented correction (C-4).
+  const misfiled = new Set(["cable-hip-adduction", "machine-hip-adduction"]);
+  for (const [id, o] of Object.entries(OVERRIDES)) {
+    const e = byId(id);
+    const listed = new Set([e.muscle, ...e.secondary]);
+    for (const x of [...(o.primary ?? []), ...(o.secondary ?? [])]) {
+      const key = (Object.keys(ENTRY) as (keyof typeof ENTRY)[]).find(
+        (k) => ENTRY[k] === x,
+      );
+      assert.ok(key, `${id}: override entries come from ENTRY`);
+      const group = GROUP_OF[key];
+      assert.ok(
+        listed.has(group) || (misfiled.has(id) && group === "Adductors"),
+        `${id}: ${key} (${group}) is listed in the catalogue`,
+      );
+    }
+  }
+});
+
+test("7.2C-3D: trunk, calf, curl and scapular corrections", () => {
+  // Rotation and side bending narrow to the obliques; flexion keeps both.
+  for (const id of ["russian-twist", "cable-woodchop", "side-plank"]) {
+    const m = muscleMap(byId(id));
+    assert.deepEqual(labels(m.primary), ["Obliques"], id);
+    assert.deepEqual(regions(m.primary), ["front.obliques", "back.obliques"]);
+  }
+  assert.deepEqual(labels(muscleMap(byId("crunch")).primary), ["Core"]);
+  assert.deepEqual(labels(muscleMap(byId("pallof-press")).primary), ["Core"]);
+  // Bent knee: soleus leads; straight knee keeps the whole calf.
+  const seated = muscleMap(byId("seated-calf-raise"));
+  assert.deepEqual(regions(seated.primary), ["back.soleus"]);
+  assert.deepEqual(regions(seated.secondary), ["back.gastrocnemius"]);
+  assert.deepEqual(regions(muscleMap(byId("standing-calf-raise")).primary), [
+    "back.gastrocnemius",
+    "back.soleus",
+  ]);
+  // Pronated curls name the brachioradialis without drawing it; hammer
+  // curls are unchanged.
+  const reverse = muscleMap(byId("reverse-barbell-curl"));
+  assert.deepEqual(labels(reverse.primary), ["Biceps", "Forearm"]);
+  assert.deepEqual(regions(reverse.primary), ["front.biceps"]);
+  assert.equal(muscleMap(byId("hammer-curl")).override, undefined);
+  // Scapular push-ups: protractors, named, nothing drawn, no triceps.
+  const scap = muscleMap(byId("scapular-push-up"));
+  assert.deepEqual(scap.primary[0]!.muscles, [
+    "Serratus anterior",
+    "Pectoralis minor",
+  ]);
+  assert.deepEqual(regions(scap.primary), []);
+  assert.deepEqual(scap.secondary, []);
+  assert.deepEqual(labels(muscleMap(byId("push-up")).secondary), [
+    "Triceps",
+    "Front deltoids",
+  ]);
+});
+
+test("primaryLabel uses the legend's words and falls back to the group", () => {
+  const label = (id: string) => {
+    const e = byId(id);
+    return primaryLabel(muscleMap(e), e.muscle);
+  };
+  assert.equal(label("barbell-bench-press"), "Chest");
+  assert.equal(label("dumbbell-lateral-raise"), "Side deltoids");
+  assert.equal(label("machine-hip-adduction"), "Adductors");
+  assert.equal(label("conventional-deadlift"), "Hamstrings · Glutes");
+  assert.equal(label("treadmill-run"), "Full body");
+  assert.equal(
+    primaryLabel(
+      muscleMap({ id: "c", muscle: "", secondary: [], pattern: "" }),
+      "",
+    ),
+    "",
+  );
 });
 
 test("no secondaries, full-body work and custom exercises stay honest", () => {

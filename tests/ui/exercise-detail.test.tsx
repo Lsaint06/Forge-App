@@ -4,6 +4,7 @@ import { render, fireEvent } from "@testing-library/react-native";
 import { router } from "expo-router";
 import ExerciseScreen from "../../app/exercise";
 import { figureHeight } from "../../src/components/anatomy/MuscleAtlas";
+import { front, back } from "../../src/anatomy/atlas.generated";
 import { muscleMap, spokenMuscles } from "../../src/anatomy/mapping";
 import { exerciseChips } from "../../src/screens/exercise/model";
 import { useRepo } from "../../src/state";
@@ -170,7 +171,7 @@ test("full-body conditioning highlights nothing and says why", async () => {
       view.getByRole("image", { name: /^Muscle diagram/ }).props
         .accessibilityLabel,
     ).toBe(
-      "Muscle diagram, front and back. Full body conditioning: no single muscle group.",
+      "Muscle diagram, front and back. Full body conditioning: no single muscle group is highlighted.",
     );
     // The chips still follow the same rule.
     for (const chip of exerciseChips(e))
@@ -186,8 +187,77 @@ test("a muscle the figures cannot show is named, not drawn", async () => {
     const view = await open(r, "cable-internal-rotation");
     expect(highlights(view)).toEqual([]);
     expect(
-      view.getByText(/Subscapularis — Not visible on the figures/),
+      view.getByText(/Subscapularis — Not highlighted on the figures/),
     ).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
+test("7.2C-3D: a partly hidden primary names only the muscle not drawn", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const view = await open(r, "reverse-barbell-curl");
+    expect(highlights(view)).toEqual(["front.biceps:primary"]);
+    expect(view.getByText("Biceps · Forearm")).toBeTruthy();
+    expect(
+      view.getByText(
+        "Biceps brachii · Brachioradialis — Brachioradialis not highlighted",
+      ),
+    ).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
+test("7.2C-3D: heading, legend and figures agree; swatches keep 3:1 edges", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const view = await open(r, "machine-hip-adduction");
+    expect(view.getByText("Adductors · Hip isolation")).toBeTruthy();
+    expect(view.getByLabelText(/^Primary: Adductors/)).toBeTruthy();
+    expect(highlights(view)).toEqual(["front.adductors:primary"]);
+    expect(flat(view.getByTestId("legend-primary", hidden)).borderColor).toBe(
+      "#D24A14",
+    );
+    await view.unmount();
+    const seated = await open(r, "seated-calf-raise");
+    expect(highlights(seated)).toEqual([
+      "back.gastrocnemius:secondary",
+      "back.soleus:primary",
+    ]);
+    expect(
+      flat(seated.getByTestId("legend-secondary", hidden)).borderColor,
+    ).toBe("#C0662C");
+  } finally {
+    db.close();
+  }
+});
+
+test("7.2C-3D: figures fit every iPhone width and layers share one scale", async () => {
+  // Card content width = screen − 2 × 16 margin − 2 × 16 padding.
+  for (const screen of [320, 375, 390, 393, 402, 430, 440]) {
+    const inner = screen - 64;
+    const h = figureHeight(inner);
+    expect((h * (front.width + back.width)) / 900 + 14).toBeLessThanOrEqual(
+      inner,
+    );
+  }
+  const { r, db } = pathRepository();
+  try {
+    const view = await open(r, "barbell-bench-press");
+    const region = view.getByTestId(
+      "atlas-front-pectoralis-major-primary",
+      hidden,
+    );
+    const s = figureHeight(393 - 64) / front.height;
+    const crop = front.regions["pectoralis-major"]!.primary;
+    expect(flat(region).left).toBeCloseTo(crop.x * s, 6);
+    expect(flat(region).width).toBeCloseTo(crop.width * s, 6);
+    // The figure box (and so the base and shade layers) uses the same scale.
+    let box = region.parent;
+    while (box && flat(box).width === undefined) box = box.parent;
+    expect(flat(box!).width).toBeCloseTo(front.width * s, 6);
   } finally {
     db.close();
   }
@@ -279,6 +349,9 @@ test("the atlas credit (CC BY-SA 4.0) is one tap away on every exercise", async 
     expect(view.getByText(/^Licensed under Creative Commons/)).toBeTruthy();
     expect(view.getByLabelText("Source illustration")).toBeTruthy();
     expect(view.getByLabelText("CC BY-SA 4.0 licence")).toBeTruthy();
+    // 7.2C-3D: the original OpenStax figure and its licence are linked too.
+    expect(view.getByLabelText("Original OpenStax figure")).toBeTruthy();
+    expect(view.getByLabelText("CC BY 4.0 licence")).toBeTruthy();
   } finally {
     db.close();
   }

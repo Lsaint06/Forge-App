@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { exerciseRowText } from "../src/screens/explore/model";
-import { muscleMap } from "../src/anatomy/mapping";
+import { exerciseOverline } from "../src/screens/exercise/model";
+import { muscleMap, primaryLabel } from "../src/anatomy/mapping";
 import { pathRepository } from "./path-fixture";
 
 // Phase 7.2C-3C: Exercise Library row text.
@@ -28,13 +29,25 @@ test("the list never contradicts the detail screen", () => {
     "Front deltoids",
   ]);
   assert.deepEqual(exerciseRowText(find("lying-leg-curl")).secondary, []);
+  // 7.2C-3D: the row's primary is the legend's, not the catalogue group,
+  // where an override changed it.
+  assert.equal(
+    exerciseRowText(find("machine-hip-adduction")).primary,
+    "Adductors",
+  );
+  assert.equal(
+    exerciseRowText(find("dumbbell-lateral-raise")).primary,
+    "Side deltoids",
+  );
   for (const e of catalog) {
     const row = exerciseRowText(e);
-    const detail = muscleMap(e).secondary.map((s) => s.label);
+    const map = muscleMap(e);
+    const detail = map.secondary.map((s) => s.label);
     for (const s of row.secondary) assert.ok(detail.includes(s), e.id);
-    // The primary is the catalogue group the Muscle filter uses.
-    assert.equal(row.primary, e.muscle, e.id);
-    assert.ok(!row.secondary.includes(row.primary), e.id);
+    assert.equal(row.primary, primaryLabel(map, e.muscle), e.id);
+    assert.ok(exerciseOverline(e).startsWith(`${row.primary} · `), e.id);
+    for (const p of map.primary)
+      assert.ok(!row.secondary.includes(p.label), e.id);
   }
 });
 

@@ -52,9 +52,20 @@ export function litRegions(map: MuscleMap) {
   return out;
 }
 
+/**
+ * The primary muscles in words ("Side deltoids", "Hamstrings · Glutes"),
+ * shared by the library row, the detail heading and the legend so the three
+ * never disagree. Falls back to the catalogue group when nothing is mapped.
+ */
+export function primaryLabel(map: MuscleMap, group: string) {
+  if (map.fullBody || !map.primary.length) return group;
+  return [...new Set(map.primary.map((p) => p.label))].join(" · ");
+}
+
 /** "Primary: Chest, pectoralis major. Secondary: …" for screen readers. */
 export function spokenMuscles(map: MuscleMap) {
-  if (map.fullBody) return "Full body conditioning: no single muscle group.";
+  if (map.fullBody)
+    return "Full body conditioning: no single muscle group is highlighted.";
   const part = (title: string, entries: MuscleEntry[]) =>
     entries.length
       ? `${title}: ${entries

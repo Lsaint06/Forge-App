@@ -4,7 +4,7 @@
 export const ANATOMY_CREDIT = {
   title: "Anatomy illustration",
   paragraphs: [
-    'Muscle figures adapted from "Muscles front and back" by OpenStax, Tomáš Kebert (Nefronus) and umimeto.org, which redraws figure 1105 of OpenStax Anatomy and Physiology.',
+    'Muscle figures adapted from "Muscles front and back" by OpenStax, Tomáš Kebert (Nefronus) and umimeto.org, which redraws figure 1105 of OpenStax Anatomy and Physiology (OpenStax, Rice University; CC BY 4.0).',
     "Licensed under Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0). FORGE recoloured, relit and cropped the drawing and marked its muscle regions. The adapted figures are shared under the same licence.",
   ],
   links: [
@@ -15,6 +15,14 @@ export const ANATOMY_CREDIT = {
     {
       label: "CC BY-SA 4.0 licence",
       url: "https://creativecommons.org/licenses/by-sa/4.0/",
+    },
+    {
+      label: "Original OpenStax figure",
+      url: "https://commons.wikimedia.org/wiki/File:1105_Anterior_and_Posterior_Views_of_Muscles.jpg",
+    },
+    {
+      label: "CC BY 4.0 licence",
+      url: "https://creativecommons.org/licenses/by/4.0/",
     },
   ],
 } as const;

@@ -49,11 +49,24 @@ export const ENTRY = {
     ["front.trapezius", "back.trapezius"],
   ),
   biceps: e("Biceps", ["Biceps brachii"], ["front.biceps"]),
+  // An elbow flexor of the forearm; the figures do not separate it.
+  brachioradialis: e("Forearm", ["Brachioradialis"], []),
   triceps: e("Triceps", ["Triceps brachii"], ["back.triceps"]),
+  // Scapular protraction. Not separate regions in the drawing.
+  protractors: e(
+    "Scapular protractors",
+    ["Serratus anterior", "Pectoralis minor"],
+    [],
+  ),
   core: e(
     "Core",
     ["Rectus abdominis", "Obliques"],
     ["front.rectus-abdominis", "front.obliques", "back.obliques"],
+  ),
+  obliques: e(
+    "Obliques",
+    ["External oblique", "Internal oblique"],
+    ["front.obliques", "back.obliques"],
   ),
   quadriceps: e(
     "Quadriceps",
@@ -73,6 +86,8 @@ export const ENTRY = {
     ["Gastrocnemius", "Soleus"],
     ["back.gastrocnemius", "back.soleus"],
   ),
+  soleus: e("Soleus", ["Soleus"], ["back.soleus"]),
+  gastrocnemius: e("Gastrocnemius", ["Gastrocnemius"], ["back.gastrocnemius"]),
   tibialis: e("Tibialis", ["Tibialis anterior"], ["front.tibialis-anterior"]),
 } as const satisfies Record<string, MuscleEntry>;
 

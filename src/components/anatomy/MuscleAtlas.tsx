@@ -27,9 +27,12 @@ import type {
 // Anatomy illustration: CC BY-SA 4.0, see assets/anatomy/LICENSE.md.
 
 const VIEWS: Record<AtlasSide, AtlasView> = { front, back };
-// Legend swatches: the highlights' mid tones.
+// Legend swatches: the highlights' mid tones, edged with their darker tone
+// so each swatch keeps 3:1 contrast on light and dark cards (7.2C-3D).
 export const PRIMARY_SWATCH = "#F47522";
 export const SECONDARY_SWATCH = "#7A3A1A";
+const PRIMARY_EDGE = "#D24A14";
+const SECONDARY_EDGE = "#C0662C";
 const GAP = 14;
 const MAX_HEIGHT = 300;
 
@@ -50,7 +53,8 @@ function Figure({
 }) {
   const view = VIEWS[side];
   const s = height / view.height;
-  const width = Math.round(view.width * s);
+  // Unrounded, so the base, shade and region layers share one scale.
+  const width = view.width * s;
   const layers = Object.entries(view.regions).flatMap(([id, images]) => {
     const role = lit.get(`${side}.${id}` as RegionId);
     if (!role) return [];
@@ -102,7 +106,14 @@ function LegendRow({
   const title = role === "primary" ? "Primary" : "Secondary";
   const muscles = entries.flatMap((x) => x.muscles);
   // Muscles the figures cannot show (e.g. under the shoulder blade).
-  const hidden = entries.some((x) => x.muscles.length && !x.regions.length);
+  const hidden = entries
+    .filter((x) => x.muscles.length && !x.regions.length)
+    .flatMap((x) => x.muscles);
+  const note = !hidden.length
+    ? ""
+    : hidden.length === muscles.length
+      ? "Not highlighted on the figures"
+      : `${hidden.join(", ")} not highlighted`;
   return (
     <View
       accessible
@@ -122,6 +133,8 @@ function LegendRow({
           height: 12,
           borderRadius: 3,
           marginTop: 3,
+          borderWidth: 1,
+          borderColor: role === "primary" ? PRIMARY_EDGE : SECONDARY_EDGE,
           backgroundColor:
             role === "primary" ? PRIMARY_SWATCH : SECONDARY_SWATCH,
         }}
@@ -133,11 +146,9 @@ function LegendRow({
         <FText variant="cardTitle">
           {entries.map((x) => x.label).join(" · ")}
         </FText>
-        {(muscles.length > 0 || hidden) && (
+        {(muscles.length > 0 || !!note) && (
           <FText variant="label" tone="secondary">
-            {[muscles.join(" · "), hidden ? "Not visible on the figures" : ""]
-              .filter(Boolean)
-              .join(" — ")}
+            {[muscles.join(" · "), note].filter(Boolean).join(" — ")}
           </FText>
         )}
       </View>
@@ -185,8 +196,8 @@ export function MuscleAtlas({ map }: { map: MuscleMap }) {
       >
         {map.fullBody ? (
           <FText variant="body" tone="secondary">
-            Full body · conditioning. No single muscle group leads this
-            movement.
+            Full body · conditioning. Muscle use depends on the machine and
+            technique, so no single group is highlighted.
           </FText>
         ) : empty ? (
           <FText variant="body" tone="secondary">

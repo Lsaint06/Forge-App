@@ -148,4 +148,5 @@ The fixture `tests/fixtures/legacy-fresh-path-backup.json` (a freshly accepted e
   - Upgrade an install that has a generated Path and continue it (start, log, skip, restore, move, pause, resume).
   - Switch to a curated program (confirmation, archived Path, history intact).
   - Train Strength weeks 1, 4 and 8, and a Muscle Building lower-fatigue session.
+- **RELEASE BLOCKER: anatomy atlas licence (Phase 7.2C-3D).** The exercise-detail muscle figures are adapted CC BY-SA 4.0 material. Before any App Store or Play Store release, counsel must confirm that store distribution (DRM / store terms) is compatible with the licence, or written permission must be obtained from the licensors (umimeto.org / Tomáš Kebert; possibly OpenStax), or the figures must be replaced with commissioned or properly licensed artwork. A public repository alone is not assumed to resolve this. See [PHASE_7_2C_3D_ANATOMY_QA.md](audits/PHASE_7_2C_3D_ANATOMY_QA.md) §6.
 - **Pull-up and chin-up assistance tracking (Strength):** a documented limitation, with load advice disabled.

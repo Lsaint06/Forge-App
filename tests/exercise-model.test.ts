@@ -36,6 +36,15 @@ test("the approved prototypes' header reads as designed", () => {
     "Squat",
     "Strength",
   ]);
+  // 7.2C-3D: the heading uses the legend's words.
+  assert.equal(
+    exerciseOverline(find("machine-hip-adduction")),
+    "Adductors · Hip isolation",
+  );
+  assert.equal(
+    exerciseOverline(find("treadmill-run")),
+    "Full body · Locomotion",
+  );
 });
 
 test("every catalogue exercise has the same three chips, in the same order", () => {

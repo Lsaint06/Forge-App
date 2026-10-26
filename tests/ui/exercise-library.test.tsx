@@ -138,6 +138,35 @@ test("a row shows name, muscles, equipment and pattern, and opens the detail", a
   }
 });
 
+test("7.2C-3D: rows use the legend's words; the Muscle filter keeps the catalogue group", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const view = await open(r);
+    await fireEvent.press(view.getByLabelText(/^Filters/));
+    await fireEvent.press(view.getByRole("button", { name: "Glutes" }));
+    await fireEvent.changeText(
+      view.getByLabelText("Search exercises"),
+      "machine hip adduction",
+    );
+    // Still found under Glutes (filter semantics unchanged), but the row
+    // agrees with the detail screen.
+    expect(
+      view.getByLabelText("View Machine Hip Adduction").props.accessibilityHint,
+    ).toBe("Adductors · Machine · Hip isolation");
+    expect(view.getByText("Adductors")).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Remove Glutes filter"));
+    await fireEvent.changeText(
+      view.getByLabelText("Search exercises"),
+      "conventional deadlift",
+    );
+    expect(
+      view.getByLabelText("View Conventional Deadlift").props.accessibilityHint,
+    ).toBe("Hamstrings · Glutes · Barbell · Hinge");
+  } finally {
+    db.close();
+  }
+});
+
 test("favourites toggle from the star and fill the Favorites view", async () => {
   const { r, db } = pathRepository();
   try {

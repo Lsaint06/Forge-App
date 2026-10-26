@@ -53,7 +53,9 @@ Every exercise detail screen ends with an **Anatomy illustration credits** link 
 
 ## Distribution
 
-To keep the licence's share-alike and "no additional restrictions" terms,
-the adapted atlas (source drawing, build script and generated images) is
-published in FORGE's public repository under CC BY-SA 4.0, independent of
-any app-store distribution of the app.
+To keep the licence's share-alike terms, the adapted atlas (source drawing,
+build script and generated images) is published in FORGE's public repository
+under CC BY-SA 4.0. Whether that is enough for app-store distribution is an
+open question (see docs/audits/PHASE_7_2C_3D_ANATOMY_QA.md, section 6):
+Creative Commons' FAQ says material may not be shared on a platform that
+applies DRM to it without the licensor's express permission.
