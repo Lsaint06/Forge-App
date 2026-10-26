@@ -3,15 +3,8 @@ import { View, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Alert } from "../platform/alert";
 import { useRepo, mutate } from "../state";
-import {
-  Txt,
-  Button,
-  TextButton,
-  Field,
-  Sheet,
-  useColors,
-  confirmDiscard,
-} from "./ui";
+import { TextButton, Field, Sheet, useColors, confirmDiscard } from "./ui";
+import { CtaButton, FText, OutlineButton } from "./reforge";
 import { ExercisePicker } from "./ExercisePicker";
 import { ReorderList } from "./ReorderSheet";
 import { Stepper, LoadControl } from "./Stepper";
@@ -24,11 +17,13 @@ import {
   moveItem,
 } from "../domain/templates";
 import type { Prescription, Template } from "../domain/types";
-import { theme } from "../theme";
+import { forge, theme } from "../theme";
 
-// Creating and editing a workout template. Every change stays in this sheet
-// until Save, which writes the whole template in one transaction; Cancel and
-// every other way out ask before discarding changes.
+// Creating and editing a workout template (REFORGE content, Phase 7.2C-2;
+// the sheet itself is shared and unchanged). Every change stays in this
+// sheet until Save, which writes the whole template in one transaction;
+// Cancel and every other way out ask before discarding changes. One
+// exercise is open at a time, so the list stays short.
 
 type Item = { key: string; p: Prescription };
 let nextKey = 0;
@@ -44,12 +39,15 @@ const snapshot = (name: string, notes: string, items: Item[]) =>
 
 function ExerciseEditor({
   item,
+  index,
   expanded,
   onToggle,
   onChange,
   onRemove,
 }: {
   item: Item;
+  /** Position in the template, shown as its number. */
+  index: number;
   expanded: boolean;
   onToggle: () => void;
   onChange: (p: Prescription) => void;
@@ -64,8 +62,10 @@ function ExerciseEditor({
   return (
     <View
       style={{
-        backgroundColor: c.surfaceRaised,
-        borderRadius: theme.radii.card,
+        backgroundColor: c.cardBg,
+        borderRadius: forge.radii.card,
+        borderWidth: expanded ? forge.border.active : forge.border.card,
+        borderColor: expanded ? c.emberMuted : c.cardBorder,
         overflow: "hidden",
       }}
     >
@@ -83,32 +83,47 @@ function ExerciseEditor({
           alignItems: "center",
           gap: theme.spacing.group,
           minHeight: 60,
-          paddingHorizontal: theme.spacing.row,
+          paddingHorizontal: forge.spacing.cardPadding,
           paddingVertical: 10,
-          backgroundColor: pressed ? c.selected : "transparent",
+          backgroundColor: pressed ? c.cardRaised : "transparent",
         })}
       >
+        <View
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 14,
+            borderWidth: expanded ? 2 : 1,
+            borderColor: expanded ? c.emberHot : c.cardBorder,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <FText variant="label" weight="700">
+            {index + 1}
+          </FText>
+        </View>
         <View style={{ flex: 1, gap: 2 }}>
-          <Txt weight="600" numberOfLines={2}>
+          <FText variant="cardTitle" weight="700" numberOfLines={2}>
             {name}
-          </Txt>
-          <Txt variant="caption" tone="secondary">
+          </FText>
+          <FText variant="label" tone="secondary">
             {prescriptionLine(rx, p.units)}
-          </Txt>
+          </FText>
         </View>
         <Ionicons
           name={expanded ? "chevron-up" : "chevron-down"}
           size={18}
-          color={c.text3}
+          color={c.text2}
         />
       </Pressable>
       {expanded && (
         <View
           style={{
-            paddingHorizontal: theme.spacing.row,
+            paddingHorizontal: forge.spacing.cardPadding,
             paddingBottom: theme.spacing.sm,
-            borderTopWidth: 0.5,
-            borderColor: c.hairline,
+            borderTopWidth: forge.border.card,
+            borderColor: c.cardDivider,
           }}
         >
           <Stepper
@@ -156,7 +171,7 @@ function ExerciseEditor({
             onChange={(rest) => onChange({ ...rx, rest })}
           />
           <View style={{ gap: 4, paddingVertical: 6 }}>
-            <Txt>{`Load (${p.units})`}</Txt>
+            <FText variant="body">{`Load (${p.units})`}</FText>
             <LoadControl
               label={`${name} load (${p.units})`}
               value={loadForDisplay(rx.weight, p.units)}
@@ -253,12 +268,13 @@ export function TemplateEditor({
       footer={
         <View style={{ flexDirection: "row", gap: theme.spacing.sm }}>
           <View style={{ flex: 1 }}>
-            <Button title="Cancel" variant="secondary" onPress={cancel} />
+            <OutlineButton title="Cancel" onPress={cancel} />
           </View>
           <View style={{ flex: 2 }}>
-            <Button
+            <CtaButton
               title="Save template"
               icon="checkmark"
+              compact
               disabled={!canSave}
               onPress={save}
             />
@@ -281,9 +297,9 @@ export function TemplateEditor({
           justifyContent: "space-between",
         }}
       >
-        <Txt variant="overline" tone="secondary" header>
+        <FText variant="overline" tone="secondary" header>
           {items.length ? `Exercises · ${items.length}` : "Exercises"}
-        </Txt>
+        </FText>
         {items.length > 1 && (
           <TextButton
             title="Reorder"
@@ -294,15 +310,16 @@ export function TemplateEditor({
         )}
       </View>
       {!items.length && (
-        <Txt tone="secondary">
+        <FText variant="body" tone="secondary">
           Add the exercises for this workout. You can set sets, reps, load and
           rest for each one.
-        </Txt>
+        </FText>
       )}
-      {items.map((item) => (
+      {items.map((item, index) => (
         <ExerciseEditor
           key={item.key}
           item={item}
+          index={index}
           expanded={expanded === item.key}
           onToggle={() =>
             setExpanded(expanded === item.key ? undefined : item.key)
@@ -315,10 +332,9 @@ export function TemplateEditor({
           onRemove={() => remove(item)}
         />
       ))}
-      <Button
+      <OutlineButton
         title="Add exercise"
         icon="add"
-        variant="secondary"
         onPress={() => setPicker(true)}
       />
       {/* iOS only presents a modal from inside the one already showing, so

@@ -85,6 +85,7 @@ The minimum heights apply even where a reference draws a smaller control (Phase 
 | `Tile`, `InfoChip`, `BadgePill`, `SectionLabel` | Small panels, facts, an ember pill, letter-spaced section labels |
 | `ForgeListRow` | Navigation row from the You reference's *Tools & Settings*: ember icon, bold title with its description beside it (below when space is short), optional value, chevron; 56 pt. Rows sit in a `ForgeCard` with no padding (Phase 7.2B). `destructive` draws an irreversible action in the error colour without a chevron (7.2C) |
 | `RowDivider` | The inset hairline between rows of a list card (7.2C) |
+| `ForgeSearchField` | Raised, bordered search input with a search icon and a 44 pt clear control (7.2C-2; reused by the Exercise Library) |
 | `ForgeSubScreen`, `ForgeEmpty` | Frame for pushed screens: 44 pt Back, overline, condensed `heroTitle` heading (up to three lines), optional pinned footer; no brand header (founder decision C1). `ForgeEmpty` is the matching honest empty state (7.2C) |
 | `ForgeProgress`, `ForgeRing` | Progress bar and ring with `progressbar` semantics |
 | `Gradient` | Linear or radial SVG gradient layer (react-native-svg; works in Expo Go). react-native-svg ignores a stop colour's alpha, so `Gradient` moves it into `stopOpacity` (`stopPaint`) |
@@ -212,3 +213,21 @@ The four program screens use `ForgeSubScreen` ([PHASE_7_2C_0_REFORGE_TRAINING_DI
 | [Existing Path](../../src/screens/LegacyPath.tsx) (`/paths`) | "Your Path" overline · Path name · status and progress card · selected session as the hero (state overline, condensed name, facts, Start / Review, exercises, *Workout options*) or a rest-day card · training calendar card (week stepper with bordered squares, ember selected day, ember completion markers) · one card with *Manage Path* and *Ready for a Forge program?* · *Earlier Paths* |
 
 You's "No active plan" row counts the published programs (`libraryPrograms()`) instead of a fixed "18" (C7).
+
+## Workout templates (Phase 7.2C-2)
+
+[Templates.tsx](../../src/screens/Templates.tsx) (`/templates`) uses `ForgeSubScreen`, with **Create template** pinned as the screen's one primary action.
+
+| Part | Presentation |
+| --- | --- |
+| Workout in progress | One `ForgeListRow` (*Resume*), above everything; every Start waits until it is finished |
+| Empty | "No templates yet", what a template holds, and that any workout can be saved as one from its ••• menu |
+| Search | `ForgeSearchField` only with **more than eight** templates (C6). Matches the name or any exercise, every word, ignoring case and accents; keeps the existing name order; "N of M" beside the heading; no matches offers *Show all templates* |
+| Your templates | One compact card. Each row: **name** (bold), "N exercises · N sets" and the first exercise names (tap to edit), an outline **Start** and the ••• menu (Edit, Schedule…, Duplicate, Delete). Actions move under the text when the row is too narrow |
+| Scheduled | Planned sessions in their own card: when, deload note, Start, and the row menu (remove, or manage the Path session) |
+
+**Editor** ([TemplateEditor.tsx](../../src/components/TemplateEditor.tsx)): the shared sheet, fields and steppers are unchanged (C5).
+
+- **Content:** numbered exercise cards; the open one has an ember outline and number ring, and only one is open at a time.
+- **Heading:** "Exercises · N" overline with *Reorder*.
+- **Buttons:** *Add exercise* as an outline button; footer *Cancel* (outline) and *Save template* (gradient).

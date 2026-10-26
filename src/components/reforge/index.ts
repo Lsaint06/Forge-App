@@ -18,6 +18,7 @@ export { ForgeListRow, RowDivider } from "./List";
 export { BrandHeader, Wordmark, BRAND_TAGLINE } from "./Brand";
 export { ForgeScreen } from "./Screen";
 export { ForgeSubScreen, ForgeEmpty } from "./SubScreen";
+export { ForgeSearchField } from "./Search";
 export { ForgeTabBar, type TabSpec } from "./TabBar";
 export { artwork, type Artwork, type ArtworkSlot } from "./artwork";
 export { stripColumns, pairFits } from "./layout";
