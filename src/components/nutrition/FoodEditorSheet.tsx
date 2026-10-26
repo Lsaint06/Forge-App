@@ -1,7 +1,8 @@
 import React, { useRef, useState } from "react";
 import { View } from "react-native";
 import { Alert } from "../../platform/alert";
-import { Sheet, Button, Txt, confirmDiscard } from "../ui";
+import { Sheet, confirmDiscard } from "../ui";
+import { CtaButton, FText, OutlineButton } from "../reforge";
 import {
   FoodFields,
   draftFrom,
@@ -21,7 +22,7 @@ import {
 } from "../../domain/nutrition";
 import { sourceLabel } from "../../domain/food-library";
 import type { Journal } from "../../domain/types";
-import { theme } from "../../theme";
+import { forge } from "../../theme";
 
 export type FoodEditorTarget =
   { kind: "entry"; entry: Journal } | { kind: "food"; food?: Journal };
@@ -115,12 +116,13 @@ export function FoodEditorSheet({
       title={title}
       unsaved={dirty}
       footer={
-        <View style={{ flexDirection: "row", gap: theme.spacing.sm }}>
+        <View style={{ flexDirection: "row", gap: forge.spacing.tight }}>
           <View style={{ flex: 1 }}>
-            <Button title="Cancel" variant="secondary" onPress={cancel} />
+            <OutlineButton title="Cancel" onPress={cancel} />
           </View>
           <View style={{ flex: 2 }}>
-            <Button
+            <CtaButton
+              compact
               title={
                 target.kind === "food" && !target.food ? "Save food" : "Save"
               }
@@ -167,8 +169,8 @@ function SourceNote({
       : ` · ${amount(quantity)} × ${amount(meta.sourceGrams)} g = ${amount(meta.sourceGrams * quantity)} g`
     : "";
   return (
-    <Txt variant="caption" tone="secondary">
+    <FText variant="label" tone="secondary">
       {`${meta.sourceEdited ? "Based on " : "From "}${sourceLabel(meta.sourceId)}${meta.sourceEdited ? " (values edited)" : ""}${weight}`}
-    </Txt>
+    </FText>
   );
 }

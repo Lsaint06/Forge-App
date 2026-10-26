@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Pressable, View } from "react-native";
-import { Field, FieldError, Txt, SegmentedControl, parseNumber } from "../ui";
-import { NumberControl } from "../Stepper";
+import { Ionicons } from "@expo/vector-icons";
+import { FieldError, parseNumber, useColors } from "../ui";
+import { FText, ForgeField, ForgeSegments, ForgeStepper } from "../reforge";
 import { DateSheet } from "../DateSheet";
 import {
   MEALS,
@@ -12,7 +13,7 @@ import {
 } from "../../domain/nutrition";
 import { dayTitle } from "../../domain/calendar-dates";
 import { localDate } from "../../domain/types";
-import { theme } from "../../theme";
+import { forge } from "../../theme";
 
 // The fields of a food or a logged entry: label values per serving, the
 // serving, how many servings, and (for entries) the meal, day and notes.
@@ -131,6 +132,7 @@ export function FoodFields({
   date?: string;
   onDate?: (date: string) => void;
 }) {
+  const c = useColors();
   const [picking, setPicking] = useState(false);
   const entry = kind !== "food";
   const legacyMeal =
@@ -140,7 +142,7 @@ export function FoodFields({
   const preview = entry ? previewText(draft) : undefined;
   const today = localDate();
   const macro = (key: Macro, label: string) => (
-    <Field
+    <ForgeField
       key={key}
       label={label}
       value={draft[key]}
@@ -149,9 +151,10 @@ export function FoodFields({
       onChangeText={(v) => onChange({ [key]: v })}
     />
   );
+  const servings = entry ? "Servings" : "Default servings";
   return (
-    <>
-      <Field
+    <View style={{ gap: forge.spacing.cardGap }}>
+      <ForgeField
         label="Food name"
         value={draft.name}
         autoCapitalize="sentences"
@@ -159,65 +162,74 @@ export function FoodFields({
         error={errors.name}
         onChangeText={(v) => onChange({ name: v })}
       />
-      <Txt variant="overline" tone="secondary" header>
-        Per serving
-      </Txt>
-      {macro("calories", "Calories (kcal)")}
+      {/* The label's values, for one serving. */}
       <View
         style={{
-          flexDirection: "row",
-          flexWrap: "wrap",
-          gap: theme.spacing.sm,
+          gap: forge.spacing.group,
+          padding: forge.spacing.cardPadding,
+          borderRadius: forge.radii.card,
+          borderWidth: forge.border.card,
+          borderColor: c.cardBorder,
+          backgroundColor: c.cardBg,
         }}
       >
-        {macro("protein", "Protein (g)")}
-        {macro("carbs", "Carbs (g)")}
-        {macro("fat", "Fat (g)")}
+        <FText variant="overline" tone="secondary" header>
+          Per serving
+        </FText>
+        {macro("calories", "Calories (kcal)")}
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: forge.spacing.tight,
+          }}
+        >
+          {macro("protein", "Protein (g)")}
+          {macro("carbs", "Carbs (g)")}
+          {macro("fat", "Fat (g)")}
+        </View>
+        <ForgeField
+          label="Serving size (optional)"
+          value={draft.serving}
+          placeholder="e.g. 40 g, 1 scoop"
+          onChangeText={(v) => onChange({ serving: v })}
+        />
       </View>
-      <Field
-        label="Serving size (optional)"
-        value={draft.serving}
-        placeholder="e.g. 40 g, 1 scoop"
-        onChangeText={(v) => onChange({ serving: v })}
-      />
-      <View style={{ gap: 6 }}>
-        <Txt variant="caption" tone="secondary">
+      <View style={{ gap: 8 }}>
+        <FText variant="overline" tone="secondary">
           {entry ? "Servings eaten" : "Default servings"}
-        </Txt>
-        <NumberControl
-          label={entry ? "Servings" : "Default servings"}
+        </FText>
+        <ForgeStepper
+          label={servings}
           value={draft.quantity}
           step={0.25}
           min={0.01}
           floor={0.25}
           max={1000}
+          unit={draft.serving.trim() ? `× ${draft.serving.trim()}` : "servings"}
           onChange={(quantity) => onChange({ quantity })}
         />
-        <FieldError
-          label={entry ? "Servings" : "Default servings"}
-          error={errors.quantity || undefined}
-        />
+        <FieldError label={servings} error={errors.quantity || undefined} />
         {preview && (
-          <Txt variant="caption" tone="secondary" tabular>
+          <FText variant="label" tone="secondary">
             {`Total ${preview}`}
-          </Txt>
+          </FText>
         )}
       </View>
       {entry && (
-        <View style={{ gap: 6 }}>
-          <Txt variant="caption" tone="secondary">
+        <View style={{ gap: 8 }}>
+          <FText variant="overline" tone="secondary">
             Meal
-          </Txt>
-          <SegmentedControl
-            label="Meal"
-            options={[...MEALS]}
+          </FText>
+          <ForgeSegments
+            options={MEALS.map((m) => ({ value: m as string, label: m }))}
             value={canonicalMeal(draft.meal) ?? ""}
             onChange={(meal) => onChange({ meal })}
           />
           {legacyMeal && (
-            <Txt variant="caption" tone="secondary">
+            <FText variant="label" tone="secondary">
               {`Logged under “${legacyMeal}”. Choose a meal to move it.`}
-            </Txt>
+            </FText>
           )}
         </View>
       )}
@@ -228,15 +240,25 @@ export function FoodFields({
             accessibilityLabel={`Day, ${dayTitle(date, today)}. Change day`}
             onPress={() => setPicking(true)}
             style={({ pressed }) => ({
-              minHeight: theme.heights.control,
+              minHeight: forge.heights.button,
               flexDirection: "row",
               alignItems: "center",
-              justifyContent: "space-between",
-              opacity: pressed ? 0.6 : 1,
+              gap: 10,
+              paddingHorizontal: forge.spacing.group,
+              borderRadius: forge.radii.tile,
+              borderWidth: forge.border.card,
+              borderColor: c.cardBorder,
+              backgroundColor: pressed ? c.cardRaised : c.cardBg,
             })}
           >
-            <Txt tone="secondary">Day</Txt>
-            <Txt weight="600">{`${dayTitle(date, today)} ›`}</Txt>
+            <Ionicons name="calendar-outline" size={18} color={c.text2} />
+            <FText variant="body" tone="secondary" style={{ flex: 1 }}>
+              Day
+            </FText>
+            <FText variant="body" weight="700">
+              {dayTitle(date, today)}
+            </FText>
+            <Ionicons name="chevron-forward" size={16} color={c.text2} />
           </Pressable>
           {/* Rendered inside the editor sheet so iOS presents it on top. */}
           <DateSheet
@@ -254,13 +276,14 @@ export function FoodFields({
         </>
       )}
       {kind === "entry" && (
-        <Field
+        <ForgeField
           label="Notes (optional)"
           value={draft.notes}
           multiline
+          style={{ minHeight: 88, textAlignVertical: "top" }}
           onChangeText={(v) => onChange({ notes: v })}
         />
       )}
-    </>
+    </View>
   );
 }

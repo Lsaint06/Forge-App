@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -16,20 +17,17 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Sheet, TextButton, useColors, dark } from "../ui";
 import {
-  Sheet,
-  Field,
-  Txt,
-  Button,
-  TextButton,
-  IconButton,
-  SegmentedControl,
-  Chips,
-  useColors,
-  dark,
-} from "../ui";
-import { ListRow } from "../system";
-import { NumberControl } from "../Stepper";
+  CtaButton,
+  FText,
+  ForgeChips,
+  ForgeSearchField,
+  ForgeSegments,
+  ForgeStepper,
+  OutlineButton,
+} from "../reforge";
 import {
   FoodFields,
   draftFrom,
@@ -68,7 +66,13 @@ import {
 } from "../../domain/food-library";
 import { tryLoadFoodLibrary } from "../../data/food-catalog";
 import { dayTitle } from "../../domain/calendar-dates";
-import { theme } from "../../theme";
+import { forge, theme } from "../../theme";
+import {
+  choicePortion,
+  choiceResult,
+  libraryResult,
+  type FoodResult,
+} from "./results";
 
 type Step =
   | { kind: "list" }
@@ -84,13 +88,6 @@ type Step =
 
 /** Library results are shown this many at a time. */
 const PAGE = 30;
-
-const portion = (f: Pick<FoodChoice, "quantity" | "serving">) =>
-  f.serving
-    ? f.quantity === 1
-      ? f.serving
-      : `${amount(f.quantity)} × ${f.serving}`
-    : `${amount(f.quantity)} ${f.quantity === 1 ? "serving" : "servings"}`;
 
 /**
  * Adding food to a day: recent and saved foods first, then the built-in
@@ -281,20 +278,19 @@ export function QuickAddSheet({
   }
 
   const mealControl = (
-    <SegmentedControl
-      label="Meal"
-      options={[...MEALS]}
-      value={meal}
+    <ForgeSegments
+      options={MEALS.map((m) => ({ value: m, label: m }))}
+      value={meal as (typeof MEALS)[number]}
       onChange={setMeal}
     />
   );
   const context = `${dayTitle(day, today)} · ${meal}`;
   const backFooter = (add: React.ReactNode) => (
-    <View style={{ flexDirection: "row", gap: theme.spacing.sm }}>
+    <View style={{ flexDirection: "row", gap: forge.spacing.tight }}>
       <View style={{ flex: 1 }}>
-        <Button
+        <OutlineButton
           title="Back"
-          variant="secondary"
+          icon="chevron-back"
           accessibilityLabel="Back to foods"
           onPress={() => setStep({ kind: "list" })}
         />
@@ -302,20 +298,26 @@ export function QuickAddSheet({
       <View style={{ flex: 2 }}>{add}</View>
     </View>
   );
+  // Where the food will go, always in view before adding.
+  const destination = (
+    <Destination text={`Logs to ${meal} · ${dayTitle(day, today)}`} />
+  );
 
   if (step.kind === "detail") {
     const { food, quantity } = step;
     const totals = (n: number) => n * quantity;
+    const r0 = choiceResult(food);
     return (
       <Sheet
         visible
         onClose={onClose}
         title={food.name}
         footer={backFooter(
-          <Button
+          <CtaButton
             title={`Add to ${meal}`}
             accessibilityLabel={`Add ${food.name} to ${meal}`}
             icon="add"
+            compact
             onPress={() => {
               log(food, quantity, `detail:${step.opened}`);
               setStep({ kind: "list" });
@@ -323,34 +325,42 @@ export function QuickAddSheet({
           />,
         )}
       >
-        <Txt tone="secondary">
-          {food.serving ? `Serving: ${food.serving}` : "Per serving values"}
-        </Txt>
-        <View style={{ gap: 6 }}>
-          <Txt variant="caption" tone="secondary">
-            Servings
-          </Txt>
-          <NumberControl
-            label="Servings"
-            value={quantity}
-            step={0.25}
-            min={0.01}
-            floor={0.25}
-            max={1000}
-            onChange={(q) => setStep({ ...step, quantity: q })}
+        <View style={{ gap: forge.spacing.cardGap }}>
+          <View style={{ gap: 4 }}>
+            {r0.provenance && (
+              <FText variant="label" tone="secondary">
+                {`Values: ${r0.provenance}`}
+              </FText>
+            )}
+            <FText variant="label" tone="secondary">
+              {food.serving
+                ? `1 serving = ${food.serving} · ${kcalText(food.calories)} · P ${gramsText(food.protein)} · C ${gramsText(food.carbs)} · F ${gramsText(food.fat)}`
+                : `Per serving: ${kcalText(food.calories)} · P ${gramsText(food.protein)} · C ${gramsText(food.carbs)} · F ${gramsText(food.fat)}`}
+            </FText>
+          </View>
+          <Section title="Amount">
+            <ForgeStepper
+              label="Servings"
+              value={quantity}
+              step={0.25}
+              min={0.01}
+              floor={0.25}
+              max={1000}
+              unit={food.serving ? `× ${food.serving}` : "servings"}
+              onChange={(q) => setStep({ ...step, quantity: q })}
+            />
+          </Section>
+          <ValuesCard
+            heading={`For ${choicePortion({ quantity, serving: food.serving })}`}
+            calories={totals(food.calories)}
+            protein={totals(food.protein)}
+            carbs={totals(food.carbs)}
+            fat={totals(food.fat)}
           />
-        </View>
-        <ValuesCard
-          calories={totals(food.calories)}
-          protein={totals(food.protein)}
-          carbs={totals(food.carbs)}
-          fat={totals(food.fat)}
-        />
-        <View style={{ gap: 6 }}>
-          <Txt variant="caption" tone="secondary">
-            Meal
-          </Txt>
-          {mealControl}
+          <Section title="Meal">
+            {mealControl}
+            {destination}
+          </Section>
         </View>
       </Sheet>
     );
@@ -369,16 +379,21 @@ export function QuickAddSheet({
     const setChoice = (next: PortionChoice) =>
       setStep({ ...step, choice: next, note: undefined });
     const fdcId = food.id.split(":")[1];
+    const portionName =
+      choice.kind === "portion"
+        ? food.portions[choice.index]?.label
+        : undefined;
     return (
       <Sheet
         visible
         onClose={onClose}
         title={food.name}
         footer={backFooter(
-          <Button
+          <CtaButton
             title={`Add to ${meal}`}
             accessibilityLabel={`Add ${food.name} to ${meal}`}
             icon="add"
+            compact
             disabled={!!error}
             onPress={() => {
               if (logLibrary(food, choice, `libdetail:${step.opened}`))
@@ -387,105 +402,130 @@ export function QuickAddSheet({
           />,
         )}
       >
-        <View style={{ gap: 2 }}>
-          {(food.description !== food.name || food.name.length > 48) && (
-            <Txt variant="caption" tone="secondary">
-              {`USDA: ${food.description}`}
-            </Txt>
-          )}
-          <Txt variant="caption" tone="secondary">
-            {`Per 100 g: ${kcalText(food.kcal)} · P ${amount(food.protein)} g · C ${amount(food.carbs)} g · F ${amount(food.fat)} g`}
-          </Txt>
-        </View>
-        <View style={{ gap: 6 }}>
-          <Txt variant="caption" tone="secondary">
-            Portion
-          </Txt>
-          <Chips
-            values={units}
-            value={unit}
-            onChange={(u) => {
-              const i = units.indexOf(u);
-              setChoice(
-                i <= 0
-                  ? {
-                      kind: "grams",
-                      grams:
-                        choice.kind === "grams" ? choice.grams : DEFAULT_GRAMS,
-                    }
-                  : {
-                      kind: "portion",
-                      index: i - 1,
-                      count: choice.kind === "portion" ? choice.count : 1,
-                    },
-              );
-            }}
+        <View style={{ gap: forge.spacing.cardGap }}>
+          <View style={{ gap: 4 }}>
+            {(food.description !== food.name || food.name.length > 48) && (
+              <FText variant="label" tone="secondary">
+                {`USDA: ${food.description}`}
+              </FText>
+            )}
+            <FText variant="label" tone="secondary">
+              {`Per 100 g: ${kcalText(food.kcal)} · P ${amount(food.protein)} g · C ${amount(food.carbs)} g · F ${amount(food.fat)} g`}
+            </FText>
+          </View>
+          <Section title="Portion">
+            <ForgeChips
+              values={units}
+              value={unit}
+              onChange={(u) => {
+                const i = units.indexOf(u);
+                setChoice(
+                  i <= 0
+                    ? {
+                        kind: "grams",
+                        grams:
+                          choice.kind === "grams"
+                            ? choice.grams
+                            : DEFAULT_GRAMS,
+                      }
+                    : {
+                        kind: "portion",
+                        index: i - 1,
+                        count: choice.kind === "portion" ? choice.count : 1,
+                      },
+                );
+              }}
+            />
+            {choice.kind === "grams" ? (
+              <ForgeStepper
+                key="grams"
+                label="Grams"
+                value={choice.grams}
+                step={10}
+                min={MIN_GRAMS}
+                floor={10}
+                max={MAX_GRAMS}
+                unit="grams"
+                onChange={(g) => setChoice({ kind: "grams", grams: g })}
+              />
+            ) : (
+              <ForgeStepper
+                key={`portion-${choice.index}`}
+                label="Portions"
+                value={choice.count}
+                step={0.25}
+                min={MIN_COUNT}
+                floor={0.25}
+                max={MAX_COUNT}
+                unit={portionName ? `× ${portionName}` : "portions"}
+                onChange={(n) => setChoice({ ...choice, count: n })}
+              />
+            )}
+          </Section>
+          <ValuesCard
+            heading={error ? "Check the amount" : `For ${amount(grams)} g`}
+            calories={v.calories}
+            protein={v.protein}
+            carbs={v.carbs}
+            fat={v.fat}
+            detail={error ?? `${amount(grams)} g`}
+            error={!!error}
           />
-          {choice.kind === "grams" ? (
-            <NumberControl
-              key="grams"
-              label="Grams"
-              value={choice.grams}
-              step={10}
-              min={MIN_GRAMS}
-              floor={10}
-              max={MAX_GRAMS}
-              onChange={(g) => setChoice({ kind: "grams", grams: g })}
-            />
-          ) : (
-            <NumberControl
-              key={`portion-${choice.index}`}
-              label="Portions"
-              value={choice.count}
-              step={0.25}
-              min={MIN_COUNT}
-              floor={0.25}
-              max={MAX_COUNT}
-              onChange={(n) => setChoice({ ...choice, count: n })}
-            />
-          )}
-        </View>
-        <ValuesCard
-          calories={v.calories}
-          protein={v.protein}
-          carbs={v.carbs}
-          fat={v.fat}
-          detail={error ?? `${amount(grams)} g`}
-          error={!!error}
-        />
-        <View style={{ gap: 6 }}>
-          <Txt variant="caption" tone="secondary">
-            Meal
-          </Txt>
-          {mealControl}
-        </View>
-        <View style={{ gap: 2 }}>
-          <ListRow
-            icon="bookmark-outline"
-            title={step.note ?? "Save to my foods"}
-            subtitle={
-              step.note ? undefined : "Keep this portion as your own food"
-            }
-            chevron={false}
+          <Section title="Meal">
+            {mealControl}
+            {destination}
+          </Section>
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel={step.note ?? `Save ${food.name} to my foods`}
-            onPress={
-              error || step.note
-                ? undefined
-                : () => saveCopy(food, choice, `copy:${step.opened}`)
-            }
-          />
-          <Txt variant="caption" tone="secondary">
-            {`Source: USDA FoodData Central, ${library.releases[food.id.split(":")[0]!] ?? "FoodData Central"}, FDC ${fdcId}. Public-domain data; values per 100 g as published.`}
-          </Txt>
-          <TextButton
-            title="View on FoodData Central"
-            accessibilityLabel={`View ${food.name} on FoodData Central`}
-            onPress={() =>
-              void Linking.openURL(
-                `https://fdc.nal.usda.gov/food-details/${fdcId}/nutrients`,
-              ).catch(() => {})
-            }
-          />
+            accessibilityState={{ disabled: !!error || !!step.note }}
+            disabled={!!error || !!step.note}
+            onPress={() => saveCopy(food, choice, `copy:${step.opened}`)}
+            style={({ pressed }) => ({
+              minHeight: forge.heights.compact,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              paddingHorizontal: forge.spacing.group,
+              paddingVertical: 8,
+              borderRadius: forge.radii.tile,
+              borderWidth: forge.border.card,
+              borderColor: c.cardBorder,
+              backgroundColor: pressed ? c.cardRaised : c.cardBg,
+            })}
+          >
+            <Ionicons
+              name={step.note ? "checkmark-circle" : "bookmark-outline"}
+              size={20}
+              color={c.emberHot}
+            />
+            <View style={{ flex: 1 }}>
+              <FText variant="label" weight="700">
+                {step.note ?? "Save to my foods"}
+              </FText>
+              {!step.note && (
+                <FText variant="label" tone="secondary">
+                  Keep this portion as your own food
+                </FText>
+              )}
+            </View>
+          </Pressable>
+          <View style={{ gap: 2 }}>
+            <FText variant="label" tone="secondary">
+              {`Source: USDA FoodData Central, ${library.releases[food.id.split(":")[0]!] ?? "FoodData Central"}, FDC ${fdcId}. Public-domain data; values per 100 g as published.`}
+            </FText>
+            <View style={{ alignItems: "flex-start", marginLeft: -8 }}>
+              <TextButton
+                title="View on FoodData Central"
+                accessibilityLabel={`View ${food.name} on FoodData Central`}
+                onPress={() =>
+                  void Linking.openURL(
+                    `https://fdc.nal.usda.gov/food-details/${fdcId}/nutrients`,
+                  ).catch(() => {})
+                }
+              />
+            </View>
+          </View>
         </View>
       </Sheet>
     );
@@ -499,54 +539,77 @@ export function QuickAddSheet({
         title="New food"
         unsaved={dirty}
         footer={backFooter(
-          <Button
+          <CtaButton
             title={`Add to ${meal}`}
             accessibilityLabel={`Add new food to ${meal}`}
             icon="add"
+            compact
             onPress={create}
           />,
         )}
       >
-        <Txt tone="secondary">{`Enter the values from the label. ${context}.`}</Txt>
-        <FoodFields
-          draft={{ ...draft, meal }}
-          onChange={(patch) => {
-            if (patch.meal !== undefined) setMeal(patch.meal);
-            setDraft((d) => ({ ...d, ...patch }));
-            setErrors((e) => {
-              const next = { ...e };
-              for (const key of Object.keys(patch))
-                delete next[key as keyof FoodDraft];
-              return next;
-            });
-          }}
-          errors={errors}
-          kind="new-entry"
-        />
-        <ListRow
-          title="Save to my foods"
-          subtitle="Log it again later in one tap"
-          accessibilityLabel="Save to my foods"
-          chevron={false}
-          onPress={() => setSaveFood((s) => !s)}
-          trailing={
+        <View style={{ gap: forge.spacing.cardGap }}>
+          <FText variant="body" tone="secondary">
+            {`Enter the values from the label. ${context}.`}
+          </FText>
+          <FoodFields
+            draft={{ ...draft, meal }}
+            onChange={(patch) => {
+              if (patch.meal !== undefined) setMeal(patch.meal);
+              setDraft((d) => ({ ...d, ...patch }));
+              setErrors((e) => {
+                const next = { ...e };
+                for (const key of Object.keys(patch))
+                  delete next[key as keyof FoodDraft];
+                return next;
+              });
+            }}
+            errors={errors}
+            kind="new-entry"
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Save to my foods"
+            accessibilityState={{ checked: saveFood }}
+            onPress={() => setSaveFood((s) => !s)}
+            style={({ pressed }) => ({
+              minHeight: forge.heights.compact,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              paddingHorizontal: forge.spacing.group,
+              paddingVertical: 8,
+              borderRadius: forge.radii.tile,
+              borderWidth: forge.border.card,
+              borderColor: c.cardBorder,
+              backgroundColor: pressed ? c.cardRaised : c.cardBg,
+            })}
+          >
+            <View style={{ flex: 1 }}>
+              <FText variant="label" weight="700">
+                Save to my foods
+              </FText>
+              <FText variant="label" tone="secondary">
+                Log it again later in one tap
+              </FText>
+            </View>
             <Switch
               accessibilityLabel="Save to my foods switch"
               value={saveFood}
               onValueChange={setSaveFood}
               trackColor={{
-                true: c.ember,
+                true: c.emberHot,
                 false: c.bg === dark.bg ? c.selected : c.text3,
               }}
               thumbColor={c.bg === dark.bg ? c.text : c.surface}
             />
-          }
-        />
+          </Pressable>
+        </View>
       </Sheet>
     );
 
   type Item =
-    | { type: "header"; title: string }
+    | { type: "header"; title: string; count?: number }
     | { type: "note"; text: string; retry?: boolean }
     | { type: "food"; food: FoodChoice }
     | { type: "library"; food: LibraryFood }
@@ -564,6 +627,7 @@ export function QuickAddSheet({
           {
             type: "header",
             title: searched ? "Food library · USDA" : "Common foods · USDA",
+            count: searched ? libraryFoods.length : undefined,
           },
           ...libraryFoods
             .slice(0, shown)
@@ -602,30 +666,33 @@ export function QuickAddSheet({
   // Pinned below the list; while typing it moves to the end of the list so
   // results fit above the keyboard on small phones.
   const createButton = (
-    <Button
+    <OutlineButton
       title={query.trim() ? `Create “${query.trim()}”` : "Create food"}
       accessibilityLabel="Create food"
       icon="create-outline"
-      variant="secondary"
       onPress={startCreate}
     />
   );
 
   // The day, meal and search. They keep their size above the list (only the
   // list gives way to the keyboard); at larger text they scroll with it.
+  // Phase 7.3F adds the barcode scanner beside the search field (see
+  // docs/audits/PHASE_7_3D_FOOD_DISCOVERY.md); nothing is shown until then.
   const controls = (
-    <View style={{ flexShrink: 0, gap: theme.spacing.md }}>
+    <View style={{ flexShrink: 0, gap: forge.spacing.group }}>
       {typing ? (
         short ? null : (
-          <Txt tone="secondary">{`Adding to ${context}`}</Txt>
+          <Destination text={`Adding to ${context}`} />
         )
       ) : (
         <>
-          <Txt tone="secondary">{`Adding to ${dayTitle(day, today)}`}</Txt>
+          <FText variant="label" tone="secondary">
+            {`Adding to ${dayTitle(day, today)}`}
+          </FText>
           {mealControl}
         </>
       )}
-      <Field
+      <ForgeSearchField
         label="Search foods"
         value={query}
         onChangeText={(text) => {
@@ -633,8 +700,6 @@ export function QuickAddSheet({
           setShown(PAGE);
         }}
         placeholder="Food, e.g. chicken breast"
-        autoCorrect={false}
-        returnKeyType="search"
       />
     </View>
   );
@@ -673,6 +738,11 @@ export function QuickAddSheet({
                   ? `lib:${item.food.id}`
                   : `${item.type}:${i}`
           }
+          // Results are paged (30 library foods at a time) and rendered a
+          // screen at a time, so a large catalogue never mounts at once.
+          initialNumToRender={14}
+          maxToRenderPerBatch={14}
+          windowSize={7}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           ListFooterComponent={
@@ -683,64 +753,83 @@ export function QuickAddSheet({
             ) : undefined
           }
           ListEmptyComponent={
-            <Txt tone="secondary" style={{ paddingVertical: theme.spacing.md }}>
-              {`No foods match “${query.trim()}”. Check the spelling, try fewer words, or create it from its label below.`}
-            </Txt>
+            <View style={{ paddingVertical: forge.spacing.cardGap, gap: 6 }}>
+              <FText variant="cardTitle" weight="700">
+                No matches
+              </FText>
+              <FText variant="body" tone="secondary">
+                {`No foods match “${query.trim()}”. Check the spelling, try fewer words, or create it from its label below.`}
+              </FText>
+            </View>
           }
           renderItem={({ item }) => {
             if (item.type === "header")
               return (
-                <Txt
-                  variant="overline"
-                  tone="secondary"
-                  header
-                  style={{ paddingTop: theme.spacing.md, paddingBottom: 4 }}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingTop: forge.spacing.cardGap,
+                    paddingBottom: 4,
+                  }}
                 >
-                  {item.title}
-                </Txt>
+                  <FText
+                    variant="overline"
+                    tone="secondary"
+                    header
+                    style={{ flex: 1 }}
+                  >
+                    {item.title}
+                  </FText>
+                  {item.count !== undefined && (
+                    <FText variant="label" tone="secondary">
+                      {`${item.count.toLocaleString()} ${item.count === 1 ? "food" : "foods"}`}
+                    </FText>
+                  )}
+                </View>
               );
             if (item.type === "note")
               return (
                 <View style={{ paddingVertical: theme.spacing.sm, gap: 4 }}>
-                  <Txt tone="secondary">{item.text}</Txt>
+                  <FText variant="body" tone="secondary">
+                    {item.text}
+                  </FText>
                   {item.retry && (
-                    <TextButton
-                      title="Try again"
-                      accessibilityLabel="Try loading the food library again"
-                      onPress={() => setCatalog(tryLoadFoodLibrary())}
-                    />
+                    <View style={{ alignItems: "flex-start", marginLeft: -8 }}>
+                      <TextButton
+                        title="Try again"
+                        accessibilityLabel="Try loading the food library again"
+                        onPress={() => setCatalog(tryLoadFoodLibrary())}
+                      />
+                    </View>
                   )}
                 </View>
               );
             if (item.type === "more")
               return (
-                <TextButton
-                  title={`Show ${Math.min(PAGE, item.remaining)} more`}
-                  accessibilityLabel={`Show more library foods, ${item.remaining} not shown`}
-                  onPress={() => setShown((n) => n + PAGE)}
-                />
+                <View style={{ alignItems: "center", paddingVertical: 4 }}>
+                  <TextButton
+                    title={`Show ${Math.min(PAGE, item.remaining)} more`}
+                    accessibilityLabel={`Show more library foods, ${item.remaining} not shown`}
+                    onPress={() => setShown((n) => n + PAGE)}
+                  />
+                </View>
               );
             if (item.type === "library") {
               const food = item.food;
-              const key = `lib:${food.id}`;
-              const kcal = kcalText(food.kcal);
+              const result = libraryResult(food);
               return (
-                <FoodRow
-                  title={food.name}
-                  caption={`100 g · ${kcal} · ${gramsText(food.protein)} protein`}
-                  label={`${food.name}, 100 g, ${kcal}, ${gramsText(food.protein)} protein`}
-                  hint="Choose a portion and meal before adding"
-                  addLabel={`Add 100 g of ${food.name}`}
-                  undoLabel={`Undo adding ${food.name}`}
-                  added={!!added[key]}
+                <ResultRow
+                  result={result}
+                  added={!!added[result.key]}
                   onAdd={() =>
                     logLibrary(
                       food,
                       { kind: "grams", grams: DEFAULT_GRAMS },
-                      `quick:${key}`,
+                      `quick:${result.key}`,
                     )
                   }
-                  onUndo={() => undo(key, food.name)}
+                  onUndo={() => undo(result.key, food.name)}
                   onOpen={() =>
                     setStep({
                       kind: "library",
@@ -753,15 +842,9 @@ export function QuickAddSheet({
               );
             }
             const food = item.food;
-            const kcal = kcalText(food.calories * food.quantity);
             return (
-              <FoodRow
-                title={food.name}
-                caption={`${portion(food)} · ${kcal}`}
-                label={`${food.name}, ${portion(food)}, ${kcal}`}
-                hint="Choose servings and meal before adding"
-                addLabel={`Add ${food.name}`}
-                undoLabel={`Undo adding ${food.name}`}
+              <ResultRow
+                result={choiceResult(food)}
                 added={!!added[food.key]}
                 onAdd={() => log(food, food.quantity, `quick:${food.key}`)}
                 onUndo={() => undo(food.key, food.name)}
@@ -782,8 +865,43 @@ export function QuickAddSheet({
   );
 }
 
-/** The energy and macronutrients of what is about to be logged. */
+/** A titled group inside the sheet ("Servings", "Meal"). */
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={{ gap: 8 }}>
+      <FText variant="overline" tone="secondary">
+        {title}
+      </FText>
+      {children}
+    </View>
+  );
+}
+
+/** "Logs to Lunch · Yesterday": where an add goes. */
+function Destination({ text }: { text: string }) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Ionicons name="return-down-forward" size={14} color={c.text2} />
+      <FText variant="label" tone="secondary" style={{ flexShrink: 1 }}>
+        {text}
+      </FText>
+    </View>
+  );
+}
+
+/**
+ * The energy and macronutrients of what is about to be logged, for the
+ * amount chosen (the heading says which).
+ */
 function ValuesCard({
+  heading,
   calories,
   protein,
   carbs,
@@ -791,6 +909,7 @@ function ValuesCard({
   detail,
   error = false,
 }: {
+  heading: string;
   calories: number;
   protein: number;
   carbs: number;
@@ -799,48 +918,80 @@ function ValuesCard({
   error?: boolean;
 }) {
   const c = useColors();
+  const macros = [
+    ["Protein", protein],
+    ["Carbs", carbs],
+    ["Fat", fat],
+  ] as const;
   return (
     <View
       accessible
       accessibilityLabel={`${kcalText(calories)}, protein ${gramsText(protein)}, carbs ${gramsText(carbs)}, fat ${gramsText(fat)}${detail ? `, ${detail}` : ""}`}
       style={{
-        backgroundColor: c.surfaceRaised,
-        borderRadius: theme.radii.card,
-        padding: theme.spacing.md,
-        gap: 4,
+        padding: forge.spacing.cardPadding,
+        gap: 12,
+        borderRadius: forge.radii.card,
+        borderWidth: forge.border.card,
+        borderColor: error ? c.error : c.cardBorder,
+        backgroundColor: c.cardBg,
       }}
     >
-      <Txt variant="metric">{kcalText(calories)}</Txt>
-      <Txt tone="secondary" tabular>
-        {`Protein ${gramsText(protein)} · Carbs ${gramsText(carbs)} · Fat ${gramsText(fat)}`}
-      </Txt>
-      {detail && (
-        <Txt variant="caption" tone={error ? "error" : "secondary"} tabular>
+      <View style={{ gap: 2 }}>
+        <FText variant="overline" tone={error ? "error" : "accent"}>
+          {heading}
+        </FText>
+        <FText variant="cardMetric">{kcalText(calories)}</FText>
+      </View>
+      <View
+        style={{
+          flexDirection: "row",
+          paddingTop: 10,
+          borderTopWidth: forge.border.card,
+          borderTopColor: c.cardDivider,
+        }}
+      >
+        {macros.map(([label, value], i) => (
+          <View
+            key={label}
+            style={{
+              flex: 1,
+              gap: 2,
+              paddingLeft: i ? 12 : 0,
+              borderLeftWidth: i ? forge.border.card : 0,
+              borderLeftColor: c.cardDivider,
+            }}
+          >
+            <FText variant="cardTitle" weight="700" numberOfLines={1} fit>
+              {gramsText(value)}
+            </FText>
+            <FText variant="label" tone="secondary" numberOfLines={1}>
+              {label}
+            </FText>
+          </View>
+        ))}
+      </View>
+      {error && detail && (
+        <FText variant="label" tone="error">
           {detail}
-        </Txt>
+        </FText>
       )}
     </View>
   );
 }
 
-function FoodRow({
-  title,
-  caption,
-  label,
-  hint,
-  addLabel,
-  undoLabel,
+/**
+ * One search result: tap to choose the amount and meal; + logs it as shown
+ * (with Undo). Brand and source lines appear only when the result has them,
+ * so branded and scanned products (7.3E, 7.3F) use the same row.
+ */
+const ResultRow = memo(function ResultRow({
+  result: f,
   added,
   onAdd,
   onUndo,
   onOpen,
 }: {
-  title: string;
-  caption: string;
-  label: string;
-  hint: string;
-  addLabel: string;
-  undoLabel: string;
+  result: FoodResult;
   added: boolean;
   onAdd: () => void;
   onUndo: () => void;
@@ -852,15 +1003,15 @@ function FoodRow({
       style={{
         flexDirection: "row",
         alignItems: "center",
-        minHeight: theme.heights.rowTall,
-        borderBottomWidth: 1,
-        borderColor: c.hairline,
+        minHeight: 64,
+        borderBottomWidth: forge.border.card,
+        borderColor: c.cardDivider,
       }}
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityHint={hint}
+        accessibilityLabel={f.label}
+        accessibilityHint={f.hint}
         onPress={onOpen}
         style={({ pressed }) => ({
           flex: 1,
@@ -869,33 +1020,82 @@ function FoodRow({
           opacity: pressed ? 0.6 : 1,
         })}
       >
-        <Txt weight="600" numberOfLines={2}>
-          {title}
-        </Txt>
-        <Txt variant="caption" tone="secondary" numberOfLines={1}>
-          {caption}
-        </Txt>
+        <FText variant="body" weight="600" numberOfLines={2}>
+          {f.title}
+        </FText>
+        {f.brand && (
+          <FText
+            variant="label"
+            weight="600"
+            tone="secondary"
+            numberOfLines={1}
+          >
+            {f.brand}
+          </FText>
+        )}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <FText
+            variant="label"
+            tone="secondary"
+            numberOfLines={1}
+            style={{ flexShrink: 1 }}
+          >
+            {f.detail}
+          </FText>
+          {f.provenance && (
+            <View
+              style={{
+                paddingHorizontal: 6,
+                borderRadius: forge.radii.pill,
+                borderWidth: forge.border.card,
+                borderColor: c.cardBorder,
+              }}
+            >
+              <FText
+                variant="label"
+                tone="secondary"
+                style={{ fontSize: 11, lineHeight: 16 }}
+              >
+                {f.provenance}
+              </FText>
+            </View>
+          )}
+        </View>
       </Pressable>
       {added ? (
         <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Txt variant="caption" tone="success">
+          <Ionicons name="checkmark-circle" size={18} color={c.emberHot} />
+          <FText
+            variant="label"
+            weight="700"
+            tone="accent"
+            style={{ marginLeft: 4 }}
+          >
             Added
-          </Txt>
+          </FText>
           <TextButton
             title="Undo"
-            accessibilityLabel={undoLabel}
+            accessibilityLabel={f.undoLabel}
             onPress={onUndo}
           />
         </View>
       ) : (
-        <IconButton
-          icon="add-circle"
-          size={30}
-          tone="accent"
-          label={addLabel}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={f.addLabel}
           onPress={onAdd}
-        />
+          hitSlop={4}
+          style={({ pressed }) => ({
+            width: forge.heights.compact,
+            height: forge.heights.compact,
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <Ionicons name="add-circle" size={30} color={c.emberHot} />
+        </Pressable>
       )}
     </View>
   );
-}
+});

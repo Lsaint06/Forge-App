@@ -324,3 +324,17 @@ Unchanged:
 
 - Totals, targets and the personalised rule.
 - Grouping, entry actions, saved foods, the sheets, storage, sync and the 3,730-food library.
+
+## Food discovery and logging (Phase 7.3D)
+
+The Add food sheet ([QuickAddSheet.tsx](../../src/components/nutrition/QuickAddSheet.tsx)), the food editor ([FoodEditorSheet.tsx](../../src/components/nutrition/FoodEditorSheet.tsx)) and the food fields ([FoodForm.tsx](../../src/components/nutrition/FoodForm.tsx)) use REFORGE inside the shared sheet. Details and the branded and barcode integration points: [PHASE_7_3D_FOOD_DISCOVERY.md](../audits/PHASE_7_3D_FOOD_DISCOVERY.md).
+
+| Part | Presentation |
+| --- | --- |
+| Search | "Adding to *day*", meal segments, `ForgeSearchField`. Sections: Recent / Eaten before, Saved foods, Common foods or Food library · USDA (with the match count) |
+| Result row | Name (two lines); brand line only when a source has one; "portion · kcal" with a provenance pill; 44 pt ember **+**, then "✓ Added · Undo" |
+| Selected food | Plain serving line; **Amount** `ForgeStepper` with its unit; a values card headed "For *amount*" (kcal, then protein / carbs / fat); meal segments; "Logs to *meal* · *day*"; outline **Back** and ember **Add to *meal*** |
+| New food / Edit entry | `ForgeField`s, the "Per serving" card, servings stepper with a live total, meal segments, day row, notes; **Cancel** / **Save** |
+| States | First use explains; zero results: "No matches" with **Create**; library error with **Try again** |
+
+New REFORGE primitives in [reforge/Field.tsx](../../src/components/reforge/Field.tsx): `ForgeField`, `ForgeNumberField`, `ForgeStepper`, `ForgeChips`. They behave exactly like the 2.0 controls, which remain for other screens.
