@@ -1,44 +1,51 @@
 import React, { useState } from "react";
-import { Screen, Button, Field, Txt, Empty } from "../components/ui";
-import { ListRow, ListSection, OverflowMenu } from "../components/system";
+import { Pressable, View } from "react-native";
+import { useColors } from "../components/ui";
+import { OverflowMenu } from "../components/system";
+import {
+  CtaButton,
+  FText,
+  ForgeCard,
+  ForgeEmpty,
+  ForgeSearchField,
+  ForgeSegments,
+  ForgeSubScreen,
+  OutlineButton,
+  SectionLabel,
+} from "../components/reforge";
 import {
   FoodEditorSheet,
   type FoodEditorTarget,
 } from "../components/nutrition/FoodEditorSheet";
 import { useRepo, confirm } from "../state";
 import { goBack } from "../navigation";
-import { amount, kcalText } from "../domain/nutrition";
 import { personalInfo } from "../domain/personal-foods";
 import type { Journal } from "../domain/types";
+import { forge } from "../theme";
+import {
+  EMPTY_FILTER,
+  SAVED_FILTERS,
+  filterCounts,
+  savedFoodRow,
+  shownFoods,
+  type SavedFilter,
+} from "./nutrition/saved-foods";
 
-// Saved foods: the lifter's own library of label values, searchable. Logged
+// Saved foods (REFORGE, Phase 7.3G G1): the lifter's own library of label
+// values, barcode foods and corrections, searchable and filterable. Logged
 // entries keep their own copy of the values, so editing or deleting a food
-// here never changes what was eaten before.
+// here never changes what was eaten before. Editing opens the existing
+// editors (a personal food or correction opens its label form).
 
 export default function SavedFoods() {
   const r = useRepo();
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<SavedFilter>("all");
   const [editing, setEditing] = useState<FoodEditorTarget>();
   const foods = r.journal("food");
-  const q = query.trim().toLowerCase();
-  const shown = foods
-    .filter(
-      (f) =>
-        !q ||
-        String(f.data.name ?? "")
-          .toLowerCase()
-          .includes(q) ||
-        String(f.data.serving ?? "")
-          .toLowerCase()
-          .includes(q),
-    )
-    .sort((a, b) =>
-      String(a.data.name ?? "").localeCompare(
-        String(b.data.name ?? ""),
-        undefined,
-        { numeric: true, sensitivity: "base" },
-      ),
-    );
+  const counts = filterCounts(foods);
+  const shown = shownFoods(foods, query, filter);
+  const searching = !!query.trim();
 
   function remove(f: Journal) {
     const own = personalInfo(f.data);
@@ -58,18 +65,30 @@ export default function SavedFoods() {
       },
     );
   }
-  const macros = (f: Journal) =>
-    // Non-breaking spaces keep each value with its unit.
-    `P\u00a0${amount(Number(f.data.protein))}\u00a0g · C\u00a0${amount(Number(f.data.carbs))}\u00a0g · F\u00a0${amount(Number(f.data.fat))}\u00a0g`;
-  /** "Your label · Dr Pepper · ": a personal barcode food's origin. */
-  const origin = (f: Journal) => {
-    const own = personalInfo(f.data);
-    if (!own) return "";
-    return `${own.kind === "correction" ? "Your correction" : "Your label"}${own.brand ? ` · ${own.brand}` : ""} · `;
+
+  const empty = () => {
+    if (searching)
+      return (
+        <ForgeEmpty
+          title="No matching foods"
+          detail={`Nothing saved matches “${query.trim()}”${filter === "all" ? "" : " in this filter"}.`}
+          action={
+            <OutlineButton
+              title="Show all saved foods"
+              onPress={() => {
+                setQuery("");
+                setFilter("all");
+              }}
+            />
+          }
+        />
+      );
+    const note = filter === "all" ? undefined : EMPTY_FILTER[filter];
+    return note ? <ForgeEmpty title={note.title} detail={note.detail} /> : null;
   };
 
   return (
-    <Screen
+    <ForgeSubScreen
       title="Saved foods"
       eyebrow={
         foods.length
@@ -78,7 +97,7 @@ export default function SavedFoods() {
       }
       onBack={() => goBack("/(tabs)/nutrition")}
       footer={
-        <Button
+        <CtaButton
           title="Create food"
           icon="add"
           onPress={() => setEditing({ kind: "food" })}
@@ -87,62 +106,60 @@ export default function SavedFoods() {
     >
       {foods.length ? (
         <>
-          <Field
+          <ForgeSearchField
             label="Search saved foods"
+            placeholder="Name, brand or serving"
             value={query}
             onChangeText={setQuery}
-            placeholder="Name or serving"
-            autoCorrect={false}
+          />
+          <ForgeSegments
+            options={SAVED_FILTERS.map((o) => ({
+              value: o.value,
+              label: o.label,
+              accessibilityLabel: `${o.label}, ${counts[o.value]} ${counts[o.value] === 1 ? "food" : "foods"}`,
+            }))}
+            value={filter}
+            onChange={setFilter}
           />
           {shown.length ? (
-            <ListSection footer="Values are per serving. Changing a food here doesn't change entries already logged.">
-              {shown.map((f) => {
-                const name = String(f.data.name);
-                const per = kcalText(Number(f.data.calories));
-                return (
-                  <ListRow
+            <View style={{ gap: 8 }}>
+              <SectionLabel
+                title="Per serving"
+                trailing={
+                  searching || filter !== "all" ? (
+                    <FText variant="label" tone="secondary">
+                      {`${shown.length} of ${foods.length}`}
+                    </FText>
+                  ) : undefined
+                }
+              />
+              <ForgeCard padding={0} gap={0}>
+                {shown.map((f, i) => (
+                  <SavedFoodRow
                     key={f.id}
-                    title={name}
-                    subtitle={`${origin(f)}${String(f.data.serving ?? "").trim() || "1 serving"} · ${macros(f)}`}
-                    value={per}
-                    chevron={false}
-                    accessibilityLabel={`Edit ${name}`}
-                    onPress={() => setEditing({ kind: "food", food: f })}
-                    trailing={
-                      <OverflowMenu
-                        label={`Options for ${name}`}
-                        title={name}
-                        actions={[
-                          {
-                            label: "Edit",
-                            icon: "create-outline",
-                            onPress: () =>
-                              setEditing({ kind: "food", food: f }),
-                          },
-                          {
-                            label:
-                              personalInfo(f.data)?.kind === "correction"
-                                ? "Remove correction"
-                                : "Delete",
-                            icon: "trash-outline",
-                            destructive: true,
-                            onPress: () => remove(f),
-                          },
-                        ]}
-                      />
-                    }
+                    food={f}
+                    divider={i > 0}
+                    onEdit={() => setEditing({ kind: "food", food: f })}
+                    onRemove={() => remove(f)}
                   />
-                );
-              })}
-            </ListSection>
+                ))}
+              </ForgeCard>
+              <FText
+                variant="label"
+                tone="secondary"
+                style={{ paddingHorizontal: 2 }}
+              >
+                Changing a food here doesn&apos;t change entries already logged.
+              </FText>
+            </View>
           ) : (
-            <Txt tone="secondary">{`No saved foods match “${query.trim()}”.`}</Txt>
+            empty()
           )}
         </>
       ) : (
-        <Empty
+        <ForgeEmpty
           title="No saved foods yet"
-          detail="Save the foods you eat often with the values from their label. They appear in Nutrition's Add food, ready to log in one tap."
+          detail="Save the foods you eat often with the values from their label, or scan a barcode in Add food. They appear in Add food, ready to log in one tap."
         />
       )}
       {editing && (
@@ -151,6 +168,115 @@ export default function SavedFoods() {
           onClose={() => setEditing(undefined)}
         />
       )}
-    </Screen>
+    </ForgeSubScreen>
+  );
+}
+
+/**
+ * One saved food: name, brand, serving and macros (tap to edit), its
+ * calories, an understated source pill for the lifter's own label values
+ * or corrections, and its ••• menu.
+ */
+function SavedFoodRow({
+  food,
+  divider,
+  onEdit,
+  onRemove,
+}: {
+  food: Journal;
+  divider: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const c = useColors();
+  const row = savedFoodRow(food);
+  const correction = row.kind === "correction";
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        paddingRight: 4,
+        borderTopWidth: divider ? forge.border.card : 0,
+        borderTopColor: c.cardDivider,
+      }}
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Edit ${row.name}`}
+        accessibilityHint={row.spoken}
+        onPress={onEdit}
+        style={({ pressed }) => ({
+          flex: 1,
+          minHeight: 64,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: forge.spacing.group,
+          paddingLeft: forge.spacing.cardPadding,
+          paddingRight: 8,
+          paddingVertical: 10,
+          backgroundColor: pressed ? c.cardRaised : "transparent",
+        })}
+      >
+        <View style={{ flex: 1, gap: 2 }}>
+          <FText variant="body" weight="700" numberOfLines={2}>
+            {row.name}
+          </FText>
+          {!!row.brand && (
+            <FText
+              variant="label"
+              weight="600"
+              tone="secondary"
+              numberOfLines={1}
+            >
+              {row.brand}
+            </FText>
+          )}
+          <FText variant="label" tone="secondary" numberOfLines={2}>
+            {`${row.serving} · ${row.macros}`}
+          </FText>
+        </View>
+        <View style={{ alignItems: "flex-end", gap: 4 }}>
+          <FText variant="body" weight="700" numberOfLines={1}>
+            {row.kcal}
+          </FText>
+          {row.source && (
+            <View
+              style={{
+                paddingHorizontal: 6,
+                borderRadius: forge.radii.pill,
+                borderWidth: forge.border.card,
+                borderColor: c.cardBorder,
+              }}
+            >
+              <FText
+                variant="label"
+                tone="secondary"
+                style={{ fontSize: 11, lineHeight: 16 }}
+              >
+                {row.source}
+              </FText>
+            </View>
+          )}
+        </View>
+      </Pressable>
+      <OverflowMenu
+        label={`Options for ${row.name}`}
+        title={row.name}
+        actions={[
+          {
+            label: correction ? "Edit correction" : "Edit",
+            icon: "create-outline",
+            onPress: onEdit,
+          },
+          {
+            label: correction ? "Remove correction" : "Delete",
+            icon: "trash-outline",
+            destructive: true,
+            onPress: onRemove,
+          },
+        ]}
+      />
+    </View>
   );
 }
