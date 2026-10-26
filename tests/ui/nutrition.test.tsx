@@ -124,6 +124,12 @@ async function pickDay(view: RenderResult, date: string, shown = today) {
 async function render_() {
   return render(<JournalScreen />);
 }
+/** Opens a meal in place (Phase 7.3B: meals expand to show their foods). */
+async function expand(view: RenderResult, meal: string) {
+  await fireEvent.press(
+    view.getByRole("button", { name: new RegExp(`^${meal}, `) }),
+  );
+}
 
 // ---- The day ------------------------------------------------------------------
 
@@ -228,8 +234,10 @@ test("a day groups entries by meal; older and unassigned entries stay visible; t
       "Post-workout",
       "Other",
     ])
-      expect(view.getByRole("header", { name: h })).toBeTruthy();
+      expect(view.getByLabelText(new RegExp(`^${h}, `))).toBeTruthy();
     expect(view.getByText("250 kcal")).toBeTruthy();
+    for (const meal of ["Breakfast", "Post-workout", "Other"])
+      await expand(view, meal);
     expect(
       view.getByLabelText(/^Greek yogurt, 40 g, 100 kcal, protein 5 g/),
     ).toBeTruthy();
@@ -259,12 +267,14 @@ test("the day switcher moves a day at a time and never past today; the calendar 
     const view = await render_();
     await fireEvent.press(view.getByLabelText("Previous day"));
     expect(view.getByLabelText(/^Yesterday, .*Choose a day$/)).toBeTruthy();
+    await expand(view, "Breakfast");
     expect(
       view.getByLabelText(/^Eggs, 3 × 1 large egg, 216 kcal/),
     ).toBeTruthy();
     expect(view.queryByLabelText(/^Banana/)).toBeNull();
     expect(view.getByLabelText("216 calories eaten")).toBeTruthy();
     await fireEvent.press(view.getByLabelText("Next day"));
+    await expand(view, "Snacks");
     expect(view.getByLabelText(/^Banana/)).toBeTruthy();
     await fireEvent.press(view.getByLabelText("Next day"));
     expect(view.getByLabelText(/^Today, .*Choose a day$/)).toBeTruthy();
@@ -518,6 +528,7 @@ test("editing an entry changes only what was edited and keeps everything else", 
     );
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render_();
+    await expand(view, "Post-workout");
     await fireEvent.press(view.getByLabelText(/^Oats, 40 g/));
     expect(view.getByRole("header", { name: "Edit entry" })).toBeTruthy();
     expect(view.getByText(/Logged under “Post-workout”/)).toBeTruthy();
@@ -561,6 +572,7 @@ test("closing an edited entry asks first and keeps the entry as it was", async (
     r.addJournal("nutrition", { ...oats, meal: "Breakfast" }, today);
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render_();
+    await expand(view, "Breakfast");
     await fireEvent.press(view.getByLabelText(/^Oats/));
     await fireEvent.press(view.getByLabelText("Close"));
     expect(alert).not.toHaveBeenCalled();
@@ -584,6 +596,7 @@ test("deleting an entry asks first", async () => {
     r.addJournal("nutrition", { ...oats, meal: "Breakfast" }, today);
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render_();
+    await expand(view, "Breakfast");
     await menu(view, "Oats", "Delete");
     await waitFor(() => expect(confirm).toHaveBeenCalled(), { timeout: 3000 });
     expect(jest.mocked(confirm).mock.calls[0]!.slice(0, 2)).toEqual([
@@ -610,6 +623,7 @@ test("copy to today and save as food each add one record with Undo; a saved dupl
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render_();
     await fireEvent.press(view.getByLabelText("Previous day"));
+    await expand(view, "Breakfast");
     await menu(view, "Eggs", "Copy to today");
     await waitFor(() => expect(day(r, today)).toHaveLength(1), {
       timeout: 3000,
@@ -814,6 +828,7 @@ test("sheets opened from sheets render inside them, so iOS can present them", as
       return false;
     };
     // The editor's day picker opens inside the editor.
+    await expand(view, "Breakfast");
     await fireEvent.press(view.getByLabelText(/^Oats/));
     await fireEvent.press(view.getByLabelText(/^Day, Today/));
     expect(open()).toHaveLength(2);

@@ -83,6 +83,12 @@ function setup() {
   return fixture;
 }
 const entries = (r: ReturnType<typeof setup>["r"]) => r.journal("nutrition");
+/** Opens a meal in place (Phase 7.3B: meals expand to show their foods). */
+async function expand(view: RenderResult, meal: string) {
+  await fireEvent.press(
+    view.getByRole("button", { name: new RegExp(`^${meal}, `) }),
+  );
+}
 
 test("a new lifter finds an ordinary food, weighs it in grams and logs it, offline", async () => {
   const { r, db } = setup();
@@ -175,6 +181,7 @@ test("a household portion keeps its documented weight: two eggs are 100 g", asyn
     // Reopened, the entry explains its portion plainly.
     await fireEvent.press(view.getByLabelText("Close"));
     await view.rerender(<JournalScreen />);
+    await expand(view, "Breakfast");
     await fireEvent.press(
       view.getByLabelText(/^Egg, whole, boiled or poached, 2 × 1 egg \(50 g\)/),
     );
@@ -337,6 +344,7 @@ test("editing a logged library food labels changed values as based on USDA", asy
     await fireEvent.press(view.getByLabelText("Add 100 g of Banana, raw"));
     await fireEvent.press(view.getByLabelText("Close"));
     await view.rerender(<JournalScreen />);
+    await expand(view, "Lunch");
     await fireEvent.press(view.getByLabelText(/^Banana, raw, 100 g/));
     expect(
       view.getByText("From USDA FNDDS · FDC 2709224 · 1 serving = 100 g"),

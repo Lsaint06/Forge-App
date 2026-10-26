@@ -1,16 +1,18 @@
 import React, { useState } from "react";
 import { Pressable, View } from "react-native";
-import { Txt, IconButton } from "./ui";
+import { useColors } from "./ui";
+import { FText, SquareIconButton } from "./reforge";
 import { DateSheet } from "./DateSheet";
 import { addDays } from "../domain/paths/model";
 import { dayTitle } from "../domain/calendar-dates";
 import { dayLabel } from "../domain/training-display";
 import { localDate } from "../domain/types";
-import { theme } from "../theme";
+import { forge } from "../theme";
 
 /**
- * ‹ Today › for screens that look back over days. The arrows move a day at a
- * time and stop at today; tapping the day opens a calendar of past days.
+ * ‹ Today › for screens that look back over days (REFORGE, Phase 7.3B). The
+ * arrows move a day at a time and stop at today; tapping the day opens a
+ * calendar of past days.
  */
 export function DaySwitcher({
   date,
@@ -21,15 +23,21 @@ export function DaySwitcher({
   onChange: (date: string) => void;
   today?: string;
 }) {
+  const c = useColors();
   const [picking, setPicking] = useState(false);
   const title = dayTitle(date, today);
   const atToday = date >= today;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-      <IconButton
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: forge.spacing.tight,
+      }}
+    >
+      <SquareIconButton
         icon="chevron-back"
         label="Previous day"
-        size={24}
         onPress={() => onChange(addDays(date, -1))}
       />
       <Pressable
@@ -38,28 +46,30 @@ export function DaySwitcher({
         onPress={() => setPicking(true)}
         style={({ pressed }) => ({
           flex: 1,
-          minHeight: 44,
+          minHeight: forge.heights.compact,
+          flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
-          borderRadius: theme.radii.control,
-          opacity: pressed ? 0.6 : 1,
+          gap: 8,
+          borderRadius: forge.radii.cta,
+          borderWidth: forge.border.card,
+          borderColor: c.cardBorder,
+          backgroundColor: pressed ? c.cardRaised : c.cardBg,
         })}
       >
-        <Txt variant="headline" align="center" numberOfLines={1}>
+        <FText variant="cardTitle" weight="700" numberOfLines={1}>
           {title}
-        </Txt>
+        </FText>
         {title !== dayLabel(date) && (
-          <Txt variant="caption" tone="secondary" align="center">
+          <FText variant="label" tone="secondary" numberOfLines={1}>
             {dayLabel(date)}
-          </Txt>
+          </FText>
         )}
       </Pressable>
-      <IconButton
+      <SquareIconButton
         icon="chevron-forward"
         label="Next day"
-        size={24}
         disabled={atToday}
-        tone={atToday ? "tertiary" : undefined}
         onPress={() => onChange(addDays(date, 1))}
       />
       <DateSheet

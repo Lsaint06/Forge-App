@@ -47,7 +47,8 @@ const allowed: Record<string, number> = {
   "app/design-system.tsx": 1, // palette sample
   "src/components/ui.tsx": 1, // the tone's type
   "src/components/DateSheet.tsx": 3, // disabled month arrows, unavailable days
-  "src/components/DaySwitcher.tsx": 1, // disabled "next day"
+  // DaySwitcher's disabled "next day" uses SquareIconButton's disabled state
+  // since Phase 7.3B, not tertiary text.
   "src/components/system.tsx": 2, // disabled row title, disabled menu item
   "src/components/goals/GoalCard.tsx": 1, // the "–" no-data mark
   "src/components/checkins/CheckinSheet.tsx": 1, // large metric placeholder

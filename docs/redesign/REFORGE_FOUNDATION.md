@@ -302,3 +302,24 @@ Day numbers and weekday letters use the `statMetric` role, so they stop growing 
   | Exercise detail | Exercise Library |
 
 - The workout screen's "No active workout" state now uses `ForgeSubScreen` / `ForgeEmpty`, and its **Back to Train** lands on Train even from a deep link. Before, it fell back to Home.
+
+## Nutrition dashboard (Phase 7.3B)
+
+[Nutrition.tsx](../../src/screens/Nutrition.tsx) follows the approved Nutrition reference ([references/](reforge/references/README.md)). Presentation lives in [nutrition/sections.tsx](../../src/screens/nutrition/sections.tsx). A read-only view model, [nutrition/model.ts](../../src/screens/nutrition/model.ts), formats the unchanged `domain/nutrition.ts` values.
+
+| Part | Presentation |
+| --- | --- |
+| Frame | Tab: `ForgeScreen` with the shared training-streak badge. `/journal?kind=nutrition`: `ForgeSubScreen` with Back (no brand header) |
+| Title block | Home's `TitleBlock`: "Nutrition", "Fuel your progress. Consistency compounds.", today's date, and week and phase when a plan is active |
+| Day | `DaySwitcher` (REFORGE; Nutrition only): square ‹ › buttons, the day in a bordered pill opening the past-day calendar |
+| Hero | Full-width `HeroCard` with the ember glow (`nutritionHero` has no artwork; the decorative tagline was removed in the 7.3B refinement because it competed with the numbers). Contents: "Today's nutrition"; the kcal eaten (`heroMetric`) and "of N kcal"; the bar and an ember % on their own row; then three equal macro columns divided by hairlines, each with the grams (`statMetric`), the full label, and a mini bar with "of N g" (protein ember). Goal, bar, % and macro bars appear only against the lifter's **own** targets. At large text the macros stack |
+| Calorie goal | Only what the hero does not show: "N kcal left / over", and an ember **Edit targets** line. The whole card opens the target editor. Without own targets: "No daily targets yet" and **Set targets** |
+| Nutrition streak | Days logged in a row (alive until today ends) and this week's M–S dots: logged = ember disc, today unlogged = ember ring, past unlogged = grey ring, future = faint ring. Derived from entries only; not scored against targets |
+| Meals | One card of separate meal panels, 8 pt apart. Each has an ember-tinted meal icon, the name (bold), the foods (one line), and right-aligned kcal and "35P 45C 12F". A meal with food **expands in place** (ember outline, chevron up): its entries indented under the name (name and serving, kcal right-aligned, options menu), then, set apart on a darker strip, **Add to meal**. An empty default meal shows **+**; older meal names and "Other" stay. No times or photos |
+| Quick add | Up to four of the lifter's recent, then saved, foods as roomy cards (two columns at full width; one at large text, on narrow screens, and beside the Hydration card from 7.3C). Each card shows the name (up to two lines), "portion · kcal" and an ember +. A line under the header says where a tap logs ("Adds to Lunch · Today"). One tap logs, with Undo and double-tap protection. The header ("All foods") opens Add food. The right-hand place is kept for the Hydration card (Phase 7.3C, mandatory); nothing is drawn there until it ships |
+| Footer | Undo toast (6 s, announced) above the pinned ember **Add food** |
+
+Unchanged:
+
+- Totals, targets and the personalised rule.
+- Grouping, entry actions, saved foods, the sheets, storage, sync and the 3,730-food library.

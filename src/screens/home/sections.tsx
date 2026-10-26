@@ -45,11 +45,14 @@ const journal = (kind: string) =>
 
 export function TitleBlock({
   greeting,
+  subtitle = "Consistent effort compounds. Keep building.",
   date,
   spokenDate,
   plan,
 }: {
   greeting: string;
+  /** Home's line by default; other tabs pass their own (Nutrition, 7.3B). */
+  subtitle?: string;
   date: string;
   spokenDate: string;
   plan?: { text: string; label: string; open: () => void };
@@ -70,7 +73,7 @@ export function TitleBlock({
           {greeting}
         </FText>
         <FText variant="subtitle" tone="secondary">
-          Consistent effort compounds. Keep building.
+          {subtitle}
         </FText>
       </View>
       <View style={{ alignItems: "flex-end", maxWidth: "44%", paddingTop: 6 }}>

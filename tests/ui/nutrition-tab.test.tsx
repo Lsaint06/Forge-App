@@ -63,14 +63,15 @@ test("the Nutrition tab shows the stored day with its totals and no Back control
     const view = await render(<NutritionTab />);
     expect(view.getByRole("header", { name: "Nutrition" })).toBeTruthy();
     expect(view.queryByLabelText("Back")).toBeNull();
-    // Only today's entry, with the same totals the journal screen shows.
-    expect(view.getByText("Oats")).toBeTruthy();
-    expect(view.queryByText("Rice")).toBeNull();
+    // Only today's entry, with the same totals the journal screen shows
+    // (Rice still appears as a quick-add tile: it is a recent food).
+    expect(view.getByLabelText(/^Breakfast, .*1 food: Oats$/)).toBeTruthy();
+    expect(view.queryByLabelText(/1 food: Rice$/)).toBeNull();
     expect(view.getByLabelText("150 calories eaten")).toBeTruthy();
     // Logging and the day switcher are the existing ones.
     expect(view.getByRole("button", { name: "Add food" })).toBeTruthy();
     await fireEvent.press(view.getByLabelText("Previous day"));
-    expect(view.getByText("Rice")).toBeTruthy();
+    expect(view.getByLabelText(/^Breakfast, .*1 food: Rice$/)).toBeTruthy();
     // Saved foods and targets keep their routes.
     await fireEvent.press(view.getByLabelText("Saved foods"));
     expect(router.push).toHaveBeenLastCalledWith({
@@ -90,7 +91,7 @@ test("an older /journal?kind=nutrition link opens the same screen with Back", as
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<JournalScreen />);
     expect(view.getByRole("header", { name: "Nutrition" })).toBeTruthy();
-    expect(view.getByText("Oats")).toBeTruthy();
+    expect(view.getByLabelText(/^Breakfast, .*1 food: Oats$/)).toBeTruthy();
     await fireEvent.press(view.getByLabelText("Back"));
     expect(router.back).toHaveBeenCalledTimes(1);
     // Opened directly (nothing to go back to), Back lands on the tab.
