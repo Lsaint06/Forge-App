@@ -1,13 +1,7 @@
 import React from "react";
-import {
-  View,
-  Pressable,
-  Image,
-  Linking,
-  type ImageSourcePropType,
-} from "react-native";
+import { View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import Svg, { Circle, Path } from "react-native-svg";
+import Svg, { Circle } from "react-native-svg";
 import {
   Label,
   Card,
@@ -18,7 +12,6 @@ import {
   useColors,
   Sheet as BottomSheet,
 } from "./ui";
-import type { Exercise } from "../domain/types";
 export {
   Screen as AppScreen,
   Field as FormField,
@@ -155,143 +148,6 @@ export function ProgressRing({
         />
       </Svg>
     </View>
-  );
-}
-/** Original category diagram, deliberately not a movement demonstration. */
-export function MuscleIllustration({
-  muscle,
-  size = 64,
-}: {
-  muscle: string;
-  size?: number;
-}) {
-  const c = useColors();
-  const lower = /Quadriceps|Hamstrings|Glutes|Calves/i.test(muscle);
-  const arms = /Biceps|Triceps|Forearms|Shoulders/i.test(muscle);
-  return (
-    <View
-      accessibilityLabel={`${muscle} category illustration; not a movement demonstration`}
-      accessible
-      style={{ backgroundColor: c.elevated, borderRadius: 8, padding: 4 }}
-    >
-      <Svg width={size} height={size} viewBox="0 0 64 80">
-        <Circle cx={32} cy={9} r={6} fill={c.muted} />
-        <Path
-          d="M23 20 L41 20 L46 42 L39 45 L39 73 L32 73 L32 49 L31 49 L31 73 L24 73 L24 45 L18 42 Z"
-          fill={lower ? c.muted : c.border}
-        />
-        <Path
-          d={
-            lower
-              ? "M24 47 H39 V68 H24 Z"
-              : arms
-                ? "M17 22 L23 24 L18 46 L12 44 Z M41 24 L47 22 L52 44 L46 46 Z"
-                : "M24 23 H40 L38 40 H26 Z"
-          }
-          fill={c.success}
-          opacity={0.85}
-        />
-      </Svg>
-    </View>
-  );
-}
-export type ExerciseMedia =
-  | {
-      kind: "image";
-      source: ImageSourcePropType;
-      credit: string;
-      label: string;
-    }
-  | { kind: "video"; url: string; credit: string; label: string };
-/** Populate only with reviewed, licensed assets; no network is needed for fallbacks. */
-export const exerciseMedia: Readonly<Record<string, ExerciseMedia>> = {};
-export function ExerciseVisual({
-  exercise,
-  large = false,
-}: {
-  exercise: Exercise;
-  large?: boolean;
-}) {
-  const media = exerciseMedia[exercise.id];
-  if (media?.kind === "image")
-    return (
-      <Image
-        source={media.source}
-        accessibilityLabel={media.label}
-        style={{
-          width: large ? 200 : 72,
-          height: large ? 200 : 72,
-          borderRadius: 8,
-        }}
-      />
-    );
-  return (
-    <View style={{ gap: 8 }}>
-      <MuscleIllustration muscle={exercise.muscle} size={large ? 144 : 56} />
-      {large && (
-        <Label muted size={13}>
-          Muscle illustration · not a demonstration
-        </Label>
-      )}
-      {media?.kind === "video" && (
-        <Button
-          secondary
-          title={media.label}
-          onPress={() => {
-            if (media.url.startsWith("https://"))
-              void Linking.openURL(media.url);
-          }}
-        />
-      )}
-      {media && large && (
-        <Label muted size={13}>
-          {media.credit}
-        </Label>
-      )}
-    </View>
-  );
-}
-export function ExerciseCard({
-  exercise,
-  onPress,
-  favorite,
-  onFavorite,
-}: {
-  exercise: Exercise;
-  onPress: () => void;
-  favorite?: boolean;
-  onFavorite?: () => void;
-}) {
-  return (
-    <Card>
-      <Row>
-        <ExerciseVisual exercise={exercise} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`View ${exercise.name}`}
-          onPress={onPress}
-          style={{ flex: 1, minHeight: 64, justifyContent: "center", gap: 4 }}
-        >
-          <Label bold>{exercise.name}</Label>
-          <Label muted size={13}>
-            {exercise.muscle} · {exercise.equipment}
-          </Label>
-          <Label muted size={12}>
-            {exerciseMedia[exercise.id]
-              ? "Media available"
-              : "Muscle illustration"}
-          </Label>
-        </Pressable>
-        {onFavorite && (
-          <IconButton
-            label={`${favorite ? "Unfavorite" : "Favorite"} ${exercise.name}`}
-            icon={favorite ? "star" : "star-outline"}
-            selected={favorite}
-            onPress={onFavorite}
-          />
-        )}
-      </Row>
-    </Card>
   );
 }
 export function WorkoutCard({

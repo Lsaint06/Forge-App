@@ -16,7 +16,6 @@ import Train from "../../app/(tabs)/train";
 import History from "../../app/history";
 import Explore from "../../app/explore";
 import {
-  ExerciseVisual,
   IconButton,
   ProgressRing,
   ErrorState,
@@ -275,20 +274,19 @@ test("Explore forwards search to the repository and opens the real exercise", as
     params: { id: "bench" },
   });
 });
-test("fallback media is honestly identified and semantic controls remain accessible", async () => {
+test("semantic controls remain accessible", async () => {
   repo();
   const retry = jest.fn();
+  // Phase 7.2C-3C retired ExerciseVisual (the doodle muscle illustration
+  // and its "Muscle illustration · not a demonstration" caption); the
+  // library's no-illustration guarantee is tested in exercise-library.
   const view = await render(
     <>
-      <ExerciseVisual exercise={exercise} large />
       <ProgressRing value={2} label="Weekly goal" />
       <IconButton icon="add" label="Add set" onPress={retry} />
       <ErrorState message="Unable to load" onRetry={retry} />
     </>,
   );
-  expect(
-    view.getByText("Muscle illustration · not a demonstration"),
-  ).toBeTruthy();
   expect(view.getByLabelText("Weekly goal").props.accessibilityValue.now).toBe(
     100,
   );

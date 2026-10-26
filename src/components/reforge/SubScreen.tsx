@@ -15,6 +15,70 @@ import { FText, type ForgeTone } from "./Text";
 import { Gradient } from "./Gradient";
 
 /**
+ * The secondary-screen heading on its own (44 pt Back, overline, condensed
+ * title), for screens that scroll a virtualised list instead of a
+ * `ForgeSubScreen`.
+ */
+export function ForgeSubHeader({
+  title,
+  eyebrow,
+  eyebrowTone = "secondary",
+  onBack,
+}: {
+  title: string;
+  eyebrow?: string;
+  eyebrowTone?: ForgeTone;
+  onBack: () => void;
+}) {
+  const c = useColors();
+  return (
+    <View style={{ gap: 6, paddingBottom: 4 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+        hitSlop={4}
+        onPress={onBack}
+        style={({ pressed }) => ({
+          alignSelf: "flex-start",
+          minWidth: forge.heights.compact,
+          minHeight: forge.heights.compact,
+          marginLeft: -10,
+          justifyContent: "center",
+          alignItems: "center",
+          opacity: pressed ? 0.6 : 1,
+        })}
+      >
+        <Ionicons name="chevron-back" size={26} color={c.text} />
+      </Pressable>
+      {eyebrow && (
+        <FText variant="overline" tone={eyebrowTone}>
+          {eyebrow}
+        </FText>
+      )}
+      <FText variant="heroTitle" header numberOfLines={3}>
+        {title}
+      </FText>
+    </View>
+  );
+}
+
+/** The faint top glow shared by REFORGE screens. */
+export function ForgeTopGlow() {
+  const c = useColors();
+  return (
+    <Gradient
+      kind="radial"
+      center={{ x: 0.5, y: 0 }}
+      radius={{ x: 0.9, y: 0.35 }}
+      stops={[
+        { offset: 0, color: c.sheen },
+        { offset: 1, color: c.sheen, opacity: 0 },
+      ]}
+    />
+  );
+}
+
+/**
  * Frame for a pushed REFORGE screen (Phase 7.2C): a 44 pt back control, a
  * letter-spaced overline and a condensed title, then cards at the 16 pt
  * margin. No brand header: the wordmark belongs to the tabs and the logger.
@@ -41,15 +105,7 @@ export function ForgeSubScreen({
       edges={["top", "left", "right"]}
       style={{ flex: 1, backgroundColor: c.bg }}
     >
-      <Gradient
-        kind="radial"
-        center={{ x: 0.5, y: 0 }}
-        radius={{ x: 0.9, y: 0.35 }}
-        stops={[
-          { offset: 0, color: c.sheen },
-          { offset: 1, color: c.sheen, opacity: 0 },
-        ]}
-      />
+      <ForgeTopGlow />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -64,33 +120,12 @@ export function ForgeSubScreen({
             gap: forge.spacing.cardGap,
           }}
         >
-          <View style={{ gap: 6, paddingBottom: 4 }}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-              hitSlop={4}
-              onPress={onBack}
-              style={({ pressed }) => ({
-                alignSelf: "flex-start",
-                minWidth: forge.heights.compact,
-                minHeight: forge.heights.compact,
-                marginLeft: -10,
-                justifyContent: "center",
-                alignItems: "center",
-                opacity: pressed ? 0.6 : 1,
-              })}
-            >
-              <Ionicons name="chevron-back" size={26} color={c.text} />
-            </Pressable>
-            {eyebrow && (
-              <FText variant="overline" tone={eyebrowTone}>
-                {eyebrow}
-              </FText>
-            )}
-            <FText variant="heroTitle" header numberOfLines={3}>
-              {title}
-            </FText>
-          </View>
+          <ForgeSubHeader
+            title={title}
+            eyebrow={eyebrow}
+            eyebrowTone={eyebrowTone}
+            onBack={onBack}
+          />
           {children}
         </ScrollView>
         {footer && (

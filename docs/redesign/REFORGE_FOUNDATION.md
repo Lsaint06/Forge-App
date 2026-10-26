@@ -85,6 +85,8 @@ The minimum heights apply even where a reference draws a smaller control (Phase 
 | `Tile`, `InfoChip`, `BadgePill`, `SectionLabel` | Small panels, facts, an ember pill, letter-spaced section labels |
 | `ForgeListRow` | Navigation row from the You reference's *Tools & Settings*: ember icon, bold title with its description beside it (below when space is short), optional value, chevron; 56 pt. Rows sit in a `ForgeCard` with no padding (Phase 7.2B). `destructive` draws an irreversible action in the error colour without a chevron (7.2C) |
 | `RowDivider` | The inset hairline between rows of a list card (7.2C) |
+| `ForgeSubHeader`, `ForgeTopGlow` | The secondary-screen heading and top glow on their own, for screens that scroll a virtualised list (the Exercise Library) instead of a `ForgeSubScreen` (7.2C-3C) |
+| `ForgeSegments` | Bordered segmented switch with the chosen segment in ember; 44 pt tabs with `tab` semantics. The shared `SegmentedControl` is unchanged (C5) (7.2C-3C) |
 | `ForgeSearchField` | Raised, bordered search input with a search icon and a 44 pt clear control (7.2C-2; reused by the Exercise Library) |
 | `ForgeSubScreen`, `ForgeEmpty` | Frame for pushed screens: 44 pt Back, overline, condensed `heroTitle` heading (up to three lines), optional pinned footer; no brand header (founder decision C1). `ForgeEmpty` is the matching honest empty state (7.2C) |
 | `ForgeProgress`, `ForgeRing` | Progress bar and ring with `progressbar` semantics |
@@ -252,3 +254,23 @@ You's "No active plan" row counts the published programs (`libraryPrograms()`) i
 **Accessibility:** the two figures are one image whose label is the full text equivalent ("Muscle diagram, front and back. Primary: Chest, pectoralis major. Secondary: …"). Each legend row is one element. Colour is never the only cue.
 
 Mapping and assets: [PHASE_7_2C_3A_ANATOMY_FOUNDATION.md](../audits/PHASE_7_2C_3A_ANATOMY_FOUNDATION.md).
+
+## Exercise Library (Phase 7.2C-3C)
+
+[Explore.tsx](../../src/screens/Explore.tsx) (`/explore`, `?search=1`) follows the approved list prototype. It is a virtualised list, so it uses `ForgeSubHeader` at the top of its `FlatList` instead of `ForgeSubScreen`.
+
+| Part | Presentation |
+| --- | --- |
+| Header | "N exercises" overline (counted from the catalogue) · **Exercise library** |
+| Search | `ForgeSearchField` |
+| Views and filters | `ForgeSegments` (All / Favorites / Recent) beside an outline **Filters** button ("Filters · 1" when a filter is active). Active muscle or equipment filters show as ember pills that remove themselves when tapped. The filter panel (Muscle, Equipment, Sort by) is a card with the shared chips; search, filter and sort logic are unchanged |
+| Create custom exercise | `ForgeListRow` |
+| List | "A – Z" or "By muscle", with "N of M" while a search or filter is active. One continuous card of text rows: **name** (two lines max), ember dot + **primary group** · secondary muscles, equipment · movement pattern, and a 52 pt favourite star. Rows are at least 72 pt, memoised, and only the visible screens are mounted |
+| Empty | "No favorites yet", "No recent exercises" or "No matching exercises", with *Clear search and filters* when something is applied |
+
+**Muscles:**
+
+- The primary is the catalogue group (what the Muscle filter uses).
+- Secondary muscles come from the reviewed anatomy map ([explore/model.ts](../../src/screens/explore/model.ts)), so a row never lists a muscle its detail screen excludes. For example, a fly lists front deltoids, not triceps.
+
+**Removed:** `MuscleIllustration`, `ExerciseVisual`, `ExerciseCard` and the empty `exerciseMedia` registry. That means no doodle figures, green highlights, "Muscle illustration" / "Media available" captions or thumbnail containers. Anatomy appears only on the exercise detail screen.
