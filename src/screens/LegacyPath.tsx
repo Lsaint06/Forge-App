@@ -2,18 +2,23 @@ import React, { useState } from "react";
 import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { Txt, Button, Sheet, useColors, type IconName } from "../components/ui";
+import { ListRow } from "../components/system";
 import {
-  Screen,
-  Card,
-  Label,
-  Txt,
-  Button,
-  Sheet,
-  ProgressBar,
-  useColors,
-  type IconName,
-} from "../components/ui";
-import { ListRow, ListSection } from "../components/system";
+  CtaButton,
+  FText,
+  ForgeCard,
+  ForgeEmpty,
+  ForgeListRow,
+  ForgeProgress,
+  ForgeSubScreen,
+  HeroCard,
+  OutlineButton,
+  RowDivider,
+  SectionLabel,
+  SquareIconButton,
+} from "../components/reforge";
+import { forge } from "../theme";
 import { DateSheet } from "../components/DateSheet";
 import { useRepo, mutate, confirm } from "../state";
 import { weekdayNames } from "../domain/paths/model";
@@ -36,10 +41,10 @@ import { dayLabel, relativeDay } from "../domain/training-display";
 import { goBack } from "../navigation";
 import { blockIfTraining, otherWorkout } from "../startGuard";
 
-// Existing Paths (Phase 6 compatibility). Lifters who started a Path before
-// Forge moved to curated programs can keep training it, review its calendar
-// and history, and move to a Forge program whenever they choose. Nothing here
-// creates, rebuilds or regenerates a plan.
+// Existing Paths (Phase 6 compatibility; REFORGE presentation, Phase 7.2C).
+// Lifters who started a Path before Forge moved to curated programs can keep
+// training it, review its calendar and history, and move to a Forge program
+// whenever they choose. Nothing here creates, rebuilds or regenerates a plan.
 
 const workingSets = (items: Prescription[]) =>
   items.reduce((n, e) => n + e.sets, 0);
@@ -77,29 +82,35 @@ function ExerciseList({ items }: { items: Prescription[] }) {
         <View
           key={`${index}-${item.exerciseId}`}
           style={{
-            paddingVertical: 13,
-            borderBottomWidth: index === items.length - 1 ? 0 : 1,
-            borderColor: colors.border,
+            paddingVertical: 12,
+            borderBottomWidth:
+              index === items.length - 1 ? 0 : forge.border.card,
+            borderColor: colors.cardDivider,
             flexDirection: "row",
             alignItems: "center",
             gap: 10,
           }}
         >
-          <Label muted size={12}>
+          <FText
+            variant="label"
+            tone="accent"
+            weight="700"
+            style={{ fontVariant: ["tabular-nums"] }}
+          >
             {String(index + 1).padStart(2, "0")}
-          </Label>
+          </FText>
           <View style={{ flex: 1 }}>
-            <Label bold size={16}>
+            <FText variant="body" weight="600">
               {r.exercise(item.exerciseId)?.name ?? "Unavailable movement"}
-            </Label>
+            </FText>
           </View>
           <View style={{ alignItems: "flex-end" }}>
-            <Label bold>
+            <FText variant="body" weight="700">
               {item.sets} × {repRangeLabel(item)}
-            </Label>
-            <Txt variant="caption" tone="secondary">
+            </FText>
+            <FText variant="label" tone="secondary">
               {`${item.rest}s rest`}
-            </Txt>
+            </FText>
           </View>
         </View>
       ))}
@@ -188,30 +199,28 @@ export default function LegacyPath() {
     setFocusedSessionId(undefined);
   }
   return (
-    <Screen
+    <ForgeSubScreen
       title={selected?.data.name ?? "Your Path"}
       eyebrow="Your Path"
+      eyebrowTone="accent"
       onBack={() => goBack("/forge-paths")}
     >
       {!selected || !stats ? (
-        <Card>
-          <Label bold size={22}>
-            No current Path
-          </Label>
-          <Label muted>
-            Your training plans now come from Forge programs, written and
-            reviewed by hand. Your earlier workouts stay in your history.
-          </Label>
-          <Button
-            title="Choose a Forge program"
-            icon="trail-sign-outline"
-            onPress={() => router.replace("/forge-paths")}
-          />
-        </Card>
+        <ForgeEmpty
+          title="No current Path"
+          detail="Your training plans now come from Forge programs, written and reviewed by hand. Your earlier workouts stay in your history."
+          action={
+            <CtaButton
+              title="Choose a Forge program"
+              icon="trail-sign-outline"
+              onPress={() => router.replace("/forge-paths")}
+            />
+          }
+        />
       ) : (
         <>
-          <View style={{ gap: 8 }}>
-            <Txt variant="headline">
+          <ForgeCard gap={10}>
+            <FText variant="cardTitle" weight="700">
               {selected.data.status === "paused"
                 ? "Paused · your progress is safe"
                 : selected.data.status === "archived"
@@ -219,40 +228,33 @@ export default function LegacyPath() {
                   : stats.complete
                     ? "Cycle complete"
                     : `Week ${stats.week} · ${stats.phase.name}`}
-            </Txt>
-            <ProgressBar value={stats.ratio} label="Path completion" />
-            <Txt variant="caption" tone="secondary" tabular>
+            </FText>
+            <ForgeProgress value={stats.ratio} label="Path completion" />
+            <FText variant="label" tone="secondary">
               {`${stats.completed} / ${stats.expected} workouts completed`}
-            </Txt>
-          </View>
-          {selected.data.status !== "archived" && (
-            <Card>
-              <Txt variant="headline">Ready for a Forge program?</Txt>
-              <Txt variant="caption" tone="secondary">
-                Keep training this Path or switch whenever you choose. Nothing
-                changes until you start a program, and every recorded workout
-                stays in your history.
-              </Txt>
-              <Button
-                title="Browse Forge programs"
-                variant="secondary"
-                icon="trail-sign-outline"
-                onPress={() => router.push("/forge-paths")}
-              />
-            </Card>
-          )}
+            </FText>
+          </ForgeCard>
           {selectedDate && !session ? (
-            <Card>
-              <Txt variant="headline">Rest day</Txt>
-              <Txt tone="secondary">{dayLabel(selectedDate)}</Txt>
-            </Card>
+            <ForgeCard gap={4}>
+              <FText variant="cardTitle" weight="700">
+                Rest day
+              </FText>
+              <FText variant="body" tone="secondary">
+                {dayLabel(selectedDate)}
+              </FText>
+            </ForgeCard>
           ) : session ? (
-            <Card style={{ padding: 20 }}>
-              <View style={{ gap: 4 }}>
-                <Txt
+            <HeroCard minHeight={0}>
+              <View style={{ gap: 6 }}>
+                <FText
                   variant="overline"
                   tone={
-                    session.state === "in-progress" ? "accent" : "secondary"
+                    session.state === "in-progress" ||
+                    (session.state !== "completed" &&
+                      !session.data.skipped &&
+                      session.record.date <= localDate())
+                      ? "accent"
+                      : "secondary"
                   }
                 >
                   {session.state === "completed"
@@ -266,24 +268,24 @@ export default function LegacyPath() {
                           : session.record.date > localDate()
                             ? "Next session"
                             : "Missed session"}
-                </Txt>
-                <Txt variant="title" header>
+                </FText>
+                <FText variant="heroTitle" header numberOfLines={3}>
                   {session.data.name}
-                </Txt>
-                <Txt tone="secondary">
+                </FText>
+                <FText variant="body" tone="secondary">
                   {`Week ${session.data.week} · ${template?.exercises.length ?? 0} exercises · ${workingSets(template?.exercises ?? [])} working sets`}
-                </Txt>
-                <Txt variant="caption" tone="secondary">
+                </FText>
+                <FText variant="label" tone="secondary">
                   {session.state === "completed" ||
                   session.record.date === localDate()
                     ? dayLabel(session.record.date)
                     : session.state === "missed"
                       ? `Originally scheduled for ${dayLabel(session.record.date)}`
                       : `Scheduled for ${relativeDay(session.record.date)}`}
-                </Txt>
+                </FText>
               </View>
               {session.state === "completed" ? (
-                <Button
+                <OutlineButton
                   title={`Review ${session.data.name}`}
                   onPress={() =>
                     router.push({
@@ -296,7 +298,7 @@ export default function LegacyPath() {
                 <>
                   {selected.data.status === "active" &&
                     !session.data.skipped && (
-                      <Button
+                      <CtaButton
                         title={
                           session.state === "in-progress"
                             ? "Resume Path workout"
@@ -315,41 +317,52 @@ export default function LegacyPath() {
                   {selected.data.status === "active" &&
                     !session.data.skipped &&
                     !!otherWorkout(r, String(session.data.workoutId ?? "")) && (
-                      <Label muted>
+                      <FText variant="label" tone="secondary">
                         Finish your current workout before starting this one.
-                      </Label>
+                      </FText>
                     )}
                   {session.state === "unlinked" && (
-                    <Label muted>
+                    <FText variant="label" tone="secondary">
                       The previous workout link is unavailable. Starting creates
                       a new workout.
-                    </Label>
+                    </FText>
                   )}
                 </>
               )}
               {!["completed", "in-progress"].includes(session.state) && (
-                <>
-                  <Label bold>Your exercises</Label>
+                <View
+                  style={{
+                    borderRadius: forge.radii.tile,
+                    backgroundColor: colors.cardRaised,
+                    paddingHorizontal: 12,
+                    paddingTop: 10,
+                  }}
+                >
+                  <FText variant="overline" tone="secondary">
+                    Your exercises
+                  </FText>
                   <ExerciseList items={template?.exercises ?? []} />
-                </>
+                </View>
               )}
               {selected.data.status !== "archived" && (
-                <Button
+                <OutlineButton
                   title="Workout options"
-                  secondary
+                  icon="ellipsis-horizontal"
                   onPress={() => setSessionActions(true)}
                 />
               )}
-            </Card>
+            </HeroCard>
           ) : (
-            <Card>
-              <Label>No sessions this week.</Label>
-            </Card>
+            <ForgeCard>
+              <FText variant="body" tone="secondary">
+                No sessions this week.
+              </FText>
+            </ForgeCard>
           )}
-          <Card>
-            <Label muted size={11}>
+          <ForgeCard gap={10}>
+            <FText variant="overline" tone="secondary">
               YOUR TRAINING CALENDAR
-            </Label>
+            </FText>
             <View
               style={{
                 flexDirection: "row",
@@ -366,47 +379,29 @@ export default function LegacyPath() {
               ).map(([label, glyph, disabled, step], i) => (
                 <React.Fragment key={label}>
                   {i === 1 && (
-                    <Label bold size={20}>
-                      Calendar week {week}
-                    </Label>
+                    <FText variant="displayLabel">Calendar week {week}</FText>
                   )}
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={label}
-                    accessibilityState={{ disabled }}
+                  <SquareIconButton
+                    icon={glyph === "←" ? "chevron-back" : "chevron-forward"}
+                    label={label}
                     disabled={disabled}
                     onPress={() => {
                       setWeek(week + step);
                       setSelectedDate(undefined);
                     }}
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 22,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: colors.surfaceRaised,
-                      opacity: disabled ? 0.35 : 1,
-                    }}
-                  >
-                    <Ionicons
-                      name={glyph === "←" ? "chevron-back" : "chevron-forward"}
-                      size={20}
-                      color={colors.text}
-                    />
-                  </Pressable>
+                  />
                 </React.Fragment>
               ))}
             </View>
-            <Txt tone="secondary">
+            <FText variant="body" tone="secondary">
               {`${dayLabel(dates[0]!)} – ${dayLabel(dates[6]!)}`}
-            </Txt>
+            </FText>
             {trainingWeeks.map((w) => (
-              <Label key={w} muted size={12}>
+              <FText key={w} variant="label" tone="secondary">
                 Training week {w} · {w <= 4 ? "Foundation" : "Evolution"}
-              </Label>
+              </FText>
             ))}
-            <Label size={13}>{weekFocus(trainingWeeks[0] ?? 9)}</Label>
+            <FText variant="label">{weekFocus(trainingWeeks[0] ?? 9)}</FText>
             {/* Seven 44 pt days fit a 375 pt phone: the row uses half the card's inset. */}
             <View
               style={{ flexDirection: "row", gap: 1, marginHorizontal: -8 }}
@@ -435,17 +430,17 @@ export default function LegacyPath() {
                       paddingVertical: 10,
                       alignItems: "center",
                       gap: 6,
-                      borderRadius: 12,
-                      borderWidth: selectedDay ? 1.5 : 0,
-                      borderColor: colors.text,
+                      borderRadius: forge.radii.tile,
+                      borderWidth: selectedDay ? forge.border.active : 0,
+                      borderColor: colors.emberHot,
                       backgroundColor: selectedDay
-                        ? colors.surfaceRaised
+                        ? colors.emberTint
                         : "transparent",
                     }}
                   >
                     <Txt
                       variant="caption"
-                      tone={today ? "primary" : "secondary"}
+                      tone={today ? "accent" : "secondary"}
                       weight={today ? "700" : "500"}
                     >
                       {weekdayNames[i]!.charAt(0)}
@@ -461,8 +456,9 @@ export default function LegacyPath() {
                       name={marker.icon}
                       size={14}
                       color={
+                        // Completion reads ember, as in the logger (D7).
                         marker.tone === "success"
-                          ? colors.success
+                          ? colors.emberHot
                           : marker.tone === "warning"
                             ? colors.warning
                             : marker.tone === "primary"
@@ -474,35 +470,52 @@ export default function LegacyPath() {
                 );
               })}
             </View>
-          </Card>
+          </ForgeCard>
           {r.active() && session?.state !== "in-progress" && (
-            <Button
+            <OutlineButton
               title="Resume current workout"
-              variant="secondary"
+              icon="play"
+              tone="ember"
               onPress={() => router.push("/workout")}
             />
           )}
-          <ListSection>
-            <ListRow
+          <ForgeCard padding={0} gap={0}>
+            <ForgeListRow
               icon="options-outline"
               title="Manage Path"
+              description="Pause, resume and schedule status"
               onPress={() => setManage(true)}
             />
-          </ListSection>
+            {selected.data.status !== "archived" && (
+              <ForgeListRow
+                divider
+                icon="trail-sign-outline"
+                title="Ready for a Forge program?"
+                description="Keep this Path or switch any time. Every workout stays in your history."
+                accessibilityLabel="Browse Forge programs"
+                onPress={() => router.push("/forge-paths")}
+              />
+            )}
+          </ForgeCard>
         </>
       )}
       {archived.length > 0 && (
-        <ListSection title="Earlier Paths">
-          {archived.map((p) => (
-            <ListRow
-              key={p.record.id}
-              title={p.data.name}
-              subtitle={`Started ${dayLabel(p.data.started)} · read only`}
-              accessibilityLabel={`Review ${p.data.name} · ${p.data.started}`}
-              onPress={() => review(p.record.id)}
-            />
-          ))}
-        </ListSection>
+        <View style={{ gap: 8 }}>
+          <SectionLabel title="Earlier Paths" />
+          <ForgeCard padding={0} gap={0}>
+            {archived.map((p, i) => (
+              <React.Fragment key={p.record.id}>
+                {i > 0 && <RowDivider />}
+                <ListRow
+                  title={p.data.name}
+                  subtitle={`Started ${dayLabel(p.data.started)} · read only`}
+                  accessibilityLabel={`Review ${p.data.name} · ${p.data.started}`}
+                  onPress={() => review(p.record.id)}
+                />
+              </React.Fragment>
+            ))}
+          </ForgeCard>
+        </View>
       )}
       <Sheet
         visible={manage && !!selected}
@@ -655,6 +668,6 @@ export default function LegacyPath() {
           setMoving(undefined);
         }}
       />
-    </Screen>
+    </ForgeSubScreen>
   );
 }

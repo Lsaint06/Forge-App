@@ -83,7 +83,9 @@ The minimum heights apply even where a reference draws a smaller control (Phase 
 | `CtaButton`, `OutlineButton` (`ember` / `neutral`), `SquareIconButton` | Gradient primary action, outline actions, bordered icon control (44 pt minimum) |
 | `Metric`, `StatStrip` | Value, unit, label and optional delta text, read as one element. Strips wrap to two columns, then one |
 | `Tile`, `InfoChip`, `BadgePill`, `SectionLabel` | Small panels, facts, an ember pill, letter-spaced section labels |
-| `ForgeListRow` | Navigation row from the You reference's *Tools & Settings*: ember icon, bold title with its description beside it (below when space is short), optional value, chevron; 56 pt. Rows sit in a `ForgeCard` with no padding (Phase 7.2B) |
+| `ForgeListRow` | Navigation row from the You reference's *Tools & Settings*: ember icon, bold title with its description beside it (below when space is short), optional value, chevron; 56 pt. Rows sit in a `ForgeCard` with no padding (Phase 7.2B). `destructive` draws an irreversible action in the error colour without a chevron (7.2C) |
+| `RowDivider` | The inset hairline between rows of a list card (7.2C) |
+| `ForgeSubScreen`, `ForgeEmpty` | Frame for pushed screens: 44 pt Back, overline, condensed `heroTitle` heading (up to three lines), optional pinned footer; no brand header (founder decision C1). `ForgeEmpty` is the matching honest empty state (7.2C) |
 | `ForgeProgress`, `ForgeRing` | Progress bar and ring with `progressbar` semantics |
 | `Gradient` | Linear or radial SVG gradient layer (react-native-svg; works in Expo Go). react-native-svg ignores a stop colour's alpha, so `Gradient` moves it into `stopOpacity` (`stopPaint`) |
 | `artwork` | Registry of licensed artwork slots (empty until 7.1B) |
@@ -197,3 +199,16 @@ Components never compute metrics: deltas and values are display text supplied by
 - History's Back falls back to You.
 - *Search exercises* and *Create custom exercise* are inside the Exercise library. Their deep links (`/explore?search=1`, `/exercise?custom=new`) are unchanged.
 - The tab bar's resume strip is hidden on Train as on Home, because both heroes offer Resume.
+
+## Forge Paths and programs (Phase 7.2C-1)
+
+The four program screens use `ForgeSubScreen` ([PHASE_7_2C_0_REFORGE_TRAINING_DISCOVERY.md](../audits/PHASE_7_2C_0_REFORGE_TRAINING_DISCOVERY.md)). Only their presentation changed. Shared sheets, fields and segmented controls stay on Design System 2.0 until Phase 7.6 (C5).
+
+| Screen | Hierarchy |
+| --- | --- |
+| [Library](../../src/screens/programs/Library.tsx) (`/forge-paths`) | "N programs" overline · **Forge Paths** title. Your plan as one `ForgeListRow` · the recommendation as a `HeroCard` (reasons with ember checks, **View program**) or an honest card when the profile is incomplete or nothing matches · families by goal as `ForgeListRow`s (barbell icon for Strength, body for Muscle Building) · development-only draft preview |
+| [Program details](../../src/screens/programs/Details.tsx) (`/forge-paths/[programId]`) | Experience · goal overline (ember) · condensed program title · days-a-week variants · stats strip (days, weeks, sessions) · *Your week* (ember training days, the day list and rest-day note) · *Phases* (ember bar, rows) · *Workouts* (collapsed rows that expand to their prescriptions) · *About* rows · pinned **Start program** (gradient) or *Open your program* (outline) |
+| [Program dashboard](../../src/screens/programs/Dashboard.tsx) (`/forge-paths/current`) | "Your program" overline · program title · progress card (week of weeks · phase, ember bar, sessions) · **next session as the hero** (overline, condensed name, suggested day, Standard / Lower-fatigue choice, exercises in a raised panel, **Start session** / Resume session / Resume current workout, quiet *Skip this session*) · program complete or unavailable cards · *Coming up* · *Recent sessions* with *All program sessions* · *Program* rows (details, browse, **End program** in error colour). Back falls back to **Train** (C3) |
+| [Existing Path](../../src/screens/LegacyPath.tsx) (`/paths`) | "Your Path" overline · Path name · status and progress card · selected session as the hero (state overline, condensed name, facts, Start / Review, exercises, *Workout options*) or a rest-day card · training calendar card (week stepper with bordered squares, ember selected day, ember completion markers) · one card with *Manage Path* and *Ready for a Forge program?* · *Earlier Paths* |
+
+You's "No active plan" row counts the published programs (`libraryPrograms()`) instead of a fixed "18" (C7).

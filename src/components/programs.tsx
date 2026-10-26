@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { View, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Txt, Stat, useColors } from "./ui";
-import { ListRow, ListSection, InfoSheet } from "./system";
+import { useColors } from "./ui";
+import { ListRow, InfoSheet } from "./system";
+import { FText, ForgeCard, Metric, RowDivider, StatStrip } from "./reforge";
 import { useRepo } from "../state";
 import type { CuratedProgram, ProgramSession } from "../domain/programs/model";
 import { totalSessions } from "../domain/programs/enrollment";
@@ -15,10 +16,10 @@ import {
   type PhaseStep,
 } from "../domain/programs/presentation";
 import { restDayNames } from "../domain/profile";
-import { theme } from "../theme";
+import { forge } from "../theme";
 
-// Forge Paths building blocks (Design System 2.0, Phase 4). They present a
-// curated program exactly as authored; nothing is recalculated here.
+// Forge Paths building blocks (REFORGE, Phase 7.2C). They present a curated
+// program exactly as authored; nothing is recalculated here.
 
 export const shortDay = (i: number) => restDayNames[i]!.slice(0, 3);
 
@@ -26,14 +27,18 @@ export const shortDay = (i: number) => restDayNames[i]!.slice(0, 3);
 export function ProgramStats({ program }: { program: CuratedProgram }) {
   const total = totalSessions(program);
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-      <Stat value={program.daysPerWeek} label="Days a week" />
-      <Stat
-        value={program.durationWeeks ?? "Ongoing"}
+    <StatStrip minColumn={72}>
+      <Metric value={String(program.daysPerWeek)} label="Days a week" />
+      <Metric
+        value={
+          program.durationWeeks !== undefined
+            ? String(program.durationWeeks)
+            : "Ongoing"
+        }
         label={program.durationWeeks ? "Weeks" : "Length"}
       />
-      {total !== undefined && <Stat value={total} label="Sessions" />}
-    </View>
+      {total !== undefined && <Metric value={String(total)} label="Sessions" />}
+    </StatStrip>
   );
 }
 
@@ -60,21 +65,21 @@ export function WeekStrip({
             style={{
               flex: 1,
               height: 40,
-              borderRadius: 10,
+              borderRadius: forge.radii.tile,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: training ? c.selected : "transparent",
-              borderWidth: training ? 0 : 1,
-              borderColor: c.hairline,
+              backgroundColor: training ? c.emberTint : "transparent",
+              borderWidth: forge.border.active,
+              borderColor: training ? c.emberMuted : c.cardBorder,
             }}
           >
-            <Txt
-              variant="caption"
+            <FText
+              variant="label"
               weight={training ? "700" : "500"}
-              tone={training ? "primary" : "secondary"}
+              tone={training ? "accent" : "secondary"}
             >
               {name.charAt(0)}
-            </Txt>
+            </FText>
             {i === restDay && (
               <View
                 style={{
@@ -146,7 +151,7 @@ export function PhaseTimeline({ program }: { program: CuratedProgram }) {
   const [open, setOpen] = useState<PhaseStep>();
   const fixed = steps.every((s) => s.phase.weeks);
   return (
-    <View style={{ gap: theme.spacing.sm }}>
+    <View style={{ gap: forge.spacing.tight }}>
       {fixed && steps.length > 1 && (
         <View
           accessible={false}
@@ -162,24 +167,26 @@ export function PhaseTimeline({ program }: { program: CuratedProgram }) {
                 borderRadius: 3,
                 backgroundColor:
                   s.lowerFatigue || s.reduction !== undefined
-                    ? c.text3
-                    : c.text2,
+                    ? c.emberMuted
+                    : c.emberHot,
               }}
             />
           ))}
         </View>
       )}
-      <ListSection>
-        {steps.map((s) => (
-          <ListRow
-            key={s.index}
-            title={s.name}
-            subtitle={phaseSummary(s) || undefined}
-            accessibilityLabel={`${s.name}, details`}
-            onPress={() => setOpen(s)}
-          />
+      <ForgeCard padding={0} gap={0}>
+        {steps.map((s, i) => (
+          <React.Fragment key={s.index}>
+            {i > 0 && <RowDivider />}
+            <ListRow
+              title={s.name}
+              subtitle={phaseSummary(s) || undefined}
+              accessibilityLabel={`${s.name}, details`}
+              onPress={() => setOpen(s)}
+            />
+          </React.Fragment>
         ))}
-      </ListSection>
+      </ForgeCard>
       <PhaseSheet
         program={program}
         step={open}
@@ -201,29 +208,34 @@ export function ExerciseLines({
   return (
     <View style={{ gap: 10 }}>
       {session.notes && (
-        <Txt variant="caption" tone="secondary">
+        <FText variant="label" tone="secondary">
           {session.notes}
-        </Txt>
+        </FText>
       )}
       {session.exercises.map((item, i) => (
         <View
           key={`${item.exerciseId}-${i}`}
           style={{ flexDirection: "row", gap: 10 }}
         >
-          <Txt variant="caption" tone="secondary" tabular style={{ width: 18 }}>
+          <FText
+            variant="label"
+            tone="accent"
+            weight="700"
+            style={{ width: 18, fontVariant: ["tabular-nums"] }}
+          >
             {i + 1}
-          </Txt>
+          </FText>
           <View style={{ flex: 1, gap: 2 }}>
-            <Txt weight="600">
+            <FText variant="body" weight="600">
               {r.exercise(item.exerciseId)?.name ?? item.exerciseId}
-            </Txt>
-            <Txt variant="caption" tone="secondary">
+            </FText>
+            <FText variant="label" tone="secondary">
               {prescriptionLine(item, setReduction)}
-            </Txt>
+            </FText>
             {item.notes && (
-              <Txt variant="caption" tone="secondary">
+              <FText variant="label" tone="secondary">
                 {item.notes}
-              </Txt>
+              </FText>
             )}
           </View>
         </View>
@@ -260,38 +272,40 @@ export function WorkoutRow({
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen(!open)}
         style={({ pressed }) => ({
-          minHeight: theme.heights.rowTall,
-          paddingHorizontal: theme.spacing.row,
+          minHeight: 56,
+          paddingHorizontal: forge.spacing.cardPadding,
           paddingVertical: 10,
           flexDirection: "row",
           alignItems: "center",
-          gap: theme.spacing.group,
-          backgroundColor: pressed ? c.surfaceRaised : undefined,
+          gap: forge.spacing.group,
+          backgroundColor: pressed ? c.cardRaised : undefined,
         })}
       >
         {countOnly ? (
-          <Txt weight="600" style={{ flex: 1 }}>
+          <FText variant="body" weight="600" style={{ flex: 1 }}>
             {count}
-          </Txt>
+          </FText>
         ) : (
           <View style={{ flex: 1, gap: 2 }}>
-            <Txt weight="600">{session.name}</Txt>
-            <Txt variant="caption" tone="secondary">
+            <FText variant="cardTitle" weight="700">
+              {session.name}
+            </FText>
+            <FText variant="label" tone="secondary">
               {detail ? `${count} · ${detail}` : count}
-            </Txt>
+            </FText>
           </View>
         )}
         <Ionicons
           name={open ? "chevron-up" : "chevron-down"}
           size={18}
-          color={c.text3}
+          color={c.text2}
         />
       </Pressable>
       {open && (
         <View
           style={{
-            paddingHorizontal: theme.spacing.row,
-            paddingBottom: theme.spacing.md,
+            paddingHorizontal: forge.spacing.cardPadding,
+            paddingBottom: forge.spacing.cardPadding,
           }}
         >
           <ExerciseLines session={session} setReduction={setReduction} />
@@ -310,32 +324,34 @@ export function WorkoutList({ program }: { program: CuratedProgram }) {
   const { workouts, uniform } = programWorkouts(program);
   const all = program.phases.length;
   return (
-    <View style={{ gap: theme.spacing.sm }}>
-      <ListSection>
+    <View style={{ gap: forge.spacing.tight }}>
+      <ForgeCard padding={0} gap={0}>
         {workouts.map((w, i) => (
-          <WorkoutRow
-            key={`${w.session.id}-${i}`}
-            session={w.session}
-            detail={
-              uniform
-                ? undefined
-                : w.phases.length === all
-                  ? "Every phase"
-                  : w.phases.map((p) => program.phases[p]!.name).join(", ")
-            }
-          />
+          <React.Fragment key={`${w.session.id}-${i}`}>
+            {i > 0 && <RowDivider />}
+            <WorkoutRow
+              session={w.session}
+              detail={
+                uniform
+                  ? undefined
+                  : w.phases.length === all
+                    ? "Every phase"
+                    : w.phases.map((p) => program.phases[p]!.name).join(", ")
+              }
+            />
+          </React.Fragment>
         ))}
-      </ListSection>
+      </ForgeCard>
       {all > 1 && (
-        <Txt
-          variant="caption"
+        <FText
+          variant="label"
           tone="secondary"
-          style={{ paddingHorizontal: theme.spacing.xs }}
+          style={{ paddingHorizontal: 2 }}
         >
           {uniform
             ? "The same workouts run in every phase; effort and volume follow the phase."
             : "Some workouts change between phases; each version is listed with its phases."}
-        </Txt>
+        </FText>
       )}
     </View>
   );

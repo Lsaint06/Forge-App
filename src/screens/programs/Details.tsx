@@ -1,20 +1,18 @@
 import React, { useState } from "react";
 import { View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { Txt, Button, Sheet, SegmentedControl } from "../../components/ui";
+import { InfoSheet, useAfterSheet } from "../../components/system";
 import {
-  Screen,
-  Txt,
-  Button,
-  Empty,
-  Sheet,
-  SegmentedControl,
-} from "../../components/ui";
-import {
-  ListRow,
-  ListSection,
-  InfoSheet,
-  useAfterSheet,
-} from "../../components/system";
+  CtaButton,
+  FText,
+  ForgeCard,
+  ForgeEmpty,
+  ForgeListRow,
+  ForgeSubScreen,
+  OutlineButton,
+  SectionLabel,
+} from "../../components/reforge";
 import {
   PhaseTimeline,
   ProgramStats,
@@ -40,8 +38,9 @@ import { currentEnrollment, enrollProgram } from "../../data/programs";
 import { currentPath } from "../../data/paths";
 import { goBack } from "../../navigation";
 
-// One curated program, exactly as authored: its week, phases, distinct
-// workouts and progression, with Start program pinned at the bottom.
+// One curated program, exactly as authored (REFORGE, Phase 7.2C): its facts,
+// week, phases, distinct workouts and progression, with Start program pinned
+// at the bottom.
 
 /** The program a link names; drafts resolve only in development builds. */
 export function resolveProgram(id?: string, version?: string) {
@@ -147,12 +146,12 @@ export default function ProgramDetails() {
   const back = () => goBack("/forge-paths");
   if (!program)
     return (
-      <Screen title="Program unavailable" onBack={back}>
-        <Empty
+      <ForgeSubScreen title="Program unavailable" onBack={back}>
+        <ForgeEmpty
           title="This program isn't available"
           detail="It may belong to a newer or older version of Forge. Your history is preserved."
         />
-      </Screen>
+      </ForgeSubScreen>
     );
   const draft = program.status === "draft";
   const variants = draft
@@ -168,7 +167,7 @@ export default function ProgramDetails() {
     .sort((a, b) => a - b);
   const lf = program.lowerFatigue;
   return (
-    <Screen
+    <ForgeSubScreen
       key={programKey(program)}
       title={programTitle(program.name)}
       eyebrow={
@@ -176,16 +175,17 @@ export default function ProgramDetails() {
           ? `Draft preview · version ${program.version}`
           : `${program.experience} · ${program.goal}`
       }
+      eyebrowTone={draft ? "secondary" : "accent"}
       onBack={back}
       footer={
         isCurrent ? (
-          <Button
+          <OutlineButton
             title="Open your program"
-            variant="secondary"
+            tone="ember"
             onPress={() => router.dismissTo("/forge-paths/current")}
           />
         ) : (
-          <Button
+          <CtaButton
             title="Start program"
             icon="play"
             onPress={() => setStarting(true)}
@@ -206,45 +206,47 @@ export default function ProgramDetails() {
           }
         />
       )}
-      <ProgramStats program={program} />
-      <View style={{ gap: 10 }}>
-        <Txt variant="overline" tone="secondary" header>
-          Your week
-        </Txt>
-        <WeekStrip days={days} restDay={r.profile().restDay} />
-        <Txt variant="caption" tone="secondary">
-          {days.map(shortDay).join(" · ")}
-        </Txt>
-        <Txt variant="caption" tone="secondary">
-          {restDay
-            ? `Arranged so ${restDay} stays a rest day. These are suggestions — train whenever suits you.`
-            : "Choose a preferred rest day in your profile to arrange this around it."}
-        </Txt>
+      <ForgeCard>
+        <ProgramStats program={program} />
+      </ForgeCard>
+      <View style={{ gap: 8 }}>
+        <SectionLabel title="Your week" />
+        <ForgeCard gap={10}>
+          <WeekStrip days={days} restDay={r.profile().restDay} />
+          <FText variant="cardTitle" weight="700">
+            {days.map(shortDay).join(" · ")}
+          </FText>
+          <FText variant="label" tone="secondary">
+            {restDay
+              ? `Arranged so ${restDay} stays a rest day. These are suggestions — train whenever suits you.`
+              : "Choose a preferred rest day in your profile to arrange this around it."}
+          </FText>
+        </ForgeCard>
       </View>
-      <View style={{ gap: 10 }}>
-        <Txt variant="overline" tone="secondary" header>
-          Phases
-        </Txt>
+      <View style={{ gap: 8 }}>
+        <SectionLabel title="Phases" />
         <PhaseTimeline program={program} />
       </View>
-      <View style={{ gap: 10 }}>
-        <Txt variant="overline" tone="secondary" header>
-          Workouts
-        </Txt>
+      <View style={{ gap: 8 }}>
+        <SectionLabel title="Workouts" />
         <WorkoutList program={program} />
       </View>
-      <ListSection title="About">
-        <ListRow
-          icon="trending-up-outline"
-          title="How progression works"
-          onPress={() => setInfo("progression")}
-        />
-        <ListRow
-          icon="document-text-outline"
-          title="About this program"
-          onPress={() => setInfo("about")}
-        />
-      </ListSection>
+      <View style={{ gap: 8 }}>
+        <SectionLabel title="About" />
+        <ForgeCard padding={0} gap={0}>
+          <ForgeListRow
+            icon="trending-up-outline"
+            title="How progression works"
+            onPress={() => setInfo("progression")}
+          />
+          <ForgeListRow
+            divider
+            icon="document-text-outline"
+            title="About this program"
+            onPress={() => setInfo("about")}
+          />
+        </ForgeCard>
+      </View>
       <InfoSheet
         visible={info === "progression"}
         onClose={() => setInfo(undefined)}
@@ -276,6 +278,6 @@ export default function ProgramDetails() {
           onClose={() => setStarting(false)}
         />
       )}
-    </Screen>
+    </ForgeSubScreen>
   );
 }

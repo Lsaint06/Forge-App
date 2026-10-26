@@ -5,6 +5,20 @@ import { useColors, type IconName } from "../ui";
 import { forge } from "../../theme";
 import { FText } from "./Text";
 
+/** The hairline between rows of a list card (inset from the left edge). */
+export function RowDivider({ inset = forge.spacing.cardPadding }) {
+  const c = useColors();
+  return (
+    <View
+      style={{
+        height: forge.border.card,
+        marginLeft: inset,
+        backgroundColor: c.cardDivider,
+      }}
+    />
+  );
+}
+
 /**
  * A navigation row as in the You reference's "Tools & Settings": an ember
  * icon, a bold title with its description beside it (below it when space is
@@ -18,6 +32,7 @@ export function ForgeListRow({
   value,
   onPress,
   divider = false,
+  destructive = false,
   accessibilityLabel,
 }: {
   icon: IconName;
@@ -27,6 +42,8 @@ export function ForgeListRow({
   onPress: () => void;
   /** Hairline above the row (every row but the first). */
   divider?: boolean;
+  /** An irreversible action (e.g. End program): error colour, no chevron. */
+  destructive?: boolean;
   accessibilityLabel?: string;
 }) {
   const c = useColors();
@@ -52,7 +69,7 @@ export function ForgeListRow({
       <Ionicons
         name={icon}
         size={22}
-        color={c.emberHot}
+        color={destructive ? c.error : c.emberHot}
         style={{ width: 26 }}
       />
       <View
@@ -65,7 +82,11 @@ export function ForgeListRow({
           rowGap: 2,
         }}
       >
-        <FText variant="cardTitle" weight="700">
+        <FText
+          variant="cardTitle"
+          weight="700"
+          tone={destructive ? "error" : "primary"}
+        >
           {title}
         </FText>
         {description && (
@@ -79,7 +100,9 @@ export function ForgeListRow({
           {value}
         </FText>
       )}
-      <Ionicons name="chevron-forward" size={18} color={c.text2} />
+      {!destructive && (
+        <Ionicons name="chevron-forward" size={18} color={c.text2} />
+      )}
     </Pressable>
   );
 }

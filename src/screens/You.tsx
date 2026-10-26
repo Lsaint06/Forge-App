@@ -23,6 +23,7 @@ import {
   type ProfileField,
 } from "../components/ProfileForm";
 import { planStatus } from "../components/PlanRow";
+import { libraryPrograms } from "../programs";
 import { useRepo, useApp, confirm, mutate } from "../state";
 import { replayIntro } from "../components/splash/session";
 import {
@@ -304,7 +305,7 @@ export default function You() {
             <ListRow
               icon="trail-sign-outline"
               title="No active plan"
-              subtitle="Browse 18 Forge Paths programs"
+              subtitle={`Browse ${libraryPrograms().length} Forge Paths programs`}
               onPress={() => router.push("/forge-paths")}
             />
           )}

@@ -339,7 +339,8 @@ test("the library opens your program's dashboard, and back returns or falls back
     expect(router.replace).toHaveBeenLastCalledWith("/(tabs)/train");
     const dashboard = await render(<Dashboard />);
     await fireEvent.press(dashboard.getByLabelText("Back"));
-    expect(router.replace).toHaveBeenLastCalledWith("/(tabs)");
+    // Phase 7.2C (C3): the plan lives on Train, so Back falls back there.
+    expect(router.replace).toHaveBeenLastCalledWith("/(tabs)/train");
     show(strength4);
     const details = await render(<Details />);
     await fireEvent.press(details.getByLabelText("Back"));
