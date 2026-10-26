@@ -274,3 +274,31 @@ Mapping and assets: [PHASE_7_2C_3A_ANATOMY_FOUNDATION.md](../audits/PHASE_7_2C_3
 - Secondary muscles come from the reviewed anatomy map ([explore/model.ts](../../src/screens/explore/model.ts)), so a row never lists a muscle its detail screen excludes. For example, a fly lists front deltoids, not triceps.
 
 **Removed:** `MuscleIllustration`, `ExerciseVisual`, `ExerciseCard` and the empty `exerciseMedia` registry. That means no doodle figures, green highlights, "Muscle illustration" / "Media available" captions or thumbnail containers. Anatomy appears only on the exercise detail screen.
+
+## Training calendar (Phase 7.2C-4)
+
+[TrainingCalendar.tsx](../../src/screens/TrainingCalendar.tsx) (`/calendar`, a Training tool) uses `ForgeSubScreen` ("Training calendar"; Back falls back to Train). Presentation rules live in [calendar/model.ts](../../src/screens/calendar/model.ts). The day details (`dayDetail`), scheduling and recorded workouts are unchanged.
+
+| Part | Presentation |
+| --- | --- |
+| Month card | 44 pt square Previous / Next buttons around the condensed month title (Previous is hidden before the first month with training; Next stops two months ahead, as before) |
+| Grid | Whole Monday–Sunday weeks; 56 pt day buttons using half the card inset, as in the Path week. Days outside the month are dimmed. Today's date is ember; the selected day has an ember outline and tint |
+| Marks | One shape per state, the same as the Path week: completed = ember check, planned = dot, missed = amber alert, skipped = grey skip. Rest days carry no mark |
+| Key and summary | Inline key with the four marks and "No mark · Rest"; "N workouts this month · n skipped · n missed" |
+| Selected day | Section label with the date (and an ember "Today"), then one card: completed workouts open their review; planned, missed and skipped sessions say where they come from ("Planned · Path"); otherwise "Rest day" |
+| Training history | A row at the end opens `/history` |
+
+Day numbers and weekday letters use the `statMetric` role, so they stop growing at 1.5× with Larger Text and always fit a column.
+
+**Integration (7.2C-4):**
+
+- The training screens all use the REFORGE frame: Train, Forge Paths, program details and dashboard, the existing Path, templates, the Exercise Library and detail, the active workout and the calendar.
+- Back fallbacks:
+
+  | Screen | Falls back to |
+  | --- | --- |
+  | Forge Paths library, dashboard, templates, Exercise Library, calendar | Train |
+  | Program details, existing Path | Forge Paths |
+  | Exercise detail | Exercise Library |
+
+- The workout screen's "No active workout" state now uses `ForgeSubScreen` / `ForgeEmpty`, and its **Back to Train** lands on Train even from a deep link. Before, it fell back to Home.

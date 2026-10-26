@@ -19,13 +19,11 @@ import { useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useRepo, mutate, confirm, useApp } from "../state";
 import {
-  Screen,
   Txt,
   Button,
   TextButton,
   Field,
   NumberField,
-  Empty,
   Sheet,
   useColors,
   confirmDiscard,
@@ -35,6 +33,8 @@ import { ExercisePicker } from "../components/ExercisePicker";
 import {
   CtaButton,
   FText,
+  ForgeEmpty,
+  ForgeSubScreen,
   OutlineButton,
   SquareIconButton,
 } from "../components/reforge";
@@ -387,16 +387,20 @@ export default function WorkoutScreen() {
     });
     return () => sub.remove();
   });
-  if (!w)
+  if (!w) {
+    // Nothing to log (e.g. a stale link): the REFORGE frame, and Back to
+    // Train really lands on Train (Phase 7.2C-4).
+    const toTrain = () => goBack("/(tabs)/train");
     return (
-      <Screen title="No active workout">
-        <Empty
+      <ForgeSubScreen title="No active workout" onBack={toTrain}>
+        <ForgeEmpty
           title="Ready when you are"
           detail="Start a workout from Train."
-          action={<Button title="Back to Train" onPress={returnToTraining} />}
+          action={<OutlineButton title="Back to Train" onPress={toTrain} />}
         />
-      </Screen>
+      </ForgeSubScreen>
     );
+  }
   const rows = r.workoutExercises(w.id);
   const sets = r.workoutSets(w.id);
   const completedSets = sets.filter((s) => s.completed).length;

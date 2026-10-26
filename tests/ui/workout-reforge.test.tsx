@@ -343,3 +343,26 @@ test("the 375 pt iPhones keep every column inside the card, including Prev and R
   expect(view.getByText("Prev", hidden)).toBeTruthy();
   expect(view.getByText("RIR", hidden)).toBeTruthy();
 });
+
+test("with no workout to show, the REFORGE empty state returns to Train (7.2C-4)", async () => {
+  const { r, db } = pathRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const { router } = jest.requireMock("expo-router") as {
+      router: { canGoBack: jest.Mock; replace: jest.Mock };
+    };
+    router.canGoBack.mockReturnValue(false);
+    const view = await render(<WorkoutScreen />);
+    expect(
+      view.getByRole("header", { name: "No active workout" }),
+    ).toBeTruthy();
+    expect(view.getByText("Ready when you are")).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Back to Train"));
+    expect(router.replace).toHaveBeenLastCalledWith("/(tabs)/train");
+    await fireEvent.press(view.getByLabelText("Back"));
+    expect(router.replace).toHaveBeenLastCalledWith("/(tabs)/train");
+    router.canGoBack.mockReturnValue(true);
+  } finally {
+    db.close();
+  }
+});
