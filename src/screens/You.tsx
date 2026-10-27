@@ -1,23 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Pressable, Switch } from "react-native";
+import { View, Switch } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { NUTRITION_TODAY } from "../navigation";
-import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { Alert } from "../platform/alert";
 import { pickBackup } from "../platform/backup";
 import { backupState, backupExportedAt, recordBackup } from "../data/backup";
 import { BackupSheet } from "../components/Backup";
 import { cancelAllNotifications } from "../notifications";
-import {
-  Screen,
-  Card,
-  Txt,
-  Sheet,
-  SegmentedControl,
-  useColors,
-} from "../components/ui";
-import { ListRow, ListSection, InfoSheet } from "../components/system";
+import { Sheet, confirmDiscard, useColors } from "../components/ui";
+import { ListRow, InfoSheet } from "../components/system";
 import {
   ProfileForm,
   toggleNotifications,
@@ -33,7 +25,31 @@ import {
   restDayName,
   trainingGoal,
 } from "../domain/profile";
-import { elapsedSeconds } from "../domain/metrics";
+import { elapsedSeconds, summary } from "../domain/metrics";
+import { localDate } from "../domain/types";
+import {
+  BadgePill,
+  FText,
+  ForgeCard,
+  ForgeScreen,
+  ForgeSegments,
+  Metric as ForgeMetric,
+  StatStrip,
+} from "../components/reforge";
+import { planOverview } from "./train/model";
+import {
+  AthleteHeader,
+  IdentityPreview,
+  PlanCard,
+  ProfilePrompt,
+  SettingsGroup,
+} from "./you/sections";
+import {
+  displayName,
+  experienceText,
+  focusText,
+  trainingSince,
+} from "./you/model";
 import { isWorkingSet } from "../domain/progress/strength";
 import { compactNumber, loadText } from "../domain/progress/format";
 import { progressModel } from "../data/progress";
@@ -42,9 +58,10 @@ import { TARGETS_SAVED, targetsPersonalized } from "../domain/nutrition";
 import { fluidUnitOf, unitLabel, volumeText } from "../domain/hydration";
 import { HydrationSettings } from "../components/nutrition/HydrationSheet";
 import { cloudClient } from "../cloud/client";
-import { theme } from "../theme";
+import { forge, theme } from "../theme";
 
-// You (Design System 2.0, Phase 6): the lifter's profile, a lifetime training
+// You (REFORGE identity since Phase 7.5B; settings from Design System 2.0,
+// Phase 6): the athlete's identity and current plan, a lifetime training
 // snapshot and every setting, grouped. Settings are edited through focused
 // sheets built on the same ProfileForm as onboarding, so validation and
 // storage are unchanged.
@@ -56,7 +73,9 @@ const editors: Record<
 > = {
   profile: {
     title: "Edit profile",
-    fields: ["name", "height", "weight", "bodyFat"],
+    // Body fat is not asked here (7.5B.1): a saved value is kept unchanged,
+    // and body fat is tracked as a measurement.
+    fields: ["name", "height", "weight"],
     save: "Save profile",
   },
   focus: {
@@ -82,18 +101,6 @@ const privacy = [
   "Volume counts external load × reps for completed non-warmup sets. Subjective recovery and progression suggestions are transparent heuristics. They are not medical guidance. Exercise instructions are general coaching notes; consult a qualified coach for advanced movements.",
 ];
 
-const initials = (name: string) =>
-  name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w.charAt(0).toUpperCase())
-    .join("") || "F";
-const monthYear = (time: number) =>
-  new Date(time).toLocaleDateString(undefined, {
-    month: "short",
-    year: "numeric",
-  });
 const plural = (n: number, word: string) =>
   `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 const listText = (items: string[]) =>
@@ -109,52 +116,20 @@ function cloudConfigured() {
   }
 }
 
-function Avatar({ name }: { name: string }) {
-  const c = useColors();
-  return (
-    <View
-      accessible={false}
-      importantForAccessibility="no-hide-descendants"
-      style={{
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: c.surfaceRaised,
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: 1.5,
-        borderColor: c.ember,
-      }}
-    >
-      <Txt variant="title" weight="800">
-        {initials(name)}
-      </Txt>
-    </View>
-  );
-}
-
 function Snapshot({ stats }: { stats: { value: string; label: string }[] }) {
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", rowGap: 18 }}>
+    <StatStrip minColumn={72}>
       {stats.map((s) => (
-        <View
+        <ForgeMetric
           key={s.label}
-          accessible
-          accessibilityLabel={`${s.label}: ${s.value}`}
-          style={{ width: "50%", gap: 2, paddingRight: 8 }}
-        >
-          <Txt variant="metric" numberOfLines={1}>
-            {s.value}
-          </Txt>
-          <Txt variant="overline" tone="secondary" numberOfLines={1}>
-            {s.label}
-          </Txt>
-        </View>
+          size="stat"
+          value={s.value}
+          label={s.label}
+        />
       ))}
-    </View>
+    </StatStrip>
   );
 }
-
 /** A labelled control inside a grouped list. */
 function ControlRow({
   title,
@@ -171,7 +146,9 @@ function ControlRow({
         gap: 10,
       }}
     >
-      <Txt weight="600">{title}</Txt>
+      <FText variant="body" weight="700">
+        {title}
+      </FText>
       {children}
     </View>
   );
@@ -222,6 +199,14 @@ export default function You() {
   const restDay = restDayName(p);
   const missing = missingTrainingProfile(p);
   const plan = planStatus(r);
+  const today = localDate();
+  const overview = planOverview(r, today);
+  // The shared day streak (Home, Nutrition, Progress), once per data change.
+  const streak = useMemo(
+    () => summary(r.workouts(), (id) => r.workoutSets(id)).streak,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [r, revision, today],
+  );
   const member = membership();
   const cloud = cloudConfigured();
   const pending = r.outbox().length;
@@ -271,79 +256,39 @@ export default function You() {
     router.push({ pathname: "/journal", params: { kind } });
 
   return (
-    <Screen title="You">
-      <Card style={{ padding: 20, gap: 16 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-          <Avatar name={p.name} />
-          <View style={{ flex: 1, gap: 2 }}>
-            <Txt variant="title" header numberOfLines={2}>
-              {p.name}
-            </Txt>
-            <Txt tone="secondary" numberOfLines={2}>
-              {[
-                experience ?? "Experience not set",
-                goal ?? "Goal not set",
-              ].join(" · ")}
-            </Txt>
-            <Txt variant="caption" tone="secondary">
-              {first ? `Training since ${monthYear(first)}` : "No workouts yet"}
-            </Txt>
-          </View>
-        </View>
-        <View
-          style={{
-            marginHorizontal: -20,
-            borderTopWidth: 0.5,
-            borderColor: c.hairline,
-          }}
-        >
-          {plan ? (
-            <ListRow
-              icon="trail-sign-outline"
-              title={plan.title}
-              subtitle={plan.subtitle}
-              accessibilityLabel={`${plan.kind === "program" ? "Your program" : "Your Path"}: ${plan.title}`}
-              onPress={plan.open}
-            />
-          ) : (
-            <ListRow
-              icon="trail-sign-outline"
-              title="No active plan"
-              subtitle={`Browse ${libraryPrograms().length} Forge Paths programs`}
-              onPress={() => router.push("/forge-paths")}
-            />
+    <ForgeScreen
+      brand={
+        <BadgePill
+          icon="flame"
+          value={String(streak)}
+          accessibilityLabel={`${streak} day streak. Open progress`}
+          onPress={() => router.navigate("/(tabs)/progress")}
+        />
+      }
+    >
+      <AthleteHeader
+        name={displayName(p.name)}
+        experience={experienceText(experience)}
+        focus={focusText(goal)}
+        since={trainingSince(first)}
+        onEdit={() => setEditor("profile")}
+        onSetFocus={() => setEditor("focus")}
+      />
+      <PlanCard
+        plan={overview}
+        today={today}
+        programs={libraryPrograms().length}
+        onOpen={() => plan?.open()}
+      />
+      {p.onboarded && missing.length > 0 && (
+        <ProfilePrompt
+          missing={listText(
+            missing.map((m) => (m === "restDay" ? "rest day" : m)),
           )}
-          {p.onboarded && missing.length > 0 && (
-            <ListRow
-              icon="alert-circle-outline"
-              title="Complete your training profile"
-              subtitle={`Add your ${listText(
-                missing.map((m) => (m === "restDay" ? "rest day" : m)),
-              )} for program recommendations`}
-              onPress={() => setEditor("focus")}
-            />
-          )}
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Edit profile"
-          onPress={() => setEditor("profile")}
-          style={({ pressed }) => ({
-            minHeight: 44,
-            borderRadius: theme.radii.control,
-            backgroundColor: pressed ? c.selected : c.surfaceRaised,
-            alignItems: "center",
-            justifyContent: "center",
-            flexDirection: "row",
-            gap: 8,
-          })}
-        >
-          <Ionicons name="create-outline" size={18} color={c.text} />
-          <Txt weight="600">Edit profile</Txt>
-        </Pressable>
-      </Card>
-
-      <ListSection title="Training snapshot">
+          onPress={() => setEditor("focus")}
+        />
+      )}
+      <SettingsGroup title="Training snapshot">
         <View style={{ padding: theme.spacing.row }}>
           {done.length ? (
             <Snapshot
@@ -363,9 +308,9 @@ export default function You() {
               ]}
             />
           ) : (
-            <Txt tone="secondary">
+            <FText variant="body" tone="secondary">
               Your lifetime totals appear here after your first workout.
-            </Txt>
+            </FText>
           )}
         </View>
         {/* Training history lives here (Phase 7.2B): with the lifetime
@@ -385,9 +330,9 @@ export default function You() {
           title="View progress"
           onPress={() => router.navigate("/(tabs)/progress")}
         />
-      </ListSection>
+      </SettingsGroup>
 
-      <Card style={{ padding: 20, gap: 8 }}>
+      <ForgeCard testID="you-membership">
         <View
           style={{
             flexDirection: "row",
@@ -395,33 +340,36 @@ export default function You() {
             justifyContent: "space-between",
           }}
         >
-          <Txt variant="overline" tone="accent">
+          <FText variant="overline" tone="accent">
             Forge Premium
-          </Txt>
+          </FText>
           <View
             style={{
               paddingHorizontal: 10,
-              paddingVertical: 4,
-              borderRadius: theme.radii.pill,
-              backgroundColor: c.surfaceRaised,
+              minHeight: 24,
+              justifyContent: "center",
+              borderRadius: forge.radii.pill,
+              borderWidth: forge.border.card,
+              borderColor: c.cardBorder,
+              backgroundColor: c.cardRaised,
             }}
           >
-            <Txt variant="caption" weight="600">
+            <FText variant="label" weight="600">
               {member.tier === "premium" ? "Premium" : "Free plan"}
-            </Txt>
+            </FText>
           </View>
         </View>
-        <Txt variant="headline" header>
+        <FText variant="cardTitle" weight="700" header>
           Membership is on the way
-        </Txt>
-        <Txt variant="caption" tone="secondary">
+        </FText>
+        <FText variant="label" tone="secondary">
           {member.premiumAvailable
             ? "Premium membership options are available."
             : "Membership options will appear here when they're ready. There's nothing to buy yet."}
-        </Txt>
-      </Card>
+        </FText>
+      </ForgeCard>
 
-      <ListSection title="Training">
+      <SettingsGroup title="Training">
         <ListRow
           icon="flag-outline"
           title="Training focus"
@@ -458,9 +406,9 @@ export default function You() {
           } · ${unitLabel(fluidUnitOf(p))}`}
           onPress={() => setHydration(true)}
         />
-      </ListSection>
+      </SettingsGroup>
 
-      <ListSection title="Health & body">
+      <SettingsGroup title="Health & body">
         <ListRow
           icon="body-outline"
           title="Body measurements"
@@ -481,9 +429,9 @@ export default function You() {
           title="Goals"
           onPress={() => journal("goal")}
         />
-      </ListSection>
+      </SettingsGroup>
 
-      <ListSection
+      <SettingsGroup
         title="Notifications"
         footer="Rest-timer alerts and scheduled workout reminders. Workouts and in-app timers work either way."
       >
@@ -504,12 +452,12 @@ export default function You() {
             />
           }
         />
-      </ListSection>
+      </SettingsGroup>
 
-      <ListSection title="App">
+      <SettingsGroup title="App">
         <ControlRow title="Units">
-          <SegmentedControl
-            label="Units"
+          <ForgeSegments
+            accessibilityLabel="Units"
             options={[
               { value: "kg", label: "Kilograms" },
               { value: "lb", label: "Pounds" },
@@ -521,8 +469,8 @@ export default function You() {
           />
         </ControlRow>
         <ControlRow title="Appearance">
-          <SegmentedControl
-            label="Appearance"
+          <ForgeSegments
+            accessibilityLabel="Appearance"
             options={[
               { value: "dark", label: "Dark" },
               { value: "light", label: "Light" },
@@ -536,9 +484,9 @@ export default function You() {
             }
           />
         </ControlRow>
-      </ListSection>
+      </SettingsGroup>
 
-      <ListSection title="Account & data">
+      <SettingsGroup title="Account & data">
         <ListRow
           icon="cloud-outline"
           title="Account & cloud sync"
@@ -588,9 +536,9 @@ export default function You() {
             )
           }
         />
-      </ListSection>
+      </SettingsGroup>
 
-      <ListSection title="About">
+      <SettingsGroup title="About">
         <ListRow
           title={`FORGE ${version}`}
           accessibilityLabel={
@@ -620,7 +568,7 @@ export default function You() {
             onPress={() => router.push("/design-system")}
           />
         )}
-      </ListSection>
+      </SettingsGroup>
 
       <InfoSheet
         visible={info}
@@ -641,6 +589,8 @@ export default function You() {
             fields={editors[editor].fields}
             saveLabel={editors[editor].save}
             onDirtyChange={setDirty}
+            onCancel={() => (dirty ? confirmDiscard(close) : close())}
+            preview={(name) => <IdentityPreview name={name} />}
             onDone={() => {
               // Called only after a successful save: the targets are now the
               // lifter's own, even if they match the suggested defaults.
@@ -659,6 +609,6 @@ export default function You() {
       >
         <HydrationSettings />
       </Sheet>
-    </Screen>
+    </ForgeScreen>
   );
 }

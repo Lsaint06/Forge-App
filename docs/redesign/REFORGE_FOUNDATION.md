@@ -466,3 +466,27 @@ The spoken labels are unchanged, and no statistic lost a place.
 | Next goals | Header "NEXT GOALS · See all ›" opens Goals. Up to three active goals as Goals evaluates them, in Home's next-target order (the first is always Home's next target): name, state, current value and target, and an ember bar **only where Goals gives a real ratio**. Each row opens Goals. No goals: "No active goals…" with "Set a goal" |
 | Records screen | `ForgeSubScreen` "Records" with "n records set" in ember; **Recent records** (trophy rows: type, value, date; each opens its workout) and **Your bests** (one row per exercise, opening it); "How records work"; `ForgeEmpty` "No records yet" |
 | More | REFORGE rows in one card: Training history, Training calendar, Body measurements, Nutrition (today), Recovery, Goals. Milestones moved to its own card |
+
+## You (Phase 7.5B–7.5B.1: athlete identity)
+
+[You.tsx](../../src/screens/You.tsx) follows the approved You reference ([you-approved-2026-10-24.png](reforge/references/you-approved-2026-10-24.png)), the 7.5A audit and the founder's 7.5B direction: the top of the tab is the athlete's identity and training, and the settings sit below. 7.5B builds the identity and the current-plan card ([you/sections.tsx](../../src/screens/you/sections.tsx), [you/model.ts](../../src/screens/you/model.ts)). 7.5B.1 refines the composition after the founder's iPhone review, rebuilds the *Edit profile* presentation and puts the lower sections on REFORGE surfaces so the screen reads as one design; their full redesign stays with 7.5C–D.
+
+| Reference | FORGE source |
+| --- | --- |
+| Wordmark and brand line | `ForgeScreen` |
+| Notification bell | Omitted (D14) |
+| Streak pill | The shared day streak (`summary().streak`), as Home and Nutrition show it; opens Progress |
+| Photo avatar with ember ring and pencil | **Monogram** (up to two initials of the display name), drawn in SVG: a faint ember halo, a 3 pt ember-gradient ring and a softly lit charcoal disc, with a soft radial ember light behind it. A pencil badge cut out of the ring (at least 44 pt touch) opens *Edit profile*. Decorative to screen readers. There is no photo storage |
+| Name | The saved display name (the profile default "Athlete" when not set), `screenTitle`, up to two lines, **the screen's header** |
+| Tagline | The saved experience as an ember overline under the name ("INTERMEDIATE LIFTER"); omitted when not set |
+| "Strength Focus" | The saved training goal ("Strength focus", "Muscle building focus"). When not set: an ember "Set your training focus ›" that opens the Training focus editor |
+| Location | Omitted (no such data) |
+| "Member since" | "Training since {month year}" from the first finished workout, else "No workouts yet" |
+| **Level / XP** (rejected) | **Current plan card**, a `HeroCard` with ember glow and the same `planOverview` as Train. Shows: "YOUR PROGRAM" or "YOUR PATH" (an earlier generated Path, named as such) over the plan's name, beside a forged hexagon emblem (ember when active); "Week n · phase" or its state (complete, paused, unavailable); one quiet meta line, "Forge Paths · level · days a week" (the *Forge Paths* source only for library programs); an 8 pt progress bar with "n of N sessions" and its percentage (or "n sessions completed", with no bar or percentage, for open-ended programs); a divided footer with *Up next* ("session · when") and "View plan ›". The whole card opens the plan, as the plan row did. Without a plan: "YOUR TRAINING · No active plan", the published Forge Paths count, **Browse Forge Paths** |
+| (Not in the reference) | "Complete your training profile" as a REFORGE row when experience, goal or rest day is missing |
+
+**Layout:** monogram (108 pt) beside the name block; stacked, with a 92 pt monogram, below 360 pt or above 1.4× text.
+
+**Edit profile and the focused editors (7.5B.1).** The You tab's four editors (*Edit profile*, *Training focus*, *Training preferences*, *Nutrition targets*) use [ProfileForm](../../src/components/ProfileForm.tsx) with `fields`, which now draws in REFORGE: fields grouped under section labels (Identity, Body, Schedule, Focus, Progression, Daily targets), `ForgeField` inputs with their help and error text, `ForgeChoices` for choices, and a *Cancel* beside the save action (Cancel asks before discarding unsaved changes, as the sheet's close does). *Edit profile* asks for the name, height and weight, with a live preview of the monogram and name while typing; a blank name previews as "Athlete" and is still refused on save. Body fat is not asked there: a saved value is kept unchanged, and body composition is tracked as the *Body fat* measurement. Field definitions, binding, validation, saving and unsaved-change handling are unchanged; first-time setup and the full settings form keep their presentation.
+
+**Lower sections (cohesion only, 7.5B.1).** *Training snapshot*, membership and the settings groups (Training, Health & body, Notifications, App, Account & data, About) sit on REFORGE section labels and hairline cards (`SettingsGroup`), with `ForgeSegments` for units and appearance. Rows, labels, destinations and behaviour are unchanged. Their redesign is 7.5C (Training snapshot) and 7.5D (membership and settings); History, Goals, Measurements, Recovery and Account follow in 7.5E–G.

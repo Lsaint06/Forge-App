@@ -19,6 +19,14 @@ import {
   FieldError,
 } from "./ui";
 import {
+  CtaButton,
+  FText,
+  ForgeCard,
+  ForgeChoices,
+  ForgeField,
+  OutlineButton,
+} from "./reforge";
+import {
   experienceChoices,
   experienceLevel,
   goalChoices,
@@ -186,6 +194,7 @@ function NumberInput({
   resetKey,
   onChange,
   error,
+  reforge = false,
 }: {
   label: string;
   value: number;
@@ -194,6 +203,7 @@ function NumberInput({
   resetKey?: string;
   onChange: (v: number) => void;
   error?: string;
+  reforge?: boolean;
 }) {
   const [text, setText] = useState(() => show(value));
   const [shownFor, setShownFor] = useState(resetKey);
@@ -201,8 +211,9 @@ function NumberInput({
     setShownFor(resetKey);
     setText(show(value));
   }
+  const Input = reforge ? ForgeField : Field;
   return (
-    <Field
+    <Input
       label={label}
       value={text}
       keyboardType="decimal-pad"
@@ -216,12 +227,47 @@ function NumberInput({
   );
 }
 
+/** Two inputs side by side (feet and inches), REFORGE spacing. */
+function FieldPair({ children }: { children: React.ReactNode }) {
+  return <View style={{ flexDirection: "row", gap: 12 }}>{children}</View>;
+}
+
+/** Focused editors group their fields under these titles (REFORGE). */
+const GROUP: Partial<Record<keyof Profile, string>> = {
+  name: "Identity",
+  height: "Body",
+  weight: "Body",
+  bodyFat: "Body",
+  frequency: "Schedule",
+  rest: "Schedule",
+  muscles: "Focus",
+  increment: "Progression",
+  repMin: "Progression",
+  repMax: "Progression",
+  calories: "Daily targets",
+  protein: "Daily targets",
+  carbs: "Daily targets",
+  fat: "Daily targets",
+};
+function groupsOf(list: (typeof fieldDefs)[number][]) {
+  const out: { title: string; fields: typeof list }[] = [];
+  for (const f of list) {
+    const title = GROUP[f.key] ?? "Details";
+    const last = out[out.length - 1];
+    if (last?.title === title) last.fields.push(f);
+    else out.push({ title, fields: [f] });
+  }
+  return out;
+}
+
 export function ProfileForm({
   onDone,
   onboarding = false,
   onDirtyChange,
   fields,
   saveLabel = "Save settings",
+  onCancel,
+  preview,
 }: {
   onDone: () => void;
   onboarding?: boolean;
@@ -233,8 +279,30 @@ export function ProfileForm({
    */
   fields?: ProfileField[];
   saveLabel?: string;
+  /** Focused editors: a Cancel beside Save (the sheet asks before discarding). */
+  onCancel?: () => void;
+  /** Focused editors with the name: a live preview of the typed name. */
+  preview?: (name: string) => React.ReactNode;
 }) {
   const r = useRepo();
+  // The You tab's focused editors are drawn in REFORGE (Phase 7.5B.1); the
+  // full form and first-time setup keep their presentation. Fields, binding,
+  // validation and saving are the same either way.
+  const reforge = !!fields;
+  const TextField = reforge ? ForgeField : Field;
+  const ChoiceList = reforge ? ForgeChoices : Choices;
+  const Pair = reforge ? FieldPair : Row;
+  // Help and error text; the full form keeps its exact earlier sizes.
+  const note = (children: React.ReactNode, error = false, size = 12) =>
+    reforge ? (
+      <FText variant="label" tone={error ? "error" : "secondary"}>
+        {children}
+      </FText>
+    ) : (
+      <Label muted={!error} size={size}>
+        {children}
+      </Label>
+    );
   const [step, setStep] = useState(() => {
     const profile = r.profile();
     if (!profile.height || !profile.weight) return 0;
@@ -272,6 +340,7 @@ export function ProfileForm({
   const units = useWatch({ control, name: "units" });
   const repMin = useWatch({ control, name: "repMin" });
   const repMax = useWatch({ control, name: "repMax" });
+  const typedName = useWatch({ control, name: "name" });
   // A field change; during first-time setup each valid value is kept at once.
   function commit(
     key: keyof Profile,
@@ -318,8 +387,203 @@ export function ProfileForm({
       );
     },
   );
+  const renderControl = (f: (typeof fieldDefs)[number]) => (
+    <Controller
+      key={f.key}
+      control={control}
+      name={f.key}
+      render={({ field: { value, onChange } }) =>
+        f.options ? (
+          <View style={{ gap: 6 }}>
+            <Label muted size={12}>
+              {f.label}
+            </Label>
+            <Chips
+              values={f.options!}
+              value={String(value)}
+              onChange={(value) => {
+                if (f.key === "units") {
+                  setWeightText(
+                    displayWeight(
+                      getValues("weight"),
+                      value as Profile["units"],
+                    ),
+                  );
+                  // Height follows the chosen units; storage stays cm.
+                  const cm = getValues("height");
+                  if (Number.isFinite(cm)) {
+                    setCmText(heightCmText(cm));
+                    setFeet(feetOf(cm));
+                    setInches(inchesOf(cm));
+                  }
+                }
+                onChange(value);
+                if (onboarding) mutate(() => r.saveProfile({ [f.key]: value }));
+              }}
+            />
+          </View>
+        ) : f.key === "height" && units !== "lb" ? (
+          <View style={{ gap: 8 }}>
+            <TextField
+              label="Height (cm, required)"
+              placeholder="178"
+              keyboardType="decimal-pad"
+              value={cmText}
+              onChangeText={(text) => {
+                setCmText(text);
+                onChange(readNumber(text));
+              }}
+            />
+            {errors.height &&
+              note("Enter a valid height in centimetres (up to 300).", true)}
+          </View>
+        ) : f.key === "height" ? (
+          <View style={{ gap: 8 }}>
+            {note("Height (required)")}
+            <Pair>
+              <TextField
+                label="Height (feet)"
+                placeholder="5"
+                keyboardType="number-pad"
+                value={feet}
+                onChangeText={(text) => {
+                  setFeet(text);
+                  const ft = Number(text),
+                    inch = Number(inches);
+                  const valid =
+                    /^\d+$/.test(text) && /^(\d+)?$/.test(inches) && inch <= 11;
+                  onChange(
+                    valid
+                      ? inToCm(ft * 12 + inch)
+                      : text === "" && inches === ""
+                        ? 0
+                        : NaN,
+                  );
+                }}
+              />
+              <TextField
+                label="Height (inches)"
+                placeholder="0"
+                keyboardType="number-pad"
+                value={inches}
+                onChangeText={(text) => {
+                  setInches(text);
+                  const ft = Number(feet),
+                    inch = Number(text);
+                  const valid =
+                    /^\d+$/.test(feet) && /^(\d+)?$/.test(text) && inch <= 11;
+                  onChange(
+                    valid
+                      ? inToCm(ft * 12 + inch)
+                      : feet === "" && text === ""
+                        ? 0
+                        : NaN,
+                  );
+                }}
+              />
+            </Pair>
+            {errors.height &&
+              note(
+                "Enter a valid height in feet and inches (0–11 inches).",
+                true,
+              )}
+          </View>
+        ) : f.key === "weight" ? (
+          <TextField
+            label={`Starting weight (${units === "lb" ? "lbs" : "kg"}, required)`}
+            value={weightText}
+            keyboardType="decimal-pad"
+            onChangeText={(text) => {
+              setWeightText(text);
+              const number = readNumber(text);
+              onChange(units === "lb" ? lbToKg(number) : number);
+            }}
+            error={friendlyError("weight", errors.weight?.message)}
+          />
+        ) : f.key === "increment" ? (
+          <NumberInput
+            reforge={reforge}
+            label={`Progression increment (${units})`}
+            value={value as number}
+            resetKey={units}
+            // Stored in kg, as always; shown and typed in units.
+            show={(kg) => String(round2(units === "lb" ? kgToLb(kg) : kg))}
+            read={(n) =>
+              units === "lb" ? Math.round(lbToKg(n) * 1e6) / 1e6 : n
+            }
+            onChange={(v) => commit(f.key, v, onChange)}
+            error={friendlyError(f.key, errors[f.key]?.message)}
+          />
+        ) : f.key === "bodyFat" ? (
+          <NumberInput
+            reforge={reforge}
+            label={f.label}
+            value={value as number}
+            // 0 means "not given" in storage; shown empty.
+            show={(v) => (v > 0 ? String(v) : "")}
+            onChange={(v) => commit(f.key, v, onChange)}
+            error={friendlyError(f.key, errors[f.key]?.message)}
+          />
+        ) : f.key === "frequency" ||
+          f.key === "repMin" ||
+          f.key === "repMax" ||
+          f.key === "rest" ? (
+          <View>
+            <Stepper
+              label={f.label}
+              value={Number(value) || 0}
+              step={f.key === "rest" ? 15 : 1}
+              min={
+                f.key === "rest"
+                  ? 0
+                  : f.key === "repMax"
+                    ? Math.max(1, Number(repMin) || 1)
+                    : 1
+              }
+              max={
+                f.key === "frequency"
+                  ? 7
+                  : f.key === "rest"
+                    ? 3600
+                    : f.key === "repMin"
+                      ? Math.min(100, Number(repMax) || 100)
+                      : 100
+              }
+              format={f.key === "rest" ? restText : String}
+              onChange={(v) => commit(f.key, v, onChange)}
+            />
+            <FieldError
+              label={f.label}
+              error={
+                errors[f.key]
+                  ? friendlyError(f.key, errors[f.key]?.message)
+                  : undefined
+              }
+            />
+          </View>
+        ) : numeric.has(f.key) ? (
+          <NumberInput
+            reforge={reforge}
+            label={f.label}
+            value={value as number}
+            show={String}
+            onChange={(v) => commit(f.key, v, onChange)}
+            error={friendlyError(f.key, errors[f.key]?.message)}
+          />
+        ) : (
+          <TextField
+            label={f.label}
+            value={String(value)}
+            onChangeText={(text) => commit(f.key, text, onChange)}
+            error={friendlyError(f.key, errors[f.key]?.message)}
+          />
+        )
+      }
+    />
+  );
   return (
-    <View style={{ gap: 18 }}>
+    <View style={{ gap: reforge ? 14 : 18 }}>
+      {reforge && preview && fields?.includes("name") && preview(typedName)}
       {onboarding && (
         <>
           <Label muted>
@@ -342,15 +606,16 @@ export function ProfileForm({
             )}
             {section.journey && (
               <>
-                <Label muted size={13}>
-                  Forge uses these to recommend a training program. You can
-                  always browse every program and change these later.
-                </Label>
+                {note(
+                  "Forge uses these to recommend a training program. You can always browse every program and change these later.",
+                  false,
+                  13,
+                )}
                 <Controller
                   control={control}
                   name="experience"
                   render={({ field: { value, onChange } }) => (
-                    <Choices
+                    <ChoiceList
                       label="Where are you in your training journey?"
                       options={experienceChoices}
                       value={experienceLevel({ experience: value })}
@@ -366,7 +631,7 @@ export function ProfileForm({
                   control={control}
                   name="goal"
                   render={({ field: { value, onChange } }) => (
-                    <Choices
+                    <ChoiceList
                       label="What are you training toward?"
                       options={goalChoices}
                       value={trainingGoal({ goal: value })}
@@ -382,7 +647,7 @@ export function ProfileForm({
                   control={control}
                   name="restDay"
                   render={({ field: { value, onChange } }) => (
-                    <Choices
+                    <ChoiceList
                       label="Which day would you prefer to rest?"
                       options={restDayNames.map((day, i) => ({
                         value: String(i),
@@ -399,218 +664,26 @@ export function ProfileForm({
                     />
                   )}
                 />
-                <Label muted size={12}>
-                  Your rest day guides how program sessions appear on your
-                  calendar. You can still train that day.
-                </Label>
+                {note(
+                  "Your rest day guides how program sessions appear on your calendar. You can still train that day.",
+                )}
               </>
             )}
-            {section.fields
-              .filter((f) => !(onboarding && f.settingsOnly))
-              .map((f) => (
-                <Controller
-                  key={f.key}
-                  control={control}
-                  name={f.key}
-                  render={({ field: { value, onChange } }) =>
-                    f.options ? (
-                      <View style={{ gap: 6 }}>
-                        <Label muted size={12}>
-                          {f.label}
-                        </Label>
-                        <Chips
-                          values={f.options!}
-                          value={String(value)}
-                          onChange={(value) => {
-                            if (f.key === "units") {
-                              setWeightText(
-                                displayWeight(
-                                  getValues("weight"),
-                                  value as Profile["units"],
-                                ),
-                              );
-                              // Height follows the chosen units; storage stays cm.
-                              const cm = getValues("height");
-                              if (Number.isFinite(cm)) {
-                                setCmText(heightCmText(cm));
-                                setFeet(feetOf(cm));
-                                setInches(inchesOf(cm));
-                              }
-                            }
-                            onChange(value);
-                            if (onboarding)
-                              mutate(() => r.saveProfile({ [f.key]: value }));
-                          }}
-                        />
-                      </View>
-                    ) : f.key === "height" && units !== "lb" ? (
-                      <View style={{ gap: 8 }}>
-                        <Field
-                          label="Height (cm, required)"
-                          placeholder="178"
-                          keyboardType="decimal-pad"
-                          value={cmText}
-                          onChangeText={(text) => {
-                            setCmText(text);
-                            onChange(readNumber(text));
-                          }}
-                        />
-                        {errors.height && (
-                          <Label size={12}>
-                            Enter a valid height in centimetres (up to 300).
-                          </Label>
-                        )}
-                      </View>
-                    ) : f.key === "height" ? (
-                      <View style={{ gap: 8 }}>
-                        <Label muted size={12}>
-                          Height (required)
-                        </Label>
-                        <Row>
-                          <Field
-                            label="Height (feet)"
-                            placeholder="5"
-                            keyboardType="number-pad"
-                            value={feet}
-                            onChangeText={(text) => {
-                              setFeet(text);
-                              const ft = Number(text),
-                                inch = Number(inches);
-                              const valid =
-                                /^\d+$/.test(text) &&
-                                /^(\d+)?$/.test(inches) &&
-                                inch <= 11;
-                              onChange(
-                                valid
-                                  ? inToCm(ft * 12 + inch)
-                                  : text === "" && inches === ""
-                                    ? 0
-                                    : NaN,
-                              );
-                            }}
-                          />
-                          <Field
-                            label="Height (inches)"
-                            placeholder="0"
-                            keyboardType="number-pad"
-                            value={inches}
-                            onChangeText={(text) => {
-                              setInches(text);
-                              const ft = Number(feet),
-                                inch = Number(text);
-                              const valid =
-                                /^\d+$/.test(feet) &&
-                                /^(\d+)?$/.test(text) &&
-                                inch <= 11;
-                              onChange(
-                                valid
-                                  ? inToCm(ft * 12 + inch)
-                                  : feet === "" && text === ""
-                                    ? 0
-                                    : NaN,
-                              );
-                            }}
-                          />
-                        </Row>
-                        {errors.height && (
-                          <Label size={12}>
-                            Enter a valid height in feet and inches (0–11
-                            inches).
-                          </Label>
-                        )}
-                      </View>
-                    ) : f.key === "weight" ? (
-                      <Field
-                        label={`Starting weight (${units === "lb" ? "lbs" : "kg"}, required)`}
-                        value={weightText}
-                        keyboardType="decimal-pad"
-                        onChangeText={(text) => {
-                          setWeightText(text);
-                          const number = readNumber(text);
-                          onChange(units === "lb" ? lbToKg(number) : number);
-                        }}
-                        error={friendlyError("weight", errors.weight?.message)}
-                      />
-                    ) : f.key === "increment" ? (
-                      <NumberInput
-                        label={`Progression increment (${units})`}
-                        value={value as number}
-                        resetKey={units}
-                        // Stored in kg, as always; shown and typed in units.
-                        show={(kg) =>
-                          String(round2(units === "lb" ? kgToLb(kg) : kg))
-                        }
-                        read={(n) =>
-                          units === "lb" ? Math.round(lbToKg(n) * 1e6) / 1e6 : n
-                        }
-                        onChange={(v) => commit(f.key, v, onChange)}
-                        error={friendlyError(f.key, errors[f.key]?.message)}
-                      />
-                    ) : f.key === "bodyFat" ? (
-                      <NumberInput
-                        label={f.label}
-                        value={value as number}
-                        // 0 means "not given" in storage; shown empty.
-                        show={(v) => (v > 0 ? String(v) : "")}
-                        onChange={(v) => commit(f.key, v, onChange)}
-                        error={friendlyError(f.key, errors[f.key]?.message)}
-                      />
-                    ) : f.key === "frequency" ||
-                      f.key === "repMin" ||
-                      f.key === "repMax" ||
-                      f.key === "rest" ? (
-                      <View>
-                        <Stepper
-                          label={f.label}
-                          value={Number(value) || 0}
-                          step={f.key === "rest" ? 15 : 1}
-                          min={
-                            f.key === "rest"
-                              ? 0
-                              : f.key === "repMax"
-                                ? Math.max(1, Number(repMin) || 1)
-                                : 1
-                          }
-                          max={
-                            f.key === "frequency"
-                              ? 7
-                              : f.key === "rest"
-                                ? 3600
-                                : f.key === "repMin"
-                                  ? Math.min(100, Number(repMax) || 100)
-                                  : 100
-                          }
-                          format={f.key === "rest" ? restText : String}
-                          onChange={(v) => commit(f.key, v, onChange)}
-                        />
-                        <FieldError
-                          label={f.label}
-                          error={
-                            errors[f.key]
-                              ? friendlyError(f.key, errors[f.key]?.message)
-                              : undefined
-                          }
-                        />
-                      </View>
-                    ) : numeric.has(f.key) ? (
-                      <NumberInput
-                        label={f.label}
-                        value={value as number}
-                        show={String}
-                        onChange={(v) => commit(f.key, v, onChange)}
-                        error={friendlyError(f.key, errors[f.key]?.message)}
-                      />
-                    ) : (
-                      <Field
-                        label={f.label}
-                        value={String(value)}
-                        onChangeText={(text) => commit(f.key, text, onChange)}
-                        error={friendlyError(f.key, errors[f.key]?.message)}
-                      />
-                    )
-                  }
-                />
-              ))}
+            {(() => {
+              const shown = section.fields.filter(
+                (f) => !(onboarding && f.settingsOnly),
+              );
+              if (!reforge) return shown.map(renderControl);
+              // REFORGE: the editor's fields as titled groups.
+              return groupsOf(shown).map((g) => (
+                <ForgeCard key={g.title} gap={14}>
+                  <FText variant="overline" tone="secondary" header>
+                    {g.title}
+                  </FText>
+                  {g.fields.map(renderControl)}
+                </ForgeCard>
+              ));
+            })()}
           </Wrap>
         );
       })}
@@ -632,6 +705,22 @@ export function ProfileForm({
             mutate(() => r.setSetting("onboardingStep", String(step + 1)));
           }}
         />
+      ) : reforge ? (
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+          {onCancel && (
+            <View style={{ flex: 1 }}>
+              <OutlineButton title="Cancel" onPress={onCancel} />
+            </View>
+          )}
+          <View style={{ flex: 2 }}>
+            <CtaButton
+              compact
+              title={saveLabel}
+              icon="checkmark"
+              onPress={() => void submit()}
+            />
+          </View>
+        </View>
       ) : (
         <Button
           title={onboarding ? "Enter FORGE" : saveLabel}

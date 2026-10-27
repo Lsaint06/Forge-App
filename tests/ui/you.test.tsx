@@ -63,14 +63,18 @@ test("a new lifter sees their identity, an empty snapshot and no plan", async ()
     r.saveProfile({ onboarded: true, name: "Alex Smith" });
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<You />);
-    expect(view.getByRole("header", { name: "You" })).toBeTruthy();
+    // 7.5B: the athlete's name is the screen's header (approved reference).
+    expect(view.getByRole("header", { name: "Alex Smith" })).toBeTruthy();
     expect(view.getByText("AS", { includeHiddenElements: true })).toBeTruthy();
-    expect(view.getByText("Alex Smith")).toBeTruthy();
     expect(view.getByText("No workouts yet")).toBeTruthy();
     expect(view.getByText(/lifetime totals appear here/)).toBeTruthy();
     expect(view.getByText("Free plan")).toBeTruthy();
     expect(view.queryByText(/\$|subscribe|purchase/i)).toBeNull();
-    await fireEvent.press(view.getByLabelText("No active plan"));
+    // No plan: the plan card says so and opens Forge Paths.
+    expect(view.getByRole("header", { name: "No active plan" })).toBeTruthy();
+    await fireEvent.press(
+      view.getByRole("button", { name: "Browse Forge Paths" }),
+    );
     expect(router.push).toHaveBeenLastCalledWith("/forge-paths");
   } finally {
     db.close();

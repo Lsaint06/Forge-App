@@ -29,6 +29,7 @@ export {
   ForgeNumberField,
   ForgeStepper,
   ForgeChips,
+  ForgeChoices,
 } from "./Field";
 export { ForgeSegments } from "./Segments";
 export {

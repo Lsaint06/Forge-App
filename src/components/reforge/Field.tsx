@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { FieldError, formatNumber, parseNumber, useColors } from "../ui";
 import { forge } from "../../theme";
+import { Ionicons } from "@expo/vector-icons";
 import { FText } from "./Text";
 import { SquareIconButton } from "./Buttons";
 
@@ -253,5 +254,102 @@ export function ForgeChips({
         );
       })}
     </ScrollView>
+  );
+}
+
+/**
+ * One choice from a short list, as the Design System 2.0 `Choices` (radio
+ * group, the same labels, hints and selected state), drawn as REFORGE
+ * option cards: hairline borders, ember border, tint and check when chosen.
+ * Options without details sit as a wrapping grid of pills ("Mon", "Tue").
+ */
+export function ForgeChoices({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: string; title?: string; detail?: string }[];
+  value: string | undefined;
+  onChange: (value: string) => void;
+}) {
+  const c = useColors();
+  const grid = options.every((o) => !o.detail);
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={label}
+      style={{ gap: forge.spacing.tight }}
+    >
+      <FText variant="cardTitle" weight="700">
+        {label}
+      </FText>
+      <View
+        style={
+          grid
+            ? {
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: forge.spacing.tight,
+              }
+            : { gap: forge.spacing.tight }
+        }
+      >
+        {options.map((o) => {
+          const selected = o.value === value;
+          return (
+            <Pressable
+              key={o.value}
+              accessibilityRole="radio"
+              accessibilityLabel={o.title ?? o.value}
+              accessibilityHint={o.detail}
+              accessibilityState={{ selected, checked: selected }}
+              onPress={() => onChange(o.value)}
+              style={({ pressed }) => ({
+                minHeight: grid ? forge.heights.compact : 56,
+                paddingVertical: grid ? 8 : 12,
+                paddingHorizontal: 14,
+                borderRadius: forge.radii.tile,
+                borderWidth: selected ? forge.border.active : forge.border.card,
+                borderColor: selected ? c.emberHot : c.cardBorder,
+                backgroundColor: selected
+                  ? c.emberTint
+                  : pressed
+                    ? c.cardRaised
+                    : c.cardBg,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                ...(grid ? { flexGrow: 1, flexBasis: 72 } : {}),
+              })}
+            >
+              {!grid && (
+                <Ionicons
+                  name={selected ? "checkmark-circle" : "ellipse-outline"}
+                  size={22}
+                  color={selected ? c.emberHot : c.text3}
+                />
+              )}
+              <View style={{ flex: 1, gap: 2 }}>
+                <FText
+                  variant="body"
+                  weight={selected ? "700" : "600"}
+                  tone={selected && grid ? "accent" : "primary"}
+                  align={grid ? "center" : undefined}
+                >
+                  {o.title ?? o.value}
+                </FText>
+                {o.detail && (
+                  <FText variant="label" tone="secondary">
+                    {o.detail}
+                  </FText>
+                )}
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
   );
 }

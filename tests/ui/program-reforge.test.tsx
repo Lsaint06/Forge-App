@@ -298,9 +298,12 @@ test("You counts the published programs instead of a fixed number (C7)", async (
   try {
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Profile />);
-    expect(view.getByLabelText("No active plan").props.accessibilityHint).toBe(
-      "Browse 2 Forge Paths programs",
-    );
+    // 7.5B: the empty plan card states the published count.
+    expect(
+      view.getByText(
+        "Choose one of 2 curated Forge Paths programs and it becomes part of your profile here.",
+      ),
+    ).toBeTruthy();
   } finally {
     db.close();
   }
