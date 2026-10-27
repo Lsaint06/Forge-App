@@ -457,7 +457,7 @@ The spoken labels are unchanged, and no statistic lost a place.
 
 ### Milestones, Next goals, Records and More (Phase 7.4F)
 
-**Final Progress order:** range → Bodyweight → Training volume → PR highlight | All-time stats → Strength → Consistency → Saved plans (legacy) → Records → **Milestones** → **Next goals** → Sets by primary muscle → Training time → Measurements → **More**.
+**Final Progress order:** range → Bodyweight → Training volume → PR highlight | All-time stats → Strength → Consistency → Saved plans (legacy) → Records → **Milestones** → **Next goals** → Sets by primary muscle → Training time → Measurements. (The **More** card was removed after 7.5D, below.)
 
 | Part | Presentation |
 | --- | --- |
@@ -465,7 +465,9 @@ The spoken labels are unchanged, and no statistic lost a place.
 | PD-3 | The volume milestone reads "22,046 lb lifted" for pound lifters and "10,000 kg lifted" in kilograms. The threshold is still 10,000 kg ([presentation/milestones.ts](../../src/domain/presentation/milestones.ts)) |
 | Next goals | Header "NEXT GOALS · See all ›" opens Goals. Up to three active goals as Goals evaluates them, in Home's next-target order (the first is always Home's next target): name, state, current value and target, and an ember bar **only where Goals gives a real ratio**. Each row opens Goals. No goals: "No active goals…" with "Set a goal" |
 | Records screen | `ForgeSubScreen` "Records" with "n records set" in ember; **Recent records** (trophy rows: type, value, date; each opens its workout) and **Your bests** (one row per exercise, opening it); "How records work"; `ForgeEmpty` "No records yet" |
-| More (removed after 7.5D) | Was one ca| More | REFORGE rows in one card: Training history, Training calendar, Body measurements, Nutrition (today), Recovery, Goals. Milestones moved to its own card |ntity)
+| More (removed after 7.5D) | Was one card of links: Training history, Training calendar, Body measurements, Nutrition (today), Recovery, Goals. The founder removed it as unrelated to Progress. Each destination is still reachable: Training history (You performance strip, Home *Last session*), Training calendar (Train tools, Home session menu), Body measurements (You *Tools & settings* and *My stats*), Nutrition (tab bar), Recovery (You *Tools & settings*), Goals (Progress *Next goals*, Home *Next target*, You *Primary goal* and *Tools & settings*) |
+
+## You (Phase 7.5B–7.5B.1: athlete identity)
 
 [You.tsx](../../src/screens/You.tsx) follows the approved You reference ([you-approved-2026-10-24.png](reforge/references/you-approved-2026-10-24.png)), the 7.5A audit and the founder's 7.5B direction: the top of the tab is the athlete's identity and training, and the settings sit below. 7.5B builds the identity and the current-plan card ([you/sections.tsx](../../src/screens/you/sections.tsx), [you/model.ts](../../src/screens/you/model.ts)). 7.5B.1 refines the composition after the founder's iPhone review, rebuilds the *Edit profile* presentation and puts the lower sections on REFORGE surfaces so the screen reads as one design; their full redesign stays with 7.5C–D.
 

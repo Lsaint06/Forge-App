@@ -108,22 +108,9 @@ test("a brand-new lifter sees one clear first step, not empty charts", async () 
     expect(view.queryByText("Workouts")).toBeNull();
     await fireEvent.press(view.getByLabelText("Start a workout"));
     expect(router.navigate).toHaveBeenCalledWith("/(tabs)");
-    // History, calendar and journals stay reachable.
-    for (const label of [
-      "Training history",
-      "Training calendar",
-      "Body measurements",
-      "Nutrition",
-      "Recovery",
-      "Goals",
-    ])
-      expect(view.getByLabelText(label)).toBeTruthy();
-    // Phase 7.1A: Nutrition is a tab; the row switches to it.
-    await fireEvent.press(view.getByLabelText("Nutrition"));
-    expect(router.navigate).toHaveBeenLastCalledWith({
-      pathname: "/(tabs)/nutrition",
-      params: { day: "today" },
-    });
+    // No More card: history, calendar and journals live in Home, Train, You
+    // and the tab bar.
+    expect(view.queryByTestId("more-card")).toBeNull();
   } finally {
     f.db.close();
   }
@@ -198,8 +185,6 @@ test("several weeks of history: overview, ranges, exercise choice, comparisons a
     });
     await fireEvent.press(view.getByLabelText("All records"));
     expect(router.push).toHaveBeenLastCalledWith("/records");
-    await fireEvent.press(view.getByLabelText("Training calendar"));
-    expect(router.push).toHaveBeenLastCalledWith("/calendar");
   } finally {
     f.db.close();
   }

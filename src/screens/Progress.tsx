@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { router } from "expo-router";
-import { NUTRITION_TODAY } from "../navigation";
 import { Ionicons } from "@expo/vector-icons";
 import { Sheet, useColors } from "../components/ui";
 import {
@@ -764,55 +763,11 @@ export default function Progress() {
       {children}
     </ForgeScreen>
   );
-  const go = (pathname: string, kind?: string) => () =>
-    router.push(kind ? { pathname, params: { kind } } : pathname);
   const more = (
     <>
       <MilestonesCard milestones={milestones} units={units} />
       <NextGoalsCard goals={goals} />
     </>
-  );
-  const links = (
-    <ForgeCard testID="more-card" padding={0} gap={0}>
-      <View style={{ padding: forge.spacing.cardPadding, paddingBottom: 4 }}>
-        <CardHeader title="More" divider={false} />
-      </View>
-      <ForgeListRow
-        icon="time-outline"
-        title="Training history"
-        onPress={go("/history")}
-      />
-      <ForgeListRow
-        icon="calendar-outline"
-        title="Training calendar"
-        divider
-        onPress={go("/calendar")}
-      />
-      <ForgeListRow
-        icon="body-outline"
-        title="Body measurements"
-        divider
-        onPress={go("/journal", "measurement")}
-      />
-      <ForgeListRow
-        icon="nutrition-outline"
-        title="Nutrition"
-        divider
-        onPress={() => router.navigate(NUTRITION_TODAY)}
-      />
-      <ForgeListRow
-        icon="pulse-outline"
-        title="Recovery"
-        divider
-        onPress={go("/journal", "recovery")}
-      />
-      <ForgeListRow
-        icon="flag-outline"
-        title="Goals"
-        divider
-        onPress={go("/journal", "goal")}
-      />
-    </ForgeCard>
   );
   if (!input.workouts.length)
     return frame(
@@ -821,7 +776,6 @@ export default function Progress() {
         <BodyweightCard series={bodyweight} units={units} />
         {more}
         <Body units={units} />
-        {links}
       </>,
     );
   const window = rangeWindow(range, today, firstActivity(input));
@@ -1025,7 +979,6 @@ export default function Progress() {
         </StatStrip>
       </ForgeCard>
       <Body units={units} window={window} />
-      {links}
     </>,
   );
 }

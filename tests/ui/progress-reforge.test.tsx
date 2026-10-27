@@ -89,16 +89,11 @@ test("the REFORGE frame: brand, title, subtitle, date and the streak", async () 
     expect(pill.props.accessibilityRole).toBeUndefined();
     // No plan: no week or phase is invented.
     expect(view.queryByText(/^Week \d+/)).toBeNull();
-    // Every section and destination is still there.
+    // Every section and Progress destination is still there; the More card
+    // (links to other tabs' screens) is gone.
     for (const label of [
-      "Training history",
-      "Training calendar",
       "Milestones, 1 of 5 earned. See all",
       "Next goals. Open goals",
-      "Body measurements",
-      "Nutrition",
-      "Recovery",
-      "Goals",
       "All records",
     ])
       expect(view.getByLabelText(label)).toBeTruthy();
@@ -108,9 +103,9 @@ test("the REFORGE frame: brand, title, subtitle, date and the streak", async () 
       "Records",
       "Training volume",
       "Training time",
-      "More",
     ])
       expect(view.getByRole("header", { name: heading })).toBeTruthy();
+    expect(view.queryByRole("header", { name: "More" })).toBeNull();
   } finally {
     f.db.close();
   }

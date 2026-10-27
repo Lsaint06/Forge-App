@@ -252,13 +252,14 @@ test("Training tools reach every destination; old deep links still resolve", asy
   }
 });
 
-test("Progress keeps its contextual link to Training history", async () => {
+test("Progress no longer repeats the Training history link", async () => {
   const { r, db } = pathRepository();
   try {
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Progress />);
-    await fireEvent.press(view.getByLabelText("Training history"));
-    expect(router.push).toHaveBeenLastCalledWith("/history");
+    // Founder decision (after 7.5D): Progress's More card is gone. History
+    // is on You (performance strip) and Home (Last session), tested there.
+    expect(view.queryByLabelText("Training history")).toBeNull();
   } finally {
     db.close();
   }

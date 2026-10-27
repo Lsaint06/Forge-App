@@ -238,40 +238,29 @@ test("next goals: real goals in Home's order, a bar only where Goals gives a rat
     f.db.close();
   }
 });
-test("More keeps every destination as REFORGE rows", async () => {
+test("Progress has no More card: its destinations live in Home, Train, You and the tab bar", async () => {
   const f = pathRepository();
   try {
     logWorkout(f, 2, [["barbell-bench-press", [[100, 5]]]]);
     jest.mocked(useRepo).mockReturnValue(f.r);
     const view = await render(<Progress />);
-    const more = card(view, "more-card");
-    for (const [label, to] of [
-      ["Training history", "/history"],
-      ["Training calendar", "/calendar"],
-      [
-        "Body measurements",
-        { pathname: "/journal", params: { kind: "measurement" } },
-      ],
-      ["Recovery", { pathname: "/journal", params: { kind: "recovery" } }],
-      ["Goals", { pathname: "/journal", params: { kind: "goal" } }],
-    ] as const) {
-      const row = more.getByRole("button", { name: label });
-      expect(
-        StyleSheet.flatten(row.props.style).minHeight,
-      ).toBeGreaterThanOrEqual(44);
-      await fireEvent.press(row);
-      expect(router.push).toHaveBeenLastCalledWith(to);
-    }
-    await fireEvent.press(more.getByRole("button", { name: "Nutrition" }));
-    expect(router.navigate).toHaveBeenLastCalledWith({
-      pathname: "/(tabs)/nutrition",
-      params: { day: "today" },
-    });
+    expect(view.queryByTestId("more-card")).toBeNull();
+    expect(view.queryByRole("header", { name: "More" })).toBeNull();
+    for (const label of [
+      "Training history",
+      "Training calendar",
+      "Body measurements",
+      "Nutrition",
+      "Recovery",
+    ])
+      expect(view.queryByLabelText(label)).toBeNull();
+    // Progress's own links stay: records and goals.
+    expect(view.getByLabelText("All records")).toBeTruthy();
+    expect(view.getByLabelText("Next goals. Open goals")).toBeTruthy();
   } finally {
     f.db.close();
   }
 });
-
 test("Records screen: REFORGE rows, record types, units, navigation and the empty state", async () => {
   const f = pathRepository();
   try {
