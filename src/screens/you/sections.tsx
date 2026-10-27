@@ -19,9 +19,11 @@ import {
   Gradient,
   HeroCard,
   SectionLabel,
+  StatStrip,
 } from "../../components/reforge";
 import { useColors, type IconName } from "../../components/ui";
 import { forge } from "../../theme";
+import type { GoalView } from "../../domain/goals";
 import { nextWhen, progressText, type PlanOverview } from "../train/model";
 import { monogram } from "./model";
 
@@ -675,6 +677,341 @@ export function SettingsGroup({
           {footer}
         </FText>
       )}
+    </View>
+  );
+}
+
+// ---- Performance strip (7.5C) ----------------------------------------------------------
+
+/**
+ * Three lifetime facts in one strip: completed workouts, the shared day
+ * streak and weeks consistent. The streak keeps the same size as its
+ * neighbours: the brand pill already shows it, so it is not repeated
+ * larger. Training history is the card's one action.
+ */
+export function PerformanceStrip({
+  workouts,
+  streak,
+  weeks,
+  onHistory,
+}: {
+  workouts: number;
+  streak: number;
+  weeks: number;
+  onHistory: () => void;
+}) {
+  const c = useColors();
+  const stats: [IconName, number, string][] = [
+    [
+      "barbell-outline",
+      workouts,
+      workouts === 1 ? "Workout completed" : "Workouts completed",
+    ],
+    ["flame-outline", streak, "Day streak"],
+    [
+      "calendar-outline",
+      weeks,
+      weeks === 1 ? "Week consistent" : "Weeks consistent",
+    ],
+  ];
+  return (
+    <ForgeCard padding={0} gap={0} testID="you-performance">
+      <View style={{ padding: forge.spacing.cardPadding }}>
+        {workouts > 0 ? (
+          <StatStrip minColumn={84}>
+            {stats.map(([icon, value, label]) => (
+              <View
+                key={label}
+                accessible
+                accessibilityLabel={`${label}: ${value.toLocaleString()}`}
+                style={{ gap: 8 }}
+              >
+                <Ionicons name={icon} size={18} color={c.emberHot} />
+                <View style={{ gap: 2 }}>
+                  <FText variant="statMetric" numberOfLines={1} fit>
+                    {value.toLocaleString()}
+                  </FText>
+                  <FText variant="label" tone="secondary" numberOfLines={2}>
+                    {label}
+                  </FText>
+                </View>
+              </View>
+            ))}
+          </StatStrip>
+        ) : (
+          <View
+            accessible
+            style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+          >
+            <Ionicons name="barbell-outline" size={22} color={c.text2} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <FText variant="body" weight="700">
+                Your record starts with your first workout
+              </FText>
+              <FText variant="label" tone="secondary">
+                Completed workouts, your day streak and consistent weeks appear
+                here.
+              </FText>
+            </View>
+          </View>
+        )}
+      </View>
+      <ForgeListRow
+        icon="time-outline"
+        title="Training history"
+        description={
+          workouts > 0
+            ? "Review, edit or repeat"
+            : "Finished workouts appear here"
+        }
+        divider
+        onPress={onHistory}
+      />
+    </ForgeCard>
+  );
+}
+
+// ---- Primary goal (7.5C) ---------------------------------------------------------------
+
+/**
+ * Home's next target (`nextTarget`, the same goal and wording), compact:
+ * name, where it stands, the recorded value against the target and a bar
+ * only when the goal engine gives a real ratio. It opens Goals.
+ */
+export function PrimaryGoal({
+  goal: v,
+  active,
+  onOpen,
+}: {
+  goal?: GoalView;
+  /** Active goals, to word the empty state honestly. */
+  active: number;
+  onOpen: () => void;
+}) {
+  const c = useColors();
+  const { width, fontScale } = useWindowDimensions();
+  const stacked = width < 360 || fontScale > 1.4;
+  const overline = (
+    <FText variant="overline" tone="accent">
+      Primary goal
+    </FText>
+  );
+  if (!v)
+    return (
+      <ForgeCard padding={0} gap={0} testID="you-goal">
+        <View
+          style={{
+            paddingHorizontal: forge.spacing.cardPadding,
+            paddingTop: 14,
+          }}
+        >
+          {overline}
+        </View>
+        <ForgeListRow
+          icon="flag-outline"
+          title={active ? "View goals" : "Set a goal"}
+          description={
+            active
+              ? "Your next target appears here once a goal has a recorded value."
+              : "Choose something you can measure and track it here."
+          }
+          onPress={onOpen}
+        />
+      </ForgeCard>
+    );
+  const percent = v.ratio !== undefined ? Math.round(v.ratio * 100) : undefined;
+  const current = v.current?.split(" · ")[0];
+  return (
+    <ForgeCard padding={0} gap={0}>
+      <Pressable
+        testID="you-goal"
+        accessibilityRole="button"
+        accessibilityLabel={`Primary goal: ${v.name}`}
+        accessibilityHint={`${v.spoken}. Opens goals`}
+        onPress={onOpen}
+        style={({ pressed }) => ({
+          padding: forge.spacing.cardPadding,
+          gap: 12,
+          backgroundColor: pressed ? c.cardRaised : "transparent",
+          borderRadius: forge.radii.card,
+        })}
+      >
+        {overline}
+        <View
+          testID="you-goal-row"
+          style={{
+            flexDirection: stacked ? "column" : "row",
+            alignItems: "flex-start",
+            gap: stacked ? 8 : 12,
+          }}
+        >
+          <View style={{ flex: stacked ? undefined : 1, gap: 2 }}>
+            <FText variant="cardTitle" weight="700" numberOfLines={2}>
+              {v.name}
+            </FText>
+            <FText variant="label" tone="secondary" numberOfLines={2}>
+              {v.state}
+            </FText>
+          </View>
+          <View
+            style={{
+              maxWidth: stacked ? undefined : "42%",
+              alignItems: stacked ? "flex-start" : "flex-end",
+              gap: 2,
+            }}
+          >
+            {current && (
+              <FText
+                variant="statMetric"
+                numberOfLines={2}
+                fit
+                align={stacked ? "left" : "right"}
+              >
+                {current}
+              </FText>
+            )}
+            <FText
+              variant="label"
+              tone="secondary"
+              numberOfLines={2}
+              align={stacked ? "left" : "right"}
+            >
+              {v.target}
+            </FText>
+          </View>
+        </View>
+        {percent !== undefined && (
+          <ForgeProgress
+            value={v.ratio!}
+            label={`${v.name}: ${percent}% complete`}
+          />
+        )}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          {percent !== undefined ? (
+            <FText variant="label" weight="600">
+              {`${percent}% complete`}
+            </FText>
+          ) : (
+            <View />
+          )}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <FText variant="label" weight="700" tone="accent">
+              View goals
+            </FText>
+            <Ionicons name="chevron-forward" size={14} color={c.emberHot} />
+          </View>
+        </View>
+      </Pressable>
+    </ForgeCard>
+  );
+}
+
+// ---- My stats (7.5C) -------------------------------------------------------------------
+
+type Stat = { value: string; unit?: string; source: string };
+
+/**
+ * Personal information, not analytics: the latest bodyweight (with where it
+ * comes from) and the saved height, in the lifter's units, with the way to
+ * Measurements. Body fat is not shown (founder direction, 7.5B.1), and no
+ * change is computed here: Progress owns bodyweight trends.
+ */
+export function MyStats({
+  bodyweight,
+  height,
+  onMeasurements,
+}: {
+  bodyweight?: Stat;
+  height?: Stat;
+  onMeasurements: () => void;
+}) {
+  const c = useColors();
+  const cell = (
+    icon: IconName,
+    label: string,
+    stat: Stat | undefined,
+    empty: { value: string; source: string },
+  ) => (
+    <View
+      key={label}
+      accessible
+      accessibilityLabel={`${label}: ${
+        stat ? [stat.value, stat.unit].filter(Boolean).join(" ") : empty.value
+      }. ${stat?.source ?? empty.source}`}
+      style={{ gap: 8 }}
+    >
+      <Ionicons name={icon} size={18} color={c.emberHot} />
+      <View style={{ gap: 2 }}>
+        {stat ? (
+          <View
+            style={{ flexDirection: "row", alignItems: "baseline", gap: 4 }}
+          >
+            <FText variant="statMetric" numberOfLines={1} fit>
+              {stat.value}
+            </FText>
+            {stat.unit && (
+              <FText variant="label" tone="secondary">
+                {stat.unit}
+              </FText>
+            )}
+          </View>
+        ) : (
+          <FText variant="cardTitle" weight="700" tone="secondary">
+            {empty.value}
+          </FText>
+        )}
+        <FText variant="label" weight="600">
+          {label}
+        </FText>
+        <FText variant="label" tone="secondary">
+          {stat?.source ?? empty.source}
+        </FText>
+      </View>
+    </View>
+  );
+  return (
+    <View style={{ gap: forge.spacing.tight, marginTop: 6 }}>
+      <SectionLabel
+        title="My stats"
+        trailing={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open measurements"
+            hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+            onPress={onMeasurements}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              minHeight: 24,
+            }}
+          >
+            <FText variant="label" weight="700" tone="accent">
+              Measurements
+            </FText>
+            <Ionicons name="chevron-forward" size={14} color={c.emberHot} />
+          </Pressable>
+        }
+      />
+      <ForgeCard testID="you-stats">
+        <StatStrip minColumn={120}>
+          {cell("scale-outline", "Bodyweight", bodyweight, {
+            value: "Not logged",
+            source: "Log a weigh-in in Measurements",
+          })}
+          {cell("resize-outline", "Height", height, {
+            value: "Not set",
+            source: "Add it in Edit profile",
+          })}
+        </StatStrip>
+      </ForgeCard>
     </View>
   );
 }

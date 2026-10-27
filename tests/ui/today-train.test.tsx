@@ -1,5 +1,11 @@
 import React from "react";
-import { render, fireEvent, waitFor, act } from "@testing-library/react-native";
+import {
+  render,
+  fireEvent,
+  waitFor,
+  act,
+  within,
+} from "@testing-library/react-native";
 import { router } from "expo-router";
 import Home from "../../src/screens/Home";
 import Train from "../../app/(tabs)/train";
@@ -403,11 +409,12 @@ test("You → Training history opens the History screen", async () => {
     finished(r, "B");
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Profile />);
-    // Beside the lifetime totals, with the real completed count.
-    const row = view.getByLabelText("Training history");
-    expect(row.props.accessibilityHint).toBe(
-      "2 completed workouts · review, edit or repeat",
-    );
+    // In the performance strip (7.5C), beside the real completed count, which
+    // the row no longer repeats.
+    const card = within(view.getByTestId("you-performance"));
+    expect(card.getByLabelText("Workouts completed: 2")).toBeTruthy();
+    const row = card.getByLabelText("Training history");
+    expect(row.props.accessibilityHint).toBe("Review, edit or repeat");
     await fireEvent.press(row);
     expect(router.push).toHaveBeenLastCalledWith("/history");
   } finally {

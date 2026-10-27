@@ -8,7 +8,8 @@ import { libraryPrograms } from "../../src/programs";
 import { enrollProgram } from "../../src/data/programs";
 import { cancelAllNotifications } from "../../src/notifications";
 
-// Phase 6: the You tab profile, snapshot and grouped settings.
+// Phase 6: the You tab profile and grouped settings; the lifetime snapshot is
+// the performance strip since Phase 7.5C.
 
 jest.mock("../../src/state", () => ({
   useRepo: jest.fn(),
@@ -57,7 +58,7 @@ function finished(r: Repo) {
   return w;
 }
 
-test("a new lifter sees their identity, an empty snapshot and no plan", async () => {
+test("a new lifter sees their identity, an empty performance strip and no plan", async () => {
   const { r, db } = pathRepository();
   try {
     r.saveProfile({ onboarded: true, name: "Alex Smith" });
@@ -67,7 +68,11 @@ test("a new lifter sees their identity, an empty snapshot and no plan", async ()
     expect(view.getByRole("header", { name: "Alex Smith" })).toBeTruthy();
     expect(view.getByText("AS", { includeHiddenElements: true })).toBeTruthy();
     expect(view.getByText("No workouts yet")).toBeTruthy();
-    expect(view.getByText(/lifetime totals appear here/)).toBeTruthy();
+    expect(
+      view.getByText(/record starts with your first workout/),
+    ).toBeTruthy();
+    // No row of zeros for someone who hasn't trained.
+    expect(view.queryByLabelText(/^Workouts? completed: /)).toBeNull();
     expect(view.getByText("Free plan")).toBeTruthy();
     expect(view.queryByText(/\$|subscribe|purchase/i)).toBeNull();
     // No plan: the plan card says so and opens Forge Paths.
@@ -81,7 +86,7 @@ test("a new lifter sees their identity, an empty snapshot and no plan", async ()
   }
 });
 
-test("the snapshot reuses recorded training and the plan row opens the program", async () => {
+test("the performance strip reuses recorded training and the plan card opens the program", async () => {
   const { r, db } = pathRepository();
   try {
     const program = libraryPrograms()[0]!;
@@ -91,12 +96,14 @@ test("the snapshot reuses recorded training and the plan row opens the program",
     finished(r);
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<You />);
-    expect(view.getByLabelText("Workouts: 2")).toBeTruthy();
-    expect(view.getByLabelText("Working sets: 4")).toBeTruthy();
+    expect(view.getByLabelText("Workouts completed: 2")).toBeTruthy();
+    expect(view.getByLabelText("Day streak: 1")).toBeTruthy();
+    expect(view.getByLabelText("Week consistent: 1")).toBeTruthy();
     expect(view.getByText(/^Training since /)).toBeTruthy();
     await fireEvent.press(view.getByLabelText(`Your program: ${program.name}`));
     expect(router.push).toHaveBeenLastCalledWith("/forge-paths/current");
-    await fireEvent.press(view.getByLabelText("View progress"));
+    // Progress stays one tap away from You: the streak pill (and its tab).
+    await fireEvent.press(view.getByLabelText("1 day streak. Open progress"));
     expect(router.navigate).toHaveBeenLastCalledWith("/(tabs)/progress");
   } finally {
     db.close();

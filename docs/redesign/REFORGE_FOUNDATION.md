@@ -489,4 +489,24 @@ The spoken labels are unchanged, and no statistic lost a place.
 
 **Edit profile and the focused editors (7.5B.1).** The You tab's four editors (*Edit profile*, *Training focus*, *Training preferences*, *Nutrition targets*) use [ProfileForm](../../src/components/ProfileForm.tsx) with `fields`, which now draws in REFORGE: fields grouped under section labels (Identity, Body, Schedule, Focus, Progression, Daily targets), `ForgeField` inputs with their help and error text, `ForgeChoices` for choices, and a *Cancel* beside the save action (Cancel asks before discarding unsaved changes, as the sheet's close does). *Edit profile* asks for the name, height and weight, with a live preview of the monogram and name while typing; a blank name previews as "Athlete" and is still refused on save. Body fat is not asked there: a saved value is kept unchanged, and body composition is tracked as the *Body fat* measurement. Field definitions, binding, validation, saving and unsaved-change handling are unchanged; first-time setup and the full settings form keep their presentation.
 
-**Lower sections (cohesion only, 7.5B.1).** *Training snapshot*, membership and the settings groups (Training, Health & body, Notifications, App, Account & data, About) sit on REFORGE section labels and hairline cards (`SettingsGroup`), with `ForgeSegments` for units and appearance. Rows, labels, destinations and behaviour are unchanged. Their redesign is 7.5C (Training snapshot) and 7.5D (membership and settings); History, Goals, Measurements, Recovery and Account follow in 7.5E–G.
+**Lower sections (cohesion only, 7.5B.1).** Membership and the settings groups (Training, Health & body, Notifications, App, Account & data, About) sit on REFORGE section labels and hairline cards (`SettingsGroup`), with `ForgeSegments` for units and appearance. Rows, labels, destinations and behaviour are unchanged. Their redesign is 7.5D; History, Goals, Measurements, Recovery and Account follow in 7.5E–G. (The 7.5B.1 *Training snapshot* was replaced in 7.5C, below.)
+
+### Performance strip, primary goal and My stats (Phase 7.5C)
+
+Below the approved identity and plan card (unchanged), in this order: performance strip, primary goal, My stats, then membership and the settings groups (7.5D). The *Training snapshot* is removed. Its working sets and time trained remain in Progress (Training volume, All-time stats). Its *Training history* row moves into the strip. Its *View progress* row is dropped: Progress is a tab, and the streak pill opens it. Helpers: [presentation/you.ts](../../src/domain/presentation/you.ts). Components: [you/sections.tsx](../../src/screens/you/sections.tsx).
+
+| Section | Content and source |
+| --- | --- |
+| **Performance strip** | One card, three equal columns (ember outline icon, `statMetric` number, quiet label), wrapping by `StatStrip` on narrow screens and large text. **Workouts completed** = `summary().count` (completed workouts only). **Day streak** = `summary().streak`, the same figure as the brand pill, at the same size as its neighbours rather than repeated larger. **Weeks consistent** (definition below). The card's one action is a *Training history* row. With no workouts: an invitation instead of a row of zeros |
+| **Primary goal** | Home's next target: `nextTarget` over `evaluate` with `goalSources`, so it is the same goal, values and wording as Home's *Next target* and Progress's first *Next goal*. Shows the name, `state`, the recorded value against the target, and a bar with "n% complete" only when Goals gives a `ratio`. The whole card opens Goals. With no active goal: "Set a goal". With active goals but none with a recorded value: "View goals" ("Your next target appears here once a goal has a recorded value"). Never a generated goal or 0% |
+| **My stats** | "MY STATS" label with a *Measurements ›* link. **Bodyweight**: the latest weigh-in, else the profile weight (Home's `bodyweight`), in the lifter's units, with its source ("Logged today", "Logged Thu, Oct 22", "From your profile"). **Height**: the saved profile height, whole cm for kilogram users and ft/in for pound users. Missing values read "Not logged" or "Not set" with where to add them. **No body fat** (founder direction, 7.5B.1), no estimated 1RM and no deltas: trends belong to Progress |
+
+**Weeks consistent.** Consecutive calendar weeks (Monday to Sunday, local dates) that each contain at least one completed workout, dated by its local finish day as the day streak dates it.
+
+- The run is counted back from the current week if it already has a workout.
+- Otherwise it is counted back from the previous week, so a week still in progress never breaks it.
+- A fully elapsed week with no workout ends the run.
+- Unfinished workouts and planned sessions do not count. This is activity, not plan adherence.
+- No other streak or consistency calculation changed.
+
+**Performance.** The lifetime figures and the goal evaluation are memoised on the store revision (and the day, and units for goals), as on Progress, so they refresh whenever data changes.

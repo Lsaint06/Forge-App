@@ -25,7 +25,14 @@ import {
   restDayName,
   trainingGoal,
 } from "../domain/profile";
-import { elapsedSeconds, summary } from "../domain/metrics";
+import { summary } from "../domain/metrics";
+import { evaluate, type Goal } from "../domain/goals";
+import { goalSources } from "../data/goal-sources";
+import {
+  bodyweightSource,
+  heightText,
+  weeksConsistent,
+} from "../domain/presentation/you";
 import { localDate } from "../domain/types";
 import {
   BadgePill,
@@ -33,14 +40,16 @@ import {
   ForgeCard,
   ForgeScreen,
   ForgeSegments,
-  Metric as ForgeMetric,
-  StatStrip,
 } from "../components/reforge";
 import { planOverview } from "./train/model";
+import { bodyweight, nextTarget } from "./home/model";
 import {
   AthleteHeader,
   IdentityPreview,
+  MyStats,
+  PerformanceStrip,
   PlanCard,
+  PrimaryGoal,
   ProfilePrompt,
   SettingsGroup,
 } from "./you/sections";
@@ -50,9 +59,7 @@ import {
   focusText,
   trainingSince,
 } from "./you/model";
-import { isWorkingSet } from "../domain/progress/strength";
-import { compactNumber, loadText } from "../domain/progress/format";
-import { progressModel } from "../data/progress";
+import { loadText } from "../domain/progress/format";
 import { membership } from "../domain/membership";
 import { TARGETS_SAVED, targetsPersonalized } from "../domain/nutrition";
 import { fluidUnitOf, unitLabel, volumeText } from "../domain/hydration";
@@ -61,8 +68,8 @@ import { cloudClient } from "../cloud/client";
 import { forge, theme } from "../theme";
 
 // You (REFORGE identity since Phase 7.5B; settings from Design System 2.0,
-// Phase 6): the athlete's identity and current plan, a lifetime training
-// snapshot and every setting, grouped. Settings are edited through focused
+// Phase 6): the athlete's identity and current plan, then (Phase 7.5C) the
+// performance strip, primary goal and My stats, and every setting, grouped. Settings are edited through focused
 // sheets built on the same ProfileForm as onboarding, so validation and
 // storage are unchanged.
 
@@ -116,20 +123,6 @@ function cloudConfigured() {
   }
 }
 
-function Snapshot({ stats }: { stats: { value: string; label: string }[] }) {
-  return (
-    <StatStrip minColumn={72}>
-      {stats.map((s) => (
-        <ForgeMetric
-          key={s.label}
-          size="stat"
-          value={s.value}
-          label={s.label}
-        />
-      ))}
-    </StatStrip>
-  );
-}
 /** A labelled control inside a grouped list. */
 function ControlRow({
   title,
@@ -175,25 +168,6 @@ export default function You() {
   useEffect(() => {
     if (params.edit) router.setParams({ edit: undefined });
   }, [params.edit]);
-  // The repository is mutable; `revision` changes whenever stored data does.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const model = useMemo(() => progressModel(r), [r, revision]);
-  const done = r.workouts().filter((w) => w.status === "completed");
-  const first = done.reduce<number | undefined>(
-    (t, w) => Math.min(t ?? Infinity, w.finishedAt ?? w.startedAt),
-    undefined,
-  );
-  const hours =
-    done.reduce(
-      (n, w) =>
-        n +
-        elapsedSeconds(w.startedAt, w.finishedAt ?? w.startedAt, w.pausedMs),
-      0,
-    ) / 3600;
-  const sets = model.log.reduce(
-    (n, e) => n + e.sets.filter(isWorkingSet).length,
-    0,
-  );
   const goal = trainingGoal(p);
   const experience = experienceLevel(p);
   const restDay = restDayName(p);
@@ -201,12 +175,48 @@ export default function You() {
   const plan = planStatus(r);
   const today = localDate();
   const overview = planOverview(r, today);
-  // The shared day streak (Home, Nutrition, Progress), once per data change.
-  const streak = useMemo(
-    () => summary(r.workouts(), (id) => r.workoutSets(id)).streak,
+  // The repository is mutable; `revision` changes whenever stored data does,
+  // so these are worked out once per data change (or new day).
+  // Lifetime figures: the shared summary (workouts completed and the day
+  // streak, as Home, Nutrition and Progress show them) and weeks consistent.
+  const training = useMemo(
+    () => {
+      const all = r.workouts();
+      const life = summary(all, (id) => r.workoutSets(id));
+      return {
+        count: life.count,
+        streak: life.streak,
+        weeks: weeksConsistent(all, today),
+        first: all
+          .filter((w) => w.status === "completed")
+          .reduce<number | undefined>(
+            (t, w) => Math.min(t ?? Infinity, w.finishedAt ?? w.startedAt),
+            undefined,
+          ),
+      };
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [r, revision, today],
   );
+  const streak = training.streak;
+  // Home's next target, from the same goal evaluation.
+  const goals = useMemo(
+    () => {
+      const sources = goalSources(r, today, p.units);
+      const views = (r.journal("goal") as Goal[]).map((g) =>
+        evaluate(g, sources),
+      );
+      return {
+        primary: nextTarget(views),
+        active: views.filter((v) => v.status === "active").length,
+      };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [r, revision, today, p.units],
+  );
+  // The latest weigh-in, else the profile weight (as Home shows it).
+  const weight = bodyweight(r.journal("measurement"), p);
+  const height = heightText(p.height, p.units);
   const member = membership();
   const cloud = cloudConfigured();
   const pending = r.outbox().length;
@@ -270,7 +280,7 @@ export default function You() {
         name={displayName(p.name)}
         experience={experienceText(experience)}
         focus={focusText(goal)}
-        since={trainingSince(first)}
+        since={trainingSince(training.first)}
         onEdit={() => setEditor("profile")}
         onSetFocus={() => setEditor("focus")}
       />
@@ -288,49 +298,30 @@ export default function You() {
           onPress={() => setEditor("focus")}
         />
       )}
-      <SettingsGroup title="Training snapshot">
-        <View style={{ padding: theme.spacing.row }}>
-          {done.length ? (
-            <Snapshot
-              stats={[
-                { value: done.length.toLocaleString(), label: "Workouts" },
-                { value: compactNumber(sets), label: "Working sets" },
-                { value: String(model.events.length), label: "Records" },
-                {
-                  value:
-                    hours < 1
-                      ? `${Math.round(hours * 60)} min`
-                      : hours < 10
-                        ? `${hours.toFixed(1)} h`
-                        : `${compactNumber(Math.round(hours))} h`,
-                  label: "Time trained",
-                },
-              ]}
-            />
-          ) : (
-            <FText variant="body" tone="secondary">
-              Your lifetime totals appear here after your first workout.
-            </FText>
-          )}
-        </View>
-        {/* Training history lives here (Phase 7.2B): with the lifetime
-            totals it reviews, edits and repeats. */}
-        <ListRow
-          icon="time-outline"
-          title="Training history"
-          subtitle={
-            done.length
-              ? `${done.length.toLocaleString()} completed ${done.length === 1 ? "workout" : "workouts"} · review, edit or repeat`
-              : "Finished workouts appear here"
+      <PerformanceStrip
+        workouts={training.count}
+        streak={streak}
+        weeks={training.weeks}
+        onHistory={() => router.push("/history")}
+      />
+      <PrimaryGoal
+        goal={goals.primary}
+        active={goals.active}
+        onOpen={() => journal("goal")}
+      />
+      <MyStats
+        bodyweight={
+          weight && {
+            value: weight.value.toLocaleString(undefined, {
+              maximumFractionDigits: 1,
+            }),
+            unit: weight.unit,
+            source: bodyweightSource(weight.date, today),
           }
-          onPress={() => router.push("/history")}
-        />
-        <ListRow
-          icon="stats-chart-outline"
-          title="View progress"
-          onPress={() => router.navigate("/(tabs)/progress")}
-        />
-      </SettingsGroup>
+        }
+        height={height && { ...height, source: "From your profile" }}
+        onMeasurements={() => journal("measurement")}
+      />
 
       <ForgeCard testID="you-membership">
         <View
