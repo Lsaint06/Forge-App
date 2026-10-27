@@ -302,3 +302,36 @@ test("light mode: ember gain and light text on the analytics cards", async () =>
     f.db.close();
   }
 });
+
+// Phase 7.4G: extremes — a million kilograms, on the smallest phone with
+// the largest text: everything renders, values stay whole and labelled.
+test("extremes: very large totals on a 320 pt screen with large text", async () => {
+  Object.assign(mockDims, { width: 320, fontScale: 2 });
+  const f = pathRepository();
+  try {
+    const heavy: [number, number][] = Array.from({ length: 100 }, () => [
+      500, 20,
+    ]);
+    logWorkout(f, 9, [["barbell-bench-press", heavy]]);
+    logWorkout(f, 2, [["barbell-bench-press", [[505, 20]]]]);
+    jest.mocked(useRepo).mockReturnValue(f.r);
+    const view = await render(<Progress />);
+    // 100 × 500 × 20 + 505 × 20 = 1,010,100 kg.
+    expect(
+      card(view, "all-time").getByLabelText("Total volume: 1,010,100 kg"),
+    ).toBeTruthy();
+    expect(
+      card(view, "volume-card").getByLabelText(
+        "Total volume · the last 12 weeks: 1,010,100 kg, 101 working sets",
+      ),
+    ).toBeTruthy();
+    expect(card(view, "pr-highlight").getByText("505 kg")).toBeTruthy();
+    // Large text: the pair stacks and every strip falls back to one column.
+    expect(
+      StyleSheet.flatten(view.getByTestId("card-pair").props.style)
+        .flexDirection,
+    ).toBe("column");
+  } finally {
+    f.db.close();
+  }
+});

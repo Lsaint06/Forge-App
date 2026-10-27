@@ -701,11 +701,16 @@ export default function Progress() {
     lifetime.totalVolume,
     model.events.length,
   );
-  // The lifter's own goals as Goals evaluates them, in Home's order.
-  const goalSourcesNow = goalSources(r, today, units);
-  const goals = nextGoals(
-    (r.journal("goal") as Goal[]).map((g) => evaluate(g, goalSourcesNow)),
-  );
+  // The lifter's own goals as Goals evaluates them, in Home's order. Goal
+  // sources read every workout's sets, so this runs once per data change,
+  // day or unit, not on every range tap (7.4G, PD-4).
+  const goals = useMemo(() => {
+    const sources = goalSources(r, today, units);
+    return nextGoals(
+      (r.journal("goal") as Goal[]).map((g) => evaluate(g, sources)),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [r, revision, today, units]);
   // All-time stats (7.4E): Progress's load volume over every session, and
   // training time summed as You sums it.
   const lifetimeLoad = useMemo(

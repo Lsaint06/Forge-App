@@ -280,3 +280,48 @@ test("charts: weekly or monthly buckets per range, and pound axes for pound lift
     f.db.close();
   }
 });
+
+test("PD-4: goals are evaluated once per data change, not on every range tap", async () => {
+  const f = pathRepository();
+  try {
+    logWorkout(f, addDays(today, -1));
+    f.r.addJournal("goal", {
+      name: "Bench 120",
+      metric: "strength",
+      exerciseId: "barbell-bench-press",
+      target: 120,
+      start: 80,
+      reps: 1,
+      goalRules: 2,
+    });
+    jest.mocked(useRepo).mockReturnValue(f.r);
+    const journal = jest.spyOn(f.r, "journal");
+    const goalReads = () =>
+      journal.mock.calls.filter(([kind]) => kind === "goal").length;
+    const view = await render(<Progress />);
+    expect(view.getByText("Bench 120")).toBeTruthy();
+    const before = goalReads();
+    for (const spoken of ["4 weeks", "1 year", "All time", "12 weeks"])
+      await fireEvent.press(view.getByRole("tab", { name: spoken }));
+    expect(goalReads()).toBe(before);
+    // A new goal arrives with the next data change.
+    f.r.addJournal("goal", {
+      name: "Cut to 78",
+      metric: "bodyweight",
+      target: 78,
+      start: 88,
+      goalRules: 2,
+    });
+    f.r.addJournal(
+      "measurement",
+      { name: "Bodyweight", value: 84, unit: "kg" },
+      today,
+    );
+    mockRevision++;
+    await view.rerender(<Progress />);
+    expect(goalReads()).toBeGreaterThan(before);
+    expect(view.getByText("Cut to 78")).toBeTruthy();
+  } finally {
+    f.db.close();
+  }
+});

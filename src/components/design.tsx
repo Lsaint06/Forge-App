@@ -172,15 +172,6 @@ export function WorkoutCard({
   );
 }
 export const ProgramCard = WorkoutCard;
-export function AchievementCard({ title }: { title: string }) {
-  const c = useColors();
-  return (
-    <Row>
-      <Ionicons name="ribbon-outline" size={24} color={c.success} />
-      <Label bold>{title}</Label>
-    </Row>
-  );
-}
 export function ErrorState({
   message,
   onRetry,

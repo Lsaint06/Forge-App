@@ -23,6 +23,13 @@ import {
   wordmarkLetters,
 } from "../../src/components/splash/wordmark";
 
+// The full-intro tests step the whole ~2.5 s animation frame by frame on the
+// JS driver (fake timers): about 4 s of real CPU time each on an idle
+// machine, so the 5 s default timeout failed them whenever the CPU was busy
+// (e.g. alongside an export; Phase 7.4G). The animation clock itself is fake
+// and every assertion is unchanged; only the wall-clock budget is wider.
+jest.setTimeout(20000);
+
 jest.mock(
   "react-native-safe-area-context",
   () => jest.requireActual("react-native-safe-area-context/jest/mock").default,
