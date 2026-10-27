@@ -28,6 +28,7 @@ import {
   loadLabel,
   rirLabel,
   keepSegmentsTogether,
+  loggedSummary,
   adviceSummary,
   type InlineAdvice,
 } from "../domain/workout-display";
@@ -547,7 +548,10 @@ export default function WorkoutExerciseCard({
               </FText>
             )}
             <Txt variant="caption" tone="secondary">
-              {keepSegmentsTogether(summary)}
+              {/* Reviewing: what was logged, not the plan's target (7.5E). */}
+              {keepSegmentsTogether(
+                readOnly ? loggedSummary(sets, category, p.units) : summary,
+              )}
             </Txt>
           </View>
           {sets.length > 0 &&

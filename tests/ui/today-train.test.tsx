@@ -353,7 +353,11 @@ test("History groups by month, opens review, and keeps Repeat and a confirmed De
     expect(view.getByText(month(new Date()))).toBeTruthy();
     expect(view.getByText(month(prevMonth))).toBeTruthy();
     expect(view.getByText("2 workouts")).toBeTruthy();
-    expect(view.getAllByText(/ min · 250 kg$/)).toHaveLength(2);
+    // 7.5E: the date is the row's date block; the details are only what was
+    // recorded. The older workout lasted an hour; the newer finished at once,
+    // so no "0 min" is shown.
+    expect(view.getByText("60 min · 1 exercise · 250 kg")).toBeTruthy();
+    expect(view.getByText("1 exercise · 250 kg")).toBeTruthy();
 
     await fireEvent.press(view.getByLabelText(/^Review Newer, /));
     expect(router.push).toHaveBeenLastCalledWith({

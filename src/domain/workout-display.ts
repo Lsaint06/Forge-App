@@ -45,6 +45,56 @@ export function targetSummary({
   return parts.join(" · ");
 }
 
+/**
+ * What was logged for one exercise of a finished workout (Phase 7.5E), in
+ * place of its plan target while reviewing: "3 sets · top set 80 kg × 5",
+ * "2 of 3 sets · best 12 reps", "1 set · longest 45 s". Counts completed
+ * sets; the best is the heaviest completed working set (more reps break a
+ * tie), the most reps when nothing was loaded, or the longest duration or
+ * distance. Warm-ups never count as the best. Nothing is estimated.
+ */
+export function loggedSummary(
+  sets: WorkoutSet[],
+  category: string,
+  units: Units,
+) {
+  if (!sets.length) return "No sets logged";
+  const done = sets.filter((s) => s.completed);
+  const word = (n: number) => (n === 1 ? "set" : "sets");
+  const count =
+    done.length === sets.length
+      ? `${done.length} ${word(done.length)}`
+      : `${done.length} of ${sets.length} ${word(sets.length)}`;
+  const work = done.filter((s) => s.kind !== "warmup");
+  let best: string | undefined;
+  if (category === "strength") {
+    const top = work
+      .filter((s) => s.weight > 0)
+      .reduce<WorkoutSet | undefined>(
+        (a, s) =>
+          !a ||
+          s.weight > a.weight ||
+          (s.weight === a.weight && s.reps > a.reps)
+            ? s
+            : a,
+        undefined,
+      );
+    const reps = Math.max(0, ...work.map((s) => s.reps));
+    best = top
+      ? `top set ${loadLabel(top.weight, units)} × ${top.reps}`
+      : reps > 0
+        ? `best ${reps} reps`
+        : undefined;
+  } else if (category === "distance") {
+    const m = Math.max(0, ...work.map((s) => s.distance));
+    best = m > 0 ? `longest ${m.toLocaleString()} m` : undefined;
+  } else {
+    const sec = Math.max(0, ...work.map((s) => s.duration));
+    best =
+      sec > 0 ? `longest ${sec < 60 ? `${sec} s` : timer(sec)}` : undefined;
+  }
+  return best ? `${count} · ${best}` : count;
+}
 /** Sets a suggested load would change: unfinished (working) sets. */
 export const plannedSets = (sets: WorkoutSet[], structured: boolean) =>
   sets.filter((s) => !s.completed && (!structured || s.kind === "working"));

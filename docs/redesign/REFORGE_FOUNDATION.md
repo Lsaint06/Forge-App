@@ -552,3 +552,17 @@ The You tab now ends after My stats with one **Tools & settings** card: a "TOOLS
 The focused editors are one shared `EditorSheet` ([you/editors.tsx](../../src/screens/you/editors.tsx)), used by You and Preferences, so validation, saving and unsaved-change confirmation are identical in both.
 
 **Account & privacy** ([app/account.tsx](../../app/account.tsx)) keeps its sign-in, sync, sign-out, account deletion and conflict handling exactly as they were. Below them it gains the membership card, Data & privacy and About. The title is now "Account & privacy". The guest-mode text points to "Data & privacy below" instead of "You → Export backup". The screen's REFORGE redesign remains Phase 7.5G.
+
+## Workout history (Phase 7.5E)
+
+[History.tsx](../../src/screens/History.tsx) (`/history`) is a `ForgeSubScreen`: the header is "Workout history" with the real count ("65 workouts"), and Back goes to You. Row presentation lives in [presentation/history.ts](../../src/domain/presentation/history.ts).
+
+| Part | Presentation |
+| --- | --- |
+| Months | Completed workouts only, newest first in the same order as before, grouped by month: a "OCTOBER 2026" section label over one hairline card per month |
+| Row | Date block (ember weekday overline, day number); the title (a program session's own name, as in the logger; up to two lines); one quiet detail line of only what was recorded. Duration appears only when it is at least a minute, the exercise count only when there are exercises ("No exercises logged" otherwise), and volume only when above zero, in the lifter's units. When another workout finished the same day, the finish time leads the details so same-day sessions stay distinct. Every workout keeps its own row and key; nothing is merged or inferred |
+| Actions | The row opens the existing review (`/workout?id=`). Its menu keeps **Repeat workout** (blocked while another workout is active; starts one copy and opens the logger) and **Delete workout** (the same confirmation; refreshes through the store revision). Spoken: "Review {name}, {day}", with the details as the hint, and "Options for {name}, {day}" |
+| Paging | The newest 60, then "Show earlier (n)" pages of 60, as before. Only the shown page is summarised |
+| Empty | `ForgeEmpty` "No workouts yet" with **Go to Train** |
+
+**Review (workout details).** The finished-workout review is the Phase 7.2A logger in read-only mode, unchanged except for one thing. A collapsed exercise in review now summarises **what was logged** ("2 of 3 sets · top set 80 kg × 5", "2 sets · best 15 reps", "1 set · longest 45 s"; `loggedSummary`) instead of the plan target, which could be mistaken for logged data. Editing and the live logger keep the target summary. Sets were already hairline rows of plain values, not boxes. Edit (with Save and Cancel), Save as template and Delete session are unchanged.
