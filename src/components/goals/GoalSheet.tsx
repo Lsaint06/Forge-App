@@ -1,16 +1,15 @@
 import React, { useRef, useState } from "react";
 import { AccessibilityInfo, Pressable, Switch, View } from "react-native";
 import { Alert } from "../../platform/alert";
+import { Sheet, useColors } from "../ui";
 import {
-  Sheet,
-  Field,
-  Txt,
-  Button,
-  TextButton,
-  Choices,
-  useColors,
-} from "../ui";
-import { Stepper } from "../Stepper";
+  CtaButton,
+  FText,
+  ForgeChoices,
+  ForgeField,
+  ForgeStepper,
+  OutlineButton,
+} from "../reforge";
 import { DateSheet } from "../DateSheet";
 import { ExercisePicker } from "../ExercisePicker";
 import { useRepo, mutate } from "../../state";
@@ -235,20 +234,21 @@ export function GoalSheet({
       footer={
         <View style={{ gap: theme.spacing.sm }}>
           {error && (
-            <Txt tone="error" align="center">
+            <FText variant="body" weight="600" tone="error" align="center">
               {error}
-            </Txt>
+            </FText>
           )}
           <View style={{ flexDirection: "row", gap: theme.spacing.sm }}>
             {editing && (
               <View style={{ flex: 1 }}>
-                <Button title="Cancel" variant="secondary" onPress={onClose} />
+                <OutlineButton title="Cancel" onPress={onClose} />
               </View>
             )}
             <View style={{ flex: 1 }}>
-              <Button
+              <CtaButton
                 title={editing ? "Save changes" : "Save goal"}
                 icon="checkmark"
+                compact
                 onPress={save}
               />
             </View>
@@ -257,9 +257,11 @@ export function GoalSheet({
       }
     >
       {editing ? (
-        <Txt tone="secondary">{type ? TYPES[type].title : "Goal"}</Txt>
+        <FText variant="overline" tone="accent">
+          {type ? TYPES[type].title : "Goal"}
+        </FText>
       ) : (
-        <Choices
+        <ForgeChoices
           label="What will you work toward?"
           value={type}
           onChange={(t) => choose(t as GoalType)}
@@ -285,24 +287,32 @@ export function GoalSheet({
               opacity: pressed ? 0.6 : 1,
             })}
           >
-            <Txt tone="secondary">Exercise</Txt>
-            <Txt weight="600" style={{ flexShrink: 1 }} align="right">
+            <FText variant="body" tone="secondary">
+              Exercise
+            </FText>
+            <FText
+              variant="body"
+              weight="700"
+              tone={exercise ? "primary" : "accent"}
+              style={{ flexShrink: 1 }}
+              align="right"
+            >
               {`${exercise?.name ?? (draft.exerciseId ? `Not found (${draft.exerciseId})` : "Choose")} ›`}
-            </Txt>
+            </FText>
           </Pressable>
           {exercise && (
-            <Txt variant="caption" tone="secondary">
+            <FText variant="label" tone="secondary">
               {!exercise.load
                 ? "This exercise's logged weight isn't counted as load."
                 : best
                   ? `Your best: ${loadText(best.weight, units)} × ${best.reps} · ${dayTitle(best.date, today)}`
                   : "No sets recorded for this exercise yet."}
-            </Txt>
+            </FText>
           )}
         </>
       )}
       {type && type !== "workouts" && (
-        <Field
+        <ForgeField
           label={`Target (${unit})`}
           value={draft.target}
           keyboardType="decimal-pad"
@@ -311,37 +321,49 @@ export function GoalSheet({
         />
       )}
       {type === "workouts" && (
-        <Stepper
-          label="Workouts per week"
-          value={Number(draft.target) || 1}
-          min={1}
-          max={14}
-          onChange={(n) => update({ target: String(n) })}
-        />
+        <View style={{ gap: 6 }}>
+          <FText variant="label" tone="secondary">
+            Workouts per week
+          </FText>
+          <ForgeStepper
+            label="Workouts per week"
+            value={Number(draft.target) || 1}
+            step={1}
+            min={1}
+            max={14}
+            onChange={(n) => update({ target: String(n) })}
+          />
+        </View>
       )}
       {type === "workouts" && frequency !== undefined && frequency > 0 && (
-        <Txt variant="caption" tone="secondary">
+        <FText variant="label" tone="secondary">
           {`Your plan: ${frequency} a week. Counted Monday to Sunday.`}
-        </Txt>
+        </FText>
       )}
       {type === "strength" && (!editing || isV2(editing)) && (
-        <Stepper
-          label="For at least (reps)"
-          value={draft.reps}
-          min={1}
-          max={REPS_MAX}
-          onChange={(n) => update({ reps: n })}
-        />
+        <View style={{ gap: 6 }}>
+          <FText variant="label" tone="secondary">
+            For at least (reps)
+          </FText>
+          <ForgeStepper
+            label="For at least (reps)"
+            value={draft.reps}
+            step={1}
+            min={1}
+            max={REPS_MAX}
+            onChange={(n) => update({ reps: n })}
+          />
+        </View>
       )}
       {type === "bodyweight" && (
         <>
-          <Field
+          <ForgeField
             label={`Starting weight (${units})`}
             value={draft.start}
             keyboardType="decimal-pad"
             onChangeText={(t) => update({ start: t })}
           />
-          <Txt variant="caption" tone="secondary">
+          <FText variant="label" tone="secondary">
             {[
               latest
                 ? `Latest weigh-in: ${valueText(Number(latest.data.value), "mass", units)} · ${dayTitle(latest.date, today)}`
@@ -354,7 +376,7 @@ export function GoalSheet({
             ]
               .filter(Boolean)
               .join(" · ")}
-          </Txt>
+          </FText>
         </>
       )}
       {legacy &&
@@ -369,14 +391,16 @@ export function GoalSheet({
               }}
             >
               <View style={{ flex: 1 }}>
-                <Txt variant="headline">Use the new measurement</Txt>
-                <Txt variant="caption" tone="secondary">
+                <FText variant="cardTitle" weight="700">
+                  Use the new measurement
+                </FText>
+                <FText variant="label" tone="secondary">
                   {type === "volume"
                     ? `Count from ${dayTitle(draft.date, today)} instead of all your workouts.`
                     : type === "duration"
                       ? "Average of the last 4 weeks, at least or at most your target."
                       : "Each day's logged calories, at least or at most your target."}
-                </Txt>
+                </FText>
               </View>
               <Switch
                 accessibilityLabel="Use the new measurement"
@@ -387,18 +411,18 @@ export function GoalSheet({
               />
             </View>
             {!draft.convert && (
-              <Txt variant="caption" tone="secondary">
+              <FText variant="label" tone="secondary">
                 {type === "volume"
                   ? "Now: counted over all your workouts."
                   : type === "duration"
                     ? "Now: the average of all your workouts, no direction."
                     : "Now: today's logged calories, no direction."}
-              </Txt>
+              </FText>
             )}
           </View>
         )}
       {(type === "duration" || type === "nutrition") && ruled && (
-        <Choices
+        <ForgeChoices
           label={
             type === "duration" ? "Each session should be" : "Each day, eat"
           }
@@ -408,15 +432,15 @@ export function GoalSheet({
         />
       )}
       {type === "duration" && ruled && (
-        <Txt variant="caption" tone="secondary">
+        <FText variant="label" tone="secondary">
           Measured as the average length of your workouts over the last 4 weeks.
-        </Txt>
+        </FText>
       )}
       {type === "nutrition" && ruled && (
-        <Txt variant="caption" tone="secondary">
+        <FText variant="label" tone="secondary">
           Measured from the food you log in Nutrition. Days with nothing logged
           aren&apos;t counted, and a day is only as complete as what you log.
-        </Txt>
+        </FText>
       )}
       {windowed && ruled && (
         <>
@@ -432,19 +456,23 @@ export function GoalSheet({
               opacity: pressed ? 0.6 : 1,
             })}
           >
-            <Txt tone="secondary">Counts from</Txt>
-            <Txt weight="600">{`${dayTitle(draft.date, today)} ›`}</Txt>
+            <FText variant="body" tone="secondary">
+              Counts from
+            </FText>
+            <FText variant="body" weight="700">
+              {`${dayTitle(draft.date, today)} ›`}
+            </FText>
           </Pressable>
           {type === "volume" && (
-            <Txt variant="caption" tone="secondary">
+            <FText variant="label" tone="secondary">
               {`${volumeText(volumeSoFar, units)} recorded since then.`}
-            </Txt>
+            </FText>
           )}
         </>
       )}
       {type && (
         <>
-          <Field
+          <ForgeField
             label="Name (optional)"
             value={draft.name}
             placeholder={placeholder || undefined}
@@ -471,31 +499,33 @@ export function GoalSheet({
                 opacity: pressed ? 0.6 : 1,
               })}
             >
-              <Txt tone="secondary">Target date (optional)</Txt>
-              <Txt weight="600">
+              <FText variant="body" tone="secondary">
+                Target date (optional)
+              </FText>
+              <FText variant="body" weight="700">
                 {`${draft.targetDate ? dayTitle(draft.targetDate, today) : "None"} ›`}
-              </Txt>
+              </FText>
             </Pressable>
             {draft.targetDate && (
-              <TextButton
+              <OutlineButton
                 title="Clear"
-                neutral
+                compact
                 accessibilityLabel="Clear target date"
                 onPress={() => update({ targetDate: undefined })}
               />
             )}
           </View>
           {showNotes ? (
-            <Field
+            <ForgeField
               label="Note (optional)"
               value={draft.notes}
               onChangeText={(t) => update({ notes: t })}
             />
           ) : (
-            <TextButton
+            <OutlineButton
               title="Add note"
               icon="add"
-              neutral
+              compact
               onPress={() => setShowNotes(true)}
             />
           )}

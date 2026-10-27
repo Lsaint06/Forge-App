@@ -17,9 +17,9 @@ import {
 import { loadIn } from "../../src/domain/workout-display";
 import { theme } from "../../src/theme";
 
-// Phase 7.4C: the REFORGE charts used by Progress and Exercise detail. Same
-// data, selection and spoken values as the Design System 2.0 charts (which
-// Goals keeps until 7.5); new axis values, dates, area, callout and colours.
+// Phase 7.4C: the REFORGE charts used by Progress, Exercise detail and (since
+// 7.5F) Goals. Same data, selection and spoken values as the Design System 2.0
+// charts; new axis values, dates, area, callout and colours.
 
 const mockDims = { width: 393, height: 852, scale: 3, fontScale: 1 };
 jest.mock("react-native/Libraries/Utilities/useWindowDimensions", () => ({
@@ -284,13 +284,11 @@ test("light mode uses the light ember; large text widens the axis, capped", asyn
   expect(axisWidth(huge)).toBe(wide);
 });
 
-test("Goals keeps the Design System 2.0 chart until Phase 7.5", () => {
+test("Goals uses the REFORGE line chart since Phase 7.5F", () => {
   const goals = readFileSync(
     join(__dirname, "../../src/screens/Goals.tsx"),
     "utf8",
   );
-  expect(goals).toMatch(
-    /import \{[^}]*LineChart[^}]*\} from "\.\.\/components\/charts"/,
-  );
-  expect(goals).not.toMatch(/ForgeLineChart|ForgeBarChart/);
+  expect(goals).toMatch(/ForgeLineChart/);
+  expect(goals).not.toMatch(/from "\.\.\/components\/charts"/);
 });

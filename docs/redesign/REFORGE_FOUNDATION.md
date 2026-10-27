@@ -566,3 +566,20 @@ The focused editors are one shared `EditorSheet` ([you/editors.tsx](../../src/sc
 | Empty | `ForgeEmpty` "No workouts yet" with **Go to Train** |
 
 **Review (workout details).** The finished-workout review is the Phase 7.2A logger in read-only mode, unchanged except for one thing. A collapsed exercise in review now summarises **what was logged** ("2 of 3 sets · top set 80 kg × 5", "2 sets · best 15 reps", "1 set · longest 45 s"; `loggedSummary`) instead of the plan target, which could be mistaken for logged data. Editing and the live logger keep the target summary. Sets were already hairline rows of plain values, not boxes. Edit (with Save and Cancel), Save as template and Delete session are unchanged.
+
+## Goals (Phase 7.5F)
+
+[Goals.tsx](../../src/screens/Goals.tsx) (`/journal?kind=goal`) is a `ForgeSubScreen` over the unchanged Phase 7B WP4D goal engine ([domain/goals.ts](../../src/domain/goals.ts)). Evaluation, creation and editing rules, Undo, durable deletes, Mark as achieved, Archive / Restore and legacy-goal conversion are unchanged; 7.5F changed the presentation only.
+
+**Goal types and statuses (existing).** Targets: Bodyweight, Lift, Training volume. Habits: Workouts per week, Session length, Daily calories. Statuses: active, achieved (confirmed, with its real date and value), archived. A deleted goal is held for Undo, then removed.
+
+| Part | Presentation |
+| --- | --- |
+| Header | "Goals" with the real active count ("2 active"); Back to You; **New goal** pinned in the footer |
+| Overview | "ACTIVE" label (or "NO ACTIVE GOALS" with a line pointing to New goal and past goals) and *How goals are measured*. One `GoalCard` per active goal; a reached target offers **Mark as achieved** beneath it. **Past goals (n)**: a *Show past goals* row, then achieved (trophy) and archived rows with their menus |
+| Goal card | The engine's own words: the measure as an overline, the name (up to two lines), the recorded value with its basis ("82 kg · Yesterday"), the target (and target date), an ember bar with "n% · From 84 kg to 80 kg" **only when Goals gives a ratio**, and the state sentence (green with a check when reached or achieved). An "Achieved" or "Archived" pill. Spoken as the engine's `spoken` text, as before |
+| Detail | The goal's name is the header, with "Active goal", "Achieved goal" or "Archived goal" above it. Full card (all notes, a habit's **Recent** weeks or days, the lifter's note); **Mark as achieved**; the chart; **Details** ("Counts from" or "Set on", target date); **Actions** as REFORGE rows (Edit, Archive / Restore or Set a new target, Delete) |
+| Chart | `ForgeLineChart` (the 7.4C chart) for bodyweight goals (weigh-ins since the goal was set) and lift goals (the heaviest qualifying set each day), in the lifter's units, on real dates; days far apart are not joined and nothing is interpolated; the target is stated below. One day of records says "The chart appears from the second"; other types have no chart. *Limitation:* the chart has no target line (`ForgeLineChart` has none, and Progress shares it) |
+| Sheet | The same type-first `GoalSheet` and fields, drawn with `ForgeChoices`, `ForgeField`, `ForgeStepper`, `CtaButton` / `OutlineButton` and REFORGE text. Labels, validation messages, confirmations ("Check this goal"), the unsaved-change prompt and saving are unchanged |
+
+**Consistency.** Home's *Next target*, Progress's *Next goals* and You's *Primary goal* all use `evaluate` and Home's `nextTarget` order; Goals shows the same `evaluate` output, so one goal reads the same everywhere. Goals now evaluates against one `goalSources` per data change (its lift and volume caches serve every card and the chart).

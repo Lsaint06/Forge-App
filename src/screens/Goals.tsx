@@ -1,17 +1,29 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, View } from "react-native";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { AccessibilityInfo, Pressable, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Alert } from "../platform/alert";
-import { Screen, Button, TextButton, Txt, Card, Empty } from "../components/ui";
+import { useColors } from "../components/ui";
+import { InfoButton, OverflowMenu } from "../components/system";
 import {
-  ListRow,
-  ListSection,
-  OverflowMenu,
-  InfoButton,
-} from "../components/system";
-import { LineChart } from "../components/charts";
+  CtaButton,
+  FText,
+  ForgeCard,
+  ForgeEmpty,
+  ForgeLineChart,
+  ForgeListRow,
+  ForgeSubScreen,
+  OutlineButton,
+  SectionLabel,
+} from "../components/reforge";
 import { GoalCard } from "../components/goals/GoalCard";
 import { GoalSheet, type GoalTarget } from "../components/goals/GoalSheet";
-import { useRepo, mutate } from "../state";
+import { useRepo, useApp, mutate } from "../state";
 import {
   UNDO_MS,
   cancelPending,
@@ -44,12 +56,13 @@ import {
 } from "../domain/measurements";
 import { loadIn } from "../domain/workout-display";
 import { dayLabel } from "../domain/training-display";
-import { theme } from "../theme";
+import { forge } from "../theme";
 
-// Goals (Phase 7B WP4D): what the lifter is working toward, measured only
-// from recorded data with the definitions in the WP4D audit (section 16A).
-// Records keep their journal shape; legacy goals keep their meaning; an
-// untouched edit writes nothing; confirmed achievements never change.
+// Goals (Phase 7B WP4D; REFORGE since Phase 7.5F): what the lifter is
+// working toward, measured only from recorded data with the definitions in
+// the WP4D audit (section 16A). Records keep their journal shape; legacy
+// goals keep their meaning; an untouched edit writes nothing; confirmed
+// achievements never change. Phase 7.5F changed the presentation only.
 
 const ABOUT = [
   "Targets (bodyweight, a lift, training volume) are reached once. When your records meet the target, you can mark it as achieved; its date and value are then kept even if records change later.",
@@ -64,6 +77,7 @@ type Pending =
 
 export default function Goals() {
   const r = useRepo();
+  const revision = useApp((s) => s.revision);
   const today = localDate();
   const p = r.profile();
   const [sheet, setSheet] = useState<GoalTarget>();
@@ -99,7 +113,13 @@ export default function Goals() {
     }, banner.ms ?? UNDO_MS);
     return () => clearTimeout(t);
   }, [banner, commit]);
-  const sources = goalSources(r, today, p.units);
+  // What goals read, once per data change: its lazy lift and volume caches
+  // then serve every card and the chart instead of being rebuilt each render.
+  const sources = useMemo(
+    () => goalSources(r, today, p.units),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [r, revision, today, p.units],
+  );
   const goals = (r.journal("goal") as Goal[])
     .filter((g) => !(held?.kind === "delete" && held.id === g.id))
     .map((g) =>
@@ -205,113 +225,122 @@ export default function Goals() {
   ];
 
   return (
-    <Screen
-      title={detail ? "Goal" : "Goals"}
+    <ForgeSubScreen
+      title={detail ? detail.name : "Goals"}
+      eyebrow={
+        detail
+          ? detail.status === "achieved"
+            ? "Achieved goal"
+            : detail.status === "archived"
+              ? "Archived goal"
+              : "Active goal"
+          : views.length
+            ? `${active.length} active`
+            : undefined
+      }
       onBack={() => (detail ? setOpen(undefined) : goBack("/(tabs)/profile"))}
       footer={
         detail ? undefined : (
-          <Button
+          <CtaButton
             title="New goal"
             icon="add"
+            compact
             onPress={() => setSheet({ kind: "new" })}
           />
         )
       }
     >
       {banner && (
-        <Card compact raised>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: theme.spacing.sm,
-            }}
-          >
-            <Txt style={{ flex: 1 }}>{banner.text}</Txt>
-            <TextButton
-              title="Undo"
-              onPress={() => {
-                banner.undo();
-                setBanner(undefined);
-              }}
-            />
-          </View>
-        </Card>
+        <UndoBanner
+          text={banner.text}
+          onUndo={() => {
+            banner.undo();
+            setBanner(undefined);
+          }}
+        />
       )}
       {detail ? (
         <>
           <GoalCard view={detail} today={today} full />
           {canAchieve(detail) && (
-            <Button
+            <CtaButton
               title="Mark as achieved"
               icon="checkmark"
+              compact
               accessibilityLabel={`Mark ${detail.name} as achieved`}
               onPress={() => achieve(detail)}
             />
           )}
           <SourceChart view={detail} sources={sources} />
-          <ListSection title="Details">
-            <ListRow
-              title={isV2(detail.goal) ? "Counts from" : "Set on"}
-              value={dayLabel(detail.goal.date)}
-              chevron={false}
-            />
-            {detail.targetDate && (
-              <ListRow
-                title="Target date"
-                value={dayLabel(detail.targetDate)}
-                chevron={false}
+          <View style={{ gap: forge.spacing.tight }}>
+            <SectionLabel title="Details" />
+            <ForgeCard padding={0} gap={0}>
+              <DetailRow
+                title={isV2(detail.goal) ? "Counts from" : "Set on"}
+                value={dayLabel(detail.goal.date)}
               />
-            )}
-          </ListSection>
-          <ListSection title="Actions">
-            {actions(detail).map((a) => (
-              <ListRow
-                key={a.label}
-                title={a.label}
-                icon={a.icon}
-                destructive={"destructive" in a && !!a.destructive}
-                onPress={a.onPress}
-              />
-            ))}
-          </ListSection>
+              {detail.targetDate && (
+                <DetailRow
+                  title="Target date"
+                  value={dayLabel(detail.targetDate)}
+                  divider
+                />
+              )}
+            </ForgeCard>
+          </View>
+          <View style={{ gap: forge.spacing.tight }}>
+            <SectionLabel title="Actions" />
+            <ForgeCard padding={0} gap={0}>
+              {actions(detail).map((a, i) => (
+                <ForgeListRow
+                  key={a.label}
+                  title={a.label}
+                  icon={a.icon}
+                  divider={i > 0}
+                  destructive={"destructive" in a && !!a.destructive}
+                  onPress={a.onPress}
+                />
+              ))}
+            </ForgeCard>
+          </View>
         </>
       ) : (
         <>
           {!views.length ? (
-            <Empty
+            <ForgeEmpty
               title="Set a goal you can measure"
               detail="A bodyweight, a lift, training volume, how often you train, session length or daily calories. Progress comes only from what you record."
             />
           ) : (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Txt variant="overline" tone="secondary" header>
-                {active.length ? "Active" : "No active goals"}
-              </Txt>
-              <InfoButton
-                title="How goals are measured"
-                label="How goals are measured"
-                paragraphs={ABOUT}
-              />
-            </View>
+            <SectionLabel
+              title={active.length ? "Active" : "No active goals"}
+              trailing={
+                <InfoButton
+                  title="How goals are measured"
+                  label="How goals are measured"
+                  paragraphs={ABOUT}
+                />
+              }
+            />
+          )}
+          {views.length > 0 && !active.length && (
+            <FText variant="body" tone="secondary">
+              Set a new goal, or open past goals to restore an archived one.
+            </FText>
           )}
           {active.map((v) => (
-            <View key={v.goal.id} style={{ gap: theme.spacing.xs }}>
+            <View key={v.goal.id} style={{ gap: forge.spacing.tight }}>
               <GoalCard
                 view={v}
                 today={today}
                 onPress={() => setOpen(v.goal.id)}
               />
               {canAchieve(v) && (
-                <TextButton
+                <OutlineButton
                   title="Mark as achieved"
                   icon="checkmark"
+                  tone="ember"
+                  compact
                   accessibilityLabel={`Mark ${v.name} as achieved`}
                   onPress={() => achieve(v)}
                 />
@@ -319,36 +348,35 @@ export default function Goals() {
             </View>
           ))}
           {past.length > 0 && (
-            <ListSection title={`Past goals (${past.length})`}>
-              {!showPast ? (
-                <ListRow
-                  title="Show past goals"
-                  subtitle="Achieved and archived goals"
-                  onPress={() => setShowPast(true)}
-                />
-              ) : (
-                past.map((v) => (
-                  <ListRow
-                    key={v.goal.id}
-                    title={v.name}
-                    subtitle={
-                      v.status === "achieved"
-                        ? v.state
-                        : `Archived · ${v.measure}`
-                    }
-                    accessibilityLabel={`${v.spoken}. ${v.status === "archived" ? "Archived" : ""}`}
-                    onPress={() => setOpen(v.goal.id)}
-                    trailing={
-                      <OverflowMenu
-                        label={`Options for ${v.name}`}
-                        title={v.name}
-                        actions={actions(v)}
-                      />
-                    }
+            <View style={{ gap: forge.spacing.tight, marginTop: 6 }}>
+              <SectionLabel title={`Past goals (${past.length})`} />
+              <ForgeCard padding={0} gap={0}>
+                {!showPast ? (
+                  <ForgeListRow
+                    icon="time-outline"
+                    title="Show past goals"
+                    description="Achieved and archived goals"
+                    onPress={() => setShowPast(true)}
                   />
-                ))
-              )}
-            </ListSection>
+                ) : (
+                  past.map((v, i) => (
+                    <PastRow
+                      key={v.goal.id}
+                      view={v}
+                      divider={i > 0}
+                      onPress={() => setOpen(v.goal.id)}
+                      menu={
+                        <OverflowMenu
+                          label={`Options for ${v.name}`}
+                          title={v.name}
+                          actions={actions(v)}
+                        />
+                      }
+                    />
+                  ))
+                )}
+              </ForgeCard>
+            </View>
           )}
         </>
       )}
@@ -362,11 +390,158 @@ export default function Goals() {
           onSaved={show}
         />
       )}
-    </Screen>
+    </ForgeSubScreen>
   );
 }
 
-/** The recorded data behind a bodyweight or lift goal, on real dates. */
+/** The Undo offer after a save, archive, achievement or delete. */
+function UndoBanner({ text, onUndo }: { text: string; onUndo: () => void }) {
+  const c = useColors();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        paddingLeft: forge.spacing.cardPadding,
+        paddingRight: 6,
+        minHeight: 52,
+        borderRadius: forge.radii.card,
+        borderWidth: forge.border.card,
+        borderColor: c.cardBorder,
+        backgroundColor: c.cardRaised,
+      }}
+    >
+      <FText variant="body" weight="600" style={{ flex: 1 }}>
+        {text}
+      </FText>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Undo"
+        onPress={onUndo}
+        style={({ pressed }) => ({
+          minHeight: 44,
+          minWidth: 64,
+          paddingHorizontal: 12,
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: pressed ? 0.6 : 1,
+        })}
+      >
+        <FText variant="cardTitle" weight="700" tone="accent">
+          Undo
+        </FText>
+      </Pressable>
+    </View>
+  );
+}
+
+/** A fact in the detail's Details card: a label and its value. */
+function DetailRow({
+  title,
+  value,
+  divider = false,
+}: {
+  title: string;
+  value: string;
+  divider?: boolean;
+}) {
+  const c = useColors();
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${title}: ${value}`}
+      style={{
+        minHeight: 48,
+        paddingHorizontal: forge.spacing.cardPadding,
+        paddingVertical: 10,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        borderTopWidth: divider ? forge.border.card : 0,
+        borderTopColor: c.cardDivider,
+      }}
+    >
+      <FText variant="body" tone="secondary">
+        {title}
+      </FText>
+      <FText
+        variant="body"
+        weight="600"
+        align="right"
+        style={{ flexShrink: 1 }}
+      >
+        {value}
+      </FText>
+    </View>
+  );
+}
+
+/** An achieved or archived goal: its name, how it ended, and its menu. */
+function PastRow({
+  view: v,
+  divider,
+  onPress,
+  menu,
+}: {
+  view: GoalView;
+  divider: boolean;
+  onPress: () => void;
+  menu: React.ReactNode;
+}) {
+  const c = useColors();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        paddingRight: 6,
+        borderTopWidth: divider ? forge.border.card : 0,
+        borderTopColor: c.cardDivider,
+      }}
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${v.spoken}. ${v.status === "archived" ? "Archived" : ""}`}
+        onPress={onPress}
+        style={({ pressed }) => ({
+          flex: 1,
+          minHeight: 56,
+          paddingVertical: 10,
+          paddingLeft: forge.spacing.cardPadding,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: forge.spacing.group,
+          backgroundColor: pressed ? c.cardRaised : "transparent",
+        })}
+      >
+        <Ionicons
+          name={v.status === "achieved" ? "trophy-outline" : "archive-outline"}
+          size={20}
+          color={v.status === "achieved" ? c.emberHot : c.text2}
+          style={{ width: 24 }}
+        />
+        <View style={{ flex: 1, gap: 2 }}>
+          <FText variant="cardTitle" weight="700" numberOfLines={2}>
+            {v.name}
+          </FText>
+          <FText variant="label" tone="secondary">
+            {v.status === "achieved" ? v.state : `Archived · ${v.measure}`}
+          </FText>
+        </View>
+      </Pressable>
+      {menu}
+    </View>
+  );
+}
+
+/**
+ * The recorded data behind a bodyweight or lift goal, on real dates: weigh-ins
+ * since the goal was set, or the heaviest qualifying set each day. Days far
+ * apart are not joined; nothing is interpolated. Other goal types have no
+ * chart (their history is the detail's Recent list, or none).
+ */
 function SourceChart({
   view: v,
   sources,
@@ -411,26 +586,43 @@ function SourceChart({
         ? `Heaviest set of ${reps}+ reps each day`
         : "Heaviest set each day";
   }
+  if (!label) return null;
   points.sort((a, b) => (a.date < b.date ? -1 : 1));
-  if (points.length < 2) return null;
   return (
-    <Card>
-      <Txt variant="overline" tone="secondary" header>
+    <ForgeCard testID="goal-chart" gap={10}>
+      <FText variant="overline" tone="secondary" header>
         {label}
-      </Txt>
-      <LineChart
-        label={label}
-        points={points.map((p) => ({
-          key: p.date,
-          value: p.value,
-          description: dayLabel(p.date),
-        }))}
-        x={points.map((p) => dayNumber(p.date))}
-        breakOver={GAP_DAYS}
-        resetKey={v.goal.id}
-        format={(n) => `${Math.round(n * 10) / 10} ${units}`}
-      />
-    </Card>
+      </FText>
+      {points.length < 2 ? (
+        <FText variant="body" tone="secondary">
+          {points.length
+            ? "One day recorded so far. The chart appears from the second."
+            : "Nothing recorded yet. The chart appears from the second day of records."}
+        </FText>
+      ) : (
+        <>
+          <ForgeLineChart
+            label={label}
+            points={points.map((p) => ({
+              key: p.date,
+              value: p.value,
+              description: dayLabel(p.date),
+              tick: new Date(`${p.date}T12:00:00`).toLocaleDateString(
+                undefined,
+                { month: "short", day: "numeric" },
+              ),
+            }))}
+            x={points.map((p) => dayNumber(p.date))}
+            breakOver={GAP_DAYS}
+            resetKey={v.goal.id}
+            format={(n) => `${Math.round(n * 10) / 10} ${units}`}
+          />
+          <FText variant="label" tone="secondary">
+            {v.target}
+          </FText>
+        </>
+      )}
+    </ForgeCard>
   );
 }
 
