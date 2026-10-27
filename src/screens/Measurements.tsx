@@ -1,7 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { AccessibilityInfo, View } from "react-native";
-import { Screen, Button, TextButton, Txt, Card, Empty } from "../components/ui";
-import { ListRow, ListSection, OverflowMenu } from "../components/system";
+import { AccessibilityInfo, Pressable, View } from "react-native";
+import { useColors } from "../components/ui";
+import { OverflowMenu } from "../components/system";
+import {
+  CtaButton,
+  FText,
+  ForgeCard,
+  ForgeEmpty,
+  ForgeListRow,
+  ForgeSubScreen,
+  OutlineButton,
+  SectionLabel,
+} from "../components/reforge";
 import { SeriesCard } from "../components/measurements/SeriesCard";
 import {
   MeasurementSheet,
@@ -22,17 +32,26 @@ import {
   seriesOf,
   sincePrevious,
   valueText,
+  type Family,
   type Series,
 } from "../domain/measurements";
-import { theme } from "../theme";
+import { forge } from "../theme";
 
-// Measurements (Phase 7B WP4B): the lifter's body over time. The newest
-// bodyweight (or most recently updated measurement) leads with its trend;
-// every other measurement is one row; history lists every entry by day.
-// Records keep their journal shape; nothing here renames or rewrites them.
+// Measurements (Phase 7B WP4B; REFORGE since Phase 7.5G.1): the lifter's
+// body over time. The newest bodyweight (or most recently updated
+// measurement) leads with its trend; every other measurement is one row;
+// history lists every entry by day. Records keep their journal shape;
+// nothing here renames or rewrites them. 7.5G.1 changed the presentation.
 
 const PAGE = 30;
-
+const ICON: Record<
+  Family,
+  "scale-outline" | "resize-outline" | "pie-chart-outline"
+> = {
+  mass: "scale-outline",
+  length: "resize-outline",
+  percent: "pie-chart-outline",
+};
 export default function Measurements() {
   const r = useRepo();
   const today = localDate();
@@ -99,60 +118,63 @@ export default function Measurements() {
     s ? { kind: "new", name: s.name, family: s.family } : { kind: "new" };
 
   return (
-    <Screen
+    <ForgeSubScreen
       title={detail ? detail.name : "Measurements"}
+      eyebrow={
+        detail
+          ? `${detail.entries.length} ${detail.entries.length === 1 ? "entry" : "entries"}`
+          : entries.length
+            ? `${entries.length} ${entries.length === 1 ? "entry" : "entries"}`
+            : undefined
+      }
       onBack={() => (detail ? setOpen(undefined) : goBack("/(tabs)/profile"))}
       footer={
-        <Button
+        <CtaButton
           title={detail ? `Log ${detail.name}` : "Log measurement"}
           icon="add"
+          compact
           onPress={() => setSheet(logFor(detail))}
         />
       }
     >
       {banner && (
-        <Card compact raised>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: theme.spacing.sm,
-            }}
-          >
-            <Txt style={{ flex: 1 }}>{banner.text}</Txt>
-            <TextButton
-              title="Undo"
-              onPress={() => {
-                banner.undo();
-                setBanner(undefined);
-              }}
-            />
-          </View>
-        </Card>
+        <UndoBanner
+          text={banner.text}
+          onUndo={() => {
+            banner.undo();
+            setBanner(undefined);
+          }}
+        />
       )}
       {offer !== undefined && !detail && (
-        <Card>
-          <Txt weight="600">{`Your profile weight is ${valueText(offer, "mass", units)}.`}</Txt>
-          <Txt tone="secondary">
+        <ForgeCard testID="profile-weight-offer" gap={10}>
+          <FText variant="overline" tone="secondary">
+            From your profile
+          </FText>
+          <FText variant="cardTitle" weight="700">
+            {`Your profile weight is ${valueText(offer, "mass", units)}.`}
+          </FText>
+          <FText variant="label" tone="secondary">
             Log it as your first weigh-in today? Your profile stays as it is.
-          </Txt>
-          <View style={{ flexDirection: "row", gap: theme.spacing.sm }}>
+          </FText>
+          <View style={{ flexDirection: "row", gap: forge.spacing.tight }}>
             <View style={{ flex: 1 }}>
-              <Button
+              <OutlineButton
                 title="Not now"
-                variant="secondary"
+                compact
                 onPress={() => mutate(() => settleOffer())}
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Button
+              <CtaButton
                 title="Log it"
+                compact
                 accessibilityLabel="Log profile weight as first weigh-in"
                 onPress={() => acceptOffer(offer)}
               />
             </View>
           </View>
-        </Card>
+        </ForgeCard>
       )}
       {lead ? (
         <SeriesCard
@@ -164,70 +186,84 @@ export default function Measurements() {
           onLog={detail ? undefined : () => setSheet(logFor(lead))}
         />
       ) : (
-        <Empty
+        <ForgeEmpty
           title="Track how your body changes"
           detail="Start with your weight. Add other measurements, like your waist or arms, whenever you take them."
         />
       )}
       {!detail && series.length > 1 && (
-        <ListSection title="Other measurements">
-          {series
-            .filter((s) => s.key !== lead?.key)
-            .map((s) => {
-              const change = sincePrevious(s);
-              const latest = s.days[s.days.length - 1]!;
-              const value = valueText(latest.value, s.family, units);
-              const sub = change
-                ? `${changeText(change.delta, s.family, units)} since ${dayTitle(change.since, today)}`
-                : `Logged ${dayTitle(latest.date, today)}`;
-              return (
-                <ListRow
-                  key={s.key}
-                  title={s.name}
-                  subtitle={sub}
-                  value={value}
-                  accessibilityLabel={`${s.name}, ${value}, ${sub}`}
-                  onPress={() => {
-                    setOpen(s.key);
-                    setShown(PAGE);
-                  }}
-                />
-              );
-            })}
-        </ListSection>
+        <View style={{ gap: forge.spacing.tight }}>
+          <SectionLabel title="Other measurements" />
+          <ForgeCard padding={0} gap={0}>
+            {series
+              .filter((s) => s.key !== lead?.key)
+              .map((s, i) => {
+                const change = sincePrevious(s);
+                const latest = s.days[s.days.length - 1]!;
+                const value = valueText(latest.value, s.family, units);
+                const sub = change
+                  ? `${changeText(change.delta, s.family, units)} since ${dayTitle(change.since, today)}`
+                  : `Logged ${dayTitle(latest.date, today)}`;
+                return (
+                  <ForgeListRow
+                    key={s.key}
+                    icon={ICON[s.family]}
+                    title={s.name}
+                    description={sub}
+                    value={value}
+                    divider={i > 0}
+                    accessibilityLabel={`${s.name}, ${value}, ${sub}`}
+                    onPress={() => {
+                      setOpen(s.key);
+                      setShown(PAGE);
+                    }}
+                  />
+                );
+              })}
+          </ForgeCard>
+        </View>
       )}
       {history.length > 0 && (
-        <View style={{ gap: theme.spacing.md }}>
-          <Txt variant="overline" tone="secondary" header>
-            History
-          </Txt>
+        <View style={{ gap: forge.spacing.tight, marginTop: 6 }}>
+          <SectionLabel title="History" />
           {groupByDay(history.slice(0, shown)).map(([date, list]) => (
-            <ListSection key={date} title={dayTitle(date, today)}>
+            <ForgeCard key={date} padding={0} gap={0}>
+              <View
+                style={{
+                  paddingHorizontal: forge.spacing.cardPadding,
+                  paddingTop: 12,
+                  paddingBottom: 4,
+                }}
+              >
+                <FText variant="label" weight="700" tone="secondary" header>
+                  {dayTitle(date, today)}
+                </FText>
+              </View>
               {list.map((e) => {
                 const name = String(e.data.name ?? "");
                 const value = readable(e)
                   ? entryText(e, units)
                   : String(e.data.value ?? "");
                 const note = String(e.data.notes ?? "").trim();
+                const editable = !!familyOfUnit(e.data.unit);
                 return (
-                  <ListRow
+                  <EntryRow
                     key={e.id}
-                    title={name}
-                    subtitle={note || undefined}
+                    name={name}
                     value={value}
-                    chevron={false}
-                    accessibilityLabel={`${name}, ${value}, ${dayTitle(e.date, today)}${note ? `, ${note}` : ""}. Edit`}
+                    note={note}
+                    label={`${name}, ${value}, ${dayTitle(e.date, today)}${note ? `, ${note}` : ""}. Edit`}
                     onPress={
-                      familyOfUnit(e.data.unit)
+                      editable
                         ? () => setSheet({ kind: "edit", entry: e })
                         : undefined
                     }
-                    trailing={
+                    menu={
                       <OverflowMenu
                         label={`Options for ${name} on ${dayTitle(e.date, today)}`}
                         title={`${name} · ${value}`}
                         actions={[
-                          ...(familyOfUnit(e.data.unit)
+                          ...(editable
                             ? [
                                 {
                                   label: "Edit",
@@ -249,12 +285,11 @@ export default function Measurements() {
                   />
                 );
               })}
-            </ListSection>
+            </ForgeCard>
           ))}
           {history.length > shown && (
-            <TextButton
+            <OutlineButton
               title={`Show earlier (${history.length - shown})`}
-              neutral
               onPress={() => setShown((n) => n + PAGE)}
             />
           )}
@@ -269,10 +304,114 @@ export default function Measurements() {
           onSaved={saved}
         />
       )}
-    </Screen>
+    </ForgeSubScreen>
   );
 }
 
+/** The Undo offer after logging a measurement. */
+function UndoBanner({ text, onUndo }: { text: string; onUndo: () => void }) {
+  const c = useColors();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        paddingLeft: forge.spacing.cardPadding,
+        paddingRight: 6,
+        minHeight: 52,
+        borderRadius: forge.radii.card,
+        borderWidth: forge.border.card,
+        borderColor: c.cardBorder,
+        backgroundColor: c.cardRaised,
+      }}
+    >
+      <FText variant="body" weight="600" style={{ flex: 1 }}>
+        {text}
+      </FText>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Undo"
+        onPress={onUndo}
+        style={({ pressed }) => ({
+          minHeight: 44,
+          minWidth: 64,
+          paddingHorizontal: 12,
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: pressed ? 0.6 : 1,
+        })}
+      >
+        <FText variant="cardTitle" weight="700" tone="accent">
+          Undo
+        </FText>
+      </Pressable>
+    </View>
+  );
+}
+
+/** One recorded entry: what, its note, the value in the lifter's units. */
+function EntryRow({
+  name,
+  value,
+  note,
+  label,
+  onPress,
+  menu,
+}: {
+  name: string;
+  value: string;
+  note: string;
+  label: string;
+  onPress?: () => void;
+  menu: React.ReactNode;
+}) {
+  const c = useColors();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        paddingRight: 6,
+        borderTopWidth: forge.border.card,
+        borderTopColor: c.cardDivider,
+      }}
+    >
+      <Pressable
+        accessibilityRole={onPress ? "button" : undefined}
+        accessibilityLabel={label}
+        accessible
+        disabled={!onPress}
+        onPress={onPress}
+        style={({ pressed }) => ({
+          flex: 1,
+          minHeight: 52,
+          paddingVertical: 10,
+          paddingLeft: forge.spacing.cardPadding,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          backgroundColor: pressed ? c.cardRaised : "transparent",
+        })}
+      >
+        <View style={{ flex: 1, gap: 2 }}>
+          <FText variant="body" weight="700" numberOfLines={2}>
+            {name}
+          </FText>
+          {!!note && (
+            <FText variant="label" tone="secondary">
+              {note}
+            </FText>
+          )}
+        </View>
+        <FText variant="cardTitle" weight="700" align="right">
+          {value}
+        </FText>
+      </Pressable>
+      {menu}
+    </View>
+  );
+}
 function groupByDay(list: Journal[]) {
   const days: [string, Journal[]][] = [];
   for (const e of list) {

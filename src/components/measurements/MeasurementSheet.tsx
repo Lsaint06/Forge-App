@@ -1,15 +1,15 @@
 import React, { useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import { Alert } from "../../platform/alert";
+import { Sheet } from "../ui";
 import {
-  Sheet,
-  Field,
-  Txt,
-  Button,
-  TextButton,
-  Chips,
-  SegmentedControl,
-} from "../ui";
+  CtaButton,
+  FText,
+  ForgeChips,
+  ForgeField,
+  ForgeSegments,
+  OutlineButton,
+} from "../reforge";
 import { DateSheet } from "../DateSheet";
 import { useRepo, mutate } from "../../state";
 import {
@@ -248,20 +248,20 @@ export function MeasurementSheet({
         <View style={{ flexDirection: "row", gap: theme.spacing.sm }}>
           <View style={{ flex: 1 }}>
             {editing ? (
-              <Button title="Cancel" variant="secondary" onPress={onClose} />
+              <OutlineButton title="Cancel" onPress={onClose} />
             ) : (
-              <Button
+              <OutlineButton
                 title="Save & add another"
-                variant="secondary"
                 accessibilityLabel="Save and add another measurement"
                 onPress={() => save(true)}
               />
             )}
           </View>
           <View style={{ flex: 1 }}>
-            <Button
+            <CtaButton
               title="Save"
               icon="checkmark"
+              compact
               accessibilityLabel={editing ? "Save changes" : "Save measurement"}
               onPress={() => save(false)}
             />
@@ -269,15 +269,19 @@ export function MeasurementSheet({
         </View>
       }
     >
-      {savedNote && <Txt tone="success">{savedNote}</Txt>}
+      {savedNote && (
+        <FText variant="body" weight="600" tone="positive">
+          {savedNote}
+        </FText>
+      )}
       {editing ? (
-        <Field label="Name" value={editName} onChangeText={setEditName} />
+        <ForgeField label="Name" value={editName} onChangeText={setEditName} />
       ) : (
         <View style={{ gap: 6 }}>
-          <Txt variant="caption" tone="secondary">
+          <FText variant="label" tone="secondary">
             Measurement
-          </Txt>
-          <Chips
+          </FText>
+          <ForgeChips
             values={[...choices.map((c) => c.name), CUSTOM]}
             value={choice}
             onChange={(c) => {
@@ -291,21 +295,26 @@ export function MeasurementSheet({
       )}
       {isCustom && (
         <>
-          <Field
+          <ForgeField
             label="Measurement name"
             value={customName}
             placeholder="e.g. Upper arm, relaxed"
             onChangeText={setCustomName}
           />
-          <SegmentedControl
-            label="Measured as"
-            options={FAMILY_OPTIONS}
-            value={customFamily}
-            onChange={(f) => setCustomFamily(f as Family)}
-          />
+          <View style={{ gap: 6 }}>
+            <FText variant="label" tone="secondary">
+              Measured as
+            </FText>
+            <ForgeSegments
+              accessibilityLabel="Measured as"
+              options={FAMILY_OPTIONS}
+              value={customFamily}
+              onChange={(f) => setCustomFamily(f as Family)}
+            />
+          </View>
         </>
       )}
-      <Field
+      <ForgeField
         label={`${name.trim() || "Value"} (${unit})`}
         value={value}
         keyboardType="decimal-pad"
@@ -318,9 +327,9 @@ export function MeasurementSheet({
         }}
       />
       {sameSeries && !editing && (
-        <Txt variant="caption" tone="secondary">
+        <FText variant="label" tone="secondary">
           {`Last: ${valueText(Number(sameSeries.latest.data.value), family, units)} · ${dayTitle(sameSeries.latest.date, today)}`}
-        </Txt>
+        </FText>
       )}
       <Pressable
         accessibilityRole="button"
@@ -334,21 +343,25 @@ export function MeasurementSheet({
           opacity: pressed ? 0.6 : 1,
         })}
       >
-        <Txt tone="secondary">Day</Txt>
-        <Txt weight="600">{`${dayTitle(date, today)} ›`}</Txt>
+        <FText variant="body" tone="secondary">
+          Day
+        </FText>
+        <FText variant="body" weight="700">
+          {`${dayTitle(date, today)} ›`}
+        </FText>
       </Pressable>
       {showNotes ? (
-        <Field
+        <ForgeField
           label="Note (optional)"
           value={notes}
           placeholder="e.g. Morning, before breakfast"
           onChangeText={setNotes}
         />
       ) : (
-        <TextButton
+        <OutlineButton
           title="Add note"
           icon="add"
-          neutral
+          compact
           onPress={() => setShowNotes(true)}
         />
       )}

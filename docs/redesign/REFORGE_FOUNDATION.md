@@ -583,3 +583,18 @@ The focused editors are one shared `EditorSheet` ([you/editors.tsx](../../src/sc
 | Sheet | The same type-first `GoalSheet` and fields, drawn with `ForgeChoices`, `ForgeField`, `ForgeStepper`, `CtaButton` / `OutlineButton` and REFORGE text. Labels, validation messages, confirmations ("Check this goal"), the unsaved-change prompt and saving are unchanged |
 
 **Consistency.** Home's *Next target*, Progress's *Next goals* and You's *Primary goal* all use `evaluate` and Home's `nextTarget` order; Goals shows the same `evaluate` output, so one goal reads the same everywhere. Goals now evaluates against one `goalSources` per data change (its lift and volume caches serve every card and the chart).
+
+## Body measurements (Phase 7.5G.1)
+
+[Measurements.tsx](../../src/screens/Measurements.tsx) (`/journal?kind=measurement`) is a `ForgeSubScreen` over the unchanged Phase 7B WP4B model ([domain/measurements.ts](../../src/domain/measurements.ts)). Records, series (spellings grouped), changes, ranges, validation, plausibility checks, the profile-weight offer and Undo are unchanged; 7.5G.1 changed the presentation.
+
+| Part | Presentation |
+| --- | --- |
+| Header | "Measurements" with the real entry count; a measurement's own view takes its name ("Waist", "2 entries"). **Log measurement** (or "Log Waist") pinned in the footer |
+| Profile offer | Only when no weigh-in exists and a profile weight is saved: a card labelled "FROM YOUR PROFILE", "Your profile weight is 82 kg.", **Not now** and **Log it**. The profile value is never shown as a recorded weigh-in |
+| Lead series | `SeriesCard`: the name, the latest value (hero metric) with its day and "n entries" when a day has several, the changes between real entries ("−0.3 kg since Yesterday", "−2.5 kg in 3 months"), `ForgeSegments` ranges (1M · 3M · 6M · 1Y · All, spoken "1 month" … "All time") and the 7.4C `ForgeLineChart`: one point per day (its latest entry, as before), real dates, gaps not joined, nothing interpolated. One day only: "Log another weigh-in on another day to see how it changes." |
+| Other measurements | One hairline card of `ForgeListRow`s: an icon for weight, length or percent, the name, its change or "Logged …", and the latest value |
+| History | Every entry, newest first, grouped by day: one card per day headed by the day, a row per entry (name, note, value in the lifter's units) that opens the edit sheet, and its menu (Edit, Delete with the same confirmation). Same-day entries stay separate. Pages of 30 with "Show earlier (n)" |
+| Sheet | The same `MeasurementSheet`: measurement chips (`ForgeChips`), Custom name and "Measured as" (`ForgeSegments`), the value in the lifter's units (`ForgeField` with its error), the day, an optional note; **Save & add another** / **Save** (Cancel when editing). Labels, validation, the "Check this value" prompt and saving are unchanged |
+
+**Shared values.** Home and You (`bodyweight`), Progress (`bodyweightOver`) and Goals (`latestWeighIn`) read the same measurement records as before; nothing here adds a second source. Logging, editing or deleting an entry is what they read next.

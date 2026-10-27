@@ -1,7 +1,12 @@
 import React, { useState } from "react";
 import { View } from "react-native";
-import { Card, Txt, TextButton, SegmentedControl } from "../ui";
-import { LineChart } from "../charts";
+import {
+  FText,
+  ForgeCard,
+  ForgeLineChart,
+  ForgeSegments,
+  OutlineButton,
+} from "../reforge";
 import {
   GAP_DAYS,
   RANGES,
@@ -20,7 +25,6 @@ import {
 } from "../../domain/measurements";
 import { dayTitle } from "../../domain/calendar-dates";
 import { dayLabel } from "../../domain/training-display";
-import { theme } from "../../theme";
 
 const RANGE_WORDS: Record<Range, string> = {
   "1M": "in the last month",
@@ -29,11 +33,20 @@ const RANGE_WORDS: Record<Range, string> = {
   "1Y": "in the last year",
   All: "since",
 };
+/** The range segments' spoken names ("3M" reads as "3 months"). */
+const RANGE_SPOKEN: Record<Range, string> = {
+  "1M": "1 month",
+  "3M": "3 months",
+  "6M": "6 months",
+  "1Y": "1 year",
+  All: "All time",
+};
 
 /**
- * One measurement at a glance: the latest value and day, changes measured
- * only between real entries, and a date-spaced line for a chosen range.
- * Changes are stated plainly; no direction is presented as good or bad.
+ * One measurement at a glance (REFORGE, Phase 7.5G.1): the latest value and
+ * day, changes measured only between real entries, and a date-spaced line
+ * for a chosen range. Changes are stated plainly; no direction is presented
+ * as good or bad, and nothing is interpolated.
  */
 export function SeriesCard({
   series: s,
@@ -69,46 +82,51 @@ export function SeriesCard({
       `${changeText(over.delta, s.family, units)} since ${dayLabel(over.since)}`,
   ].filter(Boolean) as string[];
   return (
-    <Card>
-      <View style={{ gap: 2 }}>
+    <ForgeCard testID="measurement-series" gap={12}>
+      <View style={{ gap: 4 }}>
         {showName && (
-          <Txt variant="overline" tone="secondary" header>
+          <FText variant="overline" tone="secondary" header>
             {s.name}
-          </Txt>
+          </FText>
         )}
         <View
           style={{
             flexDirection: "row",
             alignItems: "baseline",
             justifyContent: "space-between",
-            gap: theme.spacing.sm,
+            flexWrap: "wrap",
+            columnGap: 10,
           }}
         >
-          <Txt variant="metric" tabular>
+          <FText variant="heroMetric">
             {valueText(latest.value, s.family, units)}
-          </Txt>
-          <Txt variant="caption" tone="secondary">
+          </FText>
+          <FText variant="label" tone="secondary">
             {latest.count > 1
               ? `${dayTitle(latest.date, today)} · ${latest.count} entries`
               : dayTitle(latest.date, today)}
-          </Txt>
+          </FText>
         </View>
         {lines.map((l) => (
-          <Txt key={l} tone="secondary" tabular>
+          <FText key={l} variant="label" tone="secondary">
             {l}
-          </Txt>
+          </FText>
         ))}
       </View>
       {s.days.length > 1 ? (
         <>
-          <SegmentedControl
-            label={`${s.name} range`}
-            options={RANGES.map((r) => ({ value: r, label: r }))}
+          <ForgeSegments
+            accessibilityLabel={`${s.name} range`}
+            options={RANGES.map((r) => ({
+              value: r,
+              label: r,
+              accessibilityLabel: RANGE_SPOKEN[r],
+            }))}
             value={range}
             onChange={(r) => setRange(r as Range)}
           />
           {shown.length > 1 ? (
-            <LineChart
+            <ForgeLineChart
               label={`${s.name} trend`}
               points={shown.map((d) => ({
                 key: d.date,
@@ -117,6 +135,10 @@ export function SeriesCard({
                   d.count > 1
                     ? `${dayLabel(d.date)} · ${d.count} entries`
                     : dayLabel(d.date),
+                tick: new Date(`${d.date}T12:00:00`).toLocaleDateString(
+                  undefined,
+                  { month: "short", day: "numeric" },
+                ),
               }))}
               x={shown.map((d) => dayNumber(d.date))}
               breakOver={GAP_DAYS}
@@ -126,26 +148,27 @@ export function SeriesCard({
               }
             />
           ) : (
-            <Txt tone="secondary">
+            <FText variant="body" tone="secondary">
               {shown.length
                 ? "One entry in this range. Choose a longer range to see the trend."
                 : "No entries in this range."}
-            </Txt>
+            </FText>
           )}
         </>
       ) : (
-        <Txt tone="secondary">
+        <FText variant="body" tone="secondary">
           {`Log ${s.bodyweight ? "another weigh-in" : `${s.name.toLowerCase()} again`} on another day to see how it changes.`}
-        </Txt>
+        </FText>
       )}
       {onLog && (
-        <TextButton
+        <OutlineButton
           title={s.bodyweight ? "Log weight" : `Log ${s.name}`}
           icon="add"
+          compact
           accessibilityLabel={`Log ${s.name}`}
           onPress={onLog}
         />
       )}
-    </Card>
+    </ForgeCard>
   );
 }
