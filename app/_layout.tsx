@@ -64,6 +64,7 @@ function Navigation() {
         <Stack.Screen name="exercise" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="account" />
+        <Stack.Screen name="preferences" />
         <Stack.Screen name="design-system" />
       </Stack>
     </>

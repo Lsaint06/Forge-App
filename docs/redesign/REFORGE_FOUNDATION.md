@@ -465,9 +465,7 @@ The spoken labels are unchanged, and no statistic lost a place.
 | PD-3 | The volume milestone reads "22,046 lb lifted" for pound lifters and "10,000 kg lifted" in kilograms. The threshold is still 10,000 kg ([presentation/milestones.ts](../../src/domain/presentation/milestones.ts)) |
 | Next goals | Header "NEXT GOALS · See all ›" opens Goals. Up to three active goals as Goals evaluates them, in Home's next-target order (the first is always Home's next target): name, state, current value and target, and an ember bar **only where Goals gives a real ratio**. Each row opens Goals. No goals: "No active goals…" with "Set a goal" |
 | Records screen | `ForgeSubScreen` "Records" with "n records set" in ember; **Recent records** (trophy rows: type, value, date; each opens its workout) and **Your bests** (one row per exercise, opening it); "How records work"; `ForgeEmpty` "No records yet" |
-| More | REFORGE rows in one card: Training history, Training calendar, Body measurements, Nutrition (today), Recovery, Goals. Milestones moved to its own card |
-
-## You (Phase 7.5B–7.5B.1: athlete identity)
+| More (removed after 7.5D) | Was one ca| More | REFORGE rows in one card: Training history, Training calendar, Body measurements, Nutrition (today), Recovery, Goals. Milestones moved to its own card |ntity)
 
 [You.tsx](../../src/screens/You.tsx) follows the approved You reference ([you-approved-2026-10-24.png](reforge/references/you-approved-2026-10-24.png)), the 7.5A audit and the founder's 7.5B direction: the top of the tab is the athlete's identity and training, and the settings sit below. 7.5B builds the identity and the current-plan card ([you/sections.tsx](../../src/screens/you/sections.tsx), [you/model.ts](../../src/screens/you/model.ts)). 7.5B.1 refines the composition after the founder's iPhone review, rebuilds the *Edit profile* presentation and puts the lower sections on REFORGE surfaces so the screen reads as one design; their full redesign stays with 7.5C–D.
 
@@ -493,7 +491,7 @@ The spoken labels are unchanged, and no statistic lost a place.
 
 ### Performance strip, primary goal and My stats (Phase 7.5C)
 
-Below the approved identity and plan card (unchanged), in this order: performance strip, primary goal, My stats, then membership and the settings groups (7.5D). The *Training snapshot* is removed. Its working sets and time trained remain in Progress (Training volume, All-time stats). Its *Training history* row moves into the strip. Its *View progress* row is dropped: Progress is a tab, and the streak pill opens it. Helpers: [presentation/you.ts](../../src/domain/presentation/you.ts). Components: [you/sections.tsx](../../src/screens/you/sections.tsx).
+Below the approved identity and plan card (unchanged), in this order: performance strip, primary goal, My stats, then (since 7.5D) the Tools & settings card. The *Training snapshot* is removed. Its working sets and time trained remain in Progress (Training volume, All-time stats). Its *Training history* row moves into the strip. Its *View progress* row is dropped: Progress is a tab, and the streak pill opens it. Helpers: [presentation/you.ts](../../src/domain/presentation/you.ts). Components: [you/sections.tsx](../../src/screens/you/sections.tsx).
 
 | Section | Content and source |
 | --- | --- |
@@ -510,3 +508,45 @@ Below the approved identity and plan card (unchanged), in this order: performanc
 - No other streak or consistency calculation changed.
 
 **Performance.** The lifetime figures and the goal evaluation are memoised on the store revision (and the day, and units for goals), as on Progress, so they refresh whenever data changes.
+
+### Tools & settings, Preferences and Account & privacy (Phase 7.5D)
+
+The You tab now ends after My stats with one **Tools & settings** card: a "TOOLS & SETTINGS" label and five `ForgeListRow`s (ember icon, bold title, short description, chevron, hairline dividers).
+
+1. **Goals** (journal `goal`)
+2. **Body measurements** (journal `measurement`)
+3. **Recovery** (journal `recovery`)
+4. **Preferences** (`/preferences`, new)
+5. **Account & privacy** (`/account`). Its description is the real state: "Guest mode · backups, privacy and membership", "n changes waiting to sync", or "Sync, backups, privacy and membership".
+
+*Training history* is not repeated in the card: it is the performance strip's own row directly above.
+
+**Destination inventory.** Every control from the old lower You tab and where it is now:
+
+| Before (You tab) | Now |
+| --- | --- |
+| Membership card ("Free plan", "Membership is on the way", nothing to buy) | Account & privacy, same card and copy (`you/account.tsx` `MembershipCard`) |
+| Training · Training focus | Preferences · Training (same editor). Still opened on You by "Set your training focus", the profile prompt and `?edit=focus` |
+| Training · Training preferences | Preferences · Training (same editor; `?edit=training` on You still works) |
+| Training · Nutrition targets | Preferences · Nutrition (same editor and `TARGETS_SAVED` rule; `?edit=nutrition` on You still works; Nutrition's own targets sheet unchanged) |
+| Training · Hydration | Preferences · Nutrition (same `HydrationSettings` sheet; also on the Nutrition tab) |
+| Health & body · Body measurements, Recovery, Goals | Tools & settings rows, same routes |
+| Health & body · Nutrition log | Removed as a row: it only switched to the Nutrition tab, which is always in the tab bar |
+| Notifications · Training reminders (switch and footer) | Preferences · Notifications, same `toggleNotifications` (permission request, cancel on off) and footer |
+| App · Units, Appearance | Preferences · Display & units, same segments and instant saves |
+| Account & data · Account & cloud sync | Tools & settings · Account & privacy (`/account`) |
+| Account & data · Export backup, Import backup, Privacy & training guidance, Delete all local data | Account & privacy · Data & privacy: the same rows, copy, sheets and confirmations (`DataPrivacy`) |
+| About · FORGE version, local schema and sync count | Account & privacy · About (`AboutForge`), same text and spoken label |
+| About · Replay intro, Design system (development builds only) | Preferences · Development (development builds only) |
+
+**Preferences** ([Preferences.tsx](../../src/screens/Preferences.tsx)) is a `ForgeSubScreen` ("YOU" / "Preferences", Back to You). Groups:
+
+- **Training:** Training focus, Training preferences.
+- **Nutrition:** Nutrition targets, Hydration.
+- **Display & units:** Units, Appearance.
+- **Notifications:** Training reminders.
+- **Development:** development builds only.
+
+The focused editors are one shared `EditorSheet` ([you/editors.tsx](../../src/screens/you/editors.tsx)), used by You and Preferences, so validation, saving and unsaved-change confirmation are identical in both.
+
+**Account & privacy** ([app/account.tsx](../../app/account.tsx)) keeps its sign-in, sync, sign-out, account deletion and conflict handling exactly as they were. Below them it gains the membership card, Data & privacy and About. The title is now "Account & privacy". The guest-mode text points to "Data & privacy below" instead of "You → Export backup". The screen's REFORGE redesign remains Phase 7.5G.

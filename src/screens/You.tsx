@@ -1,28 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Switch } from "react-native";
+import { View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { NUTRITION_TODAY } from "../navigation";
-import Constants from "expo-constants";
-import { Alert } from "../platform/alert";
-import { pickBackup } from "../platform/backup";
-import { backupState, backupExportedAt, recordBackup } from "../data/backup";
-import { BackupSheet } from "../components/Backup";
-import { cancelAllNotifications } from "../notifications";
-import { Sheet, confirmDiscard, useColors } from "../components/ui";
-import { ListRow, InfoSheet } from "../components/system";
-import {
-  ProfileForm,
-  toggleNotifications,
-  type ProfileField,
-} from "../components/ProfileForm";
 import { planStatus } from "../components/PlanRow";
 import { libraryPrograms } from "../programs";
-import { useRepo, useApp, confirm, mutate } from "../state";
-import { replayIntro } from "../components/splash/session";
+import { useRepo, useApp } from "../state";
 import {
   experienceLevel,
   missingTrainingProfile,
-  restDayName,
   trainingGoal,
 } from "../domain/profile";
 import { summary } from "../domain/metrics";
@@ -36,141 +20,60 @@ import {
 import { localDate } from "../domain/types";
 import {
   BadgePill,
-  FText,
   ForgeCard,
+  ForgeListRow,
   ForgeScreen,
-  ForgeSegments,
+  SectionLabel,
 } from "../components/reforge";
 import { planOverview } from "./train/model";
 import { bodyweight, nextTarget } from "./home/model";
 import {
   AthleteHeader,
-  IdentityPreview,
   MyStats,
   PerformanceStrip,
   PlanCard,
   PrimaryGoal,
   ProfilePrompt,
-  SettingsGroup,
 } from "./you/sections";
+import { EditorSheet, isEditor, type Editor } from "./you/editors";
+import { cloudConfigured, plural } from "./you/account";
 import {
   displayName,
   experienceText,
   focusText,
   trainingSince,
 } from "./you/model";
-import { loadText } from "../domain/progress/format";
-import { membership } from "../domain/membership";
-import { TARGETS_SAVED, targetsPersonalized } from "../domain/nutrition";
-import { fluidUnitOf, unitLabel, volumeText } from "../domain/hydration";
-import { HydrationSettings } from "../components/nutrition/HydrationSheet";
-import { cloudClient } from "../cloud/client";
-import { forge, theme } from "../theme";
+import { forge } from "../theme";
 
-// You (REFORGE identity since Phase 7.5B; settings from Design System 2.0,
-// Phase 6): the athlete's identity and current plan, then (Phase 7.5C) the
-// performance strip, primary goal and My stats, and every setting, grouped. Settings are edited through focused
-// sheets built on the same ProfileForm as onboarding, so validation and
-// storage are unchanged.
+// You (REFORGE, Phases 7.5B–D): the athlete's identity and current plan,
+// the performance strip, primary goal and My stats, then one Tools &
+// settings card. Preferences (7.5D) and Account & privacy hold the settings
+// and data actions that used to be listed here; Edit profile, Training focus
+// and the `?edit=` links still open their focused editors on this tab.
 
-type Editor = "profile" | "focus" | "training" | "nutrition";
-const editors: Record<
-  Editor,
-  { title: string; fields: ProfileField[]; save: string }
-> = {
-  profile: {
-    title: "Edit profile",
-    // Body fat is not asked here (7.5B.1): a saved value is kept unchanged,
-    // and body fat is tracked as a measurement.
-    fields: ["name", "height", "weight"],
-    save: "Save profile",
-  },
-  focus: {
-    title: "Training focus",
-    fields: ["journey"],
-    save: "Save training focus",
-  },
-  training: {
-    title: "Training preferences",
-    fields: ["frequency", "rest", "increment", "repMin", "repMax", "muscles"],
-    save: "Save preferences",
-  },
-  nutrition: {
-    title: "Nutrition targets",
-    fields: ["calories", "protein", "carbs", "fat"],
-    save: "Save targets",
-  },
-};
-
-const privacy = [
-  "Backups contain your profile, workouts and sets, custom exercises, favorites, templates, schedules and journals. They do not contain passwords or authentication tokens. Keep exported health data private.",
-  "Guest logs stay in the application SQLite database. This database is not encrypted by FORGE; use your device lock. Cloud sync is opt-in and uses the backend you configure. Other apps can read files you share. No advertising or analytics SDK is installed.",
-  "Volume counts external load × reps for completed non-warmup sets. Subjective recovery and progression suggestions are transparent heuristics. They are not medical guidance. Exercise instructions are general coaching notes; consult a qualified coach for advanced movements.",
-];
-
-const plural = (n: number, word: string) =>
-  `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 const listText = (items: string[]) =>
   items.length < 2
     ? items.join("")
     : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 
-function cloudConfigured() {
-  try {
-    return !!cloudClient();
-  } catch {
-    return false;
-  }
-}
-
-/** A labelled control inside a grouped list. */
-function ControlRow({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <View
-      style={{
-        paddingHorizontal: theme.spacing.row,
-        paddingVertical: 12,
-        gap: 10,
-      }}
-    >
-      <FText variant="body" weight="700">
-        {title}
-      </FText>
-      {children}
-    </View>
-  );
-}
-
 export default function You() {
   const r = useRepo();
-  const c = useColors();
   const revision = useApp((s) => s.revision);
   const params = useLocalSearchParams<{ edit?: string }>();
   const p = r.profile();
   const [editor, setEditor] = useState<Editor>();
-  const [hydration, setHydration] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [info, setInfo] = useState(false);
-  const [backupOpen, setBackupOpen] = useState(false);
   // Opens an editor requested by a link (e.g. Library's "Complete training
   // profile"), once per request.
   const [handled, setHandled] = useState<string>();
   if (params.edit !== handled) {
     setHandled(params.edit);
-    if (params.edit && params.edit in editors) setEditor(params.edit as Editor);
+    if (isEditor(params.edit)) setEditor(params.edit);
   }
   useEffect(() => {
     if (params.edit) router.setParams({ edit: undefined });
   }, [params.edit]);
   const goal = trainingGoal(p);
   const experience = experienceLevel(p);
-  const restDay = restDayName(p);
   const missing = missingTrainingProfile(p);
   const plan = planStatus(r);
   const today = localDate();
@@ -217,54 +120,48 @@ export default function You() {
   // The latest weigh-in, else the profile weight (as Home shows it).
   const weight = bodyweight(r.journal("measurement"), p);
   const height = heightText(p.height, p.units);
-  const member = membership();
   const cloud = cloudConfigured();
   const pending = r.outbox().length;
-  const backup = backupState(r);
-  const version = Constants.expoConfig?.version ?? "1.0.0";
-
-  function close() {
-    setEditor(undefined);
-    setDirty(false);
-  }
-  async function importData() {
-    try {
-      const text = await pickBackup();
-      if (text === null) return;
-      confirm(
-        "Replace local data from backup?",
-        "Every workout, template, preference and journal entry on this phone is replaced by the backup's contents, if the file is valid. This can't be undone, so export first. If cloud sync is enabled, the local sync identity resets and your next sync may report conflicts.",
-        () => {
-          try {
-            r.importBackup(text);
-          } catch (e) {
-            // Unreadable or invalid files get one plain message; the details
-            // stay in the developer log.
-            if (
-              e instanceof SyntaxError ||
-              (!!e && typeof e === "object" && "issues" in e)
-            ) {
-              console.warn("[FORGE] Backup import rejected", e);
-              throw new Error(
-                "This file isn't a valid FORGE backup. Nothing was changed.",
-              );
-            }
-            throw e;
-          }
-          // The data now matches that backup file, so it is protected up to
-          // the moment it was exported.
-          const at = backupExportedAt(text);
-          if (at) recordBackup(r, at);
-        },
-        { action: "Replace data" },
-      );
-    } catch (e) {
-      Alert.alert("Import failed", e instanceof Error ? e.message : String(e));
-    }
-  }
   const journal = (kind: string) =>
     router.push({ pathname: "/journal", params: { kind } });
-
+  // Every personal tool and setting, once. Training history is the
+  // performance strip's own row just above, so it isn't repeated here.
+  const tools = [
+    {
+      icon: "flag-outline" as const,
+      title: "Goals",
+      description: "Set and track your targets",
+      onPress: () => journal("goal"),
+    },
+    {
+      icon: "body-outline" as const,
+      title: "Body measurements",
+      description: "Weigh-ins and tape measurements",
+      onPress: () => journal("measurement"),
+    },
+    {
+      icon: "pulse-outline" as const,
+      title: "Recovery",
+      description: "Sleep, energy and soreness check-ins",
+      onPress: () => journal("recovery"),
+    },
+    {
+      icon: "options-outline" as const,
+      title: "Preferences",
+      description: "Training, nutrition, units, appearance and reminders",
+      onPress: () => router.push("/preferences"),
+    },
+    {
+      icon: "shield-checkmark-outline" as const,
+      title: "Account & privacy",
+      description: cloud
+        ? pending
+          ? `${plural(pending, "change")} waiting to sync`
+          : "Sync, backups, privacy and membership"
+        : "Guest mode · backups, privacy and membership",
+      onPress: () => router.push("/account"),
+    },
+  ];
   return (
     <ForgeScreen
       brand={
@@ -322,284 +219,15 @@ export default function You() {
         height={height && { ...height, source: "From your profile" }}
         onMeasurements={() => journal("measurement")}
       />
-
-      <ForgeCard testID="you-membership">
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <FText variant="overline" tone="accent">
-            Forge Premium
-          </FText>
-          <View
-            style={{
-              paddingHorizontal: 10,
-              minHeight: 24,
-              justifyContent: "center",
-              borderRadius: forge.radii.pill,
-              borderWidth: forge.border.card,
-              borderColor: c.cardBorder,
-              backgroundColor: c.cardRaised,
-            }}
-          >
-            <FText variant="label" weight="600">
-              {member.tier === "premium" ? "Premium" : "Free plan"}
-            </FText>
-          </View>
-        </View>
-        <FText variant="cardTitle" weight="700" header>
-          Membership is on the way
-        </FText>
-        <FText variant="label" tone="secondary">
-          {member.premiumAvailable
-            ? "Premium membership options are available."
-            : "Membership options will appear here when they're ready. There's nothing to buy yet."}
-        </FText>
-      </ForgeCard>
-
-      <SettingsGroup title="Training">
-        <ListRow
-          icon="flag-outline"
-          title="Training focus"
-          subtitle={[
-            experience ?? "Experience not set",
-            goal ?? "Goal not set",
-            restDay ? `Rests ${restDay}` : "No rest day",
-          ].join(" · ")}
-          onPress={() => setEditor("focus")}
-        />
-        <ListRow
-          icon="options-outline"
-          title="Training preferences"
-          subtitle={`${p.frequency}× a week · ${p.rest}s rest · ${p.repMin}–${p.repMax} reps · +${loadText(p.increment, p.units).replace(" ", "\u00a0")}`}
-          onPress={() => setEditor("training")}
-        />
-        <ListRow
-          icon="nutrition-outline"
-          title="Nutrition targets"
-          subtitle={
-            targetsPersonalized(p, r.setting(TARGETS_SAVED) === "1")
-              ? `${p.calories.toLocaleString()} kcal · ${p.protein} g protein`
-              : "Not set"
-          }
-          onPress={() => setEditor("nutrition")}
-        />
-        <ListRow
-          icon="water-outline"
-          title="Hydration"
-          subtitle={`${
-            p.waterGoal === undefined
-              ? "No daily goal"
-              : `${volumeText(p.waterGoal, fluidUnitOf(p))} a day`
-          } · ${unitLabel(fluidUnitOf(p))}`}
-          onPress={() => setHydration(true)}
-        />
-      </SettingsGroup>
-
-      <SettingsGroup title="Health & body">
-        <ListRow
-          icon="body-outline"
-          title="Body measurements"
-          onPress={() => journal("measurement")}
-        />
-        <ListRow
-          icon="restaurant-outline"
-          title="Nutrition log"
-          onPress={() => router.navigate(NUTRITION_TODAY)}
-        />
-        <ListRow
-          icon="pulse-outline"
-          title="Recovery"
-          onPress={() => journal("recovery")}
-        />
-        <ListRow
-          icon="trophy-outline"
-          title="Goals"
-          onPress={() => journal("goal")}
-        />
-      </SettingsGroup>
-
-      <SettingsGroup
-        title="Notifications"
-        footer="Rest-timer alerts and scheduled workout reminders. Workouts and in-app timers work either way."
-      >
-        <ListRow
-          icon="notifications-outline"
-          title="Training reminders"
-          subtitle={p.notifications ? "On" : "Off"}
-          accessibilityLabel="Training reminders"
-          chevron={false}
-          onPress={() => toggleNotifications(r)}
-          trailing={
-            <Switch
-              accessibilityLabel="Training reminders switch"
-              value={p.notifications}
-              onValueChange={() => toggleNotifications(r)}
-              trackColor={{ true: c.ember, false: c.surfaceRaised }}
-              thumbColor={c.text}
-            />
-          }
-        />
-      </SettingsGroup>
-
-      <SettingsGroup title="App">
-        <ControlRow title="Units">
-          <ForgeSegments
-            accessibilityLabel="Units"
-            options={[
-              { value: "kg", label: "Kilograms" },
-              { value: "lb", label: "Pounds" },
-            ]}
-            value={p.units}
-            onChange={(units) =>
-              mutate(() => r.saveProfile({ units: units as "kg" | "lb" }))
-            }
-          />
-        </ControlRow>
-        <ControlRow title="Appearance">
-          <ForgeSegments
-            accessibilityLabel="Appearance"
-            options={[
-              { value: "dark", label: "Dark" },
-              { value: "light", label: "Light" },
-              { value: "system", label: "System" },
-            ]}
-            value={p.theme}
-            onChange={(t) =>
-              mutate(() =>
-                r.saveProfile({ theme: t as "dark" | "light" | "system" }),
-              )
-            }
-          />
-        </ControlRow>
-      </SettingsGroup>
-
-      <SettingsGroup title="Account & data">
-        <ListRow
-          icon="cloud-outline"
-          title="Account & cloud sync"
-          subtitle={
-            cloud
-              ? pending
-                ? `${plural(pending, "change")} waiting to sync`
-                : "Sign in to sync across devices"
-              : "Guest mode · data stays on this device"
-          }
-          onPress={() => router.push("/account")}
-        />
-        <ListRow
-          icon="download-outline"
-          title="Export backup"
-          subtitle={backup.text}
-          accessibilityLabel="Export backup"
-          onPress={() => setBackupOpen(true)}
-        />
-        <ListRow
-          icon="push-outline"
-          title="Import backup"
-          subtitle="Replace this device's data from a backup"
-          onPress={() => void importData()}
-        />
-        <ListRow
-          icon="shield-checkmark-outline"
-          title="Privacy & training guidance"
-          onPress={() => setInfo(true)}
-        />
-        <ListRow
-          icon="trash-outline"
-          title="Delete all local data"
-          destructive
-          onPress={() =>
-            confirm(
-              "Delete all local data?",
-              "Every workout, template, preference and journal entry on this phone is deleted, and FORGE starts again from setup. This can't be undone, so export a backup first. Your cloud account and cloud records are not deleted; a later sync can restore them.",
-              () => {
-                r.clearData();
-                void cancelAllNotifications().catch((e) =>
-                  Alert.alert("Reminder cleanup failed", String(e)),
-                );
-                router.replace("/onboarding");
-              },
-              { action: "Delete everything" },
-            )
-          }
-        />
-      </SettingsGroup>
-
-      <SettingsGroup title="About">
-        <ListRow
-          title={`FORGE ${version}`}
-          accessibilityLabel={
-            cloud
-              ? `FORGE version ${version}, local schema v1, ${pending} pending sync records`
-              : `FORGE version ${version}, local schema v1`
-          }
-          // Guest mode never syncs, so a waiting count would only confuse;
-          // the outbox itself is unchanged.
-          subtitle={
-            cloud
-              ? `Local schema v1 · ${plural(pending, "pending sync record")}`
-              : "Local schema v1 · guest mode"
-          }
-        />
-        {__DEV__ && (
-          <ListRow
-            icon="flame-outline"
-            title="Replay intro (development only)"
-            onPress={replayIntro}
-          />
-        )}
-        {__DEV__ && (
-          <ListRow
-            icon="color-palette-outline"
-            title="Design system (development only)"
-            onPress={() => router.push("/design-system")}
-          />
-        )}
-      </SettingsGroup>
-
-      <InfoSheet
-        visible={info}
-        onClose={() => setInfo(false)}
-        title="Privacy & training guidance"
-        paragraphs={privacy}
-      />
-      <BackupSheet visible={backupOpen} onClose={() => setBackupOpen(false)} />
-      <Sheet
-        visible={!!editor}
-        onClose={close}
-        title={editor ? editors[editor].title : ""}
-        unsaved={dirty}
-      >
-        {editor && (
-          <ProfileForm
-            key={editor}
-            fields={editors[editor].fields}
-            saveLabel={editors[editor].save}
-            onDirtyChange={setDirty}
-            onCancel={() => (dirty ? confirmDiscard(close) : close())}
-            preview={(name) => <IdentityPreview name={name} />}
-            onDone={() => {
-              // Called only after a successful save: the targets are now the
-              // lifter's own, even if they match the suggested defaults.
-              if (editor === "nutrition")
-                mutate(() => r.setSetting(TARGETS_SAVED, "1"));
-              close();
-            }}
-          />
-        )}
-      </Sheet>
-      {/* The same goal and unit fields as the hydration sheet (7.3C, H8). */}
-      <Sheet
-        visible={hydration}
-        onClose={() => setHydration(false)}
-        title="Hydration"
-      >
-        <HydrationSettings />
-      </Sheet>
+      <View style={{ gap: forge.spacing.tight, marginTop: 6 }}>
+        <SectionLabel title="Tools & settings" />
+        <ForgeCard padding={0} gap={0} testID="you-tools">
+          {tools.map((t, i) => (
+            <ForgeListRow key={t.title} {...t} divider={i > 0} />
+          ))}
+        </ForgeCard>
+      </View>
+      <EditorSheet editor={editor} onClose={() => setEditor(undefined)} />
     </ForgeScreen>
   );
 }

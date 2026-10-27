@@ -3,7 +3,6 @@ import { Alert, Text, Linking } from "react-native";
 import { render, fireEvent } from "@testing-library/react-native";
 import { router } from "expo-router";
 import WorkoutScreen from "../../src/screens/Workout";
-import You from "../../src/screens/You";
 import Templates from "../../app/templates";
 import JournalScreen from "../../src/screens/Journal";
 import Account from "../../app/account";
@@ -309,13 +308,13 @@ test("Done without backing up snoozes the reminder (Not now) and returns to trai
   }
 });
 
-test("You reports shared copies as unconfirmed and folder saves as backups", async () => {
+test("Account & privacy reports shared copies as unconfirmed and folder saves as backups", async () => {
   const { r, db } = pathRepository();
   try {
     const { w } = workout(r);
     r.finishWorkout(w.id);
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<You />);
+    const view = await render(<Account />);
     expect(
       view.getByText("Never backed up · 1 workout on this phone"),
     ).toBeTruthy();
@@ -324,7 +323,7 @@ test("You reports shared copies as unconfirmed and folder saves as backups", asy
     expect(view.getByText(/can't confirm it was saved/)).toBeTruthy();
     await fireEvent.press(view.getByLabelText("Share a copy"));
     expect(shareBackup).toHaveBeenCalledWith(r);
-    await view.rerender(<You />);
+    await view.rerender(<Account />);
     expect(
       view.getAllByText(/^Shared today · not confirmed saved/).length,
     ).toBeGreaterThan(0);
@@ -332,7 +331,7 @@ test("You reports shared copies as unconfirmed and folder saves as backups", asy
     await fireEvent.press(view.getByLabelText("Export backup"));
     await fireEvent.press(view.getByLabelText("Save to a folder"));
     expect(saveBackupToFolder).toHaveBeenCalledWith(r);
-    await view.rerender(<You />);
+    await view.rerender(<Account />);
     expect(view.getAllByText("Last backup today").length).toBeGreaterThan(0);
   } finally {
     db.close();

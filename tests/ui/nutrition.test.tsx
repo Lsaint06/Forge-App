@@ -12,7 +12,7 @@ import { findEventHandler } from "@testing-library/react-native/dist/events/prop
 import type { TestInstance } from "test-renderer";
 import { router } from "expo-router";
 import JournalScreen from "../../src/screens/Journal";
-import You from "../../src/screens/You";
+import Preferences from "../../src/screens/Preferences";
 import { DateSheet } from "../../src/components/DateSheet";
 import { useRepo, confirm } from "../../src/state";
 import { pathRepository } from "../path-fixture";
@@ -730,12 +730,12 @@ test("the Goals nutrition metric still reads today's calories", async () => {
   }
 });
 
-test("You shows targets only once they are the lifter's own, recorded after a successful save", async () => {
+test("Preferences shows targets only once they are the lifter's own, recorded after a successful save", async () => {
   const { r, db } = pathRepository();
   try {
     r.saveProfile({ onboarded: true, name: "Alex", height: 180, weight: 80 });
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<You />);
+    const view = await render(<Preferences />);
     const hint = () =>
       view.getByLabelText("Nutrition targets").props.accessibilityHint;
     expect(hint()).toBe("Not set");
@@ -765,7 +765,7 @@ test("You shows targets only once they are the lifter's own, recorded after a su
       carbs: 200,
       fat: 65,
     });
-    await view.rerender(<You />);
+    await view.rerender(<Preferences />);
     expect(hint()).toBe("2,000 kcal · 150 g protein");
   } finally {
     db.close();
@@ -774,7 +774,7 @@ test("You shows targets only once they are the lifter's own, recorded after a su
   try {
     own.r.saveProfile({ onboarded: true, calories: 2600 });
     jest.mocked(useRepo).mockReturnValue(own.r);
-    const view = await render(<You />);
+    const view = await render(<Preferences />);
     expect(
       view.getByLabelText("Nutrition targets").props.accessibilityHint,
     ).toBe("2,600 kcal · 150 g protein");

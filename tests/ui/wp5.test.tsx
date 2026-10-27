@@ -42,8 +42,6 @@ jest.mock("../../src/platform/backup", () => ({
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const state = require("../../src/state") as typeof import("../../src/state");
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const You = require("../../src/screens/You").default as React.FC;
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const ExerciseScreen = require("../../app/exercise").default as React.FC;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Explore = require("../../app/explore").default as React.FC;
@@ -119,13 +117,13 @@ test("confirmations name their action; the default stays Confirm", () => {
   expect(buttons[1]).toMatchObject({ text: "Confirm", style: "destructive" });
 });
 
-test("You: delete-all and backup replacement say exactly what happens", async () => {
+test("Account & privacy: delete-all and backup replacement say exactly what happens", async () => {
   const { r, db } = pathRepository();
   fixture.r = r;
   try {
     r.saveProfile({ onboarded: true, name: "Alex" });
     r.addJournal("measurement", { name: "Bodyweight", value: 80, unit: "kg" });
-    const view = await render(<You />);
+    const view = await render(<Account />);
     await fireEvent.press(view.getByLabelText("Delete all local data"));
     const del = last("Delete all local data?");
     expect(del.message).toMatch(/can't be undone/);
@@ -348,7 +346,10 @@ test("Account has a plain title and a back control; guest mode is explained", as
   fixture.r = r;
   try {
     const view = await render(<Account />);
-    expect(view.getByRole("header", { name: "Account" })).toBeTruthy();
+    // 7.5D: Account & privacy (membership, data and About moved here).
+    expect(
+      view.getByRole("header", { name: "Account & privacy" }),
+    ).toBeTruthy();
     expect(view.queryByText("Your data. Your choice.")).toBeNull();
     expect(view.getByText("Guest mode is active")).toBeTruthy();
     await fireEvent.press(view.getByLabelText("Back"));

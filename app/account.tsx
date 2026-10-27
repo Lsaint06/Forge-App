@@ -15,14 +15,21 @@ import { goBack } from "../src/navigation";
 import { useRepo, useApp, confirm } from "../src/state";
 import { cloudClient, transport } from "../src/cloud/client";
 import { synchronize } from "../src/cloud/sync";
+import {
+  AboutForge,
+  DataPrivacy,
+  MembershipCard,
+} from "../src/screens/you/account";
 const MODES = [
   { value: "Login", label: "Sign in" },
   { value: "Register", label: "Create account" },
   { value: "Reset password", label: "Reset password" },
 ];
 
-// Account and sync. Presentation only here: the auth, sync and conflict
-// handling below is protected and unchanged.
+// Account & privacy: account and sync, then (Phase 7.5D) membership, data
+// and privacy, and About, moved here from the You tab unchanged. The auth,
+// sync and conflict handling below is protected and unchanged; this screen's
+// redesign is Phase 7.5G.
 export default function Account() {
   const r = useRepo();
   const client = cloudClient();
@@ -128,7 +135,7 @@ export default function Account() {
     }
   }
   return (
-    <Screen title="Account" onBack={() => goBack("/(tabs)/profile")}>
+    <Screen title="Account & privacy" onBack={() => goBack("/(tabs)/profile")}>
       {!client ? (
         <Card>
           <Txt variant="headline" header>
@@ -137,7 +144,7 @@ export default function Account() {
           <Txt tone="secondary">
             Cloud accounts aren&apos;t available in this version, so your
             training data stays on this phone. Export a backup regularly from
-            You → Export backup and keep the file somewhere safe.
+            Data &amp; privacy below and keep the file somewhere safe.
           </Txt>
         </Card>
       ) : user ? (
@@ -309,6 +316,9 @@ export default function Account() {
           />
         </Card>
       ))}
+      <MembershipCard />
+      <DataPrivacy />
+      <AboutForge />
     </Screen>
   );
 }

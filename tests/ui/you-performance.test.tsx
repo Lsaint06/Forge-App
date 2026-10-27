@@ -371,7 +371,8 @@ test("hierarchy: identity, plan, strip, primary goal, My stats, then settings", 
       "you-performance",
       "you-goal",
       "you-stats",
-      "you-membership",
+      // 7.5D: one Tools & settings card ends the tab.
+      "you-tools",
     ];
     const seen: string[] = [];
     for (const n of view.container.queryAll((n) =>
@@ -380,14 +381,14 @@ test("hierarchy: identity, plan, strip, primary goal, My stats, then settings", 
       if (!seen.includes(n.props.testID as string))
         seen.push(n.props.testID as string);
     expect(seen).toEqual(order);
-    // The approved identity and settings are still there.
+    // The approved identity is still there, and settings are one tap away.
     expect(view.getByRole("header", { name: "Alex Carter" })).toBeTruthy();
     expect(view.getByRole("button", { name: "Edit profile" })).toBeTruthy();
     for (const label of [
-      "Training focus",
       "Body measurements",
       "Goals",
-      "Account & cloud sync",
+      "Preferences",
+      "Account & privacy",
     ])
       expect(view.getByLabelText(label)).toBeTruthy();
   } finally {

@@ -2,14 +2,17 @@ import React from "react";
 import { render, fireEvent } from "@testing-library/react-native";
 import { router } from "expo-router";
 import You from "../../src/screens/You";
+import Preferences from "../../src/screens/Preferences";
+import Account from "../../app/account";
 import { useRepo, confirm } from "../../src/state";
 import { pathRepository } from "../path-fixture";
 import { libraryPrograms } from "../../src/programs";
 import { enrollProgram } from "../../src/data/programs";
 import { cancelAllNotifications } from "../../src/notifications";
 
-// Phase 6: the You tab profile and grouped settings; the lifetime snapshot is
-// the performance strip since Phase 7.5C.
+// Phase 6: the You tab profile and settings. The lifetime snapshot is the
+// performance strip since Phase 7.5C; since 7.5D the settings live in
+// Preferences and the data actions in Account & privacy.
 
 jest.mock("../../src/state", () => ({
   useRepo: jest.fn(),
@@ -73,7 +76,8 @@ test("a new lifter sees their identity, an empty performance strip and no plan",
     ).toBeTruthy();
     // No row of zeros for someone who hasn't trained.
     expect(view.queryByLabelText(/^Workouts? completed: /)).toBeNull();
-    expect(view.getByText("Free plan")).toBeTruthy();
+    // 7.5D: membership is shown in Account & privacy, not on You.
+    expect(view.queryByTestId("you-membership")).toBeNull();
     expect(view.queryByText(/\$|subscribe|purchase/i)).toBeNull();
     // No plan: the plan card says so and opens Forge Paths.
     expect(view.getByRole("header", { name: "No active plan" })).toBeTruthy();
@@ -131,9 +135,12 @@ test("focused editors save only their own fields", async () => {
     expect(r.profile().name).toBe("Sam");
     expect(r.profile().calories).toBe(2000);
 
-    await fireEvent.press(view.getByLabelText("Nutrition targets"));
-    await fireEvent.changeText(view.getByLabelText("Protein goal (g)"), "180");
-    await fireEvent.press(view.getByText("Save targets"));
+    // Nutrition targets is in Preferences (7.5D): the same editor.
+    await view.unmount();
+    const prefs = await render(<Preferences />);
+    await fireEvent.press(prefs.getByLabelText("Nutrition targets"));
+    await fireEvent.changeText(prefs.getByLabelText("Protein goal (g)"), "180");
+    await fireEvent.press(prefs.getByText("Save targets"));
     expect(r.profile().protein).toBe(180);
     expect(r.profile().name).toBe("Sam");
   } finally {
@@ -155,12 +162,12 @@ test("Library's complete-profile link opens the training focus editor", async ()
   }
 });
 
-test("units, appearance and reminders save instantly", async () => {
+test("units, appearance and reminders save instantly (Preferences)", async () => {
   const { r, db } = pathRepository();
   try {
     r.saveProfile({ onboarded: true, units: "kg", theme: "dark" });
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<You />);
+    const view = await render(<Preferences />);
     await fireEvent.press(view.getByText("Pounds"));
     expect(r.profile().units).toBe("lb");
     await fireEvent.press(view.getByText("Light"));
@@ -185,8 +192,11 @@ test("account, history, journals and data actions stay reachable", async () => {
     finished(r);
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<You />);
-    await fireEvent.press(view.getByLabelText("Account & cloud sync"));
+    // 7.5D: one Tools & settings card on You.
+    await fireEvent.press(view.getByLabelText("Account & privacy"));
     expect(router.push).toHaveBeenLastCalledWith("/account");
+    await fireEvent.press(view.getByLabelText("Preferences"));
+    expect(router.push).toHaveBeenLastCalledWith("/preferences");
     await fireEvent.press(view.getByLabelText("Training history"));
     expect(router.push).toHaveBeenLastCalledWith("/history");
     for (const [label, kind] of [
@@ -200,18 +210,20 @@ test("account, history, journals and data actions stay reachable", async () => {
         params: { kind },
       });
     }
-    // Phase 7.1A: Nutrition is a tab; the row switches to it.
-    await fireEvent.press(view.getByLabelText("Nutrition log"));
-    expect(router.navigate).toHaveBeenLastCalledWith({
-      pathname: "/(tabs)/nutrition",
-      params: { day: "today" },
-    });
-    await fireEvent.press(view.getByLabelText("Privacy & training guidance"));
-    expect(view.getByText(/No advertising or analytics SDK/)).toBeTruthy();
-    expect(view.getByLabelText("Export backup")).toBeTruthy();
-    expect(view.getByLabelText("Import backup")).toBeTruthy();
+    // Nutrition is a tab (7.1A); You no longer repeats it as a row.
+    expect(view.queryByLabelText("Nutrition log")).toBeNull();
+    await view.unmount();
 
-    await fireEvent.press(view.getByLabelText("Delete all local data"));
+    // The data actions, unchanged, in Account & privacy.
+    const account = await render(<Account />);
+    await fireEvent.press(
+      account.getByLabelText("Privacy & training guidance"),
+    );
+    expect(account.getByText(/No advertising or analytics SDK/)).toBeTruthy();
+    expect(account.getByLabelText("Export backup")).toBeTruthy();
+    expect(account.getByLabelText("Import backup")).toBeTruthy();
+
+    await fireEvent.press(account.getByLabelText("Delete all local data"));
     expect(confirm).toHaveBeenCalledWith(
       "Delete all local data?",
       expect.stringContaining("export a backup first"),

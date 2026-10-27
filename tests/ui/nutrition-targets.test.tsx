@@ -3,7 +3,7 @@ import { Alert, StyleSheet } from "react-native";
 import { render, fireEvent, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
 import NutritionTab from "../../app/(tabs)/nutrition";
-import You from "../../src/screens/You";
+import Preferences from "../../src/screens/Preferences";
 import { TARGETS_SAVED } from "../../src/domain/nutrition";
 import { theme } from "../../src/theme";
 import { pathRepository } from "../path-fixture";
@@ -249,14 +249,14 @@ test("unsaved changes: Cancel and Close ask first; Keep editing stays, Discard k
   }
 });
 
-test("the You editor and the Nutrition sheet share the same targets, both ways", async () => {
+test("the Preferences editor and the Nutrition sheet share the same targets, both ways", async () => {
   const { r, db } = setup();
   try {
     // Both screens at once, as in the app's tabs: no remounting.
     const view = await render(
       <>
         <NutritionTab />
-        <You />
+        <Preferences />
       </>,
     );
     await fireEvent.press(
@@ -267,7 +267,7 @@ test("the You editor and the Nutrition sheet share the same targets, both ways",
     expect(
       view.getByLabelText("Nutrition targets").props.accessibilityHint,
     ).toBe("2,500 kcal · 150 g protein");
-    // You's editor opens on what Nutrition saved, and saves through the profile.
+    // The Preferences editor opens on what Nutrition saved, and saves through the profile.
     await fireEvent.press(view.getByLabelText("Nutrition targets"));
     expect(value(view, "Daily calorie goal (kcal)")).toBe("2500");
     await type(view, "Daily calorie goal (kcal)", "2700");

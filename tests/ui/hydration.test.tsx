@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react-native";
 import { findEventHandler } from "@testing-library/react-native/dist/events/propagation";
 import NutritionTab from "../../app/(tabs)/nutrition";
-import You from "../../src/screens/You";
+import Preferences from "../../src/screens/Preferences";
 import { useRepo, confirm } from "../../src/state";
 import { pathRepository } from "../path-fixture";
 import { addDays } from "../../src/domain/paths/model";
@@ -189,7 +189,7 @@ test("entries can be edited and deleted (with confirmation)", async () => {
   }
 });
 
-test("a personal goal gives percentage and remainder; the same goal shows in You", async () => {
+test("a personal goal gives percentage and remainder; the same goal shows in Preferences", async () => {
   const { r, db } = pathRepository();
   try {
     r.saveProfile({ onboarded: true });
@@ -218,9 +218,9 @@ test("a personal goal gives percentage and remainder; the same goal shows in You
       ),
     ).toBeTruthy();
     expect(view.getByText("70%")).toBeTruthy();
-    // You edits the same fields: one value, no conflict (H8).
+    // Preferences (You, 7.5D) edits the same fields: one value, no conflict (H8).
     await view.unmount();
-    const you = await render(<You />);
+    const you = await render(<Preferences />);
     expect(you.getByText("3.0 L a day · mL")).toBeTruthy();
     await fireEvent.press(you.getByRole("button", { name: "Hydration" }));
     await fireEvent.press(you.getByRole("tab", { name: "US fluid ounces" }));

@@ -3,6 +3,7 @@ import { Alert, StyleSheet } from "react-native";
 import { act, render, fireEvent, within } from "@testing-library/react-native";
 import { router } from "expo-router";
 import You from "../../src/screens/You";
+import Preferences from "../../src/screens/Preferences";
 import { useRepo } from "../../src/state";
 import { pathRepository } from "../path-fixture";
 import { freshPathRepository } from "../legacy-fixture";
@@ -382,10 +383,12 @@ test("Edit profile has no body fat field, and saving keeps a stored body fat val
       weight: 80,
       bodyFat: 18.5,
     });
-    // An unrelated editor keeps it too.
-    await fireEvent.press(view.getByText("Training preferences"));
-    await fireEvent.press(view.getByText("Save preferences"));
-    expect(view.queryByText("Save preferences")).toBeNull();
+    // An unrelated editor (in Preferences since 7.5D) keeps it too.
+    await view.unmount();
+    const prefs = await render(<Preferences />);
+    await fireEvent.press(prefs.getByText("Training preferences"));
+    await fireEvent.press(prefs.getByText("Save preferences"));
+    expect(prefs.queryByText("Save preferences")).toBeNull();
     expect(r.profile().bodyFat).toBe(18.5);
   } finally {
     db.close();
@@ -462,38 +465,13 @@ test("every editor entry point opens its REFORGE editor; only Edit profile previ
   try {
     r.saveProfile({ onboarded: true });
     jest.mocked(useRepo).mockReturnValue(r);
-    const view = await render(<You />);
-    const entries: [() => Promise<unknown>, string, string][] = [
-      [
-        () =>
-          fireEvent.press(
-            identity(view).getByRole("button", { name: "Edit profile" }),
-          ),
-        "Save profile",
-        "Identity",
-      ],
-      [
-        () =>
-          fireEvent.press(
-            identity(view).getByRole("button", {
-              name: "Set your training focus",
-            }),
-          ),
-        "Save training focus",
-        "Save training focus",
-      ],
-      [
-        () => fireEvent.press(view.getByText("Training preferences")),
-        "Save preferences",
-        "Progression",
-      ],
-      [
-        () => fireEvent.press(view.getByText("Nutrition targets")),
-        "Save targets",
-        "Daily targets",
-      ],
-    ];
-    for (const [open, save, group] of entries) {
+    type View = Awaited<ReturnType<typeof render>>;
+    const check = async (
+      view: View,
+      open: () => Promise<unknown>,
+      save: string,
+      group: string,
+    ) => {
       await open();
       expect(view.getByText(save)).toBeTruthy();
       expect(view.getByText(group)).toBeTruthy();
@@ -503,12 +481,47 @@ test("every editor entry point opens its REFORGE editor; only Edit profile previ
       );
       await fireEvent.press(view.getByRole("button", { name: "Cancel" }));
       expect(view.queryByText(save)).toBeNull();
-    }
+    };
+    // On You: Edit profile and the focus invitation.
+    const you = await render(<You />);
+    await check(
+      you,
+      () =>
+        fireEvent.press(
+          identity(you).getByRole("button", { name: "Edit profile" }),
+        ),
+      "Save profile",
+      "Identity",
+    );
+    await check(
+      you,
+      () =>
+        fireEvent.press(
+          identity(you).getByRole("button", {
+            name: "Set your training focus",
+          }),
+        ),
+      "Save training focus",
+      "Save training focus",
+    );
+    await you.unmount();
+    // In Preferences (7.5D): the same editors.
+    const prefs = await render(<Preferences />);
+    for (const [row, save, group] of [
+      ["Training focus", "Save training focus", "Save training focus"],
+      ["Training preferences", "Save preferences", "Progression"],
+      ["Nutrition targets", "Save targets", "Daily targets"],
+    ] as const)
+      await check(
+        prefs,
+        () => fireEvent.press(prefs.getByLabelText(row)),
+        save,
+        group,
+      );
   } finally {
     db.close();
   }
 });
-
 test("the editor holds up on compact screens, large text and the light palette", async () => {
   const { r, db } = pathRepository();
   try {
