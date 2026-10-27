@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View } from "react-native";
+import { Pressable, View, useWindowDimensions } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import {
   CardHeader,
@@ -8,10 +9,14 @@ import {
   ForgeCard,
   ForgeLineChart,
   ForgeSegments,
+  Gradient,
   Metric,
   OutlineButton,
   StatStrip,
+  pairFits,
 } from "../../components/reforge";
+import { useColors } from "../../components/ui";
+import type { IconName } from "../../components/ui";
 import { InfoButton } from "../../components/system";
 import {
   GAP_DAYS,
@@ -25,7 +30,17 @@ import {
   bodyweightOver,
   percentText,
 } from "../../domain/presentation/bodyweight";
-import { compactNumber } from "../../domain/progress/format";
+import {
+  categoryLabel,
+  compactNumber,
+  estimateText,
+  loadText,
+  setText,
+  signed,
+} from "../../domain/progress/format";
+import type { RecordEvent } from "../../domain/progress/strength";
+import type { RecordGain } from "../../domain/presentation/records";
+import { forge } from "../../theme";
 import { rangeLabels, type RangeWindow } from "../../domain/progress/range";
 import type { PeriodSummary } from "../../domain/progress/consistency";
 import { loadIn } from "../../domain/workout-display";
@@ -291,5 +306,308 @@ export function TrainingVolumeCard({
         />
       )}
     </ForgeCard>
+  );
+}
+
+// ---- Rows card ------------------------------------------------------------------
+
+/**
+ * A card whose body is full-width rows (`ForgeListRow` brings its own
+ * padding): the header and any summary sit in a padded area above them.
+ */
+export function RowsCard({
+  header,
+  summary,
+  children,
+  testID,
+}: {
+  header: React.ReactNode;
+  summary?: React.ReactNode;
+  children: React.ReactNode;
+  testID?: string;
+}) {
+  return (
+    <ForgeCard padding={0} gap={0} testID={testID}>
+      <View
+        style={{
+          padding: forge.spacing.cardPadding,
+          paddingBottom: forge.spacing.tight,
+          gap: forge.spacing.group,
+        }}
+      >
+        {header}
+        {summary}
+      </View>
+      {children}
+    </ForgeCard>
+  );
+}
+
+// ---- PR highlight and all-time stats ---------------------------------------------
+
+const reps = (n: number) => `${n.toLocaleString()} ${n === 1 ? "rep" : "reps"}`;
+
+/** The record's own number, what it is, and how far it moved (P1). */
+export function recordFigures(
+  event: RecordEvent,
+  gain: RecordGain | undefined,
+  units: Units,
+) {
+  const category = event.categories[0]!;
+  const label = categoryLabel[category];
+  const figures =
+    category === "heaviest"
+      ? {
+          value: loadText(event.heaviest!.weight, units),
+          detail: `${label} · ${reps(event.heaviest!.reps)}`,
+        }
+      : category === "e1rm"
+        ? {
+            value: estimateText(event.e1rm!.value, units),
+            detail: `${label} · from ${setText(event.e1rm!.set, units)}`,
+          }
+        : category === "reps-at-weight"
+          ? {
+              value: reps(event.repsAtWeight!.reps),
+              detail: `${label} · at ${loadText(event.repsAtWeight!.weight, units)}`,
+            }
+          : { value: reps(event.mostReps!), detail: label };
+  const delta = !gain
+    ? undefined
+    : category === "heaviest" || category === "e1rm"
+      ? signed(loadIn(gain.delta, units), units)
+      : `+${reps(gain.delta)}`;
+  return { ...figures, delta };
+}
+
+/**
+ * The newest personal record (decision P1): trophy, exercise, the record's
+ * number, its gain over the best it beat, and the day. Opens the exercise;
+ * the header opens every record. Without a record, an honest empty state.
+ */
+export function RecordHighlightCard({
+  event,
+  gain,
+  name,
+  units,
+}: {
+  event?: RecordEvent;
+  gain?: RecordGain;
+  name?: string;
+  units: Units;
+}) {
+  const c = useColors();
+  const header = (
+    <CardHeader
+      title="PR highlight"
+      onPress={() => router.push("/records")}
+      accessibilityLabel="PR highlight. Open all records"
+    />
+  );
+  if (!event || !name)
+    return (
+      <ForgeCard testID="pr-highlight" style={{ flex: 1 }}>
+        {header}
+        <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+          <Ionicons name="trophy-outline" size={26} color={c.text2} />
+          <FText variant="body" tone="secondary" style={{ flex: 1 }}>
+            No records yet. Beat a previous best and your newest record shows
+            here.
+          </FText>
+        </View>
+      </ForgeCard>
+    );
+  const f = recordFigures(event, gain, units);
+  return (
+    <ForgeCard testID="pr-highlight" variant="active" style={{ flex: 1 }}>
+      <Gradient
+        kind="radial"
+        center={{ x: 0.9, y: 0.7 }}
+        radius={{ x: 0.75, y: 0.9 }}
+        stops={[
+          { offset: 0, color: c.emberHot, opacity: 0.22 },
+          { offset: 1, color: c.emberHot, opacity: 0 },
+        ]}
+      />
+      {header}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${name}: ${f.value}, ${f.detail}${f.delta ? `, ${f.delta} over your previous best` : ""}, ${dayLabel(event.date)}. Open exercise`}
+        onPress={() =>
+          router.push({
+            pathname: "/exercise",
+            params: { id: event.exerciseId },
+          })
+        }
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          gap: 10,
+          opacity: pressed ? 0.7 : 1,
+        })}
+      >
+        <Ionicons
+          name="trophy"
+          size={30}
+          color={c.emberHot}
+          style={{ marginTop: 2 }}
+        />
+        <View style={{ flex: 1, gap: 2 }}>
+          <FText variant="cardTitle" weight="700" numberOfLines={2}>
+            {name}
+          </FText>
+          <FText variant="cardMetric" numberOfLines={1} fit>
+            {f.value}
+          </FText>
+          {f.delta && (
+            <FText variant="cardTitle" weight="700" tone="accent">
+              {f.delta}
+            </FText>
+          )}
+          <FText variant="label" tone="secondary" numberOfLines={2}>
+            {f.detail}
+          </FText>
+          <FText variant="label" tone="secondary">
+            {`New personal record · ${dayLabel(event.date)}`}
+          </FText>
+        </View>
+      </Pressable>
+    </ForgeCard>
+  );
+}
+
+/** "7h 32m", "45m", "120h": total training time, as the reference shows it. */
+export function hoursText(seconds: number) {
+  const minutes = Math.round(seconds / 60);
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (!h) return `${m}m`;
+  if (h >= 100) return `${h.toLocaleString()}h`;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+const spokenHours = (seconds: number) => {
+  const minutes = Math.round(seconds / 60);
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const part = (n: number, w: string) =>
+    `${n.toLocaleString()} ${w}${n === 1 ? "" : "s"}`;
+  return [h ? part(h, "hour") : "", m || !h ? part(m, "minute") : ""]
+    .filter(Boolean)
+    .join(" ");
+};
+
+function StatLine({
+  icon,
+  value,
+  unit,
+  label,
+  spoken,
+}: {
+  icon: IconName;
+  value: string;
+  unit?: string;
+  label: string;
+  spoken: string;
+}) {
+  const c = useColors();
+  return (
+    <View
+      accessible
+      accessibilityLabel={spoken}
+      style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+    >
+      <Ionicons
+        name={icon}
+        size={22}
+        color={c.emberHot}
+        style={{ width: 24 }}
+      />
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4 }}>
+          <FText variant="statMetric" numberOfLines={1} fit>
+            {value}
+          </FText>
+          {unit && (
+            <FText variant="label" tone="secondary">
+              {unit}
+            </FText>
+          )}
+        </View>
+        <FText variant="label" tone="secondary" numberOfLines={2}>
+          {label}
+        </FText>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Lifetime totals from the workout history: finished workouts (as You
+ * counts them), total load volume (Progress's own definition, so it equals
+ * the Training volume card over all time) and total training time (as You
+ * sums it). The header opens Training history.
+ */
+export function AllTimeStatsCard({
+  workouts,
+  volumeKg,
+  seconds,
+  units,
+}: {
+  workouts: number;
+  volumeKg: number;
+  seconds: number;
+  units: Units;
+}) {
+  const volume = Math.round(loadIn(volumeKg, units)).toLocaleString();
+  return (
+    <ForgeCard testID="all-time" style={{ flex: 1 }}>
+      <CardHeader
+        title="All-time stats"
+        onPress={() => router.push("/history")}
+        accessibilityLabel="All-time stats. Open training history"
+      />
+      <StatLine
+        icon="barbell-outline"
+        value={workouts.toLocaleString()}
+        label="Workouts"
+        spoken={`Total workouts: ${workouts.toLocaleString()}`}
+      />
+      <StatLine
+        icon="flame-outline"
+        value={volume}
+        unit={units}
+        label="Total volume"
+        spoken={`Total volume: ${volume} ${units}`}
+      />
+      <StatLine
+        icon="time-outline"
+        value={hoursText(seconds)}
+        label="Total training time"
+        spoken={`Total training time: ${spokenHours(seconds)}`}
+      />
+    </ForgeCard>
+  );
+}
+
+/** Two cards side by side where both fit (reference), stacked otherwise. */
+export function CardPair({
+  children,
+  min = 170,
+}: {
+  children: [React.ReactNode, React.ReactNode];
+  min?: number;
+}) {
+  const { width, fontScale } = useWindowDimensions();
+  const side = pairFits(width - 2 * forge.spacing.margin, fontScale, min);
+  return (
+    <View
+      testID="card-pair"
+      style={{
+        flexDirection: side ? "row" : "column",
+        gap: forge.spacing.cardGap,
+        alignItems: "stretch",
+      }}
+    >
+      {children}
+    </View>
   );
 }

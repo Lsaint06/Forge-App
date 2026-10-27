@@ -428,3 +428,29 @@ Unknown barcodes become the lifter's own foods, entered once from the package la
 | Training volume | Header with "How volume is counted"; **Volume · Workouts** segments. Volume: the range's load (Σ weight × reps of working sets with external load) in the lifter's unit, its working sets beneath, ember bars per week or month ("14.2k kg"). Workouts: finished workouts, per week or month. Empty ranges say so |
 | Measurements | Other measurement series (bodyweight has its card), with chips, within the range (PD-2); All is every entry |
 | Sets by primary muscle | Unchanged content, its own section (7.4E restyles it) |
+
+### PR highlight, all-time stats and analytics cards (Phase 7.4E)
+
+**Final order** (supersedes the 7.4D list): range → Bodyweight → Training volume → **PR highlight | All-time stats** (side by side where both keep 170 pt at the current text size, otherwise stacked) → Strength → Consistency → Saved plans (legacy only) → Records → Sets by primary muscle → Training time → Measurements → More.
+
+**Overview removed (presentation only).** Each of its four range figures was already shown, or now is, by the card it belongs to:
+
+| Overview figure | Now in |
+| --- | --- |
+| Workouts | Consistency ("Workouts: 3"); Training volume's Workouts view |
+| Active weeks / On plan | Consistency, beside its own sentence and bars |
+| Records | Records ("Records: 2", "Set in the last 12 weeks") |
+| Volume | Training volume |
+
+The spoken labels are unchanged, and no statistic lost a place.
+
+| Card | Presentation |
+| --- | --- |
+| PR highlight | Ember-bordered card with a soft ember glow (no artwork, P6) and a trophy. Shows the exercise, the record's own number ("105 kg", "11 reps", an estimate), its gain over the best it beat in ember ("+5 kg", "+3 reps", P1), the record type ("Heaviest set · 5 reps", "Rep record · at 60 kg") and "New personal record · day". Tapping it opens the exercise; the header opens Records. **Choice ([presentation/records.ts](../../src/domain/presentation/records.ts)):** the newest record; same-workout ties go to heaviest set, then estimated 1RM, then reps at a weight, then most reps, then exercise id. The gain is read from the exercise's earlier session bests, the same way the records are found. With no record: "No records yet…" |
+| All-time stats | Lifetime figures, whatever the range: workouts (as You counts them), total volume (Progress's load volume, equal to Training volume over All) and total training time ("7h 32m", summed as You sums it), each with an ember icon. The header opens Training history |
+| Strength | One `ForgeCard`. Header with its information sheet; the exercise as an ember-chevron selector (picker sheet with REFORGE rows and search); **Est. 1RM · Heaviest set** segments; the chart; Latest and Previous; the change in ember when there is one; an "Exercise details" row |
+| Consistency | Header and information sheet, the **Workouts** and **On plan / Active weeks** strip, its sentence, bars against the plan, legend |
+| Records | Header and information sheet, the range's count, up to three record rows (each opens its workout), **All records** |
+| Sets by primary muscle | Ember bars against the most-trained muscle; Show all / Show fewer |
+| Training time | Average workout, total for the range, day streak |
+| Measurements | REFORGE chips and chart; the header opens Measurements |

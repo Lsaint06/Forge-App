@@ -3,26 +3,24 @@ import { View, Pressable } from "react-native";
 import { router } from "expo-router";
 import { NUTRITION_TODAY } from "../navigation";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  Card,
-  Txt,
-  Button,
-  Field,
-  Sheet,
-  Chips,
-  SegmentedControl,
-  useColors,
-} from "../components/ui";
+import { Txt, Sheet, useColors } from "../components/ui";
 import {
   BadgePill,
+  CardHeader,
   CtaButton,
+  FText,
   ForgeCard,
+  ForgeChips,
   ForgeEmpty,
+  ForgeListRow,
+  ForgeProgress,
   ForgeScreen,
   ForgeBarChart,
   ForgeLineChart,
+  ForgeSearchField,
   ForgeSegments,
   Metric as ForgeMetric,
+  OutlineButton,
   SectionLabel,
   StatStrip,
 } from "../components/reforge";
@@ -65,7 +63,6 @@ import {
   type Metric,
 } from "../domain/progress/strength";
 import {
-  compactNumber,
   estimateText,
   loadText,
   recordHeadline,
@@ -85,18 +82,22 @@ import {
   recordInfo,
   strengthInfo,
 } from "../domain/progress/explain";
-import { theme } from "../theme";
+import { forge } from "../theme";
 import { TitleBlock } from "./home/sections";
 import { homeClock, planContext } from "./home/model";
 import {
+  AllTimeStatsCard,
   BodyweightCard,
+  CardPair,
+  RecordHighlightCard,
+  RowsCard,
   TrainingVolumeCard,
   rangePhrase,
 } from "./progress/sections";
+import { latestRecord, recordGain } from "../domain/presentation/records";
 
-// Progress (REFORGE frame since Phase 7.4B; sections from Design System 2.0,
-// Phase 5): am I showing up, am I getting stronger, what have I
-// accomplished. Every number is derived from stored workouts and plans on
+// Progress (REFORGE, Phases 7.4B–E; analytics from Phase 5): am I showing up,
+// am I getting stronger, what have I accomplished. Every number is derived from stored workouts and plans on
 // demand; see docs/PROGRESS_METRICS.md.
 
 type Units = "kg" | "lb";
@@ -130,35 +131,15 @@ const plural = (n: number, word: string) =>
   `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 const periodName = (p: PeriodSummary, w: RangeWindow) =>
   w.bucket === "week" ? `Week of ${shortDate(p.start)}` : monthName(p.start);
+/** Every logged session, for lifetime load volume. */
+const ALL_TIME = [{ start: "0000-01-01", end: "9999-12-31" }];
 
-/**
- * The range at a glance, directly under the range control. Equal columns
- * while they fit; two, then one per row with larger text (WP6: values and
- * labels never shrink below legibility).
- */
-function Overview({
-  stats,
-}: {
-  stats: { value: string; label: string; detail?: string }[];
-}) {
-  return (
-    <ForgeCard>
-      <StatStrip minColumn={70}>
-        {stats.map((s) => (
-          <ForgeMetric
-            key={s.label}
-            size="stat"
-            value={s.value}
-            label={s.label}
-            delta={s.detail}
-          />
-        ))}
-      </StatStrip>
-    </ForgeCard>
-  );
+function SectionTitle({ title }: { title: string }) {
+  return <SectionLabel title={title} />;
 }
 
-function SectionTitle({
+/** A card header with its "How … works" sheet. */
+function InfoHeader({
   title,
   info,
 }: {
@@ -166,7 +147,7 @@ function SectionTitle({
   info?: { title: string; paragraphs: string[] };
 }) {
   return (
-    <SectionLabel
+    <CardHeader
       title={title}
       trailing={
         info && (
@@ -181,16 +162,23 @@ function SectionTitle({
   );
 }
 
+/**
+ * Showing up: the range's finished workouts, plan adherence (or active
+ * weeks without a plan) and the bars against what was planned. The range's
+ * figures that used to sit in the Overview strip live here (7.4E).
+ */
 function Consistency({
   periods,
   window,
   summaryText,
   anyPlan,
+  stats,
 }: {
   periods: PeriodSummary[];
   window: RangeWindow;
   summaryText: string;
   anyPlan: boolean;
+  stats: { value: string; label: string; detail?: string }[];
 }) {
   const c = useColors();
   const describe = (p: PeriodSummary) =>
@@ -202,8 +190,28 @@ function Consistency({
       ...(p.missed ? [`${p.missed} missed`] : []),
     ].join(" · ");
   return (
-    <Card>
-      <Txt variant="headline">{summaryText}</Txt>
+    <ForgeCard testID="consistency-card">
+      <InfoHeader
+        title="Consistency"
+        info={{
+          title: "How consistency is counted",
+          paragraphs: consistencyInfo,
+        }}
+      />
+      <StatStrip minColumn={84}>
+        {stats.map((s) => (
+          <ForgeMetric
+            key={s.label}
+            size="stat"
+            value={s.value}
+            label={s.label}
+            delta={s.detail}
+          />
+        ))}
+      </StatStrip>
+      <FText variant="label" tone="secondary">
+        {summaryText}
+      </FText>
       <ForgeBarChart
         label={`Workouts by ${window.bucket}`}
         format={(n) => plural(n, "workout")}
@@ -229,7 +237,7 @@ function Consistency({
           ]}
         />
       )}
-    </Card>
+    </ForgeCard>
   );
 }
 
@@ -256,29 +264,32 @@ function ExercisePicker({
       dismissOnBackdrop
     >
       {exercises.length > 8 && (
-        <Field
+        <ForgeSearchField
           label="Search your exercises"
           value={query}
           onChangeText={setQuery}
           placeholder="Bench, squat, row…"
         />
       )}
-      <ListSection>
-        {shown.map((e) => (
-          <ListRow
+      <ForgeCard padding={0} gap={0}>
+        {shown.map((e, i) => (
+          <ForgeListRow
             key={e.id}
+            icon="barbell-outline"
             title={e.name}
-            subtitle={`${plural(e.bests.length, "session")} · last ${dayLabel(e.bests.at(-1)!.date)}`}
-            chevron={false}
+            description={`${plural(e.bests.length, "session")} · last ${dayLabel(e.bests.at(-1)!.date)}`}
+            divider={i > 0}
             onPress={() => {
               onPick(e.id);
               onClose();
             }}
           />
         ))}
-      </ListSection>
+      </ForgeCard>
       {!shown.length && (
-        <Txt tone="secondary">No logged exercise matches “{query}”.</Txt>
+        <FText variant="body" tone="secondary">
+          {`No logged exercise matches “${query}”.`}
+        </FText>
       )}
     </Sheet>
   );
@@ -359,76 +370,103 @@ function Strength({
             ? `${signed(cmp.delta, cmp.delta === 1 || cmp.delta === -1 ? "rep" : "reps")} in your best set`
             : "Different reps and no estimate, so no direct comparison";
   return (
-    <Card>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Exercise: ${exercise.name}. Change exercise`}
-        onPress={() => setPicking(true)}
-        style={({ pressed }) => ({
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 8,
-          minHeight: 44,
-          opacity: pressed ? 0.6 : 1,
-        })}
+    <ForgeCard testID="strength-card" padding={0} gap={0}>
+      <View
+        style={{
+          padding: forge.spacing.cardPadding,
+          gap: forge.spacing.group,
+        }}
       >
-        <Txt variant="headline" style={{ flexShrink: 1 }} numberOfLines={2}>
-          {exercise.name}
-        </Txt>
-        <Ionicons name="chevron-down" size={18} color={c.text2} />
-      </Pressable>
-      {exercise.kind === "load" && exercise.bests.some((b) => b.e1rm) && (
-        <SegmentedControl
-          label="Strength measure"
-          options={[
-            { value: "e1rm", label: "Est. 1RM" },
-            { value: "top", label: "Heaviest set" },
-          ]}
-          value={metric}
-          onChange={(v) => setMetricChoice(v as Metric)}
+        <InfoHeader
+          title="Strength"
+          info={{
+            title: "How strength is measured",
+            paragraphs: strengthInfo,
+          }}
         />
-      )}
-      {series.length ? (
-        <ForgeLineChart
-          label={`${exercise.name}, ${metric === "e1rm" ? "estimated 1RM" : metric === "top" ? "heaviest set" : "most reps"} by session`}
-          format={format}
-          axisValue={(v) => (metric === "reps" ? v : loadIn(v, units))}
-          points={series.map((s) => ({
-            key: s.workoutId,
-            value: s.value,
-            description: dayLabel(s.date),
-            tick: shortDate(s.date),
-          }))}
-        />
-      ) : (
-        <Txt tone="secondary">
-          {`No ${exercise.name} sessions in the last ${rangeLabels[window.key].toLowerCase()}.`}
-        </Txt>
-      )}
-      {series.length === 1 && (
-        <Txt variant="caption" tone="secondary">
-          Your trend line appears after your next session.
-        </Txt>
-      )}
-      {latest && (
-        <View style={{ gap: 6 }}>
-          <SessionLine
-            label="Latest"
-            value={best(latest.latest)}
-            date={latest.latest.date}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Exercise: ${exercise.name}. Change exercise`}
+          onPress={() => setPicking(true)}
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            minHeight: forge.heights.compact,
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <FText
+            variant="cardTitle"
+            weight="700"
+            numberOfLines={2}
+            style={{ flexShrink: 1 }}
+          >
+            {exercise.name}
+          </FText>
+          <Ionicons name="chevron-down" size={18} color={c.emberHot} />
+        </Pressable>
+        {exercise.kind === "load" && exercise.bests.some((b) => b.e1rm) && (
+          <ForgeSegments<Metric>
+            accessibilityLabel="Strength measure"
+            options={[
+              { value: "e1rm", label: "Est. 1RM" },
+              { value: "top", label: "Heaviest set" },
+            ]}
+            value={metric}
+            onChange={setMetricChoice}
           />
-          {latest.previous && (
+        )}
+        {series.length ? (
+          <ForgeLineChart
+            label={`${exercise.name}, ${metric === "e1rm" ? "estimated 1RM" : metric === "top" ? "heaviest set" : "most reps"} by session`}
+            format={format}
+            axisValue={(v) => (metric === "reps" ? v : loadIn(v, units))}
+            points={series.map((s) => ({
+              key: s.workoutId,
+              value: s.value,
+              description: dayLabel(s.date),
+              tick: shortDate(s.date),
+            }))}
+          />
+        ) : (
+          <FText variant="label" tone="secondary">
+            {`No ${exercise.name} sessions in ${rangePhrase(window)}.`}
+          </FText>
+        )}
+        {series.length === 1 && (
+          <FText variant="label" tone="secondary">
+            Your trend line appears after your next session.
+          </FText>
+        )}
+        {latest && (
+          <View style={{ gap: 6 }}>
             <SessionLine
-              label="Previous"
-              value={best(latest.previous)}
-              date={latest.previous.date}
+              label="Latest"
+              value={best(latest.latest)}
+              date={latest.latest.date}
             />
-          )}
-          <Txt variant="caption" tone="secondary">
-            {change}
-          </Txt>
-        </View>
-      )}
+            {latest.previous && (
+              <SessionLine
+                label="Previous"
+                value={best(latest.previous)}
+                date={latest.previous.date}
+              />
+            )}
+            <FText
+              variant="label"
+              weight="600"
+              tone={
+                latest.previous && cmp && cmp.kind !== "none"
+                  ? "accent"
+                  : "secondary"
+              }
+            >
+              {change}
+            </FText>
+          </View>
+        )}
+      </View>
       <ExercisePicker
         visible={picking}
         onClose={() => setPicking(false)}
@@ -438,17 +476,16 @@ function Strength({
           setMetricChoice(undefined);
         }}
       />
-      <View style={{ marginHorizontal: -theme.spacing.md, marginBottom: -8 }}>
-        <ListRow
-          icon="barbell-outline"
-          title="Exercise details"
-          accessibilityLabel={`${exercise.name} details`}
-          onPress={() =>
-            router.push({ pathname: "/exercise", params: { id: exercise.id } })
-          }
-        />
-      </View>
-    </Card>
+      <ForgeListRow
+        icon="barbell-outline"
+        title="Exercise details"
+        accessibilityLabel={`${exercise.name} details`}
+        divider
+        onPress={() =>
+          router.push({ pathname: "/exercise", params: { id: exercise.id } })
+        }
+      />
+    </ForgeCard>
   );
 }
 
@@ -467,15 +504,15 @@ function SessionLine({
       accessibilityLabel={`${label}: ${value}, ${dayLabel(date)}`}
       style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}
     >
-      <Txt variant="caption" tone="secondary" style={{ width: 64 }}>
+      <FText variant="label" tone="secondary" style={{ width: 64 }}>
         {label}
-      </Txt>
-      <Txt weight="600" tabular style={{ flex: 1 }}>
+      </FText>
+      <FText variant="body" weight="700" style={{ flex: 1 }}>
         {value}
-      </Txt>
-      <Txt variant="caption" tone="secondary">
+      </FText>
+      <FText variant="label" tone="secondary">
         {dayLabel(date)}
-      </Txt>
+      </FText>
     </View>
   );
 }
@@ -488,67 +525,50 @@ function MuscleSets({
   model: ProgressModel;
   window: RangeWindow;
 }) {
-  const c = useColors();
   const [all, setAll] = useState(false);
   const log = model.log.filter((e) => inWindow(e.date, window));
   const muscles = muscleSets(log, model.info);
   const top = muscles[0]?.sets ?? 1;
   if (!muscles.length) return null;
   return (
-    <>
-      <SectionTitle title="Sets by primary muscle" />
-      <Card>
-        <View style={{ gap: 10 }}>
-          {(all ? muscles : muscles.slice(0, 5)).map((m) => (
-            <View
-              key={m.muscle}
-              accessible
-              accessibilityLabel={`${m.muscle}: ${plural(m.sets, "working set")}`}
-              style={{ gap: 4 }}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                }}
-              >
-                <Txt variant="caption">{m.muscle}</Txt>
-                <Txt variant="caption" tone="secondary" tabular>
-                  {plural(m.sets, "set")}
-                </Txt>
-              </View>
-              <View
-                style={{
-                  height: 6,
-                  borderRadius: 3,
-                  backgroundColor: c.surfaceRaised,
-                  overflow: "hidden",
-                }}
-              >
-                <View
-                  style={{
-                    width: `${Math.max(4, (m.sets / top) * 100)}%`,
-                    height: 6,
-                    borderRadius: 3,
-                    backgroundColor: c.text2,
-                  }}
-                />
-              </View>
-            </View>
-          ))}
-          {muscles.length > 5 && (
-            <Button
-              title={all ? "Show fewer" : `Show all ${muscles.length} muscles`}
-              variant="text"
-              neutral
-              onPress={() => setAll(!all)}
-            />
-          )}
+    <ForgeCard testID="muscle-card">
+      <CardHeader title="Sets by primary muscle" />
+      {(all ? muscles : muscles.slice(0, 5)).map((m) => (
+        <View
+          key={m.muscle}
+          accessible
+          accessibilityLabel={`${m.muscle}: ${plural(m.sets, "working set")}`}
+          style={{ gap: 6 }}
+        >
+          <View
+            style={{ flexDirection: "row", justifyContent: "space-between" }}
+          >
+            <FText variant="label" weight="600">
+              {m.muscle}
+            </FText>
+            <FText variant="label" tone="secondary">
+              {plural(m.sets, "set")}
+            </FText>
+          </View>
+          <ForgeProgress
+            value={m.sets / top}
+            label={m.muscle}
+            tone="accent"
+            height={5}
+          />
         </View>
-      </Card>
-    </>
+      ))}
+      {muscles.length > 5 && (
+        <OutlineButton
+          compact
+          title={all ? "Show fewer" : `Show all ${muscles.length} muscles`}
+          onPress={() => setAll(!all)}
+        />
+      )}
+    </ForgeCard>
   );
 }
+
 /**
  * Measurements other than bodyweight (which has its own card), within the
  * selected range (7.4D, PD-2); all time on the new-lifter screen.
@@ -598,38 +618,44 @@ function Body({ units, window }: { units: Units; window?: RangeWindow }) {
       : shortDate(d.date),
   }));
   return (
-    <>
-      <SectionTitle title="Measurements" />
-      <Card>
-        {series.length > 1 ? (
-          <Chips
-            bleed={theme.spacing.md}
-            values={labels}
-            value={name}
-            onChange={(label) => setKey(series[labels.indexOf(label)]?.key)}
-          />
-        ) : (
-          <Txt variant="headline">{name}</Txt>
-        )}
-        {points.length ? (
-          <ForgeLineChart
-            label={`${name} trend`}
-            points={points}
-            x={days.map((d) => dayNumber(d.date))}
-            breakOver={GAP_DAYS}
-            resetKey={`${s.key}-${window?.key ?? "all"}`}
-            format={(v) => {
-              const u = displayUnit(s.family, units);
-              return `${Math.round(v * 10) / 10} ${u}`;
-            }}
-          />
-        ) : (
-          <Txt tone="secondary">
-            {`No ${name} entries in ${window ? rangePhrase(window) : "all time"}.`}
-          </Txt>
-        )}
-      </Card>
-    </>
+    <ForgeCard testID="measurements-card">
+      <CardHeader
+        title="Measurements"
+        onPress={() =>
+          router.push({ pathname: "/journal", params: { kind: "measurement" } })
+        }
+        accessibilityLabel="Measurements. Open body measurements"
+      />
+      {series.length > 1 ? (
+        <ForgeChips
+          bleed={forge.spacing.cardPadding}
+          values={labels}
+          value={name}
+          onChange={(label) => setKey(series[labels.indexOf(label)]?.key)}
+        />
+      ) : (
+        <FText variant="cardTitle" weight="700">
+          {name}
+        </FText>
+      )}
+      {points.length ? (
+        <ForgeLineChart
+          label={`${name} trend`}
+          points={points}
+          x={days.map((d) => dayNumber(d.date))}
+          breakOver={GAP_DAYS}
+          resetKey={`${s.key}-${window?.key ?? "all"}`}
+          format={(v) => {
+            const u = displayUnit(s.family, units);
+            return `${Math.round(v * 10) / 10} ${u}`;
+          }}
+        />
+      ) : (
+        <FText variant="label" tone="secondary">
+          {`No ${name} entries in ${window ? rangePhrase(window) : "all time"}.`}
+        </FText>
+      )}
+    </ForgeCard>
   );
 }
 
@@ -676,6 +702,24 @@ export default function Progress() {
     lifetime.totalVolume,
     model.events.length,
   );
+  // All-time stats (7.4E): Progress's load volume over every session, and
+  // training time summed as You sums it.
+  const lifetimeLoad = useMemo(
+    () => volumeBuckets(model.log, model.info, ALL_TIME)[0]!.loadVolume,
+    [model],
+  );
+  const lifetimeSeconds = workouts
+    .filter((w) => w.status === "completed")
+    .reduce(
+      (n, w) =>
+        n +
+        elapsedSeconds(w.startedAt, w.finishedAt ?? w.startedAt, w.pausedMs),
+      0,
+    );
+  const record = latestRecord(model.events);
+  const gain = record
+    ? recordGain(record, model.exercises.get(record.exerciseId)?.bests ?? [])
+    : undefined;
   const plan = planStatus(r);
   const bodyweight = seriesOf(r.journal("measurement")).find(
     (s) => s.bodyweight,
@@ -792,11 +836,6 @@ export default function Progress() {
   const periods = bucketSummaries(weeks, buckets(window));
   const anyPlan = cons.planned > 0;
   const records = model.events.filter((e) => inWindow(e.date, window));
-  const loadVolume = volumeBuckets(
-    model.log.filter((e) => inWindow(e.date, window)),
-    model.info,
-    [{ start: window.from, end: window.to }],
-  )[0]!.loadVolume;
   const inRange = workouts.filter(
     (w) =>
       w.status === "completed" &&
@@ -833,7 +872,35 @@ export default function Progress() {
         value={range}
         onChange={setRange}
       />
-      <Overview
+      <BodyweightCard series={bodyweight} window={window} units={units} />
+      <TrainingVolumeCard
+        volume={volumeByPeriod}
+        workouts={periods}
+        window={window}
+        units={units}
+      />
+      <CardPair>
+        <RecordHighlightCard
+          event={record}
+          gain={gain}
+          name={record ? model.info(record.exerciseId).name : undefined}
+          units={units}
+        />
+        <AllTimeStatsCard
+          workouts={lifetime.count}
+          volumeKg={lifetimeLoad}
+          seconds={lifetimeSeconds}
+          units={units}
+        />
+      </CardPair>
+      {model.exercises.size > 0 && (
+        <Strength model={model} window={window} units={units} />
+      )}
+      <Consistency
+        periods={periods}
+        window={window}
+        summaryText={consistencyText}
+        anyPlan={anyPlan}
         stats={[
           { value: cons.completed.toLocaleString(), label: "Workouts" },
           cons.adherence !== undefined
@@ -846,115 +913,122 @@ export default function Progress() {
                 value: `${cons.activeWeeks}/${cons.weeks}`,
                 label: "Active weeks",
               },
-          { value: String(records.length), label: "Records" },
-          {
-            value: compactNumber(loadIn(loadVolume, units)),
-            label: `Volume (${units})`,
-          },
         ]}
       />
-      <BodyweightCard series={bodyweight} window={window} units={units} />
-      <TrainingVolumeCard
-        volume={volumeByPeriod}
-        workouts={periods}
-        window={window}
-        units={units}
-      />
-      {model.exercises.size > 0 && (
-        <>
-          <SectionTitle
-            title="Strength"
-            info={{
-              title: "How strength is measured",
-              paragraphs: strengthInfo,
-            }}
-          />
-          <Strength model={model} window={window} units={units} />
-        </>
-      )}
-      <SectionTitle
-        title="Consistency"
-        info={{
-          title: "How consistency is counted",
-          paragraphs: consistencyInfo,
-        }}
-      />
-      <Consistency
-        periods={periods}
-        window={window}
-        summaryText={consistencyText}
-        anyPlan={anyPlan}
-      />
       {legacy.length > 0 && (
-        <>
-          <SectionTitle title="Saved plans" />
-          <ListSection>
-            {legacy.map((program) => {
-              const a = programAdherence(
-                r
-                  .journal("schedule")
-                  .filter((j) => j.data.programId === program.id)
-                  .map((j) => ({
-                    date: j.date,
-                    templateId: String(j.data.templateId),
-                  })),
-                workouts,
-              );
-              return (
-                <ListRow
-                  key={program.id}
-                  title={String(program.data.name)}
-                  subtitle={`${a.completed} of ${a.due} due sessions completed on their planned dates`}
-                />
-              );
-            })}
-          </ListSection>
-        </>
+        <ForgeCard testID="saved-plans-card">
+          <CardHeader title="Saved plans" />
+          {legacy.map((program) => {
+            const a = programAdherence(
+              r
+                .journal("schedule")
+                .filter((j) => j.data.programId === program.id)
+                .map((j) => ({
+                  date: j.date,
+                  templateId: String(j.data.templateId),
+                })),
+              workouts,
+            );
+            const text = `${a.completed} of ${a.due} due sessions completed on their planned dates`;
+            return (
+              <View
+                key={program.id}
+                accessible
+                accessibilityLabel={`${String(program.data.name)}, ${text}`}
+                style={{ gap: 2 }}
+              >
+                <FText variant="cardTitle" weight="700">
+                  {String(program.data.name)}
+                </FText>
+                <FText variant="label" tone="secondary">
+                  {text}
+                </FText>
+              </View>
+            );
+          })}
+        </ForgeCard>
       )}
-      <SectionTitle
-        title="Records"
-        info={{ title: "How records work", paragraphs: recordInfo }}
-      />
-      <ListSection>
+      <RowsCard
+        testID="records-card"
+        header={
+          <InfoHeader
+            title="Records"
+            info={{ title: "How records work", paragraphs: recordInfo }}
+          />
+        }
+        summary={
+          <View style={{ gap: 2 }}>
+            <ForgeMetric
+              size="stat"
+              value={String(records.length)}
+              label="Records"
+            />
+            <FText variant="label" tone="secondary">
+              {records.length
+                ? `Set in ${rangePhrase(window)}`
+                : "No new records in this range"}
+            </FText>
+            {!records.length && (
+              <FText variant="label" tone="secondary">
+                Beat a previous best and it appears here.
+              </FText>
+            )}
+          </View>
+        }
+      >
         {records.slice(0, 3).map((e) => {
           const h = recordHeadline(e, units);
+          const name = model.info(e.exerciseId).name;
           return (
-            <ListRow
+            <ForgeListRow
               key={`${e.exerciseId}-${e.workoutId}`}
               icon="trophy-outline"
-              title={model.info(e.exerciseId).name}
-              subtitle={keepSegmentsTogether(`${h.label} · ${h.value}`)}
+              title={name}
+              description={keepSegmentsTogether(`${h.label} · ${h.value}`)}
               value={shortDate(e.date)}
-              chevron={false}
+              accessibilityLabel={`${name}, ${h.label} ${h.value}, ${dayLabel(e.date)}. Review workout`}
+              divider
+              onPress={() =>
+                router.push({
+                  pathname: "/workout",
+                  params: { id: e.workoutId },
+                })
+              }
             />
           );
         })}
-        {!records.length && (
-          <ListRow
-            icon="trophy-outline"
-            title="No new records in this range"
-            subtitle="Beat a previous best and it appears here."
-          />
-        )}
-        <ListRow
+        <ForgeListRow
           icon="podium-outline"
           title="All records"
+          divider
           onPress={() => router.push("/records")}
         />
-      </ListSection>
+      </RowsCard>
       <MuscleSets model={model} window={window} />
-      <SectionTitle title="Training time" />
-      <ListSection>
-        <ListRow
-          title="Average workout"
-          value={`${Math.round(inRange.length ? minutes / inRange.length : 0)} min`}
-        />
-        <ListRow
-          title="Total"
-          value={`${Math.round(minutes).toLocaleString()} min`}
-        />
-        <ListRow title="Day streak" value={String(lifetime.streak)} />
-      </ListSection>
+      <ForgeCard testID="training-time-card">
+        <CardHeader title="Training time" />
+        <StatStrip minColumn={84}>
+          <ForgeMetric
+            size="stat"
+            value={String(
+              Math.round(inRange.length ? minutes / inRange.length : 0),
+            )}
+            unit="min"
+            label="Average workout"
+          />
+          <ForgeMetric
+            size="stat"
+            value={Math.round(minutes).toLocaleString()}
+            unit="min"
+            label="Total"
+          />
+          <ForgeMetric
+            size="stat"
+            value={String(lifetime.streak)}
+            label="Day streak"
+          />
+        </StatStrip>
+      </ForgeCard>
       <Body units={units} window={window} />
       {more}
     </>,
