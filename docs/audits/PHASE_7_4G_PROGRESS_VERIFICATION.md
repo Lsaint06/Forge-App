@@ -174,7 +174,7 @@ No other defects were found. Changes in 7.4G:
 - Two pre-existing items carried forward:
   - the unused `Repo` lint warning in `templates-wp3.test.tsx`;
   - the unused catalogue constants (N-H2).
-- Cloud sync is not connected to the app. When it is, applying remote changes must bump `revision` (as backup restore does), so the memoised Progress figures refresh.
+- Cloud sync runs from the Account screen (`app/account.tsx`). Both a sync and a conflict resolution call `touch()`, which bumps `revision`, so the memoised Progress figures refresh after a sync. (Corrected during the Phase 7.5 audit: an earlier search missed top-level `app/*.tsx` files.) Any future automatic or background sync must do the same.
 - History, You and Goals keep their earlier styling until Phase 7.5. So does the Goals trend chart (P5).
 
 ## 9. Readiness for Phase 7.5
