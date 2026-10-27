@@ -265,9 +265,15 @@ test("lifetime milestones stay available whatever the range", async () => {
     const view = await render(<Progress />);
     await fireEvent.press(view.getByLabelText("4 weeks"));
     expect(view.getByLabelText("Records: 0")).toBeTruthy();
-    await fireEvent.press(view.getByLabelText("Milestones"));
-    expect(view.getByText("New territory · first PR")).toBeTruthy();
-    expect(view.getByText("First spark")).toBeTruthy();
+    // 7.4F: earned milestones show as tiles, and See all opens every one.
+    expect(
+      view.getByLabelText("New territory · first PR, earned"),
+    ).toBeTruthy();
+    await fireEvent.press(
+      view.getByLabelText("Milestones, 2 of 5 earned. See all"),
+    );
+    expect(view.getAllByText("New territory · first PR").length).toBe(2);
+    expect(view.getAllByText("First spark").length).toBe(2);
   } finally {
     f.db.close();
   }

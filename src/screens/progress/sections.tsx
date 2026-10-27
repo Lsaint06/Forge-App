@@ -9,13 +9,14 @@ import {
   ForgeCard,
   ForgeLineChart,
   ForgeSegments,
+  ForgeProgress,
   Gradient,
   Metric,
   OutlineButton,
   StatStrip,
   pairFits,
 } from "../../components/reforge";
-import { useColors } from "../../components/ui";
+import { Sheet, useColors } from "../../components/ui";
 import type { IconName } from "../../components/ui";
 import { InfoButton } from "../../components/system";
 import {
@@ -41,6 +42,8 @@ import {
 import type { RecordEvent } from "../../domain/progress/strength";
 import type { RecordGain } from "../../domain/presentation/records";
 import { forge } from "../../theme";
+import type { GoalView } from "../../domain/goals";
+import { milestoneName } from "../../domain/presentation/milestones";
 import { rangeLabels, type RangeWindow } from "../../domain/progress/range";
 import type { PeriodSummary } from "../../domain/progress/consistency";
 import { loadIn } from "../../domain/workout-display";
@@ -609,5 +612,260 @@ export function CardPair({
     >
       {children}
     </View>
+  );
+}
+
+// ---- Milestones ---------------------------------------------------------------
+
+export type Milestone = { id: string; name: string; ok: boolean };
+
+const MILESTONE_ICON: Record<string, IconName> = {
+  first: "flash",
+  ten: "barbell",
+  hundred: "flame",
+  volume: "trending-up",
+  pr: "trophy",
+};
+
+/** One milestone: ember and checked when earned, outlined when still ahead. */
+function MilestoneTile({
+  m,
+  units,
+  next = false,
+}: {
+  m: Milestone;
+  units: Units;
+  next?: boolean;
+}) {
+  const c = useColors();
+  const { fontScale } = useWindowDimensions();
+  const name = milestoneName(m, units);
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${name}, ${m.ok ? "earned" : "not yet earned"}`}
+      testID={`milestone-${m.id}`}
+      style={{
+        flexGrow: 1,
+        // Two per row; one per row with large text.
+        flexBasis: fontScale > 1.5 ? "100%" : "45%",
+        minHeight: 88,
+        padding: forge.spacing.group,
+        gap: 6,
+        borderRadius: forge.radii.tile,
+        borderWidth: m.ok ? forge.border.active : forge.border.card,
+        borderColor: m.ok ? c.emberMuted : c.cardBorder,
+        backgroundColor: m.ok ? c.emberTint : c.cardRaised,
+      }}
+    >
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <Ionicons
+          name={
+            m.ok ? (MILESTONE_ICON[m.id] ?? "ribbon") : "lock-closed-outline"
+          }
+          size={22}
+          color={m.ok ? c.emberHot : c.text2}
+        />
+        {m.ok && (
+          <Ionicons name="checkmark-circle" size={18} color={c.emberHot} />
+        )}
+      </View>
+      <FText
+        variant="label"
+        weight="700"
+        tone={m.ok ? "primary" : "secondary"}
+        numberOfLines={3}
+      >
+        {name}
+      </FText>
+      <FText variant="label" tone={m.ok ? "accent" : "secondary"}>
+        {m.ok ? "Earned" : next ? "Next milestone" : "Not yet"}
+      </FText>
+    </View>
+  );
+}
+
+/**
+ * The milestones from the existing definitions (thresholds unchanged): up to
+ * four tiles, earned first, then the next one still ahead, clearly marked.
+ * No new milestone types are invented (P7). "See all" opens every milestone.
+ */
+export function MilestonesCard({
+  milestones,
+  units,
+}: {
+  milestones: Milestone[];
+  units: Units;
+}) {
+  const [open, setOpen] = useState(false);
+  const earned = milestones.filter((m) => m.ok);
+  const ahead = milestones.filter((m) => !m.ok);
+  const tiles = [...earned, ...ahead.slice(0, 1)].slice(0, 4);
+  const count = `${earned.length} of ${milestones.length}`;
+  return (
+    <ForgeCard testID="milestones-card">
+      <CardHeader
+        title="Milestones"
+        trailing={count}
+        onPress={() => setOpen(true)}
+        accessibilityLabel={`Milestones, ${count} earned. See all`}
+      />
+      {!earned.length && (
+        <FText variant="label" tone="secondary">
+          Your first finished workout starts the collection.
+        </FText>
+      )}
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          gap: forge.spacing.tight,
+        }}
+      >
+        {tiles.map((m) => (
+          <MilestoneTile key={m.id} m={m} units={units} next={!m.ok} />
+        ))}
+      </View>
+      <Sheet
+        visible={open}
+        onClose={() => setOpen(false)}
+        title="Milestones"
+        dismissOnBackdrop
+      >
+        <View style={{ gap: forge.spacing.group }}>
+          <FText variant="overline" tone="secondary" header>
+            {`Earned · ${earned.length}`}
+          </FText>
+          {earned.length ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {earned.map((m) => (
+                <MilestoneTile key={m.id} m={m} units={units} />
+              ))}
+            </View>
+          ) : (
+            <FText variant="body" tone="secondary">
+              Your first finished workout starts the collection.
+            </FText>
+          )}
+          {ahead.length > 0 && (
+            <>
+              <FText variant="overline" tone="secondary" header>
+                {`Still ahead · ${ahead.length}`}
+              </FText>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {ahead.map((m, i) => (
+                  <MilestoneTile
+                    key={m.id}
+                    m={m}
+                    units={units}
+                    next={i === 0}
+                  />
+                ))}
+              </View>
+            </>
+          )}
+        </View>
+      </Sheet>
+    </ForgeCard>
+  );
+}
+
+// ---- Next goals -----------------------------------------------------------------
+
+const openGoals = () =>
+  router.push({ pathname: "/journal", params: { kind: "goal" } });
+
+/**
+ * The lifter's own goals, as Goals evaluates them, in Home's next-target
+ * order (`nextGoals`). A bar appears only where Goals gives a real ratio; no
+ * goal, target, percentage or date is invented. Opens Goals.
+ */
+export function NextGoalsCard({ goals }: { goals: GoalView[] }) {
+  const c = useColors();
+  return (
+    <RowsCard
+      testID="next-goals-card"
+      header={
+        <CardHeader
+          title="Next goals"
+          trailing={goals.length ? "See all" : undefined}
+          onPress={openGoals}
+          accessibilityLabel="Next goals. Open goals"
+        />
+      }
+      summary={
+        goals.length ? undefined : (
+          <View style={{ gap: forge.spacing.group }}>
+            <View
+              style={{ flexDirection: "row", gap: 10, alignItems: "center" }}
+            >
+              <Ionicons name="flag-outline" size={24} color={c.text2} />
+              <FText variant="body" tone="secondary" style={{ flex: 1 }}>
+                No active goals. Set one you can measure and track it here.
+              </FText>
+            </View>
+            <OutlineButton
+              title="Set a goal"
+              icon="flag-outline"
+              onPress={openGoals}
+            />
+          </View>
+        )
+      }
+    >
+      {goals.map((v, i) => (
+        <Pressable
+          key={v.goal.id}
+          accessibilityRole="button"
+          accessibilityLabel={`${v.spoken}. Open goals`}
+          onPress={openGoals}
+          style={({ pressed }) => ({
+            paddingHorizontal: forge.spacing.cardPadding,
+            paddingVertical: forge.spacing.group,
+            gap: 8,
+            borderTopWidth: i === 0 ? 0 : forge.border.card,
+            borderTopColor: c.cardDivider,
+            backgroundColor: pressed ? c.cardRaised : "transparent",
+          })}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Ionicons
+              name="flag"
+              size={22}
+              color={c.emberHot}
+              style={{ width: 26 }}
+            />
+            <View style={{ flex: 1, gap: 2 }}>
+              <FText variant="cardTitle" weight="700" numberOfLines={2}>
+                {v.name}
+              </FText>
+              <FText variant="label" tone="secondary" numberOfLines={2}>
+                {v.state}
+              </FText>
+            </View>
+            <View style={{ alignItems: "flex-end", maxWidth: "40%", gap: 2 }}>
+              {v.current && (
+                <FText variant="statMetric" numberOfLines={1} fit align="right">
+                  {v.current.split(" · ")[0]}
+                </FText>
+              )}
+              <FText
+                variant="label"
+                tone="secondary"
+                numberOfLines={2}
+                align="right"
+              >
+                {v.target}
+              </FText>
+            </View>
+          </View>
+          {v.ratio !== undefined && (
+            <View style={{ paddingLeft: 36 }}>
+              <ForgeProgress value={v.ratio} label={v.name} />
+            </View>
+          )}
+        </Pressable>
+      ))}
+    </RowsCard>
   );
 }

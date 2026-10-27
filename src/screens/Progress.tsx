@@ -3,7 +3,7 @@ import { View, Pressable } from "react-native";
 import { router } from "expo-router";
 import { NUTRITION_TODAY } from "../navigation";
 import { Ionicons } from "@expo/vector-icons";
-import { Txt, Sheet, useColors } from "../components/ui";
+import { Sheet, useColors } from "../components/ui";
 import {
   BadgePill,
   CardHeader,
@@ -21,16 +21,17 @@ import {
   ForgeSegments,
   Metric as ForgeMetric,
   OutlineButton,
-  SectionLabel,
   StatStrip,
 } from "../components/reforge";
-import { ListRow, ListSection, InfoButton } from "../components/system";
+import { InfoButton } from "../components/system";
 import { Legend } from "../components/charts";
-import { AchievementCard } from "../components/design";
 import { planStatus } from "../components/PlanRow";
 import { useRepo, useApp } from "../state";
 import { localDate } from "../domain/types";
-import { achievements, elapsedSeconds, summary } from "../domain/metrics";
+import { elapsedSeconds, milestoneList, summary } from "../domain/metrics";
+import { evaluate, type Goal } from "../domain/goals";
+import { goalSources } from "../data/goal-sources";
+import { nextGoals } from "../domain/presentation/milestones";
 import { programAdherence } from "../domain/analytics";
 import {
   GAP_DAYS,
@@ -89,6 +90,8 @@ import {
   AllTimeStatsCard,
   BodyweightCard,
   CardPair,
+  MilestonesCard,
+  NextGoalsCard,
   RecordHighlightCard,
   RowsCard,
   TrainingVolumeCard,
@@ -133,10 +136,6 @@ const periodName = (p: PeriodSummary, w: RangeWindow) =>
   w.bucket === "week" ? `Week of ${shortDate(p.start)}` : monthName(p.start);
 /** Every logged session, for lifetime load volume. */
 const ALL_TIME = [{ start: "0000-01-01", end: "9999-12-31" }];
-
-function SectionTitle({ title }: { title: string }) {
-  return <SectionLabel title={title} />;
-}
 
 /** A card header with its "How … works" sheet. */
 function InfoHeader({
@@ -682,7 +681,6 @@ export default function Progress() {
   const units = r.profile().units;
   const { now, today } = homeClock();
   const [range, setRange] = useState<RangeKey>("12w");
-  const [milestones, setMilestones] = useState(false);
   // The repository is mutable; `revision` changes whenever stored data does.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const model = useMemo(() => progressModel(r), [r, revision]);
@@ -697,10 +695,16 @@ export default function Progress() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [r, revision, today],
   );
-  const earned = achievements(
+  // Every milestone, earned or still ahead (thresholds unchanged, 7.4F).
+  const milestones = milestoneList(
     lifetime.count,
     lifetime.totalVolume,
     model.events.length,
+  );
+  // The lifter's own goals as Goals evaluates them, in Home's order.
+  const goalSourcesNow = goalSources(r, today, units);
+  const goals = nextGoals(
+    (r.journal("goal") as Goal[]).map((g) => evaluate(g, goalSourcesNow)),
   );
   // All-time stats (7.4E): Progress's load volume over every session, and
   // training time summed as You sums it.
@@ -755,79 +759,64 @@ export default function Progress() {
       {children}
     </ForgeScreen>
   );
+  const go = (pathname: string, kind?: string) => () =>
+    router.push(kind ? { pathname, params: { kind } } : pathname);
   const more = (
     <>
-      <SectionTitle title="More" />
-      <ListSection>
-        <ListRow
-          icon="time-outline"
-          title="Training history"
-          onPress={() => router.push("/history")}
-        />
-        <ListRow
-          icon="calendar-outline"
-          title="Training calendar"
-          onPress={() => router.push("/calendar")}
-        />
-        <ListRow
-          icon="ribbon-outline"
-          title="Milestones"
-          value={String(earned.length)}
-          onPress={() => setMilestones(true)}
-        />
-        <ListRow
-          icon="body-outline"
-          title="Body measurements"
-          onPress={() =>
-            router.push({
-              pathname: "/journal",
-              params: { kind: "measurement" },
-            })
-          }
-        />
-        <ListRow
-          icon="nutrition-outline"
-          title="Nutrition"
-          onPress={() => router.navigate(NUTRITION_TODAY)}
-        />
-        <ListRow
-          icon="pulse-outline"
-          title="Recovery"
-          onPress={() =>
-            router.push({ pathname: "/journal", params: { kind: "recovery" } })
-          }
-        />
-        <ListRow
-          icon="flag-outline"
-          title="Goals"
-          onPress={() =>
-            router.push({ pathname: "/journal", params: { kind: "goal" } })
-          }
-        />
-      </ListSection>
-      <Sheet
-        visible={milestones}
-        onClose={() => setMilestones(false)}
-        title="Milestones"
-        dismissOnBackdrop
-      >
-        {earned.length ? (
-          earned.map((x) => <AchievementCard key={x.id} title={x.name} />)
-        ) : (
-          <Txt tone="secondary">
-            Your first finished workout starts the collection.
-          </Txt>
-        )}
-      </Sheet>
+      <MilestonesCard milestones={milestones} units={units} />
+      <NextGoalsCard goals={goals} />
     </>
+  );
+  const links = (
+    <ForgeCard testID="more-card" padding={0} gap={0}>
+      <View style={{ padding: forge.spacing.cardPadding, paddingBottom: 4 }}>
+        <CardHeader title="More" divider={false} />
+      </View>
+      <ForgeListRow
+        icon="time-outline"
+        title="Training history"
+        onPress={go("/history")}
+      />
+      <ForgeListRow
+        icon="calendar-outline"
+        title="Training calendar"
+        divider
+        onPress={go("/calendar")}
+      />
+      <ForgeListRow
+        icon="body-outline"
+        title="Body measurements"
+        divider
+        onPress={go("/journal", "measurement")}
+      />
+      <ForgeListRow
+        icon="nutrition-outline"
+        title="Nutrition"
+        divider
+        onPress={() => router.navigate(NUTRITION_TODAY)}
+      />
+      <ForgeListRow
+        icon="pulse-outline"
+        title="Recovery"
+        divider
+        onPress={go("/journal", "recovery")}
+      />
+      <ForgeListRow
+        icon="flag-outline"
+        title="Goals"
+        divider
+        onPress={go("/journal", "goal")}
+      />
+    </ForgeCard>
   );
   if (!input.workouts.length)
     return frame(
       <>
         <Empty />
         <BodyweightCard series={bodyweight} units={units} />
-        <Body units={units} />
         {more}
+        <Body units={units} />
+        {links}
       </>,
     );
   const window = rangeWindow(range, today, firstActivity(input));
@@ -1004,6 +993,7 @@ export default function Progress() {
           onPress={() => router.push("/records")}
         />
       </RowsCard>
+      {more}
       <MuscleSets model={model} window={window} />
       <ForgeCard testID="training-time-card">
         <CardHeader title="Training time" />
@@ -1030,7 +1020,7 @@ export default function Progress() {
         </StatStrip>
       </ForgeCard>
       <Body units={units} window={window} />
-      {more}
+      {links}
     </>,
   );
 }

@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet } from "react-native";
-import { render, fireEvent, within, act } from "@testing-library/react-native";
+import { render, fireEvent, act } from "@testing-library/react-native";
 import { router } from "expo-router";
 import Progress from "../../app/(tabs)/progress";
 import { useRepo } from "../../src/state";
@@ -93,7 +93,8 @@ test("the REFORGE frame: brand, title, subtitle, date and the streak", async () 
     for (const label of [
       "Training history",
       "Training calendar",
-      "Milestones",
+      "Milestones, 1 of 5 earned. See all",
+      "Next goals. Open goals",
       "Body measurements",
       "Nutrition",
       "Recovery",
@@ -210,7 +211,7 @@ test("PD-1: lifetime totals are computed once per data change, never per range t
     expect(view.getByLabelText("2 day streak")).toBeTruthy();
     // Milestones depend on the lifetime count and volume.
     expect(
-      within(view.getByLabelText("Milestones")).getByText(String(earned())),
+      view.getByLabelText(`Milestones, ${earned()} of 5 earned. See all`),
     ).toBeTruthy();
     // Range taps and re-renders read no workout sets at all.
     sets.mockClear();

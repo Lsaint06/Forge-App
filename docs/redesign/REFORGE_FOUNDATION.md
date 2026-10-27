@@ -454,3 +454,15 @@ The spoken labels are unchanged, and no statistic lost a place.
 | Sets by primary muscle | Ember bars against the most-trained muscle; Show all / Show fewer |
 | Training time | Average workout, total for the range, day streak |
 | Measurements | REFORGE chips and chart; the header opens Measurements |
+
+### Milestones, Next goals, Records and More (Phase 7.4F)
+
+**Final Progress order:** range → Bodyweight → Training volume → PR highlight | All-time stats → Strength → Consistency → Saved plans (legacy) → Records → **Milestones** → **Next goals** → Sets by primary muscle → Training time → Measurements → **More**.
+
+| Part | Presentation |
+| --- | --- |
+| Milestones | Header "MILESTONES · 2 of 5 ›" opens the sheet. Up to four tiles: earned ones (ember tint and border, the milestone's icon, a check, "Earned"), then the next one still ahead (outlined, lock, "Next milestone"). Two per row; one per row with large text. The **sheet** lists "Earned · n" and "Still ahead · n" as the same tiles. Definitions and thresholds are unchanged: `milestoneList` returns every milestone with whether it is earned, and `achievements` is exactly its earned ones. No new milestone types (P7); no goal ring in the tiles, because Next goals already shows goal progress |
+| PD-3 | The volume milestone reads "22,046 lb lifted" for pound lifters and "10,000 kg lifted" in kilograms. The threshold is still 10,000 kg ([presentation/milestones.ts](../../src/domain/presentation/milestones.ts)) |
+| Next goals | Header "NEXT GOALS · See all ›" opens Goals. Up to three active goals as Goals evaluates them, in Home's next-target order (the first is always Home's next target): name, state, current value and target, and an ember bar **only where Goals gives a real ratio**. Each row opens Goals. No goals: "No active goals…" with "Set a goal" |
+| Records screen | `ForgeSubScreen` "Records" with "n records set" in ember; **Recent records** (trophy rows: type, value, date; each opens its workout) and **Your bests** (one row per exercise, opening it); "How records work"; `ForgeEmpty` "No records yet" |
+| More | REFORGE rows in one card: Training history, Training calendar, Body measurements, Nutrition (today), Recovery, Goals. Milestones moved to its own card |

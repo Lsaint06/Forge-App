@@ -134,7 +134,13 @@ export function readiness(e: {
       "Equal weighting: sleep up to 8 hours, sleep quality, inverse soreness, energy and inverse stress. A subjective training aid, not a medical assessment.",
   };
 }
-export function achievements(
+/** The threshold of the "10,000 kg lifted" milestone (total volume, kg). */
+export const VOLUME_MILESTONE_KG = 10000;
+/**
+ * Every milestone with whether it is earned (Progress shows both, 7.4F).
+ * Thresholds and names are unchanged; `achievements` is the earned ones.
+ */
+export function milestoneList(
   count: number,
   totalVolume: number,
   prCount: number,
@@ -143,9 +149,20 @@ export function achievements(
     { id: "first", name: "First spark", ok: count >= 1 },
     { id: "ten", name: "Built a habit · 10 workouts", ok: count >= 10 },
     { id: "hundred", name: "Forged · 100 workouts", ok: count >= 100 },
-    { id: "volume", name: "10,000 kg lifted", ok: totalVolume >= 10000 },
+    {
+      id: "volume",
+      name: "10,000 kg lifted",
+      ok: totalVolume >= VOLUME_MILESTONE_KG,
+    },
     { id: "pr", name: "New territory · first PR", ok: prCount > 0 },
-  ].filter((x) => x.ok);
+  ];
+}
+export function achievements(
+  count: number,
+  totalVolume: number,
+  prCount: number,
+) {
+  return milestoneList(count, totalVolume, prCount).filter((x) => x.ok);
 }
 export const resolveRevision = (base: number, remote: number) =>
   base === remote ? "upload" : "conflict";

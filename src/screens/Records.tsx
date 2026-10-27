@@ -1,7 +1,12 @@
 import React, { useMemo, useState } from "react";
 import { router } from "expo-router";
-import { Screen, Empty } from "../components/ui";
-import { ListRow, ListSection, InfoSheet } from "../components/system";
+import {
+  CardHeader,
+  ForgeEmpty,
+  ForgeListRow,
+  ForgeSubScreen,
+} from "../components/reforge";
+import { InfoSheet } from "../components/system";
 import { useRepo, useApp } from "../state";
 import { progressModel, type ExerciseProgress } from "../data/progress";
 import {
@@ -13,9 +18,11 @@ import { dayLabel } from "../domain/training-display";
 import { keepSegmentsTogether } from "../domain/workout-display";
 import { goBack } from "../navigation";
 import { recordInfo } from "../domain/progress/explain";
+import { RowsCard } from "./progress/sections";
 
-// Every exercise's current bests and the records set most recently. Derived
-// from history on demand: edits and deletions are always reflected.
+// Every exercise's current bests and the records set most recently (REFORGE
+// since Phase 7.4F). Derived from history on demand: edits and deletions are
+// always reflected.
 
 const shortDate = (date: string) =>
   new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
@@ -46,31 +53,48 @@ export default function Records() {
   const exercises = [...model.exercises.values()]
     .filter((e) => bests(e, units))
     .sort((a, b) => a.name.localeCompare(b.name));
+  const howRecordsWork = (
+    <RowsCard header={<CardHeader title="About records" />}>
+      <ForgeListRow
+        icon="information-circle-outline"
+        title="How records work"
+        onPress={() => setInfo(true)}
+      />
+    </RowsCard>
+  );
   return (
-    <Screen
+    <ForgeSubScreen
       title="Records"
       eyebrow={`${model.events.length} ${model.events.length === 1 ? "record" : "records"} set`}
+      eyebrowTone="accent"
       onBack={() => goBack("/(tabs)/progress")}
     >
       {!exercises.length ? (
-        <Empty
+        <ForgeEmpty
           title="No records yet"
           detail="Your first session with an exercise sets the baseline. Beat it, and your record appears here."
         />
       ) : (
         <>
           {model.events.length > 0 && (
-            <ListSection title="Recent records">
-              {model.events.slice(0, 10).map((e) => {
+            <RowsCard
+              testID="recent-records"
+              header={<CardHeader title="Recent records" />}
+            >
+              {model.events.slice(0, 10).map((e, i) => {
                 const h = recordHeadline(e, units);
+                const name = model.info(e.exerciseId).name;
                 return (
-                  <ListRow
+                  <ForgeListRow
                     key={`${e.exerciseId}-${e.workoutId}`}
-                    icon="trophy-outline"
-                    title={model.info(e.exerciseId).name}
-                    subtitle={keepSegmentsTogether(`${h.label} · ${h.value}`)}
+                    icon="trophy"
+                    title={name}
+                    description={keepSegmentsTogether(
+                      `${h.label} · ${h.value}`,
+                    )}
                     value={shortDate(e.date)}
-                    accessibilityLabel={`${model.info(e.exerciseId).name}, ${h.label} ${h.value}, ${dayLabel(e.date)}. Review workout`}
+                    divider={i > 0}
+                    accessibilityLabel={`${name}, ${h.label} ${h.value}, ${dayLabel(e.date)}. Review workout`}
                     onPress={() =>
                       router.push({
                         pathname: "/workout",
@@ -80,35 +104,39 @@ export default function Records() {
                   />
                 );
               })}
-            </ListSection>
+            </RowsCard>
           )}
-          <ListSection title="Your bests">
-            {exercises.map((e) => (
-              <ListRow
+          <RowsCard
+            testID="your-bests"
+            header={
+              <CardHeader
+                title="Your bests"
+                trailing={`${exercises.length} ${exercises.length === 1 ? "exercise" : "exercises"}`}
+              />
+            }
+          >
+            {exercises.map((e, i) => (
+              <ForgeListRow
                 key={e.id}
+                icon="podium-outline"
                 title={e.name}
-                subtitle={keepSegmentsTogether(bests(e, units))}
+                description={keepSegmentsTogether(bests(e, units))}
+                divider={i > 0}
                 onPress={() =>
                   router.push({ pathname: "/exercise", params: { id: e.id } })
                 }
               />
             ))}
-          </ListSection>
+          </RowsCard>
         </>
       )}
-      <ListSection>
-        <ListRow
-          icon="information-circle-outline"
-          title="How records work"
-          onPress={() => setInfo(true)}
-        />
-      </ListSection>
+      {howRecordsWork}
       <InfoSheet
         visible={info}
         onClose={() => setInfo(false)}
         title="How records work"
         paragraphs={recordInfo}
       />
-    </Screen>
+    </ForgeSubScreen>
   );
 }
