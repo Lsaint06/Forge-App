@@ -1,13 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, View } from "react-native";
+import { AccessibilityInfo, Pressable, View } from "react-native";
 import { Alert } from "../platform/alert";
-import { Screen, Button, TextButton, Txt, Card, Empty } from "../components/ui";
+import { useColors } from "../components/ui";
+import { InfoButton, OverflowMenu } from "../components/system";
 import {
-  ListRow,
-  ListSection,
-  OverflowMenu,
-  InfoButton,
-} from "../components/system";
+  CtaButton,
+  FText,
+  ForgeCard,
+  ForgeEmpty,
+  ForgeSubScreen,
+  OutlineButton,
+  SectionLabel,
+} from "../components/reforge";
 import {
   CheckinSheet,
   type CheckinTarget,
@@ -36,14 +40,15 @@ import {
   summaryLine,
   type Checkin,
 } from "../domain/checkins";
-import { theme } from "../theme";
+import { forge } from "../theme";
 
-// Recovery (Phase 7B WP4C): how the lifter slept and feels, as recorded.
-// Today's check-in leads, then trends of real answers over real dates, then
-// every check-in by month. No score is computed and nothing here changes
-// training. Records keep their journal shape; nothing renames or rewrites
-// them, and an untouched edit writes nothing.
-
+// Recovery (Phase 7B WP4C; REFORGE presentation since Phase 7.5G.2): how
+// the lifter slept and feels, as recorded. Today's check-in leads, then
+// trends of real answers over real dates, then every check-in by month.
+// No score is computed and nothing here changes training. Records keep their
+// journal shape; nothing renames or rewrites them, and an untouched edit
+// writes nothing. The founder approved keeping this organization; 7.5G.2
+// changed only how it looks.
 const PAGE = 60;
 const ABOUT = [
   "A check-in records last night's sleep and how you feel today, on 1–5 scales you choose. Higher soreness and stress mean more of that feeling; higher sleep quality and energy mean better.",
@@ -149,13 +154,14 @@ export default function Checkins() {
   const edit = (entry: Checkin) => setSheet({ kind: "edit", entry });
 
   return (
-    <Screen
+    <ForgeSubScreen
       title="Recovery"
       onBack={() => goBack("/(tabs)")}
       footer={
-        <Button
+        <CtaButton
           title={latestToday ? "Update today's check-in" : "Log check-in"}
           icon={latestToday ? "create-outline" : "add"}
+          compact
           onPress={() =>
             setSheet(
               latestToday
@@ -167,32 +173,21 @@ export default function Checkins() {
       }
     >
       {banner && (
-        <Card compact raised>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: theme.spacing.sm,
-            }}
-          >
-            <Txt style={{ flex: 1 }}>{banner.text}</Txt>
-            <TextButton
-              title="Undo"
-              onPress={() => {
-                banner.undo();
-                setBanner(undefined);
-              }}
-            />
-          </View>
-        </Card>
+        <UndoBanner
+          text={banner.text}
+          onUndo={() => {
+            banner.undo();
+            setBanner(undefined);
+          }}
+        />
       )}
       {!entries.length ? (
-        <Empty
+        <ForgeEmpty
           title="Track how you sleep and feel"
           detail="A check-in takes about ten seconds: last night's sleep and four quick 1–5 answers. Nothing is filled in for you."
         />
       ) : (
-        <Card>
+        <ForgeCard testID="recovery-today" gap={12}>
           <View
             style={{
               flexDirection: "row",
@@ -200,11 +195,11 @@ export default function Checkins() {
               justifyContent: "space-between",
             }}
           >
-            <Txt variant="overline" tone="secondary" header>
+            <FText variant="overline" tone="accent" header>
               {todays.length > 1
                 ? `Today · ${todays.length} check-ins`
                 : "Today"}
-            </Txt>
+            </FText>
             <InfoButton
               title="About check-ins"
               label="About recovery check-ins"
@@ -215,56 +210,67 @@ export default function Checkins() {
             <TodayDetails entry={latestToday} />
           ) : (
             <View style={{ gap: 2 }}>
-              <Txt variant="headline">No check-in today</Txt>
+              <FText variant="cardTitle" weight="700">
+                No check-in today
+              </FText>
               {last && (
-                <Txt tone="secondary">{`Last check-in: ${dayTitle(last.date, today)}`}</Txt>
+                <FText variant="label" tone="secondary">
+                  {`Last check-in: ${dayTitle(last.date, today)}`}
+                </FText>
               )}
             </View>
           )}
           {todays.length > 1 && (
-            <Txt variant="caption" tone="secondary">
+            <FText variant="label" tone="secondary">
               Showing the latest. Earlier ones are in History.
-            </Txt>
+            </FText>
           )}
           {latestToday && (
-            <TextButton
+            <OutlineButton
               title="Add another check-in for today"
               icon="add"
-              neutral
+              compact
               onPress={() => setSheet({ kind: "new" })}
             />
           )}
-          <Txt variant="caption" tone="secondary">
+          <FText variant="label" tone="secondary">
             {`Checked in on ${counted} of the last 30 days`}
-          </Txt>
-        </Card>
+          </FText>
+        </ForgeCard>
       )}
       {days.size > 1 && metrics.length > 0 && (
         <TrendCard entries={entries} metrics={metrics} today={today} />
       )}
       {history.length > 0 && (
-        <View style={{ gap: theme.spacing.md }}>
-          <Txt variant="overline" tone="secondary" header>
-            History
-          </Txt>
+        <View style={{ gap: forge.spacing.tight, marginTop: 6 }}>
+          <SectionLabel title="History" />
           {byMonth(history.slice(0, shown)).map(([month, list]) => (
-            <ListSection key={month} title={monthName(month)}>
+            <ForgeCard key={month} padding={0} gap={0}>
+              <View
+                style={{
+                  paddingHorizontal: forge.spacing.cardPadding,
+                  paddingTop: 12,
+                  paddingBottom: 4,
+                }}
+              >
+                <FText variant="label" weight="700" tone="secondary" header>
+                  {monthName(month)}
+                </FText>
+              </View>
               {list.map((e) => {
                 const day = dayTitle(e.date, today);
                 const several = (days.get(e.date)?.count ?? 1) > 1;
                 const title = several ? `${day} · ${timeOf(e.createdAt)}` : day;
                 const note = String(e.data.notes ?? "").trim();
                 return (
-                  <ListRow
+                  <HistoryRow
                     key={e.id}
                     title={title}
-                    subtitle={
-                      note ? `${summaryLine(e)}\n“${note}”` : summaryLine(e)
-                    }
-                    chevron={false}
-                    accessibilityLabel={`${title}. ${spokenSummary(e)}. Edit`}
+                    summary={summaryLine(e)}
+                    note={note}
+                    label={`${title}. ${spokenSummary(e)}. Edit`}
                     onPress={() => edit(e)}
-                    trailing={
+                    menu={
                       <OverflowMenu
                         label={`Options for ${title}`}
                         title={`${title} check-in`}
@@ -286,12 +292,11 @@ export default function Checkins() {
                   />
                 );
               })}
-            </ListSection>
+            </ForgeCard>
           ))}
           {history.length > shown && (
-            <TextButton
+            <OutlineButton
               title={`Show earlier (${history.length - shown})`}
-              neutral
               onPress={() => setShown((n) => n + PAGE)}
             />
           )}
@@ -307,41 +312,154 @@ export default function Checkins() {
           onEditInstead={edit}
         />
       )}
-    </Screen>
+    </ForgeSubScreen>
   );
 }
 
 function TodayDetails({ entry }: { entry: Checkin }) {
+  const c = useColors();
   const note = String(entry.data.notes ?? "").trim();
   return (
     <View
       accessible
       accessibilityLabel={`Today's check-in. ${spokenSummary(entry)}`}
-      style={{ gap: theme.spacing.xs }}
+      style={{ gap: 0 }}
     >
-      {details(entry).map((d) => (
+      {details(entry).map((d, i) => (
         <View
           key={d.label}
           style={{
             flexDirection: "row",
             flexWrap: "wrap",
+            alignItems: "baseline",
             justifyContent: "space-between",
-            columnGap: theme.spacing.md,
+            columnGap: 12,
+            paddingVertical: 8,
+            borderTopWidth: i ? forge.border.card : 0,
+            borderTopColor: c.cardDivider,
           }}
         >
-          <Txt tone="secondary">{d.label}</Txt>
-          <Txt weight="600" tabular>
+          <FText variant="body" tone="secondary">
+            {d.label}
+          </FText>
+          <FText
+            variant="body"
+            weight="700"
+            style={{ fontVariant: ["tabular-nums"] }}
+          >
             {d.value}
-          </Txt>
+          </FText>
         </View>
       ))}
       {note ? (
-        <Txt tone="secondary" numberOfLines={3}>{`“${note}”`}</Txt>
+        <FText
+          variant="body"
+          tone="secondary"
+          numberOfLines={3}
+          style={{ paddingTop: 8 }}
+        >{`“${note}”`}</FText>
       ) : null}
     </View>
   );
 }
 
+/** One check-in in History: its day (and time when there are several). */
+function HistoryRow({
+  title,
+  summary,
+  note,
+  label,
+  onPress,
+  menu,
+}: {
+  title: string;
+  summary: string;
+  note: string;
+  label: string;
+  onPress: () => void;
+  menu: React.ReactNode;
+}) {
+  const c = useColors();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        paddingRight: 6,
+        borderTopWidth: forge.border.card,
+        borderTopColor: c.cardDivider,
+      }}
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={onPress}
+        style={({ pressed }) => ({
+          flex: 1,
+          minHeight: 56,
+          paddingVertical: 10,
+          paddingLeft: forge.spacing.cardPadding,
+          gap: 2,
+          justifyContent: "center",
+          backgroundColor: pressed ? c.cardRaised : "transparent",
+        })}
+      >
+        <FText variant="body" weight="700">
+          {title}
+        </FText>
+        <FText variant="label" tone="secondary">
+          {summary}
+        </FText>
+        {!!note && (
+          <FText variant="label" tone="secondary">{`“${note}”`}</FText>
+        )}
+      </Pressable>
+      {menu}
+    </View>
+  );
+}
+
+/** The Undo offer after a save, an edit or a delete. */
+function UndoBanner({ text, onUndo }: { text: string; onUndo: () => void }) {
+  const c = useColors();
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        paddingLeft: forge.spacing.cardPadding,
+        paddingRight: 6,
+        minHeight: 52,
+        borderRadius: forge.radii.card,
+        borderWidth: forge.border.card,
+        borderColor: c.cardBorder,
+        backgroundColor: c.cardRaised,
+      }}
+    >
+      <FText variant="body" weight="600" style={{ flex: 1 }}>
+        {text}
+      </FText>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Undo"
+        onPress={onUndo}
+        style={({ pressed }) => ({
+          minHeight: 44,
+          minWidth: 64,
+          paddingHorizontal: 12,
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: pressed ? 0.6 : 1,
+        })}
+      >
+        <FText variant="cardTitle" weight="700" tone="accent">
+          Undo
+        </FText>
+      </Pressable>
+    </View>
+  );
+}
 /** A deletion interrupted by FORGE closing, still inside its Undo window. */
 function restoredDelete(r: ReturnType<typeof useRepo>) {
   const m = readPending(r, "recovery");

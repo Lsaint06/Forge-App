@@ -1,7 +1,11 @@
 import React, { useState } from "react";
-import { View } from "react-native";
-import { Card, Chips, Txt, SegmentedControl } from "../ui";
-import { LineChart } from "../charts";
+import {
+  FText,
+  ForgeCard,
+  ForgeChips,
+  ForgeLineChart,
+  ForgeSegments,
+} from "../reforge";
 import {
   GAP_DAYS,
   RANGES,
@@ -17,13 +21,21 @@ import {
   type Range,
 } from "../../domain/checkins";
 import { dayLabel } from "../../domain/training-display";
-import { theme } from "../../theme";
+
+/** The range segments' spoken names ("3M" reads as "3 months"). */
+const SPOKEN: Record<string, string> = {
+  "1M": "1 month",
+  "3M": "3 months",
+  "6M": "6 months",
+  "1Y": "1 year",
+  All: "All time",
+};
 
 /**
- * Recorded answers over time: one point per day (the latest check-in that
- * day) placed at its real date; days without a check-in are gaps, never
- * zeros, and long breaks split the line. The summary describes the shown
- * days only and draws no conclusions.
+ * Recorded answers over time (REFORGE since Phase 7.5G.2): one point per day
+ * (the latest check-in that day) placed at its real date; days without a
+ * check-in are gaps, never zeros, and long breaks split the line. The
+ * summary describes the shown days only and draws no conclusions.
  */
 export function TrendCard({
   entries,
@@ -45,11 +57,11 @@ export function TrendCard({
       ? (sleepText(v) ?? "")
       : `${Math.round(v * 10) / 10} · ${scaleOf(metric).words[Math.round(v) - 1] ?? ""}`;
   return (
-    <Card>
-      <Txt variant="overline" tone="secondary" header>
+    <ForgeCard testID="recovery-trends" gap={12}>
+      <FText variant="overline" tone="secondary" header>
         Trends
-      </Txt>
-      <Chips
+      </FText>
+      <ForgeChips
         values={metrics.map((m) => m.label)}
         value={label}
         onChange={(l) => {
@@ -58,19 +70,23 @@ export function TrendCard({
           setRange(defaultRange(pointsFor(entries, next), today));
         }}
       />
-      <SegmentedControl
-        label={`${label} range`}
-        options={RANGES.map((r) => ({ value: r, label: r }))}
+      <ForgeSegments
+        accessibilityLabel={`${label} range`}
+        options={RANGES.map((r) => ({
+          value: r,
+          label: r,
+          accessibilityLabel: SPOKEN[r] ?? r,
+        }))}
         value={range}
         onChange={(r) => setRange(r as Range)}
       />
       {metric !== "sleep" && (
-        <Txt variant="caption" tone="secondary">
+        <FText variant="label" tone="secondary">
           {`1 ${scaleOf(metric).words[0]} · 5 ${scaleOf(metric).words[4]}`}
-        </Txt>
+        </FText>
       )}
       {shown.length > 1 ? (
-        <LineChart
+        <ForgeLineChart
           label={`${label}, ${shown.length} days`}
           points={shown.map((p) => ({
             key: p.date,
@@ -79,6 +95,10 @@ export function TrendCard({
               p.count > 1
                 ? `${dayLabel(p.date)} · latest of ${p.count} check-ins`
                 : dayLabel(p.date),
+            tick: new Date(`${p.date}T12:00:00`).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+            }),
           }))}
           x={shown.map((p) => dayNumber(p.date))}
           breakOver={GAP_DAYS}
@@ -86,19 +106,17 @@ export function TrendCard({
           format={format}
         />
       ) : (
-        <Txt tone="secondary">
+        <FText variant="body" tone="secondary">
           {shown.length
             ? "One check-in in this range. Choose a longer range to see a trend."
             : "No check-ins in this range."}
-        </Txt>
+        </FText>
       )}
       {summary && (
-        <View style={{ gap: theme.spacing.xs }}>
-          <Txt tone="secondary" tabular>
-            {summary}
-          </Txt>
-        </View>
+        <FText variant="label" tone="secondary">
+          {summary}
+        </FText>
       )}
-    </Card>
+    </ForgeCard>
   );
 }

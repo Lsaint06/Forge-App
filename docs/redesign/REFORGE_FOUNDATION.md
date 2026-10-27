@@ -598,3 +598,21 @@ The focused editors are one shared `EditorSheet` ([you/editors.tsx](../../src/sc
 | Sheet | The same `MeasurementSheet`: measurement chips (`ForgeChips`), Custom name and "Measured as" (`ForgeSegments`), the value in the lifter's units (`ForgeField` with its error), the day, an optional note; **Save & add another** / **Save** (Cancel when editing). Labels, validation, the "Check this value" prompt and saving are unchanged |
 
 **Shared values.** Home and You (`bodyweight`), Progress (`bodyweightOver`) and Goals (`latestWeighIn`) read the same measurement records as before; nothing here adds a second source. Logging, editing or deleting an entry is what they read next.
+
+## Recovery (Phase 7.5G.2: visual modernization)
+
+**Founder direction:** keep Recovery's experience and organization ("I kinda like the way recovery is … just looks old"). [Checkins.tsx](../../src/screens/Checkins.tsx) (`/journal?kind=recovery`) keeps the same sections in the same order, the same check-in workflow and the same history. Only the older components were replaced with REFORGE ones. The Phase 7B WP4C model ([domain/checkins.ts](../../src/domain/checkins.ts)) is unchanged: storage, scales, summaries, durable deletes with Undo, and edits that write only what changed.
+
+**Metrics (existing).** Last night's sleep (15-minute steps, nothing prefilled), Sleep quality, Soreness, Energy and Stress (required 1–5 answers with both ends named), Ready to train (optional 1–5, tap again to clear), Rest day, and an optional note. No score, readiness percentage or recommendation.
+
+| Section (unchanged order) | Before → REFORGE |
+| --- | --- |
+| Frame | `Screen` → `ForgeSubScreen` "Recovery" (Back to Home, as before); footer `Button` → `CtaButton` ("Log check-in" / "Update today's check-in") |
+| Undo | `Card` + `TextButton` → the REFORGE Undo bar (as Goals and Measurements) |
+| Empty | `Empty` → `ForgeEmpty` (same words) |
+| Today | `Card` → `ForgeCard`: an ember "TODAY" overline (with the count when several) and *About check-ins*, each answer as a label/value row with hairline dividers, the note, "Add another check-in for today" (`OutlineButton`) and "Checked in on n of the last 30 days" |
+| Trends | `Chips` / `SegmentedControl` / `LineChart` → `ForgeChips`, `ForgeSegments` (ranges spoken "1 month" … "All time") and `ForgeLineChart` (one point a day, real dates, gaps not joined); the scale ends and the shown-range summary as before |
+| History | `ListSection` per month → one hairline card per month headed by the month; each check-in a row (day, and time when a day has several; the summary line; the note in full) with its Edit / Delete menu; "Show earlier" pages of 60 (`OutlineButton`) |
+| Check-in sheet | `Txt` / `Field` / `Button` / `TextButton` / `IconButton` → REFORGE text, `ForgeField`, `CtaButton` / `OutlineButton`; the sleep stepper as a hairline control with `SquareIconButton` − / +; 1–5 answers as 48 pt hairline tiles, the chosen one with an ember border, tint and number |
+
+**Accessibility.** The same labels and roles: radio groups named with both ends, "Less sleep" / "More sleep", the adjustable sleep control, "Today's check-in. …" and "{day}. {summary}. Edit". 44–48 pt targets. *Known limitation:* the About button is still the shared `InfoButton`.

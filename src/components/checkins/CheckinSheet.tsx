@@ -1,14 +1,13 @@
 import React, { useRef, useState } from "react";
 import { AccessibilityInfo, Pressable, Switch, View } from "react-native";
+import { Sheet, useColors } from "../ui";
 import {
-  Sheet,
-  Field,
-  Txt,
-  Button,
-  TextButton,
-  IconButton,
-  useColors,
-} from "../ui";
+  CtaButton,
+  FText,
+  ForgeField,
+  OutlineButton,
+  SquareIconButton,
+} from "../reforge";
 import { DateSheet } from "../DateSheet";
 import { ScaleRow } from "./ScaleRow";
 import { useRepo, mutate } from "../../state";
@@ -34,7 +33,7 @@ import {
 } from "../../domain/checkins";
 import { dayTitle } from "../../domain/calendar-dates";
 import { localDate } from "../../domain/types";
-import { theme } from "../../theme";
+import { forge, theme } from "../../theme";
 
 export type CheckinTarget =
   { kind: "new"; date?: string } | { kind: "edit"; entry: Checkin };
@@ -165,20 +164,21 @@ export function CheckinSheet({
       footer={
         <View style={{ gap: theme.spacing.sm }}>
           {error && (
-            <Txt tone="error" align="center">
+            <FText variant="body" weight="600" tone="error" align="center">
               {error}
-            </Txt>
+            </FText>
           )}
           <View style={{ flexDirection: "row", gap: theme.spacing.sm }}>
             {editing && (
               <View style={{ flex: 1 }}>
-                <Button title="Cancel" variant="secondary" onPress={onClose} />
+                <OutlineButton title="Cancel" onPress={onClose} />
               </View>
             )}
             <View style={{ flex: 1 }}>
-              <Button
+              <CtaButton
                 title={editing ? "Save changes" : "Save check-in"}
                 icon="checkmark"
+                compact
                 onPress={save}
               />
             </View>
@@ -198,17 +198,23 @@ export function CheckinSheet({
           opacity: pressed ? 0.6 : 1,
         })}
       >
-        <Txt tone="secondary">Day</Txt>
-        <Txt weight="600">{`${dayTitle(draft.date, today)} ›`}</Txt>
+        <FText variant="body" tone="secondary">
+          Day
+        </FText>
+        <FText variant="body" weight="700">
+          {`${dayTitle(draft.date, today)} ›`}
+        </FText>
       </Pressable>
       {sameDay.length > 0 && (
         <View style={{ gap: 2 }}>
-          <Txt variant="caption" tone="secondary">
+          <FText variant="label" tone="secondary">
             {`You already checked in ${draft.date === today ? "today" : `on ${dayTitle(draft.date, today)}`}. Saving adds another; the latest is used for trends.`}
-          </Txt>
+          </FText>
           {onEditInstead && (
-            <TextButton
+            <OutlineButton
               title="Edit that check-in instead"
+              tone="ember"
+              compact
               onPress={() => onEditInstead(sameDay[0]!)}
             />
           )}
@@ -225,45 +231,49 @@ export function CheckinSheet({
             e.nativeEvent.actionName === "increment" ? SLEEP_STEP : -SLEEP_STEP,
           )
         }
-        style={{ gap: theme.spacing.xs }}
+        style={{ gap: 8 }}
       >
-        <Txt variant="headline">{"Last night's sleep"}</Txt>
+        <FText variant="cardTitle" weight="700">
+          {"Last night's sleep"}
+        </FText>
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
-            backgroundColor: c.surfaceRaised,
-            borderRadius: theme.radii.control,
-            paddingHorizontal: theme.spacing.xs,
-            minHeight: theme.heights.control,
+            gap: 8,
+            padding: 6,
+            borderRadius: forge.radii.card,
+            borderWidth: forge.border.card,
+            borderColor: c.cardBorder,
+            backgroundColor: c.cardBg,
           }}
         >
-          <IconButton
+          <SquareIconButton
             icon="remove"
             label="Less sleep"
-            size={24}
             onPress={() => stepSleep(-SLEEP_STEP)}
           />
-          <Txt
-            variant="metric"
-            tone={draft.sleep === undefined ? "tertiary" : "primary"}
+          <FText
+            variant="cardMetric"
+            tone={draft.sleep === undefined ? "secondary" : "primary"}
+            align="center"
+            style={{ flex: 1 }}
           >
             {sleepShown}
-          </Txt>
-          <IconButton
+          </FText>
+          <SquareIconButton
             icon="add"
             label="More sleep"
-            size={24}
             onPress={() => stepSleep(SLEEP_STEP)}
           />
         </View>
-        <Txt variant="caption" tone={hint ? "accent" : "secondary"}>
+        <FText variant="label" tone={hint ? "accent" : "secondary"}>
           {hint ??
             (draft.sleep === undefined
               ? `Tap + or − to start from ${sleepText(lastSleep ?? 8)}. Steps of 15 minutes.`
               : "Steps of 15 minutes.")}
-        </Txt>
+        </FText>
       </View>
       {SCALES.map((s) => (
         <ScaleRow
@@ -285,12 +295,14 @@ export function CheckinSheet({
         }}
       >
         <View style={{ flex: 1 }}>
-          <Txt variant="headline">Rest day</Txt>
-          <Txt variant="caption" tone="secondary">
+          <FText variant="cardTitle" weight="700">
+            Rest day
+          </FText>
+          <FText variant="label" tone="secondary">
             {oddRestDay && draft.restDay === undefined
               ? `Recorded as "${String(editing!.data.restDay)}"`
               : "No training planned today"}
-          </Txt>
+          </FText>
         </View>
         <Switch
           accessibilityLabel="Rest day"
@@ -301,17 +313,17 @@ export function CheckinSheet({
         />
       </View>
       {showNotes ? (
-        <Field
+        <ForgeField
           label="Note (optional)"
           value={draft.notes}
           placeholder="e.g. Legs heavy after Tuesday"
           onChangeText={(notes) => update({ notes })}
         />
       ) : (
-        <TextButton
+        <OutlineButton
           title="Add note"
           icon="add"
-          neutral
+          compact
           onPress={() => setShowNotes(true)}
         />
       )}

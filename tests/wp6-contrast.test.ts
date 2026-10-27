@@ -50,7 +50,6 @@ const allowed: Record<string, number> = {
   // DaySwitcher's disabled "next day" uses SquareIconButton's disabled state
   // since Phase 7.3B, not tertiary text.
   "src/components/system.tsx": 2, // disabled row title, disabled menu item
-  "src/components/checkins/CheckinSheet.tsx": 1, // large metric placeholder
   "src/screens/LegacyPath.tsx": 3, // rest-day icon colour
 };
 function files(dir: string): string[] {

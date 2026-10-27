@@ -1,15 +1,17 @@
 import React from "react";
-import { Pressable, Text, View } from "react-native";
-import { Txt, useColors } from "../ui";
+import { Pressable, View } from "react-native";
+import { useColors } from "../ui";
+import { FText } from "../reforge";
 import { isAnswer, scaleText, type Scale } from "../../domain/checkins";
-import { theme } from "../../theme";
+import { forge } from "../../theme";
 
 /**
- * One 1–5 question: five 48 pt answers with both ends named, so the direction
- * is clear without help ("1 None … 5 Severe"). Nothing is selected until the
- * lifter answers. A value the buttons can't show (a recorded 2.5) is stated
- * as recorded and stays unchanged unless an answer is tapped. Optional
- * questions clear when the selected answer is tapped again.
+ * One 1–5 question (REFORGE since Phase 7.5G.2): five 48 pt answers with
+ * both ends named, so the direction is clear without help ("1 None … 5
+ * Severe"). Nothing is selected until the lifter answers. A value the
+ * buttons can't show (a recorded 2.5) is stated as recorded and stays
+ * unchanged unless an answer is tapped. Optional questions clear when the
+ * selected answer is tapped again.
  */
 export function ScaleRow({
   scale,
@@ -24,7 +26,8 @@ export function ScaleRow({
   onChange: (value: number | undefined) => void;
 }) {
   const c = useColors();
-  const shown = isAnswer(value)
+  const answered = isAnswer(value);
+  const shown = answered
     ? scaleText(scale.key, value)
     : recorded !== undefined
       ? `${scaleText(scale.key, recorded)} (recorded)`
@@ -35,7 +38,7 @@ export function ScaleRow({
     <View
       accessibilityRole="radiogroup"
       accessibilityLabel={`${scale.question}, 1 ${scale.words[0]} to 5 ${scale.words[4]}${scale.required ? "" : ", optional"}`}
-      style={{ gap: theme.spacing.sm }}
+      style={{ gap: 8 }}
     >
       <View
         style={{
@@ -43,13 +46,19 @@ export function ScaleRow({
           flexWrap: "wrap",
           justifyContent: "space-between",
           alignItems: "baseline",
-          columnGap: theme.spacing.sm,
+          columnGap: 10,
         }}
       >
-        <Txt variant="headline">{scale.question}</Txt>
-        <Txt variant="caption" tone={isAnswer(value) ? "primary" : "secondary"}>
+        <FText variant="cardTitle" weight="700">
+          {scale.question}
+        </FText>
+        <FText
+          variant="label"
+          weight={answered ? "700" : undefined}
+          tone={answered ? "accent" : "secondary"}
+        >
           {shown}
-        </Txt>
+        </FText>
       </View>
       <View style={{ flexDirection: "row", gap: 6 }}>
         {[1, 2, 3, 4, 5].map((n) => {
@@ -68,25 +77,27 @@ export function ScaleRow({
               }
               style={({ pressed }) => ({
                 flex: 1,
-                minHeight: theme.heights.control,
-                borderRadius: theme.radii.control,
+                minHeight: 48,
+                borderRadius: forge.radii.tile,
+                borderWidth: selected ? forge.border.active : forge.border.card,
+                borderColor: selected ? c.emberHot : c.cardBorder,
+                backgroundColor: selected
+                  ? c.emberTint
+                  : pressed
+                    ? c.cardRaised
+                    : c.cardBg,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: selected ? c.ember : c.surfaceRaised,
-                opacity: pressed ? 0.8 : 1,
               })}
             >
-              <Text
-                maxFontSizeMultiplier={1.5}
-                style={{
-                  color: selected ? c.onEmber : c.text,
-                  fontSize: 17,
-                  fontWeight: selected ? "800" : "600",
-                  fontVariant: ["tabular-nums"],
-                }}
+              <FText
+                variant="cardTitle"
+                weight={selected ? "800" : "600"}
+                tone={selected ? "accent" : "primary"}
+                style={{ fontVariant: ["tabular-nums"] }}
               >
-                {n}
-              </Text>
+                {String(n)}
+              </FText>
             </Pressable>
           );
         })}
@@ -95,22 +106,22 @@ export function ScaleRow({
         style={{
           flexDirection: "row",
           justifyContent: "space-between",
-          gap: theme.spacing.md,
+          gap: 12,
         }}
         importantForAccessibility="no-hide-descendants"
         accessibilityElementsHidden
       >
-        <Txt variant="caption" tone="secondary" style={{ flexShrink: 1 }}>
+        <FText variant="label" tone="secondary" style={{ flexShrink: 1 }}>
           {`1 · ${scale.words[0]}`}
-        </Txt>
-        <Txt
-          variant="caption"
+        </FText>
+        <FText
+          variant="label"
           tone="secondary"
           align="right"
           style={{ flexShrink: 1 }}
         >
           {`${scale.words[4]} · 5`}
-        </Txt>
+        </FText>
       </View>
     </View>
   );
