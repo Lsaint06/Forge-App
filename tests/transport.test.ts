@@ -6,11 +6,14 @@ import {
 } from "@supabase/supabase-js";
 import { cloudFailure, transport, withTimeout } from "../src/cloud/transport";
 import { stopReason, SyncStopError } from "../src/cloud/errors";
+import { cloudTime } from "../src/cloud/sync";
 import type { Outbox } from "../src/domain/types";
 
 // Phase 7.8B, H3: how the Supabase transport reports failures to sync,
 // using the response shapes supabase-js 2.118 produces (`status` 0 when no
-// reply arrived, PostgREST's error body otherwise).
+// reply arrived, PostgREST's error body otherwise). Phase 7.8C: incremental
+// and by-id reads, against an in-memory table that evaluates the same
+// filters PostgREST would.
 
 const me = "user-a";
 type Reply = { data: unknown; error: unknown; status: number };
@@ -31,14 +34,107 @@ const op: Outbox = {
   nextAttempt: 0,
   deleted: 0,
 };
+type Stored = {
+  id: string;
+  kind: string;
+  payload: unknown;
+  revision: number;
+  deleted: boolean;
+  updated_at?: string;
+};
+type Query = {
+  count?: string;
+  since?: string;
+  after?: { at: string; id: string };
+  ids?: string[];
+  order: string[];
+  range?: [number, number];
+};
+const timeKey = (t: string | undefined) => (t ? (cloudTime(t)?.key ?? "") : "");
 function fake(
   options: {
     sessions?: (() => Promise<Session>)[];
     rpc?: () => Promise<Reply>;
-    pages?: Reply[];
+    /** The account's rows, as the table holds them. */
+    rows?: Stored[];
+    /** Replies that replace the next reads, in order (failures). */
+    failures?: Reply[];
+    pageSize?: number;
   } = {},
 ) {
-  const calls = { sessions: 0, rpc: 0, ranges: [] as [number, number][] };
+  const calls = { sessions: 0, rpc: 0, queries: [] as Query[] };
+  // A thenable query like supabase-js's: filters chain, `await` runs it.
+  function query() {
+    const q: Query = { order: [] };
+    const builder = {
+      select(_columns: string, opts?: { count?: string }) {
+        if (opts?.count) q.count = opts.count;
+        return builder;
+      },
+      gte(column: string, value: string) {
+        assert.equal(column, "updated_at");
+        q.since = value;
+        return builder;
+      },
+      or(filter: string) {
+        const m =
+          /^updated_at\.gt\."(.+)",and\(updated_at\.eq\."(.+)",id\.gt\."(.+)"\)$/.exec(
+            filter,
+          );
+        assert.ok(m && m[1] === m[2], filter);
+        q.after = { at: m[1]!, id: m[3]! };
+        return builder;
+      },
+      in(column: string, ids: string[]) {
+        assert.equal(column, "id");
+        q.ids = ids;
+        return builder;
+      },
+      order(column: string) {
+        q.order.push(column);
+        return builder;
+      },
+      range(from: number, to: number) {
+        q.range = [from, to];
+        return builder;
+      },
+      then(
+        resolve: (value: unknown) => unknown,
+        reject: (e: unknown) => unknown,
+      ) {
+        calls.queries.push(q);
+        const failure = options.failures?.shift();
+        if (failure) return Promise.resolve(failure).then(resolve, reject);
+        let rows = [...(options.rows ?? [])];
+        if (q.ids) rows = rows.filter((r) => q.ids!.includes(r.id));
+        if (q.since)
+          rows = rows.filter((r) => timeKey(r.updated_at) >= timeKey(q.since));
+        if (q.after) {
+          const a = timeKey(q.after.at);
+          rows = rows.filter((r) => {
+            const k = timeKey(r.updated_at);
+            return k > a || (k === a && r.id > q.after!.id);
+          });
+        }
+        if (q.order.length)
+          rows.sort((x, y) => {
+            const kx = timeKey(x.updated_at);
+            const ky = timeKey(y.updated_at);
+            if (kx !== ky) return kx < ky ? -1 : 1;
+            return x.id < y.id ? -1 : x.id > y.id ? 1 : 0;
+          });
+        const total = rows.length;
+        if (q.range) rows = rows.slice(q.range[0], q.range[1] + 1);
+        return Promise.resolve({
+          data: rows.map((r) => structuredClone(r)),
+          error: null,
+          status: 200,
+          count: q.count ? total : null,
+        }).then(resolve, reject);
+      },
+    };
+    return builder;
+  }
   const client = {
     auth: {
       getSession: () => {
@@ -55,21 +151,25 @@ function fake(
         (async () => ({ data: { revision: 1 }, error: null, status: 200 }))
       )();
     },
-    from: () => ({
-      select: () => ({
-        order: () => ({
-          range: async (from: number, to: number) => {
-            calls.ranges.push([from, to]);
-            return (
-              options.pages?.shift() ?? { data: [], error: null, status: 200 }
-            );
-          },
-        }),
-      }),
-    }),
+    from: () => query(),
   };
-  return { cloud: transport(client as unknown as SupabaseClient, me), calls };
+  return {
+    cloud: transport(client as unknown as SupabaseClient, me, {
+      ...(options.pageSize ? { pageSize: options.pageSize } : {}),
+    }),
+    calls,
+  };
 }
+const at = (second: number, micro = 0) =>
+  `2026-10-31T07:00:${String(second).padStart(2, "0")}.${String(micro).padStart(6, "0")}+00:00`;
+const stored = (id: string, updated_at: string, revision = 1): Stored => ({
+  id,
+  kind: "journal",
+  payload: {},
+  revision,
+  deleted: false,
+  updated_at,
+});
 const failure = (status: number, message: string, code = ""): Reply => ({
   data: null,
   error: { message, code, details: "", hint: "" },
@@ -160,7 +260,7 @@ test("the sign-in is checked before anything is read or sent", async () => {
     assert.equal(write.calls.rpc, 0, "nothing sent");
     const list = fake({ sessions: [session] });
     assert.equal((await reason(list.cloud.list())).stop, expected);
-    assert.deepEqual(list.calls.ranges, [], "nothing read");
+    assert.deepEqual(list.calls.queries, [], "nothing read");
   }
 });
 
@@ -196,28 +296,72 @@ test("replies: the new revision, or the cloud's copy on a conflict", async () =>
   assert.match(result.message, /Invalid synchronization response/);
 });
 
-test("every page of the account's records is read", async () => {
-  const page = (n: number, from = 0) =>
-    Array.from({ length: n }, (_, i) => ({
-      id: `r${from + i}`,
-      kind: "journal",
-      payload: {},
-      revision: 1,
-      deleted: false,
-    }));
-  const { cloud, calls } = fake({
-    pages: [
-      { data: page(500), error: null, status: 200 },
-      { data: page(1, 500), error: null, status: 200 },
-    ],
+// Phase 7.8C: incremental and by-id reads.
+
+test("every record is read once, oldest change first, even when a page ends inside a run of equal times", async () => {
+  // Seven of ten records share one time; pages of three.
+  const rows = ["j", "e", "a", "i", "c", "g", "b"]
+    .map((id) => stored(id, at(5, 123456)))
+    .concat([stored("z", at(1)), stored("y", at(9)), stored("x", at(9, 1))]);
+  const { cloud, calls } = fake({ rows, pageSize: 3 });
+  const got = await cloud.list();
+  assert.deepEqual(
+    got.map((r) => r.id),
+    ["z", "a", "b", "c", "e", "g", "i", "j", "y", "x"],
+  );
+  assert.equal(got[0]!.updatedAt, at(1), "the cloud's time comes with it");
+  // The total is asked for once; later pages follow the last record.
+  assert.equal(calls.queries[0]!.count, "exact");
+  assert.ok(calls.queries.slice(1).every((q) => q.after && !q.count));
+  assert.ok(calls.queries.every((q) => q.range?.join() === "0,2"));
+  assert.deepEqual(calls.queries[0]!.order, ["updated_at", "id"]);
+});
+
+test("only records changed since a time are read; progress counts toward the reported total", async () => {
+  const rows = [
+    stored("old", at(1)),
+    stored("a", at(30)),
+    stored("b", at(31)),
+    stored("c", at(32)),
+    stored("d", at(33)),
+  ];
+  const { cloud } = fake({ rows, pageSize: 3 });
+  const progress: [number, number | undefined][] = [];
+  const got = await cloud.list({
+    since: "2026-10-31T07:00:10.000Z",
+    onPage: (received, total) => progress.push([received, total]),
   });
-  assert.equal((await cloud.list()).length, 501);
-  assert.deepEqual(calls.ranges, [
-    [0, 499],
-    [500, 999],
+  assert.deepEqual(
+    got.map((r) => r.id),
+    ["a", "b", "c", "d"],
+  );
+  assert.deepEqual(progress, [
+    [3, 4],
+    [4, 4],
   ]);
+});
+
+test("held records are fetched by id, in groups small enough for the address", async () => {
+  const rows = Array.from({ length: 300 }, (_, i) => stored(`r${i}`, at(1)));
+  const { cloud, calls } = fake({ rows });
+  const got = await cloud.list({ ids: rows.slice(0, 250).map((r) => r.id) });
+  assert.equal(got.length, 250);
+  assert.deepEqual(
+    calls.queries.map((q) => q.ids?.length),
+    [100, 100, 50],
+  );
+});
+
+test("a full page without cloud times stops the download rather than skip records", async () => {
+  const rows = [0, 1, 2].map((i) => ({
+    ...stored(`r${i}`, at(1)),
+    updated_at: undefined,
+  }));
+  const result = await reason(fake({ rows, pageSize: 3 }).cloud.list());
+  assert.equal(result.stop, undefined);
+  assert.match(result.message, /Invalid synchronization response/);
   const offline = fake({
-    pages: [failure(0, "TypeError: Network request failed")],
+    failures: [failure(0, "TypeError: Network request failed")],
   });
   assert.equal((await reason(offline.cloud.list())).stop, "offline");
 });

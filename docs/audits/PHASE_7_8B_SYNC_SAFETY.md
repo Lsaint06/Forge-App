@@ -108,6 +108,8 @@ These are the same scenarios run through the sync engine as it was at `b4115d1` 
 
 ## 4. Keep both: proposed design (not implemented)
 
+**Status: deferred** (founder decision, Phase 7.8C review). A copied workout would count twice in progression calculations until one copy is deleted. The design is kept below for reference only.
+
 **Goal:** resolve a real conflict without discarding either version. The cloud version stays under the record's ID, exactly as with Use cloud version. This phone's version is saved as a separate new record.
 
 ### How it would work

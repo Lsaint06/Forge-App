@@ -4,6 +4,7 @@
 import { canonical } from "../../cloud/compare";
 import { stopReason, type SyncStop } from "../../cloud/errors";
 import type { SyncResult } from "../../cloud/sync";
+import type { SyncStatus } from "../../cloud/sync-state";
 import { localDate } from "../types";
 import { dayLabel, plural, templateLine } from "../training-display";
 
@@ -152,7 +153,11 @@ export function syncFailureText(e: unknown) {
 export type RestoreOutcome =
   { kind: "done" } | { kind: "failed" | "partial"; text: string };
 
-/** Restore Your Training (Phase 7.7C P1) after its single sync. */
+/**
+ * Restore Your Training (Phase 7.7C P1) after its single sync. Complete
+ * only when nothing was held back or unreadable (Phase 7.8C): a workout in
+ * progress elsewhere that will arrive later still makes it partial.
+ */
 export function restoreOutcome(s: SyncResult): RestoreOutcome {
   if (s.stopped && !s.downloaded)
     return {
@@ -162,28 +167,75 @@ export function restoreOutcome(s: SyncResult): RestoreOutcome {
           ? "Forge couldn't confirm your sign-in, so nothing was restored and nothing on this phone changed. Sign in again, then try again."
           : "Forge couldn't restore your training: nothing on this phone changed. Check your connection and try again.",
     };
-  const missing = s.failed + s.held.update;
+  const { update, active } = s.held;
+  const missing = s.failed + update + active;
   if (!s.stopped && !missing) return { kind: "done" };
   const later =
     "Try again, or continue and synchronize later in Account & privacy.";
+  const restored = `Restored ${plural(s.downloaded, "record")}`;
   if (s.stopped)
     return {
       kind: "partial",
-      text: `Restored ${plural(s.downloaded, "record")}, but the restore stopped before it finished. ${later}`,
+      text: `${restored}, but the restore stopped before it finished. ${later}`,
     };
+  const ofThem = (n: number) => `${n.toLocaleString()} of them`;
   if (!s.failed)
     return {
       kind: "partial",
-      text: `Restored ${plural(s.downloaded, "record")}. ${plural(s.held.update, "record")} ${s.held.update === 1 ? "needs" : "need"} a newer version of Forge: update Forge, then synchronize in Account & privacy.`,
+      text: [
+        `${restored}.`,
+        update
+          ? `${plural(update, "record")} ${update === 1 ? "needs" : "need"} a newer version of Forge: update Forge, then synchronize in Account & privacy.`
+          : "",
+        active
+          ? `${active === 1 ? "A workout" : `${active.toLocaleString()} workouts`} in progress on another device will arrive after the one in progress here is finished.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
     };
   return {
     kind: "partial",
-    text: `Restored ${plural(s.downloaded, "record")}, but ${plural(missing, "record")} couldn't be restored.${
-      s.held.update
-        ? ` ${s.held.update.toLocaleString()} of them ${s.held.update === 1 ? "needs" : "need"} a newer version of Forge.`
-        : ""
-    } ${later}`,
+    text: [
+      `${restored}, but ${plural(missing, "record")} couldn't be restored.`,
+      update
+        ? `${ofThem(update)} ${update === 1 ? "needs" : "need"} a newer version of Forge.`
+        : "",
+      active
+        ? `${ofThem(active)} ${active === 1 ? "is a workout" : "are workouts"} in progress on another device.`
+        : "",
+      later,
+    ]
+      .filter(Boolean)
+      .join(" "),
   };
+}
+
+// Phase 7.8C: the last complete sync, said plainly. "Complete" follows
+// `syncOutcome`: the sync ran to the end and nothing was left over.
+
+const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * "Today, 2:05 PM"; before any complete sync, "Not yet", or "Not recorded
+ * yet" on a phone that synchronized before Phase 7.8C kept a record.
+ */
+export function lastSyncText(
+  status: SyncStatus | undefined,
+  syncedBefore = false,
+  now = Date.now(),
+) {
+  if (status?.completeAt) return sentence(moment(status.completeAt, now));
+  return syncedBefore ? "Not recorded yet" : "Not yet";
+}
+
+/** When the latest sync didn't complete, what happened to it. */
+export function lastSyncNote(status: SyncStatus | undefined, now = Date.now()) {
+  if (!status || status.outcome === "complete") return undefined;
+  const when = moment(status.at, now);
+  return status.outcome === "stopped"
+    ? `Your last sync (${when}) stopped before it finished.`
+    : `Your last sync (${when}) finished, but some records still need attention.`;
 }
 
 // Phase 7.8B, M4: what differs in a conflict, so the choice isn't blind.

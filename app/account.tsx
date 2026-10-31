@@ -31,10 +31,14 @@ import {
 } from "../src/screens/you/account";
 import {
   conflictView,
+  lastSyncNote,
+  lastSyncText,
   pendingText,
   syncFailureText,
   syncSummary,
 } from "../src/domain/presentation/account";
+import { syncStatus } from "../src/cloud/sync-state";
+import { dataOwner, hasSyncHistory } from "../src/data/ownership";
 import { forge } from "../src/theme";
 const MODES = [
   { value: "Login", label: "Sign in" },
@@ -193,6 +197,10 @@ export default function Account() {
   const methods = entryUser?.methods ?? (user ? signInMethods(user) : []);
   const pending = r.outbox().length;
   const conflicts = r.conflicts();
+  // The last complete sync (Phase 7.8C): only ever this phone's owner's.
+  const isOwner = !!shown && dataOwner(r) === shown.id;
+  const lastSync = isOwner ? syncStatus(r, shown.id) : undefined;
+  const lastSyncDetail = lastSyncNote(lastSync);
   return (
     <ForgeSubScreen
       title="Account & privacy"
@@ -334,6 +342,13 @@ export default function Account() {
         <Section title="Cloud sync">
           <ForgeCard testID="account-sync" padding={0} gap={0}>
             <Fact label="On this phone" value={pendingText(pending)} />
+            {shown && (
+              <Fact
+                label="Last complete sync"
+                value={lastSyncText(lastSync, isOwner && hasSyncHistory(r))}
+                divider
+              />
+            )}
             <Fact
               label="Conflicts"
               value={
@@ -351,6 +366,11 @@ export default function Account() {
                 borderTopColor: c.cardDivider,
               }}
             >
+              {shown && !!lastSyncDetail && (
+                <FText variant="label" tone="secondary">
+                  {lastSyncDetail}
+                </FText>
+              )}
               <FText variant="label" tone="secondary">
                 {shown
                   ? "Sync sends your local training and lifestyle data to your configured Supabase project. It runs only when requested. Export a backup before your first sync."

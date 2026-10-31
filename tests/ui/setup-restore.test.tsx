@@ -5,7 +5,11 @@ import { EntryContext } from "../../src/auth/session";
 import type { Entry } from "../../src/auth/entry";
 import { confirm, useRepo } from "../../src/state";
 import { accountHasCloudRecords } from "../../src/cloud/link";
-import { synchronize, type SyncResult } from "../../src/cloud/sync";
+import {
+  synchronize,
+  type SyncProgress,
+  type SyncResult,
+} from "../../src/cloud/sync";
 import { transport } from "../../src/cloud/client";
 import { pathRepository } from "../path-fixture";
 
@@ -113,10 +117,14 @@ test("a returning athlete on an empty phone is offered their saved training", as
   expect(sync).not.toHaveBeenCalled();
 });
 
-test("restoring runs the existing synchronization once, then opens Home", async () => {
+test("restoring runs the existing synchronization once, step by step, then says it's complete", async () => {
   check.mockResolvedValueOnce(true);
   let finish!: (v: ReturnType<typeof result>) => void;
-  sync.mockImplementationOnce(() => new Promise((done) => (finish = done)));
+  let progress!: (p: SyncProgress) => void;
+  sync.mockImplementationOnce((_r, _t, _u, options) => {
+    progress = options!.onProgress!;
+    return new Promise((done) => (finish = done));
+  });
   const view = await setup();
   await fireEvent.press(
     view.getByRole("button", { name: "Restore my training" }),
@@ -126,12 +134,43 @@ test("restoring runs the existing synchronization once, then opens Home", async 
     view.getByRole("button", { name: "Restoring your training…" }),
   );
   expect(sync).toHaveBeenCalledTimes(1);
-  expect(sync).toHaveBeenCalledWith(f.r, "the-account-transport", "user-a");
+  expect(sync).toHaveBeenCalledWith(f.r, "the-account-transport", "user-a", {
+    onProgress: expect.any(Function),
+  });
   expect(transport).toHaveBeenCalledWith(client, "user-a");
+  // Phase 7.8C: the steps, with counts only once the cloud gave them.
   expect(
-    view.getAllByLabelText("Restoring your training…").length,
-  ).toBeGreaterThan(0);
-  await act(async () => finish(result(3)));
+    view.getByLabelText("Connecting to your account: in progress"),
+  ).toBeTruthy();
+  await act(async () => progress({ step: "downloading", received: 500 }));
+  expect(
+    view.getByLabelText("Downloading your training: in progress, 500 records"),
+  ).toBeTruthy();
+  await act(async () =>
+    progress({ step: "downloading", received: 1200, total: 3400 }),
+  );
+  expect(view.getByLabelText("Connecting to your account: done")).toBeTruthy();
+  expect(
+    view.getByLabelText(
+      "Downloading your training: in progress, 1,200 of 3,400 records",
+    ),
+  ).toBeTruthy();
+  expect(view.getByLabelText("Restoring to this phone: next")).toBeTruthy();
+  await act(async () => progress({ step: "applying", total: 3400 }));
+  expect(
+    view.getByLabelText("Restoring to this phone: in progress, 3,400 records"),
+  ).toBeTruthy();
+  expect(view.queryByText(/%/)).toBeNull();
+  await act(async () => finish(result(3400)));
+  // Complete, said so; Home opens when the athlete continues.
+  expect(view.getByText("Restore complete")).toBeTruthy();
+  expect(
+    view.getByText(
+      "Restored 3,400 records to this phone. Nothing was held back.",
+    ),
+  ).toBeTruthy();
+  expect(mockTouch).not.toHaveBeenCalled();
+  await fireEvent.press(view.getByRole("button", { name: "Continue" }));
   expect(mockTouch).toHaveBeenCalled();
 });
 
@@ -167,6 +206,7 @@ test("a partial restore can continue or try again", async () => {
     view.getByRole("button", { name: "Restore my training" }),
   );
   await flush();
+  expect(view.getByText("Restore incomplete")).toBeTruthy();
   expect(
     view.getByText(
       "Restored 2 records, but 1 record couldn't be restored. Try again, or continue and synchronize later in Account & privacy.",
@@ -176,6 +216,11 @@ test("a partial restore can continue or try again", async () => {
   await fireEvent.press(view.getByRole("button", { name: "Try again" }));
   await flush();
   expect(sync).toHaveBeenCalledTimes(2);
+  // Counted over both tries, then complete.
+  expect(
+    view.getByText("Restored 3 records to this phone. Nothing was held back."),
+  ).toBeTruthy();
+  await fireEvent.press(view.getByRole("button", { name: "Continue" }));
   expect(mockTouch).toHaveBeenCalled();
 });
 

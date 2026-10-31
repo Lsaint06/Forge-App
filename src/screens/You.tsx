@@ -3,7 +3,10 @@ import { View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { planStatus } from "../components/PlanRow";
 import { libraryPrograms } from "../programs";
-import { useRepo, useApp } from "../state";
+import { useRepo, useApp, mutate } from "../state";
+import { useEntry } from "../auth/session";
+import { dataOwner } from "../data/ownership";
+import { snoozeSyncReminder, syncReminderFor } from "../data/sync-reminder";
 import {
   experienceLevel,
   missingTrainingProfile,
@@ -34,6 +37,7 @@ import {
   PlanCard,
   PrimaryGoal,
   ProfilePrompt,
+  SyncReminder,
 } from "./you/sections";
 import { EditorSheet, isEditor, type Editor } from "./you/editors";
 import { cloudConfigured, plural } from "./you/account";
@@ -122,6 +126,17 @@ export default function You() {
   const height = heightText(p.height, p.units);
   const cloud = cloudConfigured();
   const pending = r.outbox().length;
+  // A gentle sync reminder (Phase 7.8C), only for this phone's owner while
+  // signed in, and only when changes here aren't in the cloud.
+  const { entry } = useEntry();
+  const signedIn = entry.kind === "ready" ? entry.user.id : undefined;
+  const owner =
+    cloud && signedIn && dataOwner(r) === signedIn ? signedIn : undefined;
+  const reminder = useMemo(
+    () => (owner ? syncReminderFor(r, owner) : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [r, revision, owner],
+  );
   const journal = (kind: string) =>
     router.push({ pathname: "/journal", params: { kind } });
   // Every personal tool and setting, once. Training history is the
@@ -193,6 +208,13 @@ export default function You() {
             missing.map((m) => (m === "restDay" ? "rest day" : m)),
           )}
           onPress={() => setEditor("focus")}
+        />
+      )}
+      {reminder && (
+        <SyncReminder
+          text={reminder}
+          onOpen={() => router.push("/account")}
+          onDismiss={() => mutate(() => snoozeSyncReminder(r))}
         />
       )}
       <PerformanceStrip

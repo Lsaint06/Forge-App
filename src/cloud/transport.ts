@@ -74,10 +74,19 @@ export function cloudFailure(
 }
 
 const PAGE = 500;
+/** Ids per by-id request: keeps the address well under PostgREST's limit. */
+const ID_CHUNK = 100;
+const COLUMNS = "id,kind,payload,revision,deleted,updated_at";
+type Row = Omit<CloudRecord, "updatedAt"> & { updated_at?: unknown };
+const record = ({ updated_at, ...row }: Row): CloudRecord =>
+  typeof updated_at === "string" ? { ...row, updatedAt: updated_at } : row;
+/** A filter value in double quotes: cloud times and ids hold `.` and `:`. */
+const quoted = (v: string) => `"${v.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
 
 export function transport(
   client: SupabaseClient,
   userId: string,
+  { pageSize = PAGE }: { pageSize?: number } = {},
 ): CloudTransport {
   /** The signed-in account is still the one this sync is for. */
   async function requireOwner() {
@@ -103,20 +112,56 @@ export function transport(
       );
   }
   return {
-    async list() {
+    /**
+     * The account's records, oldest change first. Pages follow the last
+     * record received (its cloud time, then its id) rather than an offset,
+     * so records sharing a time are never skipped and a record changed
+     * mid-download moves to a later page instead of shifting others.
+     */
+    async list({ since, ids, onPage } = {}) {
       await requireOwner();
       const records: CloudRecord[] = [];
-      for (let offset = 0; ; offset += PAGE) {
-        const { data, error, status } = await client
+      if (ids) {
+        for (let i = 0; i < ids.length; i += ID_CHUNK) {
+          const { data, error, status } = await client
+            .from("forge_records")
+            .select(COLUMNS)
+            .in("id", ids.slice(i, i + ID_CHUNK));
+          if (error) throw cloudFailure(error, status);
+          await requireOwner();
+          records.push(...((data ?? []) as Row[]).map(record));
+        }
+        return records;
+      }
+      let after: { at: string; id: string } | undefined;
+      let total: number | undefined;
+      for (;;) {
+        let query = client
           .from("forge_records")
-          .select("id,kind,payload,revision,deleted")
+          .select(COLUMNS, after ? undefined : { count: "exact" });
+        if (since) query = query.gte("updated_at", since);
+        if (after) {
+          const at = quoted(after.at);
+          query = query.or(
+            `updated_at.gt.${at},and(updated_at.eq.${at},id.gt.${quoted(after.id)})`,
+          );
+        }
+        const { data, error, status, count } = await query
+          .order("updated_at")
           .order("id")
-          .range(offset, offset + PAGE - 1);
+          .range(0, pageSize - 1);
         if (error) throw cloudFailure(error, status);
         await requireOwner();
-        const page = (data ?? []) as CloudRecord[];
+        const page = ((data ?? []) as Row[]).map(record);
+        if (!after && typeof count === "number") total = count;
         records.push(...page);
-        if (page.length < PAGE) break;
+        onPage?.(records.length, total);
+        if (page.length < pageSize) break;
+        const last = page[page.length - 1]!;
+        // Without the cloud's time the next page can't be found safely.
+        if (!last.updatedAt)
+          throw new Error("Invalid synchronization response");
+        after = { at: last.updatedAt, id: last.id };
       }
       return records;
     },

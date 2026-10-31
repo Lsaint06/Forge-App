@@ -579,6 +579,58 @@ export function ProfilePrompt({
   );
 }
 
+/**
+ * A gentle nudge to synchronize (Phase 7.8C), in the same quiet card as the
+ * profile prompt: the row opens Account & privacy, "Not now" quiets it for
+ * a few days. Nothing is synchronized from here.
+ */
+export function SyncReminder({
+  text,
+  onOpen,
+  onDismiss,
+}: {
+  text: string;
+  onOpen: () => void;
+  onDismiss: () => void;
+}) {
+  const c = useColors();
+  return (
+    <ForgeCard padding={0} gap={0} testID="you-sync-reminder">
+      <ForgeListRow
+        icon="cloud-upload-outline"
+        title="Sync your latest training"
+        description={text}
+        onPress={onOpen}
+      />
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "flex-end",
+          paddingHorizontal: forge.spacing.cardPadding,
+          borderTopWidth: forge.border.card,
+          borderTopColor: c.cardDivider,
+        }}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Not now"
+          accessibilityHint="Hides this reminder for a few days"
+          onPress={onDismiss}
+          style={({ pressed }) => ({
+            minHeight: 44,
+            justifyContent: "center",
+            opacity: pressed ? 0.6 : 1,
+          })}
+        >
+          <FText variant="label" weight="600" tone="secondary">
+            Not now
+          </FText>
+        </Pressable>
+      </View>
+    </ForgeCard>
+  );
+}
+
 // ---- Name preview (Edit profile) ------------------------------------------------------
 
 /** The monogram and name as they will appear, while the name is typed. */

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   conflictTitle,
   conflictView,
+  lastSyncNote,
+  lastSyncText,
   pendingText,
   restoreOutcome,
   syncFailureText,
@@ -162,10 +164,23 @@ test("Restore Your Training: done, failed or partial", () => {
   assert.deepEqual(restoreOutcome(result({ downloaded: 5 })), {
     kind: "done",
   });
-  // A workout in progress elsewhere arrives later; nothing is missing.
+  // Phase 7.8C: a workout held back (in progress on another device) is
+  // never called complete, though it arrives later.
   assert.deepEqual(
     restoreOutcome(result({ downloaded: 5, held: { update: 0, active: 1 } })),
-    { kind: "done" },
+    {
+      kind: "partial",
+      text: "Restored 5 records. A workout in progress on another device will arrive after the one in progress here is finished.",
+    },
+  );
+  assert.deepEqual(
+    restoreOutcome(
+      result({ downloaded: 5, failed: 1, held: { update: 0, active: 2 } }),
+    ),
+    {
+      kind: "partial",
+      text: "Restored 5 records, but 3 records couldn't be restored. 2 of them are workouts in progress on another device. Try again, or continue and synchronize later in Account & privacy.",
+    },
   );
   assert.deepEqual(restoreOutcome(result({ stopped: "offline" })), {
     kind: "failed",
@@ -453,4 +468,36 @@ test("the waiting change is what 'This phone' shows, not an older saved copy", (
   );
   assert.equal(view.phone[0], "2 exercises · 2 sets");
   assert.deepEqual(view.differs, ["Sets"]);
+});
+
+// Phase 7.8C: the last complete sync, and what happened to the latest one.
+
+test("the last complete sync is said plainly; an unfinished last sync is said too", () => {
+  const now = new Date(2026, 9, 30, 18, 0).getTime();
+  const at = new Date(2026, 9, 30, 14, 5).getTime();
+  assert.equal(lastSyncText(undefined, false, now), "Not yet");
+  assert.equal(lastSyncText(undefined, true, now), "Not recorded yet");
+  assert.equal(lastSyncText({ at, outcome: "stopped" }, false, now), "Not yet");
+  assert.match(
+    lastSyncText({ at, outcome: "complete", completeAt: at }, false, now),
+    /^Today, 2:05\sPM$/,
+  );
+  const later = at + 3_600_000;
+  assert.equal(
+    lastSyncNote({ at: later, outcome: "complete", completeAt: later }, now),
+    undefined,
+  );
+  assert.match(
+    lastSyncNote({ at: later, outcome: "stopped", completeAt: at }, now)!,
+    /^Your last sync \(today, 3:05\sPM\) stopped before it finished\.$/,
+  );
+  assert.match(
+    lastSyncNote({ at: later, outcome: "partial" }, now)!,
+    /finished, but some records still need attention\.$/,
+  );
+  for (const text of [
+    lastSyncText({ at, outcome: "complete", completeAt: at }, false, now),
+    lastSyncNote({ at, outcome: "partial" }, now)!,
+  ])
+    assert.doesNotMatch(text, /backed up|is safe|protected/i);
 });

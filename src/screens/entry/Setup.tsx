@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import {
   CtaButton,
@@ -7,15 +8,16 @@ import {
   ForgeCard,
   OutlineButton,
 } from "../../components/reforge";
-import { Label, Screen } from "../../components/ui";
+import { Label, Screen, useColors } from "../../components/ui";
 import { ProfileForm } from "../../components/ProfileForm";
 import { confirm, useApp, useRepo } from "../../state";
 import { authErrorText, useEntry } from "../../auth/session";
 import { hasLocalData } from "../../data/ownership";
 import { accountHasCloudRecords } from "../../cloud/link";
-import { synchronize } from "../../cloud/sync";
+import { synchronize, type SyncProgress } from "../../cloud/sync";
 import { transport } from "../../cloud/client";
 import { restoreOutcome } from "../../domain/presentation/account";
+import { plural } from "../../domain/training-display";
 import { EntryBusy, EntryFrame, EntryMessage } from "./EntryFrame";
 import { TextLink } from "./SignIn";
 
@@ -45,6 +47,11 @@ export default function Setup() {
   const [busy, setBusy] = useState<"restore" | "signOut">();
   const [error, setError] = useState<string>();
   const [partial, setPartial] = useState<string>();
+  // Restore progress and its result (Phase 7.8C): records restored over
+  // every try, and set once a restore is complete.
+  const [progress, setProgress] = useState<SyncProgress>();
+  const [complete, setComplete] = useState<number>();
+  const restoredSoFar = useRef(0);
   const running = useRef(false);
 
   useEffect(() => {
@@ -109,18 +116,32 @@ export default function Setup() {
   const restore = () =>
     void work("restore", async () => {
       setPartial(undefined);
-      const result = await synchronize(r, transport(client!, userId!), userId!);
-      const outcome = restoreOutcome(result);
+      setProgress(undefined);
+      const result = await synchronize(
+        r,
+        transport(client!, userId!),
+        userId!,
+        { onProgress: setProgress },
+      );
+      restoredSoFar.current += result.downloaded;
+      // Counted over every try, so a retry reports the whole restore.
+      const outcome = restoreOutcome({
+        ...result,
+        downloaded: restoredSoFar.current,
+      });
       if (outcome.kind === "done") {
-        // Home opens once the restored profile is in; if the account had
-        // no finished profile, setup continues with the training in place.
-        setCheck("none");
-        useApp.getState().touch();
+        setComplete(restoredSoFar.current);
         return;
       }
       if (outcome.kind === "failed") throw new Error(outcome.text);
       setPartial(outcome.text);
     });
+  // Home opens once the restored profile is in; if the account had no
+  // finished profile, setup continues with the training in place.
+  const finish = () => {
+    setCheck("none");
+    useApp.getState().touch();
+  };
 
   const skip = (unchecked: boolean) =>
     confirm(
@@ -142,6 +163,25 @@ export default function Setup() {
       </EntryFrame>
     );
 
+  if (check === "records" && complete !== undefined)
+    return (
+      <EntryFrame
+        title="Your training is back"
+        eyebrow="Your account"
+        footer={<CtaButton title="Continue" onPress={finish} />}
+      >
+        {account}
+        <ForgeCard gap={10} testID="setup-restore-complete">
+          <Outcome icon="checkmark-circle" text="Restore complete" />
+          <FText variant="body">
+            {complete
+              ? `Restored ${plural(complete, "record")} to this phone. Nothing was held back.`
+              : "Everything saved to your account is on this phone."}
+          </FText>
+        </ForgeCard>
+      </EntryFrame>
+    );
+
   if (check === "records")
     return (
       <EntryFrame
@@ -150,14 +190,7 @@ export default function Setup() {
         footer={
           partial ? (
             <>
-              <CtaButton
-                title="Continue"
-                disabled={!!busy}
-                onPress={() => {
-                  setCheck("none");
-                  useApp.getState().touch();
-                }}
-              />
+              <CtaButton title="Continue" disabled={!!busy} onPress={finish} />
               <OutlineButton
                 title={busy === "restore" ? "Restoring…" : "Try again"}
                 disabled={!!busy}
@@ -180,16 +213,24 @@ export default function Setup() {
       >
         {account}
         <ForgeCard gap={10} testID="setup-restore">
-          <FText variant="body">
-            {`${who} has training saved in Forge's cloud. Restore it to this phone to pick up where you left off.`}
-          </FText>
-          <FText variant="label" tone="secondary">
-            Your workouts, templates, journal and profile come back. Nothing is
-            uploaded, and nothing else changes.
-          </FText>
+          {partial ? (
+            <>
+              <Outcome icon="alert-circle-outline" text="Restore incomplete" />
+              <FText variant="body">{partial}</FText>
+            </>
+          ) : (
+            <>
+              <FText variant="body">
+                {`${who} has training saved in Forge's cloud. Restore it to this phone to pick up where you left off.`}
+              </FText>
+              <FText variant="label" tone="secondary">
+                Your workouts, templates, journal and profile come back. Nothing
+                is uploaded, and nothing else changes.
+              </FText>
+            </>
+          )}
         </ForgeCard>
-        {busy === "restore" && <EntryBusy text="Restoring your training…" />}
-        <EntryMessage text={partial} tone="error" />
+        {busy === "restore" && <RestoreProgress progress={progress} />}
         <EntryMessage text={error} tone="error" />
         {!partial && (
           <TextLink
@@ -274,6 +315,113 @@ function SetupAccount({
         disabled={disabled}
         onPress={onNotYou}
       />
+    </View>
+  );
+}
+
+/** How a restore ended, as an icon and a word (never by colour alone). */
+function Outcome({
+  icon,
+  text,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  text: string;
+}) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Ionicons name={icon} size={16} color={c.emberHot} />
+      <FText variant="overline" tone="accent" header>
+        {text}
+      </FText>
+    </View>
+  );
+}
+
+const STEPS = [
+  "Connecting to your account",
+  "Downloading your training",
+  "Restoring to this phone",
+];
+
+/**
+ * Where a restore has got to (Phase 7.8C). Counts appear only when they're
+ * known: the download's total is the cloud's own count, and the records
+ * restored are the ones actually downloaded.
+ */
+function RestoreProgress({ progress }: { progress?: SyncProgress }) {
+  const at =
+    progress?.step === "downloading"
+      ? 1
+      : progress?.step === "applying"
+        ? 2
+        : 0;
+  const detail = (step: number) => {
+    if (step === 1 && progress?.step === "downloading")
+      return progress.total === undefined
+        ? plural(progress.received, "record")
+        : `${progress.received.toLocaleString()} of ${Math.max(progress.total, progress.received).toLocaleString()} records`;
+    if (step === 2 && progress?.step === "applying")
+      return plural(progress.total, "record");
+    return undefined;
+  };
+  return (
+    <View testID="setup-restore-progress" style={{ gap: 12 }}>
+      {STEPS.map((title, i) => (
+        <Step
+          key={title}
+          title={title}
+          detail={detail(i)}
+          state={i < at ? "done" : i === at ? "active" : "waiting"}
+        />
+      ))}
+    </View>
+  );
+}
+
+function Step({
+  title,
+  detail,
+  state,
+}: {
+  title: string;
+  detail?: string;
+  state: "done" | "active" | "waiting";
+}) {
+  const c = useColors();
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${title}: ${
+        state === "done" ? "done" : state === "active" ? "in progress" : "next"
+      }${detail ? `, ${detail}` : ""}`}
+      accessibilityLiveRegion={state === "active" ? "polite" : "none"}
+      style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+    >
+      <View style={{ width: 22, alignItems: "center" }}>
+        {state === "active" ? (
+          <ActivityIndicator color={c.emberHot} />
+        ) : (
+          <Ionicons
+            name={state === "done" ? "checkmark-circle" : "ellipse-outline"}
+            size={20}
+            color={state === "done" ? c.emberHot : c.text3}
+          />
+        )}
+      </View>
+      <View style={{ flexShrink: 1 }}>
+        <FText
+          variant="body"
+          tone={state === "waiting" ? "secondary" : "primary"}
+        >
+          {title}
+        </FText>
+        {!!detail && (
+          <FText variant="label" tone="secondary">
+            {detail}
+          </FText>
+        )}
+      </View>
     </View>
   );
 }

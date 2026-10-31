@@ -8,6 +8,7 @@ import { pathRepository } from "../path-fixture";
 import { theme } from "../../src/theme";
 import { AuthRetryableFetchError } from "@supabase/supabase-js";
 import { EntryContext } from "../../src/auth/session";
+import { recordSyncOutcome } from "../../src/cloud/sync-state";
 
 // Phase 7.5G.3: Account & privacy in REFORGE. The cloud client and the sync
 // engine are mocked here: these tests check what the screen says and which
@@ -460,6 +461,44 @@ test("a conflict from a newer Forge can't be resolved either way until Forge is 
         card.getByRole("button", { name }).props.accessibilityState.disabled,
       ).toBe(true);
     expect(r.conflicts()).toHaveLength(1);
+  } finally {
+    db.close();
+  }
+});
+
+// Phase 7.8C: the last complete sync, for this phone's owner only.
+test("another account's sync history is never shown", async () => {
+  const { r, db } = setup();
+  try {
+    cloud({ user: { id: "u1", email: "a@b.co" } });
+    r.setSetting("cloudOwner", "someone-else");
+    recordSyncOutcome(r, "someone-else", "complete", Date.now());
+    const view = await render(<Account />);
+    await flush();
+    expect(view.getByLabelText("Last complete sync: Not yet")).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
+test("the owner's last complete sync is shown, and a last sync that didn't finish", async () => {
+  const { r, db } = setup();
+  try {
+    cloud({ user: { id: "u1", email: "a@b.co" } });
+    r.setSetting("cloudOwner", "u1");
+    const at = Date.now() - 60_000;
+    recordSyncOutcome(r, "u1", "complete", at);
+    recordSyncOutcome(r, "u1", "stopped", at + 30_000);
+    const view = await render(<Account />);
+    await flush();
+    const facts = within(view.getByTestId("account-sync"));
+    expect(
+      facts.getByLabelText(/^Last complete sync: (Today|Yesterday), /),
+    ).toBeTruthy();
+    expect(
+      facts.getByText(/^Your last sync \(.+\) stopped before it finished\.$/),
+    ).toBeTruthy();
+    expect(facts.queryByText(/backed up/i)).toBeNull();
   } finally {
     db.close();
   }
