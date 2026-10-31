@@ -51,3 +51,38 @@ const ready = () => status === "ready";
 export function useBrandFontsReady() {
   return useSyncExternalStore(subscribe, ready, ready);
 }
+
+// The "Continue with Google" label's face (Google's sign-in branding asks for
+// Google Sans Medium). Loaded only when that button is shown, on its own: a
+// failure leaves the system face and never affects the display face above.
+export const PROVIDER_FONT = "ProviderSans-Medium";
+let providerStatus: "idle" | "loading" | "ready" | "failed" = "idle";
+
+export function loadProviderFont() {
+  if (providerStatus !== "idle") return;
+  providerStatus = "loading";
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Font = require("expo-font") as typeof import("expo-font");
+    Font.loadAsync({
+      [PROVIDER_FONT]: require("../assets/fonts/ProviderSans-Medium.ttf"),
+    })
+      .then(
+        () => {
+          providerStatus = "ready";
+        },
+        () => {
+          providerStatus = "failed";
+        },
+      )
+      .finally(notify);
+  } catch {
+    providerStatus = "failed";
+  }
+}
+const providerReady = () => providerStatus === "ready";
+
+/** True once the provider label face can be used. */
+export function useProviderFontReady() {
+  return useSyncExternalStore(subscribe, providerReady, providerReady);
+}

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { Stack } from "expo-router";
 import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -10,7 +9,17 @@ import {
   reconcilePendingDeletes,
   remainingMs,
 } from "../src/data/pending-deletes";
-import { useApp } from "../src/state";
+import { useApp, useRepo } from "../src/state";
+import { AppStack } from "../src/auth/AppStack";
+import { entryState } from "../src/auth/entry";
+import { EntryContext, authClient, useAuthSession } from "../src/auth/session";
+import {
+  claimIfEmpty,
+  dataOwner,
+  hasLocalData,
+  hasSyncHistory,
+  recordOwnerHint,
+} from "../src/data/ownership";
 import { Loading, dark, useColors } from "../src/components/ui";
 import * as SplashScreen from "expo-splash-screen";
 import { ForgeSplash } from "../src/components/splash/ForgeSplash";
@@ -35,39 +44,73 @@ function nativeSplash(action: () => Promise<unknown>) {
 nativeSplash(() => SplashScreen.preventAutoHideAsync());
 // REFORGE display face: loads in parallel and never delays startup.
 loadBrandFonts();
+// Only the entry state's kind changes the routes; the root stack doesn't
+// re-render for ordinary data changes.
+const Routes = React.memo(AppStack);
 function Navigation() {
   const c = useColors();
+  const [{ client, misconfigured }] = useState(authClient);
+  const auth = useAuthSession(client);
+  const r = useRepo();
+  // This phone's data is only consulted once someone is signed in.
+  const user = auth.session ?? auth.offline;
+  const owner = user ? dataOwner(r) : undefined;
+  const entry = entryState({
+    configured: !!client,
+    misconfigured,
+    session: auth.session,
+    offline: auth.offline,
+    recovering: auth.recovering,
+    owner,
+    hasLocalData: user ? hasLocalData(r) : false,
+    syncHistory: user && owner && owner !== user.id ? hasSyncHistory(r) : false,
+    onboarded: user ? r.profile().onboarded : false,
+  });
+  // Setup on an empty phone: what the athlete enters is theirs from the
+  // start. Also replaces a claim with nothing behind it (P4).
+  const claim =
+    entry.kind === "setup" && owner !== entry.user.id
+      ? entry.user.id
+      : undefined;
+  useEffect(() => {
+    if (!claim) return;
+    try {
+      if (claimIfEmpty(repository(), claim)) useApp.getState().touch();
+    } catch {
+      // Left unclaimed: the athlete is asked to link it after setup.
+    }
+  }, [claim]);
+  // While the owner is signed in, remember how to describe them (masked) for
+  // the conflict screen. Words only, never authorization (P2).
+  const ownerSignedIn = user && owner === user.id ? user : undefined;
+  const hintKey = ownerSignedIn
+    ? `${ownerSignedIn.id}|${ownerSignedIn.email ?? ""}|${(ownerSignedIn.methods ?? []).join(",")}`
+    : undefined;
+  useEffect(() => {
+    if (!hintKey || !ownerSignedIn) return;
+    try {
+      recordOwnerHint(repository(), ownerSignedIn);
+    } catch {
+      // A missing hint only means neutral wording on the conflict screen.
+    }
+    // The key holds everything the hint is made from.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hintKey]);
+  if (entry.kind === "initializing") return <Loading />;
   return (
-    <>
+    <EntryContext.Provider
+      value={{
+        entry,
+        client,
+        finishRecovery: auth.finishRecovery,
+        signOut: auth.signOut,
+        notice: auth.notice,
+        link: auth.link,
+      }}
+    >
       <StatusBar style={c.background === dark.background ? "light" : "dark"} />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: c.background },
-        }}
-      >
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="workout"
-          options={{ presentation: "fullScreenModal" }}
-        />
-        <Stack.Screen name="journal" />
-        <Stack.Screen name="templates" />
-        <Stack.Screen name="history" />
-        <Stack.Screen name="records" />
-        <Stack.Screen name="calendar" />
-        <Stack.Screen name="explore" />
-        <Stack.Screen name="paths" />
-        <Stack.Screen name="forge-paths/index" />
-        <Stack.Screen name="forge-paths/[programId]" />
-        <Stack.Screen name="forge-paths/current" />
-        <Stack.Screen name="exercise" />
-        <Stack.Screen name="onboarding" />
-        <Stack.Screen name="account" />
-        <Stack.Screen name="preferences" />
-        <Stack.Screen name="design-system" />
-      </Stack>
-    </>
+      <Routes entry={entry.kind} />
+    </EntryContext.Provider>
   );
 }
 function Ready() {

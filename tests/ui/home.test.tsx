@@ -508,12 +508,15 @@ test("the last session and history stay one tap away", async () => {
   }
 });
 
-test("an un-onboarded profile still goes to onboarding", async () => {
+// Phase 7.7B: the root entry gate sends an athlete without a finished setup
+// to onboarding before Home can render (tests/ui/entry-routing.test.tsx);
+// Home no longer redirects on its own, so it can't race the gate.
+test("Home leaves onboarding to the entry gate", async () => {
   const fixture = pathRepository();
   try {
     jest.mocked(useRepo).mockReturnValue(fixture.r);
     await render(<Home />);
-    expect(router.replace).toHaveBeenCalledWith("/onboarding");
+    expect(router.replace).not.toHaveBeenCalledWith("/onboarding");
   } finally {
     fixture.db.close();
   }

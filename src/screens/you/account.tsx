@@ -6,6 +6,7 @@ import Constants from "expo-constants";
 import { Alert } from "../../platform/alert";
 import { pickBackup } from "../../platform/backup";
 import { backupState, backupExportedAt, recordBackup } from "../../data/backup";
+import { importBackupKeepingOwner } from "../../data/ownership";
 import { BackupSheet } from "../../components/Backup";
 import { cancelAllNotifications } from "../../notifications";
 import { InfoSheet } from "../../components/system";
@@ -102,7 +103,7 @@ export function DataPrivacy() {
         "Every workout, template, preference and journal entry on this phone is replaced by the backup's contents, if the file is valid. This can't be undone, so export first. If cloud sync is enabled, the local sync identity resets and your next sync may report conflicts.",
         () => {
           try {
-            r.importBackup(text);
+            importBackupKeepingOwner(r, text);
           } catch (e) {
             // Unreadable or invalid files get one plain message; the details
             // stay in the developer log.

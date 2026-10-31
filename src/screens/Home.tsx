@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
 import { useRepo, mutate } from "../state";
@@ -148,9 +148,6 @@ export default function Home() {
   const goal = nextTarget(
     (r.journal("goal") as Goal[]).map((g) => evaluate(g, sources)),
   );
-  useEffect(() => {
-    if (!p.onboarded) router.replace("/onboarding");
-  }, [p.onboarded]);
   function start() {
     if (next.kind === "planned" && !next.template) {
       router.push("/templates");

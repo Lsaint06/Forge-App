@@ -41,7 +41,9 @@
             "image": "./assets/splash/launch-mark.png"
           }
         }
-      ]
+      ],
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": false

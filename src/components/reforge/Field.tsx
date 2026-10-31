@@ -23,11 +23,59 @@ export function ForgeField({
   label,
   error,
   hideLabel = false,
+  trailing,
+  ref,
   ...props
-}: TextInputProps & { label: string; error?: string; hideLabel?: boolean }) {
+}: TextInputProps & {
+  label: string;
+  error?: string;
+  hideLabel?: boolean;
+  /**
+   * A control drawn inside the field's right edge, such as a password's
+   * show/hide button (Phase 7.7C). Fields without one are unchanged.
+   */
+  trailing?: React.ReactNode;
+  ref?: React.Ref<React.ComponentRef<typeof TextInput>>;
+}) {
   const c = useColors();
   const [focused, setFocused] = useState(false);
   const numeric = /decimal|number|numeric/.test(props.keyboardType ?? "");
+  const input = (
+    <TextInput
+      ref={ref}
+      accessibilityLabel={label}
+      accessibilityHint={error ? `Error: ${error}` : undefined}
+      placeholderTextColor={c.text3}
+      selectionColor={c.emberHot}
+      maxFontSizeMultiplier={1.6}
+      {...props}
+      onFocus={(e) => {
+        setFocused(true);
+        props.onFocus?.(e);
+      }}
+      onBlur={(e) => {
+        setFocused(false);
+        props.onBlur?.(e);
+      }}
+      style={[
+        {
+          minHeight: forge.heights.button,
+          color: c.text,
+          backgroundColor: c.cardBg,
+          borderRadius: forge.radii.input,
+          paddingHorizontal: 14,
+          paddingVertical: 10,
+          fontSize: 16,
+          borderWidth:
+            error || focused ? forge.border.active : forge.border.card,
+          borderColor: error ? c.error : focused ? c.emberHot : c.cardBorder,
+          ...(numeric ? { fontVariant: ["tabular-nums" as const] } : {}),
+          ...(trailing ? { paddingRight: forge.heights.compact + 4 } : {}),
+        },
+        props.style,
+      ]}
+    />
+  );
   return (
     <View style={{ gap: 6, flexGrow: 1, flexShrink: 1, minWidth: 96 }}>
       {!hideLabel && (
@@ -35,43 +83,28 @@ export function ForgeField({
           {label}
         </FText>
       )}
-      <TextInput
-        accessibilityLabel={label}
-        accessibilityHint={error ? `Error: ${error}` : undefined}
-        placeholderTextColor={c.text3}
-        selectionColor={c.emberHot}
-        maxFontSizeMultiplier={1.6}
-        {...props}
-        onFocus={(e) => {
-          setFocused(true);
-          props.onFocus?.(e);
-        }}
-        onBlur={(e) => {
-          setFocused(false);
-          props.onBlur?.(e);
-        }}
-        style={[
-          {
-            minHeight: forge.heights.button,
-            color: c.text,
-            backgroundColor: c.cardBg,
-            borderRadius: forge.radii.input,
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            fontSize: 16,
-            borderWidth:
-              error || focused ? forge.border.active : forge.border.card,
-            borderColor: error ? c.error : focused ? c.emberHot : c.cardBorder,
-            ...(numeric ? { fontVariant: ["tabular-nums" as const] } : {}),
-          },
-          props.style,
-        ]}
-      />
+      {trailing ? (
+        <View style={{ justifyContent: "center" }}>
+          {input}
+          <View
+            style={{
+              position: "absolute",
+              right: 2,
+              top: 0,
+              bottom: 0,
+              justifyContent: "center",
+            }}
+          >
+            {trailing}
+          </View>
+        </View>
+      ) : (
+        input
+      )}
       <FieldError label={label} error={error} />
     </View>
   );
 }
-
 /**
  * A number typed as text: applied as soon as it is valid, kept as typed
  * while editing, and an error shown (not applied) when out of range.

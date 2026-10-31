@@ -776,3 +776,69 @@ Already covered elsewhere: starting from Home and Train, never starting a second
 - offline use and backgrounding (local-first: nothing needs a network; sync runs only when asked).
 
 **Beta-readiness risks.** The 7.5G.3 and 7.5H list is unchanged and still open: a privacy policy and support contact (high for a public beta), the conflict *Use cloud version* direct writes, guest-to-account first-sync communication, the missing last-sync time, and the unread `cloudAccountDeleted` flag.
+
+## Welcome and mandatory account (Phase 7.7B)
+
+**Policy.** Forge requires an account. There is no guest mode. A previously signed-in athlete keeps training offline on the stored session. The full decision record is in `docs/audits/PHASE_7_7A_ONBOARDING_AUDIT.md` (addendum).
+
+**One entry decision.**
+
+- `entryState()` in `src/auth/entry.ts` decides what may be shown, from facts the app can verify: whether the account service is configured, the Supabase session (or, offline only, the stored one), the data owner (`cloudOwner`), whether this phone holds athlete data, and whether setup is finished.
+- `AppStack` (`src/auth/AppStack.tsx`) puts every route in a `Stack.Protected` group for its state. Every route file must be listed there; an unlisted route would be reachable unprotected.
+- The root layout memoizes the stack on the state's kind, so ordinary data changes don't re-render it.
+- Home no longer redirects to onboarding.
+
+**Entry screens.** `src/screens/entry`, routes `/welcome`, `/sign-in`, `/create-account` and `/account-check`.
+
+- `EntryFrame`: the REFORGE top glow, an optional Back header, keyboard-aware scrolling content, and actions pinned above a hairline. There is no tab bar.
+- `EntryMessage`: an error or status line, read out as a polite live region.
+- **Welcome:** the wordmark, the tagline, "Your training starts here.", then *Create account* (ember CTA) and *Sign in* (outline). Nothing else.
+- **Sign in and Create account** reuse the Account screen's existing Supabase calls and wording. A successful call only changes the session; the screens never navigate into the app themselves.
+- **Account check:** accounts unavailable, link this phone's training (only to an account with no cloud records, checked read-only first; otherwise *This account already has training*), another account's data (sign out or the existing *Delete all local data*), and set a new password after a reset link.
+
+**Copy.** Onboarding no longer offers "Start as a guest". The setup note now reads: "Your training is saved on this phone. FORGE sends nothing to your account until you choose to synchronize."
+
+**Tests:**
+
+- `entry.test.ts`: states and ownership, with a real SQLite repository.
+- `link.test.ts`: the checked link (permitted, blocked, fails closed) and how synchronization combines histories.
+- `entry-routing.test.tsx`: real Expo Router redirects.
+- `entry-gate.test.tsx`: the real root layout with a mocked session.
+- `entry-screens.test.tsx`
+
+**Email links.** Confirmation emails return to Sign in (`emailRedirectTo`), which says *Your email is confirmed*. Expired links are explained once. Each reset link is handled once and never replayed after signing out (`src/auth/links.ts`, `src/auth/session.ts`).
+
+**Needs a live project and a device:** real email confirmation, offline refresh against an expired token, and opening a password-reset link from Mail (the `forge://account` redirect) while signed out.
+
+## Sign-in providers on Welcome (Phase 7.7B.1)
+
+- **Order:** Continue with Apple (iOS, Forge's own build), Continue with Google, Continue with Email. A provider shows only when Supabase reports it enabled and it works on this device, so there is never a decorative button.
+- **Equal prominence:** every entry button is 48 pt high with the REFORGE 10 pt radius. Both providers contrast with the theme the same way:
+  - Dark Forge: Apple white, Google's light theme (`#FFFFFF`, stroke `#747775`, text `#1F1F1F`).
+  - Light Forge: Apple black, Google's dark theme (`#131314`, stroke `#8E918F`, text `#E3E3E3`).
+- **Email:** the ember CTA when it is the only option, the neutral outline (with a mail icon) once a provider leads.
+- **Google button:** the standard gradient "G" at 20 pt, cropped unaltered from Google's pre-approved iOS assets at each density. The label "Continue with Google" is in Google Sans Medium, loaded on demand (system face until then), scaling up to 1.4×. Pressing shows Material's 12 % state layer.
+- **States:** while a provider's sheet is open, every option is disabled. After the provider approves, Welcome shows "Signing you in…". Cancelling is silent. Errors use one plain sentence; provider details go to the developer log, never tokens.
+- **Return address:** Google appears only where Supabase will send the athlete back (src/auth/redirects.ts). Supabase refuses IP addresses, so a copy of Forge opened from the local network hides Google. Open it through the tunnel's QR code (SDK 58: `*.on.expo.app`); the development log prints the return address.
+- **Tests:** `social-auth.test.tsx` and `oauth-redirect.test.ts`, plus D1 cases in `entry-gate.test.tsx` and `account-reforge.test.tsx`.
+
+## Account experience polish (Phase 7.7C)
+
+- **Shared pieces.**
+  - `PasswordField` (`src/screens/entry/PasswordField.tsx`): a `ForgeField` with a 44 pt show/hide control, labelled for VoiceOver.
+  - `ForgeField` gained an optional `trailing` slot and `ref`. Fields without them render exactly as before.
+  - `EntryBusy`: an ember spinner with words, read out politely.
+  - `useCooldown`: the one-minute wait between emails.
+- **Forms.** The Return key moves to the next field and submits the last one. Progress is named for what it is.
+- **Setup** (`src/screens/entry/Setup.tsx`, route `/onboarding`).
+  - "Setting up Forge for {email}" with **Not you? Sign out**.
+  - Before the form, on an empty phone, it checks for saved training: "Checking your account…", then **Welcome back · Restore my training**, or straight to setup.
+  - Offline: "Couldn't check your account", with Try again and "Set up this phone now".
+  - The profile form itself is unchanged.
+- **Conflict screen.**
+  - Three cards: who and why; how to return (numbered); "Use this phone for {you} instead", with the deletion summary and a danger row.
+  - Sign out is the ember CTA. The owner appears only masked, or as "a different Forge account".
+- **Account & privacy.** "Signed in · offline" with a plain note when offline, and "Sign out" (no more "Log out").
+- **Tests:**
+  - `auth-polish.test.tsx`, `setup-restore.test.tsx` and `restore.test.ts`;
+  - additions to `entry-gate`, `entry-screens`, `account-reforge` and `entry.test.ts`.

@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Alert } from "../src/platform/alert";
 import * as Linking from "expo-linking";
 import { recoveryTokens } from "../src/cloud/recovery";
+import { signInMethods } from "../src/auth/methods";
+import { authErrorText, useEntry } from "../src/auth/session";
 import { router } from "expo-router";
 import { useColors } from "../src/components/ui";
 import {
@@ -43,9 +45,20 @@ const MODES = [
 export default function Account() {
   const r = useRepo();
   const client = cloudClient();
+  // Signed in, from the entry gate: right from the first frame, and while
+  // offline on the stored session (Phase 7.7C). Supabase's own lookup below
+  // only fills in when the screen is shown outside the gate.
+  const { entry, signOut: endSession } = useEntry();
+  const entryUser = entry.kind === "ready" ? entry.user : undefined;
+  const offline = entry.kind === "ready" && entry.offline;
+  const hasEntryUser = !!entryUser;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [user, setUser] = useState<{ id: string; email?: string }>();
+  const [user, setUser] = useState<{
+    id: string;
+    email?: string;
+    app_metadata?: { provider?: unknown; providers?: unknown };
+  }>();
   const [mode, setMode] = useState("Login");
   const [recovery, setRecovery] = useState(false);
   const incoming = Linking.useURL();
@@ -54,15 +67,16 @@ export default function Account() {
   useEffect(() => {
     if (!client) return;
     void client.auth.getSession().then(({ data, error }) => {
-      if (error) setStatus(error.message);
-      else setUser(data.session?.user);
+      if (!error) setUser(data.session?.user);
+      else if (!hasEntryUser)
+        setStatus(authErrorText(error, "Forge couldn't check your sign-in."));
     });
     const { data } = client.auth.onAuthStateChange((event, session) => {
       setUser(session?.user);
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
     });
     return () => data.subscription.unsubscribe();
-  }, [client]);
+  }, [client, hasEntryUser]);
   useEffect(() => {
     if (!client || !incoming) return;
     const tokens = recoveryTokens(incoming);
@@ -129,11 +143,31 @@ export default function Account() {
       setBusy(false);
     }
   }
-  async function sync() {
-    if (!client || !user) return;
+  async function signOutNow() {
+    if (!client) return;
     setBusy(true);
     try {
-      const result = await synchronize(r, transport(client, user.id), user.id);
+      if (endSession) await endSession();
+      else {
+        const { error } = await client.auth.signOut();
+        if (error) throw error;
+        setStatus("Signed out. Your local records remain on this device.");
+      }
+    } catch (e) {
+      setStatus(authErrorText(e, "Forge couldn't sign you out. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function sync() {
+    if (!client || !shown) return;
+    setBusy(true);
+    try {
+      const result = await synchronize(
+        r,
+        transport(client, shown.id),
+        shown.id,
+      );
       useApp.getState().touch();
       setStatus(
         `${result.uploaded} uploaded · ${result.downloaded} downloaded · ${result.pending} pending · ${result.conflicts} conflicts${result.errors.length ? "\n" + result.errors.join("\n") : ""}`,
@@ -145,6 +179,8 @@ export default function Account() {
     }
   }
   const c = useColors();
+  const shown = entryUser ?? user;
+  const methods = entryUser?.methods ?? (user ? signInMethods(user) : []);
   const pending = r.outbox().length;
   const conflicts = r.conflicts();
   return (
@@ -166,16 +202,28 @@ export default function Account() {
               Data &amp; privacy below and keep the file somewhere safe.
             </FText>
           </ForgeCard>
-        ) : user ? (
+        ) : shown ? (
           <ForgeCard testID="account-signed-in" gap={10}>
             <State
-              icon="person-circle-outline"
-              text="Signed in"
+              icon={offline ? "cloud-offline-outline" : "person-circle-outline"}
+              text={offline ? "Signed in · offline" : "Signed in"}
               tone="accent"
             />
             <FText variant="cardTitle" weight="700" header>
-              {user.email ?? "Signed-in account"}
+              {shown.email ?? "Signed-in account"}
             </FText>
+            {methods.length > 0 && (
+              <FText variant="label" tone="secondary">
+                {`Signs in with ${methods.join(" · ")}`}
+              </FText>
+            )}
+            {offline && (
+              <FText variant="label" tone="secondary">
+                {
+                  "You're offline. Forge reconnects to your account when you're back online; synchronizing needs a connection."
+                }
+              </FText>
+            )}
             {recovery && (
               <>
                 <ForgeField
@@ -194,21 +242,13 @@ export default function Account() {
               </>
             )}
             <OutlineButton
-              title="Log out"
+              title="Sign out"
               compact
               disabled={busy}
-              onPress={() => {
-                void client.auth.signOut().then(({ error }) => {
-                  if (error) setStatus(error.message);
-                  else
-                    setStatus(
-                      "Signed out. Your local records remain on this device.",
-                    );
-                });
-              }}
+              onPress={() => void signOutNow()}
             />
             <FText variant="label" tone="secondary">
-              Logging out keeps everything on this phone.
+              Signing out keeps everything on this phone.
             </FText>
           </ForgeCard>
         ) : (
@@ -302,11 +342,11 @@ export default function Account() {
               }}
             >
               <FText variant="label" tone="secondary">
-                {user
+                {shown
                   ? "Sync sends your local training and lifestyle data to your configured Supabase project. It runs only when requested. Export a backup before your first sync."
                   : "Sign in above to synchronize. Nothing is uploaded until you sync."}
               </FText>
-              {user && (
+              {shown && (
                 <CtaButton
                   title={busy ? "Working…" : "Synchronize now"}
                   icon="sync"
@@ -390,7 +430,7 @@ export default function Account() {
       <Section title="Delete">
         <ForgeCard padding={0} gap={0}>
           <DeleteLocalData />
-          {client && user && (
+          {client && shown && (
             <DangerRow
               title="Delete cloud account"
               description="Permanently deletes your account and every cloud record. Data on this phone stays."

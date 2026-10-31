@@ -50,6 +50,13 @@ jest.mock("expo-router", () => {
   Stack.Screen = function Screen() {
     return null;
   };
+  Stack.Protected = function Protected({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) {
+    return <>{children}</>;
+  };
   return { Stack };
 });
 const mockInitialize = jest.fn(async () => {});

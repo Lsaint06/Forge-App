@@ -747,9 +747,9 @@ export function ProfileForm({
       )}
       {!fields && (
         <Label muted size={12}>
-          Guest data stays on this device. FORGE does not send health data to a
-          backend until you configure cloud access and explicitly synchronize.
-          Training estimates are guidance, not medical advice.
+          Your training is saved on this phone. FORGE sends nothing to your
+          account until you choose to synchronize. Training estimates are
+          guidance, not medical advice.
         </Label>
       )}
     </View>

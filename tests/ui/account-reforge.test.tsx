@@ -6,6 +6,8 @@ import { useRepo, confirm } from "../../src/state";
 import { synchronize } from "../../src/cloud/sync";
 import { pathRepository } from "../path-fixture";
 import { theme } from "../../src/theme";
+import { AuthRetryableFetchError } from "@supabase/supabase-js";
+import { EntryContext } from "../../src/auth/session";
 
 // Phase 7.5G.3: Account & privacy in REFORGE. The cloud client and the sync
 // engine are mocked here: these tests check what the screen says and which
@@ -232,8 +234,8 @@ test("signed in: the real email, one sync at a time, its result in words", async
     expect(
       view.getByText("3 uploaded · 1 downloaded · 0 pending · 0 conflicts"),
     ).toBeTruthy();
-    // Log out keeps local data.
-    await fireEvent.press(me.getByRole("button", { name: "Log out" }));
+    // Signing out keeps local data.
+    await fireEvent.press(me.getByRole("button", { name: "Sign out" }));
     await flush();
     expect(auth.signOut).toHaveBeenCalled();
     expect(
@@ -245,6 +247,25 @@ test("signed in: the real email, one sync at a time, its result in words", async
   }
 });
 
+test("signed in: every linked way into the account is listed (Phase 7.7B.1)", async () => {
+  const { db } = setup();
+  try {
+    cloud({
+      user: {
+        id: "u1",
+        email: "a@example.com",
+        app_metadata: { provider: "email", providers: ["email", "google"] },
+      },
+    } as never);
+    const view = await render(<Account />);
+    await flush();
+    const me = within(view.getByTestId("account-signed-in"));
+    expect(me.getByText("Signs in with Email · Google")).toBeTruthy();
+    expect(synchronize).not.toHaveBeenCalled();
+  } finally {
+    db.close();
+  }
+});
 test("a failed sync says so, and pending changes are kept", async () => {
   const { r, db } = setup();
   try {
@@ -377,6 +398,54 @@ test("compact screens, large text and light mode", async () => {
       ).toBeGreaterThanOrEqual(44);
     expect(view.getByText("Free plan")).toBeTruthy();
     expect(view.queryByText(/\$|subscribe|purchase|trial/i)).toBeNull();
+  } finally {
+    db.close();
+  }
+});
+
+test("offline: still signed in, said plainly, never the old sign-in form (7.7C)", async () => {
+  const { r, db } = setup();
+  try {
+    const auth = cloud(null);
+    // Offline with an expired token, Supabase has no session to give.
+    auth.getSession.mockResolvedValueOnce({
+      data: { session: null },
+      error: new AuthRetryableFetchError("Failed to fetch", 0),
+    } as never);
+    const signOut = jest.fn(async () => {});
+    const view = await render(
+      <EntryContext.Provider
+        value={{
+          entry: {
+            kind: "ready",
+            user: { id: "u1", email: "a@example.com", methods: ["Google"] },
+            offline: true,
+          },
+          client: mockCloud.client as never,
+          finishRecovery: jest.fn(),
+          signOut,
+        }}
+      >
+        <Account />
+      </EntryContext.Provider>,
+    );
+    // The signed-in account is there from the first frame.
+    expect(view.getByTestId("account-signed-in")).toBeTruthy();
+    await flush();
+    const me = within(view.getByTestId("account-signed-in"));
+    expect(me.getByText("Signed in · offline")).toBeTruthy();
+    expect(me.getByText("a@example.com")).toBeTruthy();
+    expect(me.getByText("Signs in with Google")).toBeTruthy();
+    expect(me.getByText(/You're offline/)).toBeTruthy();
+    expect(view.queryByTestId("account-sign-in")).toBeNull();
+    expect(view.queryByTestId("account-status")).toBeNull();
+    expect(view.queryByText(/Failed to fetch/)).toBeNull();
+    // Signing out goes through the gate, which works offline too.
+    await fireEvent.press(me.getByRole("button", { name: "Sign out" }));
+    await flush();
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(auth.signOut).not.toHaveBeenCalled();
+    expect(r.profile().onboarded).toBe(true);
   } finally {
     db.close();
   }

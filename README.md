@@ -96,7 +96,7 @@ Workout durations use saved timestamps and accumulated pause milliseconds. Chart
 
 ## Supabase configuration
 
-Cloud is optional. Copy `.env.example` to `.env` and supply your project's **public** URL and publishable/anon client key:
+Forge requires an account (Phase 7.7B): without this configuration the app shows "Accounts aren't available" and opens no training. Copy `.env.example` to `.env` and supply your project's **public** URL and publishable/anon client key:
 
 ```dotenv
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
@@ -107,10 +107,22 @@ These values are compiled into the mobile bundle. **Never use a service-role key
 
 1. Create your Supabase project and enable email/password authentication.
 2. Apply `supabase/migrations/202610140001_forge.sql` in the project's SQL editor, or link your project with the Supabase CLI and run `supabase db push`.
-3. In Auth URL Configuration allow `forge://account` for signed builds and the exact development URL returned by Expo Linking for Expo Go (normally `exp://<development-host>:8081/--/account`; tunnel URLs differ). Configure Site URL and SMTP/email confirmation as appropriate. The app supplies its actual account redirect to password-reset requests.
+3. In Auth URL Configuration allow `forge://account` and `forge://sign-in` (email confirmation) for signed builds, and `exp://**` for Expo Go, and the exact development URL returned by Expo Linking for Expo Go (normally `exp://<development-host>:8081/--/account`; tunnel URLs differ). Configure Site URL and SMTP/email confirmation as appropriate. The app supplies its actual account redirect to password-reset requests.
 4. For a custom EAS build make the same public variables available at build time. Mobile network access must reach that project's HTTPS hostname.
-5. In Profile → Account, register/log in, export a backup, then choose Synchronize now. Review first-sync conflicts explicitly.
+5. Create an account or sign in on the Welcome screen. Training already on a phone with no owner can be linked only to an account with no cloud records (checked first; see `docs/audits/PHASE_7_7A_ONBOARDING_AUDIT.md`). Synchronize from You → Account & privacy and review first-sync conflicts explicitly.
 
+### Sign-in providers (Phase 7.7B.1)
+
+Welcome offers **Continue with Apple**, **Continue with Google** and **Continue with Email**. A provider's button appears only when Supabase Auth reports that provider enabled (its public `/auth/v1/settings`), so nothing is offered that would fail.
+
+- **Google** uses Supabase's OAuth flow in the system's secure sign-in sheet (`expo-web-browser`), so it works in Expo Go. In Google Auth Platform, create a **Web application** OAuth client whose authorized redirect URI is `https://<project-ref>.supabase.co/auth/v1/callback`, and add `openid` under Data Access. Paste the client ID and secret into Supabase → Authentication → Providers → Google. **The client secret belongs only in Supabase**, never in `.env` or the app. Google returns to `Linking.createURL("/welcome")`, which is `exp://…/--/welcome` in Expo Go and `forge://welcome` in a build, so allow `exp://**` and `forge://**`.
+- **Apple** uses the native sheet (`expo-apple-authentication`, with a one-time nonce) and Supabase's `signInWithIdToken`. It is shown only on iOS, in Forge's own signed build: in Expo Go, Apple would sign in as Expo's app and create an identity Forge's real app could never use. Do **not** add `host.exp.Exponent` to the Apple provider's Client IDs. For a development build, enable Sign in with Apple on the App ID `com.lsaint06.forge`, add that ID to Supabase's Apple Client IDs, then enable the provider (native-only needs no secret key). The `expo-apple-authentication` config plugin adds the entitlement.
+- **Testing in Expo Go:** Supabase never sends a sign-in back to an IP address (other than loopback). It quietly uses the Site URL instead (`IsRedirectURLValid` in supabase/auth), whatever the allow list says. Forge's return address comes from where Expo Go downloaded the JavaScript bundle, not from Metro's banner. Opened from the computer's local network address, it is `exp://<IP>:8081/--/…`, so Welcome hides Google and email links end on the Site URL. To test them, run `npm start -- --tunnel` (SDK 58 uses `@expo/ws-tunnel` on `*.on.expo.app`; sign in with `npx expo login` first). Open Forge by scanning the tunnel's QR code: Expo Go's Home "Development servers" list and its Recents open the local network address. Through the tunnel the address is `exps://<name>.on.expo.app/--/…`. The development log prints the return address. Allow `exp://**`, `exps://**` and `forge://**`; Forge's own build returns to `forge:///…`.
+- **Branding:** Apple's own button; Google's button follows Google's guidelines, using the "G" cropped unaltered from Google's pre-approved assets (`assets/providers`) and a Latin subset of Google Sans Medium (`assets/fonts/ProviderSans-OFL.txt`).
+### Restoring and signing out (Phase 7.7C)
+
+- **Restore your training:** signing in on a phone with nothing of its own checks, read-only, for Forge cloud records. If any exist, setup offers **Restore my training**: one run of the existing manual synchronization, which on an empty phone only downloads. Nothing synchronizes unless the athlete chooses it.
+- **Signing out offline:** Forge removes the stored session from this phone and says the sign-in wasn't ended on Supabase's side (it expires on its own). Training and its owner stay as they are.
 Session tokens are stored in chunked Expo SecureStore entries, not in SQLite or backups. Recovery links verify a recovery session and expose a new-password action. Email delivery, callback redirects, signed native storage and live authentication still require device/project verification.
 
 ### Sync and conflict rules
