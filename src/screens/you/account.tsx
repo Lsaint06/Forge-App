@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import Constants from "expo-constants";
 import { Alert } from "../../platform/alert";
@@ -7,19 +8,22 @@ import { pickBackup } from "../../platform/backup";
 import { backupState, backupExportedAt, recordBackup } from "../../data/backup";
 import { BackupSheet } from "../../components/Backup";
 import { cancelAllNotifications } from "../../notifications";
-import { ListRow, InfoSheet } from "../../components/system";
+import { InfoSheet } from "../../components/system";
 import { useColors } from "../../components/ui";
-import { FText, ForgeCard } from "../../components/reforge";
+import {
+  FText,
+  ForgeCard,
+  ForgeListRow,
+  SectionLabel,
+} from "../../components/reforge";
 import { useRepo, confirm } from "../../state";
 import { cloudClient } from "../../cloud/client";
 import { membership } from "../../domain/membership";
 import { forge } from "../../theme";
-import { SettingsGroup } from "./sections";
 
-// Account & privacy (Phase 7.5D): membership, data and privacy, and About,
-// moved from the You tab to the Account screen unchanged: the same rows,
-// copy, confirmations and actions. Account's own sign-in and sync are
-// untouched (their redesign is 7.5G).
+// Account & privacy (Phase 7.5D; REFORGE since 7.5G.3): membership, data and
+// privacy, About and the local-data deletion, with the same copy,
+// confirmations and actions as when they were on the You tab.
 
 const privacy = [
   "Backups contain your profile, workouts and sets, custom exercises, favorites, templates, schedules and journals. They do not contain passwords or authentication tokens. Keep exported health data private.",
@@ -83,7 +87,7 @@ export function MembershipCard() {
   );
 }
 
-/** Export, import, privacy guidance and delete-all, unchanged. */
+/** Export, import and privacy guidance, unchanged. */
 export function DataPrivacy() {
   const r = useRepo();
   const [info, setInfo] = useState(false);
@@ -126,45 +130,31 @@ export function DataPrivacy() {
   }
   return (
     <>
-      <SettingsGroup title="Data & privacy">
-        <ListRow
-          icon="download-outline"
-          title="Export backup"
-          subtitle={backup.text}
-          accessibilityLabel="Export backup"
-          onPress={() => setBackupOpen(true)}
-        />
-        <ListRow
-          icon="push-outline"
-          title="Import backup"
-          subtitle="Replace this device's data from a backup"
-          onPress={() => void importData()}
-        />
-        <ListRow
-          icon="shield-checkmark-outline"
-          title="Privacy & training guidance"
-          onPress={() => setInfo(true)}
-        />
-        <ListRow
-          icon="trash-outline"
-          title="Delete all local data"
-          destructive
-          onPress={() =>
-            confirm(
-              "Delete all local data?",
-              "Every workout, template, preference and journal entry on this phone is deleted, and FORGE starts again from setup. This can't be undone, so export a backup first. Your cloud account and cloud records are not deleted; a later sync can restore them.",
-              () => {
-                r.clearData();
-                void cancelAllNotifications().catch((e) =>
-                  Alert.alert("Reminder cleanup failed", String(e)),
-                );
-                router.replace("/onboarding");
-              },
-              { action: "Delete everything" },
-            )
-          }
-        />
-      </SettingsGroup>
+      <View style={{ gap: forge.spacing.tight }}>
+        <SectionLabel title="Data & privacy" />
+        <ForgeCard padding={0} gap={0} testID="account-data">
+          <ForgeListRow
+            icon="download-outline"
+            title="Export backup"
+            description={backup.text}
+            accessibilityLabel="Export backup"
+            onPress={() => setBackupOpen(true)}
+          />
+          <ForgeListRow
+            icon="push-outline"
+            title="Import backup"
+            description="Replace this device's data from a backup"
+            divider
+            onPress={() => void importData()}
+          />
+          <ForgeListRow
+            icon="shield-checkmark-outline"
+            title="Privacy & training guidance"
+            divider
+            onPress={() => setInfo(true)}
+          />
+        </ForgeCard>
+      </View>
       <InfoSheet
         visible={info}
         onClose={() => setInfo(false)}
@@ -183,22 +173,116 @@ export function AboutForge() {
   const pending = r.outbox().length;
   const version = Constants.expoConfig?.version ?? "1.0.0";
   return (
-    <SettingsGroup title="About">
-      <ListRow
-        title={`FORGE ${version}`}
-        accessibilityLabel={
-          cloud
-            ? `FORGE version ${version}, local schema v1, ${pending} pending sync records`
-            : `FORGE version ${version}, local schema v1`
-        }
-        // Guest mode never syncs, so a waiting count would only confuse;
-        // the outbox itself is unchanged.
-        subtitle={
-          cloud
-            ? `Local schema v1 · ${plural(pending, "pending sync record")}`
-            : "Local schema v1 · guest mode"
-        }
+    <View style={{ gap: forge.spacing.tight }}>
+      <SectionLabel title="About" />
+      <ForgeCard gap={2}>
+        <View
+          accessible
+          accessibilityLabel={
+            cloud
+              ? `FORGE version ${version}, local schema v1, ${pending} pending sync records`
+              : `FORGE version ${version}, local schema v1`
+          }
+          style={{ gap: 2 }}
+        >
+          <FText variant="cardTitle" weight="700">
+            {`FORGE ${version}`}
+          </FText>
+          {/* Guest mode never syncs, so a waiting count would only confuse;
+              the outbox itself is unchanged. */}
+          <FText variant="label" tone="secondary">
+            {cloud
+              ? `Local schema v1 · ${plural(pending, "pending sync record")}`
+              : "Local schema v1 · guest mode"}
+          </FText>
+        </View>
+      </ForgeCard>
+    </View>
+  );
+}
+
+/**
+ * Deleting everything on this phone: the same confirmation and result as
+ * before (cloud records are not deleted). Shown in Account & privacy's
+ * Delete section, apart from everyday actions.
+ */
+export function DeleteLocalData() {
+  const r = useRepo();
+  return (
+    <DangerRow
+      title="Delete all local data"
+      description="Removes every workout, template, preference and journal entry on this phone."
+      onPress={() =>
+        confirm(
+          "Delete all local data?",
+          "Every workout, template, preference and journal entry on this phone is deleted, and FORGE starts again from setup. This can't be undone, so export a backup first. Your cloud account and cloud records are not deleted; a later sync can restore them.",
+          () => {
+            r.clearData();
+            void cancelAllNotifications().catch((e) =>
+              Alert.alert("Reminder cleanup failed", String(e)),
+            );
+            router.replace("/onboarding");
+          },
+          { action: "Delete everything" },
+        )
+      }
+    />
+  );
+}
+
+/**
+ * An irreversible action: a trash icon, "Delete …" in words, what it removes
+ * and the error colour. It always asks first (the caller's confirmation).
+ */
+export function DangerRow({
+  title,
+  description,
+  onPress,
+  divider = false,
+  disabled = false,
+}: {
+  title: string;
+  description: string;
+  onPress: () => void;
+  divider?: boolean;
+  disabled?: boolean;
+}) {
+  const c = useColors();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityHint={description}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: 56,
+        paddingHorizontal: forge.spacing.cardPadding,
+        paddingVertical: 12,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: forge.spacing.group,
+        opacity: disabled ? 0.4 : 1,
+        borderTopWidth: divider ? forge.border.card : 0,
+        borderTopColor: c.cardDivider,
+        backgroundColor: pressed ? c.cardRaised : "transparent",
+      })}
+    >
+      <Ionicons
+        name="trash-outline"
+        size={22}
+        color={c.error}
+        style={{ width: 26 }}
       />
-    </SettingsGroup>
+      <View style={{ flex: 1, gap: 2 }}>
+        <FText variant="cardTitle" weight="700" tone="error">
+          {title}
+        </FText>
+        <FText variant="label" tone="secondary">
+          {description}
+        </FText>
+      </View>
+    </Pressable>
   );
 }

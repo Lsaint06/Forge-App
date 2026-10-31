@@ -616,3 +616,48 @@ The focused editors are one shared `EditorSheet` ([you/editors.tsx](../../src/sc
 | Check-in sheet | `Txt` / `Field` / `Button` / `TextButton` / `IconButton` → REFORGE text, `ForgeField`, `CtaButton` / `OutlineButton`; the sleep stepper as a hairline control with `SquareIconButton` − / +; 1–5 answers as 48 pt hairline tiles, the chosen one with an ember border, tint and number |
 
 **Accessibility.** The same labels and roles: radio groups named with both ends, "Less sleep" / "More sleep", the adjustable sleep control, "Today's check-in. …" and "{day}. {summary}. Edit". 44–48 pt targets. *Known limitation:* the About button is still the shared `InfoButton`.
+
+## Account & privacy (Phase 7.5G.3)
+
+[app/account.tsx](../../app/account.tsx) (`/account`, from You → *Account & privacy*) is a `ForgeSubScreen` ("YOU" / "Account & privacy", Back to You). Sections in order:
+
+1. Account
+2. Cloud sync (only when a cloud backend is configured)
+3. Data & privacy
+4. Membership
+5. About
+6. Delete, kept apart from everyday actions
+
+Presentation only. The Supabase auth calls, session storage, `synchronize`, conflict handling, backup files, import validation and both deletions are unchanged. Wording helpers: [presentation/account.ts](../../src/domain/presentation/account.ts).
+
+**States (existing; nothing else is shown):**
+
+- Guest: no cloud backend configured. "On this phone only · Guest mode is active".
+- Not signed in, with a cloud backend configured.
+- Signed in: the account's email ("Signed-in account" when there is none). An extra *New password* step appears after a reset link.
+- Sync running ("Working…", with the sync, log-out, sign-in and cloud-deletion actions disabled).
+- The latest result in words: "3 uploaded · 1 downloaded · 0 pending · 0 conflicts", with any errors, or the error itself.
+- Conflicts waiting for a choice.
+
+| Section | Presentation |
+| --- | --- |
+| Account | One card per state: a worded state with a small icon (never colour alone), the email in full, *Log out* ("Logging out keeps everything on this phone"), or the existing sign-in form (`ForgeSegments` Sign in / Create account / Reset password, `ForgeField` email and hidden password, `CtaButton`). Messages appear below in a status card read by VoiceOver |
+| Cloud sync | "On this phone: n changes waiting to upload" or "No local changes waiting to upload" (never "backed up" or "synced": an empty outbox only means nothing local is waiting), conflicts ("n waiting for your choice"), the existing explanation and **Synchronize now** when signed in. Each conflict is named by what it is ("Workout · Push day", "Goal · Cut to 80"), not its internal record ID, with **Keep local version** / **Use cloud version** and their confirmations |
+| Data & privacy | `ForgeListRow`s: Export backup (with the backup status, e.g. "Not backed up yet"), Import backup, Privacy & training guidance. The export sheet still separates a confirmed folder save from an unconfirmable share |
+| Membership | The existing card: "Free plan", "Membership is on the way", nothing to buy |
+| About | `FORGE {version}`, "Local schema v1 · guest mode" or the pending sync records count |
+| Delete | Danger rows (trash icon, the word "Delete", what is removed, the error colour): **Delete all local data** ("…on this phone") and, when signed in, **Delete cloud account** ("…Data on this phone stays"). Both keep their existing confirmations; the cloud deletion is disabled while a sync runs |
+
+**Known limitations and findings (7.5G.3 audit):**
+
+- No last-successful-sync time is stored, so none is shown; a result is reported only for a sync run on this screen.
+- Guest changes are queued from the start. The first sync after signing in uploads them to that account and binds this phone's data to it (`cloudOwner`).
+- Signing out keeps local data. Signing in to a different account then refuses to sync, with an explanation to export and clear local data first. There is no automatic merge, and nothing is overwritten without a conflict choice.
+- `cloudAccountDeleted` is written after a cloud deletion but nothing reads it.
+- *Use cloud version* applies the record with direct database writes in the screen (unchanged; a candidate to move into the repository).
+- Account creation relies on the backend's email confirmation setting. There is no in-app verification state, Apple sign-in or account-level password change outside a reset link.
+
+**Future requirements:**
+
+- **Phase 7.7 (first run):** explain guest versus account before data exists, and the first-sync upload.
+- **Phase 8 (beta readiness):** a privacy policy and a support contact (none exist in the app); a stored last-successful-sync time if the sync engine is extended; a review of the conflict "Use cloud version" path.

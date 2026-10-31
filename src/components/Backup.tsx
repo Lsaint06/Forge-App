@@ -8,9 +8,10 @@ import {
 } from "../platform/backup";
 import { backupState } from "../data/backup";
 import { useRepo, useApp } from "../state";
-import { Txt, Sheet, useColors } from "./ui";
+import { Sheet, useColors } from "./ui";
+import { FText } from "./reforge";
 import { ListRow } from "./system";
-import { theme } from "../theme";
+import { forge } from "../theme";
 
 // Backing up: a confirmed save into a folder (where available) or a share
 // to another app, which Forge cannot confirm and records as unconfirmed.
@@ -64,8 +65,10 @@ export function BackupChoices({
   return (
     <View
       style={{
-        backgroundColor: c.surfaceRaised,
-        borderRadius: theme.radii.card,
+        backgroundColor: c.cardBg,
+        borderRadius: forge.radii.card,
+        borderWidth: forge.border.card,
+        borderColor: c.cardBorder,
         overflow: "hidden",
       }}
     >
@@ -91,7 +94,7 @@ export function BackupChoices({
   );
 }
 
-/** You → Export backup. */
+/** Account & privacy → Export backup. */
 export function BackupSheet({
   visible,
   onClose,
@@ -108,10 +111,10 @@ export function BackupSheet({
       title="Back up your data"
       dismissOnBackdrop
     >
-      <Txt tone="secondary">
+      <FText variant="body" tone="secondary">
         {backupState(r).text}. A backup holds your workouts, programs,
         templates, journals and profile in one file you can import later.
-      </Txt>
+      </FText>
       <BackupChoices actions={actions} />
     </Sheet>
   );

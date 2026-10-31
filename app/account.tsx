@@ -1,35 +1,45 @@
 import React, { useEffect, useState } from "react";
+import { View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Alert } from "../src/platform/alert";
 import * as Linking from "expo-linking";
 import { recoveryTokens } from "../src/cloud/recovery";
 import { router } from "expo-router";
+import { useColors } from "../src/components/ui";
 import {
-  Screen,
-  Card,
-  Txt,
-  Button,
-  Field,
-  SegmentedControl,
-} from "../src/components/ui";
+  CtaButton,
+  FText,
+  ForgeCard,
+  ForgeField,
+  ForgeSegments,
+  ForgeSubScreen,
+  OutlineButton,
+  SectionLabel,
+} from "../src/components/reforge";
 import { goBack } from "../src/navigation";
 import { useRepo, useApp, confirm } from "../src/state";
 import { cloudClient, transport } from "../src/cloud/client";
 import { synchronize } from "../src/cloud/sync";
 import {
   AboutForge,
+  DangerRow,
   DataPrivacy,
+  DeleteLocalData,
   MembershipCard,
 } from "../src/screens/you/account";
+import { conflictTitle, pendingText } from "../src/domain/presentation/account";
+import { forge } from "../src/theme";
 const MODES = [
   { value: "Login", label: "Sign in" },
   { value: "Register", label: "Create account" },
   { value: "Reset password", label: "Reset password" },
 ];
 
-// Account & privacy: account and sync, then (Phase 7.5D) membership, data
-// and privacy, and About, moved here from the You tab unchanged. The auth,
-// sync and conflict handling below is protected and unchanged; this screen's
-// redesign is Phase 7.5G.
+// Account & privacy (REFORGE since Phase 7.5G.3): the account, cloud sync,
+// data and privacy, membership, About and, apart from everything else, the
+// two irreversible deletions. Presentation only: the auth, sync, conflict,
+// backup and deletion handling is protected and unchanged. States shown are
+// only those the app can verify; an empty outbox is never called "backed up".
 export default function Account() {
   const r = useRepo();
   const client = cloudClient();
@@ -134,191 +144,365 @@ export default function Account() {
       setBusy(false);
     }
   }
+  const c = useColors();
+  const pending = r.outbox().length;
+  const conflicts = r.conflicts();
   return (
-    <Screen title="Account & privacy" onBack={() => goBack("/(tabs)/profile")}>
-      {!client ? (
-        <Card>
-          <Txt variant="headline" header>
-            Guest mode is active
-          </Txt>
-          <Txt tone="secondary">
-            Cloud accounts aren&apos;t available in this version, so your
-            training data stays on this phone. Export a backup regularly from
-            Data &amp; privacy below and keep the file somewhere safe.
-          </Txt>
-        </Card>
-      ) : user ? (
-        <Card>
-          <Txt variant="headline" header>
-            {user.email ?? "Signed-in account"}
-          </Txt>
-          {recovery && (
-            <>
-              <Field
-                label="New password"
+    <ForgeSubScreen
+      title="Account & privacy"
+      eyebrow="You"
+      onBack={() => goBack("/(tabs)/profile")}
+    >
+      <Section title="Account">
+        {!client ? (
+          <ForgeCard testID="account-guest" gap={8}>
+            <State icon="phone-portrait-outline" text="On this phone only" />
+            <FText variant="cardTitle" weight="700" header>
+              Guest mode is active
+            </FText>
+            <FText variant="label" tone="secondary">
+              Cloud accounts aren&apos;t available in this version, so your
+              training data stays on this phone. Export a backup regularly from
+              Data &amp; privacy below and keep the file somewhere safe.
+            </FText>
+          </ForgeCard>
+        ) : user ? (
+          <ForgeCard testID="account-signed-in" gap={10}>
+            <State
+              icon="person-circle-outline"
+              text="Signed in"
+              tone="accent"
+            />
+            <FText variant="cardTitle" weight="700" header>
+              {user.email ?? "Signed-in account"}
+            </FText>
+            {recovery && (
+              <>
+                <ForgeField
+                  label="New password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                  autoComplete="new-password"
+                />
+                <CtaButton
+                  title="Set new password"
+                  compact
+                  disabled={busy}
+                  onPress={() => void updatePassword()}
+                />
+              </>
+            )}
+            <OutlineButton
+              title="Log out"
+              compact
+              disabled={busy}
+              onPress={() => {
+                void client.auth.signOut().then(({ error }) => {
+                  if (error) setStatus(error.message);
+                  else
+                    setStatus(
+                      "Signed out. Your local records remain on this device.",
+                    );
+                });
+              }}
+            />
+            <FText variant="label" tone="secondary">
+              Logging out keeps everything on this phone.
+            </FText>
+          </ForgeCard>
+        ) : (
+          <ForgeCard testID="account-sign-in" gap={12}>
+            <State icon="person-outline" text="Not signed in" />
+            <FText variant="label" tone="secondary">
+              Your training data is on this phone. Sign in to synchronize it
+              with your account; sync runs only when you choose.
+            </FText>
+            <ForgeSegments
+              accessibilityLabel="Account action"
+              options={MODES}
+              value={mode}
+              onChange={setMode}
+            />
+            <ForgeField
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+            />
+            {mode !== "Reset password" && (
+              <ForgeField
+                label="Password"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
-                autoComplete="new-password"
+                autoComplete="password"
               />
-              <Button
-                title="Set new password"
-                disabled={busy}
-                onPress={() => void updatePassword()}
-              />
-            </>
-          )}
-          <Txt tone="secondary">
-            Sync sends your local training and lifestyle data to your configured
-            Supabase project. It runs only when requested. Export a backup
-            before your first sync.
-          </Txt>
-          <Button
-            title={busy ? "Working…" : "Synchronize now"}
-            disabled={busy}
-            onPress={() => void sync()}
-          />
-          <Button
-            title="Log out"
-            secondary
-            disabled={busy}
-            onPress={() => {
-              void client.auth.signOut().then(({ error }) => {
-                if (error) setStatus(error.message);
-                else
-                  setStatus(
-                    "Signed out. Your local records remain on this device.",
-                  );
-              });
+            )}
+            <CtaButton
+              title={
+                busy
+                  ? "Working…"
+                  : (MODES.find((m) => m.value === mode)?.label ?? mode)
+              }
+              compact
+              disabled={busy}
+              onPress={() => void auth()}
+            />
+          </ForgeCard>
+        )}
+        {!!status && (
+          <View
+            testID="account-status"
+            accessible
+            accessibilityLiveRegion="polite"
+            style={{
+              flexDirection: "row",
+              gap: 10,
+              padding: forge.spacing.cardPadding,
+              borderRadius: forge.radii.card,
+              borderWidth: forge.border.card,
+              borderColor: c.cardBorder,
+              backgroundColor: c.cardRaised,
             }}
-          />
-          <Button
-            title="Delete cloud account"
-            danger
-            disabled={busy}
-            onPress={() =>
-              confirm(
-                "Delete account permanently?",
-                "This permanently deletes your account and every cloud record. It can't be undone. Records on this phone stay until you delete them in You.",
-                () => {
-                  void client
-                    .rpc("forge_delete_account")
-                    .then(async ({ error }) => {
-                      if (error) {
-                        Alert.alert("Account deletion failed", error.message);
-                        return;
-                      }
-                      await client.auth.signOut({ scope: "local" });
-                      r.setSetting("cloudAccountDeleted", "true");
-                      setStatus(
-                        "Cloud account deleted. Export then clear local data before using a different account.",
-                      );
-                    });
-                },
-                { action: "Delete account" },
-              )
-            }
-          />
-        </Card>
-      ) : (
-        <Card>
-          <SegmentedControl
-            label="Account action"
-            options={MODES}
-            value={mode}
-            onChange={setMode}
-          />
-          <Field
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoComplete="email"
-          />
-          {mode !== "Reset password" && (
-            <Field
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoComplete="password"
+          >
+            <Ionicons
+              name="information-circle-outline"
+              size={20}
+              color={c.text2}
+            />
+            <FText variant="body" style={{ flex: 1 }}>
+              {status}
+            </FText>
+          </View>
+        )}
+      </Section>
+
+      {client && (
+        <Section title="Cloud sync">
+          <ForgeCard testID="account-sync" padding={0} gap={0}>
+            <Fact label="On this phone" value={pendingText(pending)} />
+            <Fact
+              label="Conflicts"
+              value={
+                conflicts.length
+                  ? `${conflicts.length} waiting for your choice`
+                  : "None"
+              }
+              divider
+            />
+            <View
+              style={{
+                padding: forge.spacing.cardPadding,
+                gap: 12,
+                borderTopWidth: forge.border.card,
+                borderTopColor: c.cardDivider,
+              }}
+            >
+              <FText variant="label" tone="secondary">
+                {user
+                  ? "Sync sends your local training and lifestyle data to your configured Supabase project. It runs only when requested. Export a backup before your first sync."
+                  : "Sign in above to synchronize. Nothing is uploaded until you sync."}
+              </FText>
+              {user && (
+                <CtaButton
+                  title={busy ? "Working…" : "Synchronize now"}
+                  icon="sync"
+                  compact
+                  disabled={busy}
+                  onPress={() => void sync()}
+                />
+              )}
+            </View>
+          </ForgeCard>
+          {conflicts.map((cf) => (
+            <ForgeCard key={cf.id} gap={10}>
+              <State
+                icon="git-compare-outline"
+                text="Sync conflict"
+                tone="accent"
+                header
+              />
+              <FText variant="cardTitle" weight="700">
+                {conflictTitle(cf.remote)}
+              </FText>
+              <FText variant="label" tone="secondary">
+                The cloud record changed since this device last synchronized.
+                Your local record remains intact. Keeping local explicitly
+                replaces the cloud version on the next sync. Export a backup
+                first.
+              </FText>
+              <OutlineButton
+                title="Keep local version"
+                compact
+                onPress={() =>
+                  confirm(
+                    "Keep local version?",
+                    "This authorizes replacing the currently conflicting cloud version on your next sync.",
+                    () => r.keepLocal(cf.id),
+                    { action: "Keep local version", destructive: false },
+                  )
+                }
+              />
+              <OutlineButton
+                title="Use cloud version"
+                compact
+                onPress={() =>
+                  confirm(
+                    "Use cloud version?",
+                    "Export first. This replaces the local record with the preserved cloud version.",
+                    () => {
+                      const row = JSON.parse(
+                        cf.remote,
+                      ) as import("../src/cloud/sync").CloudRecord;
+                      r.transaction(() => {
+                        r.applyRemote(
+                          row.id,
+                          row.kind,
+                          row.payload,
+                          row.revision,
+                          row.deleted,
+                        );
+                        r.db.run("DELETE FROM outbox WHERE id=?", [row.id]);
+                        r.db.run("DELETE FROM conflicts WHERE id=?", [row.id]);
+                      });
+                      useApp.getState().touch();
+                    },
+                    { action: "Replace with cloud version" },
+                  )
+                }
+              />
+            </ForgeCard>
+          ))}
+        </Section>
+      )}
+
+      <DataPrivacy />
+
+      <Section title="Membership">
+        <MembershipCard />
+      </Section>
+
+      <AboutForge />
+
+      <Section title="Delete">
+        <ForgeCard padding={0} gap={0}>
+          <DeleteLocalData />
+          {client && user && (
+            <DangerRow
+              title="Delete cloud account"
+              description="Permanently deletes your account and every cloud record. Data on this phone stays."
+              divider
+              disabled={busy}
+              onPress={() =>
+                confirm(
+                  "Delete account permanently?",
+                  "This permanently deletes your account and every cloud record. It can't be undone. Records on this phone stay until you delete them in You.",
+                  () => {
+                    void client
+                      .rpc("forge_delete_account")
+                      .then(async ({ error }) => {
+                        if (error) {
+                          Alert.alert("Account deletion failed", error.message);
+                          return;
+                        }
+                        await client.auth.signOut({ scope: "local" });
+                        r.setSetting("cloudAccountDeleted", "true");
+                        setStatus(
+                          "Cloud account deleted. Export then clear local data before using a different account.",
+                        );
+                      });
+                  },
+                  { action: "Delete account" },
+                )
+              }
             />
           )}
-          <Button
-            title={
-              busy
-                ? "Working…"
-                : (MODES.find((m) => m.value === mode)?.label ?? mode)
-            }
-            disabled={busy}
-            onPress={() => void auth()}
-          />
-        </Card>
-      )}
-      {status && (
-        <Card>
-          <Txt>{status}</Txt>
-        </Card>
-      )}
-      {r.conflicts().map((c) => (
-        <Card key={c.id}>
-          <Txt variant="headline" header>
-            Sync conflict
-          </Txt>
-          <Txt variant="caption" tone="secondary">
-            {`Record ${c.id}`}
-          </Txt>
-          <Txt tone="secondary">
-            The cloud record changed since this device last synchronized. Your
-            local record remains intact. Keeping local explicitly replaces the
-            cloud version on the next sync. Export a backup first.
-          </Txt>
-          <Button
-            title="Keep local version"
-            secondary
-            onPress={() =>
-              confirm(
-                "Keep local version?",
-                "This authorizes replacing the currently conflicting cloud version on your next sync.",
-                () => r.keepLocal(c.id),
-                { action: "Keep local version", destructive: false },
-              )
-            }
-          />
-          <Button
-            title="Use cloud version"
-            secondary
-            onPress={() =>
-              confirm(
-                "Use cloud version?",
-                "Export first. This replaces the local record with the preserved cloud version.",
-                () => {
-                  const row = JSON.parse(
-                    c.remote,
-                  ) as import("../src/cloud/sync").CloudRecord;
-                  r.transaction(() => {
-                    r.applyRemote(
-                      row.id,
-                      row.kind,
-                      row.payload,
-                      row.revision,
-                      row.deleted,
-                    );
-                    r.db.run("DELETE FROM outbox WHERE id=?", [row.id]);
-                    r.db.run("DELETE FROM conflicts WHERE id=?", [row.id]);
-                  });
-                  useApp.getState().touch();
-                },
-                { action: "Replace with cloud version" },
-              )
-            }
-          />
-        </Card>
-      ))}
-      <MembershipCard />
-      <DataPrivacy />
-      <AboutForge />
-    </Screen>
+        </ForgeCard>
+      </Section>
+    </ForgeSubScreen>
+  );
+}
+
+/** A section label over its content. */
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={{ gap: forge.spacing.tight }}>
+      <SectionLabel title={title} />
+      {children}
+    </View>
+  );
+}
+
+/** A state stated in words with a small icon (never by colour alone). */
+function State({
+  icon,
+  text,
+  tone = "secondary",
+  header = false,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  text: string;
+  tone?: "secondary" | "accent";
+  header?: boolean;
+}) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Ionicons
+        name={icon}
+        size={16}
+        color={tone === "accent" ? c.emberHot : c.text2}
+      />
+      <FText variant="overline" tone={tone} header={header}>
+        {text}
+      </FText>
+    </View>
+  );
+}
+
+/** A label and its value on one row (wraps under large text). */
+function Fact({
+  label,
+  value,
+  divider = false,
+}: {
+  label: string;
+  value: string;
+  divider?: boolean;
+}) {
+  const c = useColors();
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      style={{
+        minHeight: 48,
+        paddingHorizontal: forge.spacing.cardPadding,
+        paddingVertical: 10,
+        flexDirection: "row",
+        flexWrap: "wrap",
+        alignItems: "center",
+        justifyContent: "space-between",
+        columnGap: 12,
+        borderTopWidth: divider ? forge.border.card : 0,
+        borderTopColor: c.cardDivider,
+      }}
+    >
+      <FText variant="body" tone="secondary">
+        {label}
+      </FText>
+      <FText variant="body" weight="600">
+        {value}
+      </FText>
+    </View>
   );
 }
