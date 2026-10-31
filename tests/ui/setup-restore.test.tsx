@@ -5,7 +5,7 @@ import { EntryContext } from "../../src/auth/session";
 import type { Entry } from "../../src/auth/entry";
 import { confirm, useRepo } from "../../src/state";
 import { accountHasCloudRecords } from "../../src/cloud/link";
-import { synchronize } from "../../src/cloud/sync";
+import { synchronize, type SyncResult } from "../../src/cloud/sync";
 import { transport } from "../../src/cloud/client";
 import { pathRepository } from "../path-fixture";
 
@@ -70,12 +70,20 @@ async function setup(
   await flush();
   return view;
 }
-const result = (downloaded: number, errors: string[] = []) => ({
+const result = (
+  downloaded: number,
+  extra: Partial<SyncResult> = {},
+): SyncResult => ({
   uploaded: 0,
   downloaded,
+  matched: 0,
+  rejected: 0,
+  failed: 0,
+  held: { update: 0, active: 0 },
   conflicts: 0,
   pending: 0,
-  errors,
+  errors: [],
+  ...extra,
 });
 
 beforeEach(() => {
@@ -129,7 +137,9 @@ test("restoring runs the existing synchronization once, then opens Home", async 
 
 test("a failed restore changes nothing and says so", async () => {
   check.mockResolvedValueOnce(true);
-  sync.mockResolvedValueOnce(result(0, ["Network request failed"]));
+  sync.mockResolvedValueOnce(
+    result(0, { stopped: "offline", errors: ["Network request failed"] }),
+  );
   const view = await setup();
   await fireEvent.press(
     view.getByRole("button", { name: "Restore my training" }),
@@ -149,7 +159,9 @@ test("a failed restore changes nothing and says so", async () => {
 
 test("a partial restore can continue or try again", async () => {
   check.mockResolvedValueOnce(true);
-  sync.mockResolvedValueOnce(result(2, ["Remote identity mismatch"]));
+  sync.mockResolvedValueOnce(
+    result(2, { failed: 1, errors: ["Remote identity mismatch"] }),
+  );
   const view = await setup();
   await fireEvent.press(
     view.getByRole("button", { name: "Restore my training" }),
@@ -164,6 +176,24 @@ test("a partial restore can continue or try again", async () => {
   await fireEvent.press(view.getByRole("button", { name: "Try again" }));
   await flush();
   expect(sync).toHaveBeenCalledTimes(2);
+  expect(mockTouch).toHaveBeenCalled();
+});
+
+test("records from a newer Forge are named, and setup can continue (Phase 7.8B)", async () => {
+  check.mockResolvedValueOnce(true);
+  sync.mockResolvedValueOnce(result(4, { held: { update: 1, active: 0 } }));
+  const view = await setup();
+  await fireEvent.press(
+    view.getByRole("button", { name: "Restore my training" }),
+  );
+  await flush();
+  expect(
+    view.getByText(
+      "Restored 4 records. 1 record needs a newer version of Forge: update Forge, then synchronize in Account & privacy.",
+    ),
+  ).toBeTruthy();
+  expect(mockTouch).not.toHaveBeenCalled();
+  await fireEvent.press(view.getByRole("button", { name: "Continue" }));
   expect(mockTouch).toHaveBeenCalled();
 });
 

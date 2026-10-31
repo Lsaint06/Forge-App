@@ -15,13 +15,11 @@ import { hasLocalData } from "../../data/ownership";
 import { accountHasCloudRecords } from "../../cloud/link";
 import { synchronize } from "../../cloud/sync";
 import { transport } from "../../cloud/client";
+import { restoreOutcome } from "../../domain/presentation/account";
 import { EntryBusy, EntryFrame, EntryMessage } from "./EntryFrame";
 import { TextLink } from "./SignIn";
 
 type Check = "checking" | "records" | "none" | "failed";
-
-const plural = (n: number, one: string, many = `${one}s`) =>
-  `${n} ${n === 1 ? one : many}`;
 
 // First-time setup (Phases 7.7B and 7.7C). A returning athlete on a phone
 // with nothing of its own yet is offered their saved training first (P1):
@@ -112,20 +110,16 @@ export default function Setup() {
     void work("restore", async () => {
       setPartial(undefined);
       const result = await synchronize(r, transport(client!, userId!), userId!);
-      if (!result.errors.length) {
+      const outcome = restoreOutcome(result);
+      if (outcome.kind === "done") {
         // Home opens once the restored profile is in; if the account had
         // no finished profile, setup continues with the training in place.
         setCheck("none");
         useApp.getState().touch();
         return;
       }
-      if (!result.downloaded)
-        throw new Error(
-          "Forge couldn't restore your training: nothing on this phone changed. Check your connection and try again.",
-        );
-      setPartial(
-        `Restored ${plural(result.downloaded, "record")}, but ${plural(result.errors.length, "record")} couldn't be restored. Try again, or continue and synchronize later in Account & privacy.`,
-      );
+      if (outcome.kind === "failed") throw new Error(outcome.text);
+      setPartial(outcome.text);
     });
 
   const skip = (unchecked: boolean) =>

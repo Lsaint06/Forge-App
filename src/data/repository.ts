@@ -11,6 +11,7 @@ import {
   type Exercise,
   type Prescription,
   type RepTarget,
+  type Template,
   type Journal,
   type JournalKind,
   type Outbox,
@@ -38,6 +39,37 @@ export type WorkoutSnapshot = {
   exercises: WorkoutExercise[];
   sets: WorkoutSet[];
 };
+/** Record kinds the cloud holds and this version of Forge understands. */
+const SYNCED_KINDS = ["profile", "exercise", "workout", "template", "journal"];
+const syncMetaUpsert =
+  "INSERT INTO sync_meta(id,revision) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET revision=excluded.revision";
+const outboxSelect =
+  "SELECT id,kind,payload,revision,attempts,next_attempt AS nextAttempt,deleted FROM outbox";
+/** A version this phone sent whose reply never arrived (Phase 7.8B, H1). */
+type SentVersion = { payload: string; deleted: boolean };
+const sentKey = (recordId: string) => `syncSent:${recordId}`;
+/**
+ * A cloud record this phone can't take yet (Phase 7.8B): it needs a newer
+ * Forge (an exercise or record kind this version doesn't know), or it's a
+ * workout in progress elsewhere while another is in progress here. Nothing
+ * is written, the cloud copy is untouched, and the next sync tries again.
+ */
+export class HeldRecord extends Error {
+  constructor(readonly reason: "update" | "active") {
+    super(
+      reason === "update"
+        ? "This record needs a newer version of Forge. Update Forge, then try again."
+        : "Another workout is in progress on this phone. Finish or discard it first.",
+    );
+    this.name = "HeldRecord";
+  }
+}
+export const isHeldRecord = (e: unknown): e is HeldRecord =>
+  e instanceof HeldRecord ||
+  (!!e &&
+    typeof e === "object" &&
+    (e as { name?: unknown }).name === "HeldRecord" &&
+    ["update", "active"].includes(String((e as { reason?: unknown }).reason)));
 const wSelect = `SELECT id,name,status,started_at AS startedAt,finished_at AS finishedAt,paused_at AS pausedAt,paused_ms AS pausedMs,notes,template_id AS templateId,updated_at AS updatedAt FROM workouts`;
 const eSelect = `SELECT id,workout_id AS workoutId,exercise_id AS exerciseId,position,notes,rest,group_id AS groupId,target FROM workout_exercises`;
 const sSelect = `SELECT id,exercise_row_id AS exerciseRowId,position,weight,reps,duration,distance,rpe,rir,kind,completed,rest,tempo,notes,side FROM workout_sets`;
@@ -124,6 +156,15 @@ export class Repository {
       [exerciseId],
     )[0];
     return row ? exerciseSchema.parse(JSON.parse(row.data)) : undefined;
+  }
+  /** Whether this phone has the exercise (catalogue or custom). */
+  knowsExercise(exerciseId: string) {
+    return (
+      this.db.all<{ x: number }>(
+        "SELECT EXISTS(SELECT 1 FROM exercises WHERE id=?) AS x",
+        [exerciseId],
+      )[0]?.x === 1
+    );
   }
   customExercises() {
     return this.db
@@ -326,13 +367,19 @@ export class Repository {
       ],
     );
   }
-  private queueWorkout(workoutId: string) {
+  /**
+   * Queues the whole session. An edit stamps its save time; restoring a
+   * backup (`touch` false) keeps the time recorded in the file, so a session
+   * the cloud already holds is recognized as the same (Phase 7.8B, H2).
+   */
+  private queueWorkout(workoutId: string, touch = true) {
     const w = this.workout(workoutId);
     if (w) {
-      this.db.run("UPDATE workouts SET updated_at=? WHERE id=?", [
-        Date.now(),
-        workoutId,
-      ]);
+      if (touch)
+        this.db.run("UPDATE workouts SET updated_at=? WHERE id=?", [
+          Date.now(),
+          workoutId,
+        ]);
       this.queue(workoutId, "workout", {
         workout: this.workout(workoutId),
         exercises: this.workoutExercises(workoutId),
@@ -660,30 +707,37 @@ export class Repository {
       updatedAt: Date.now(),
     });
     this.transaction(() => {
-      this.db.run(
-        "INSERT INTO templates(id,name,notes,updated_at) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,notes=excluded.notes,updated_at=excluded.updated_at",
-        [t.id, t.name, t.notes, t.updatedAt],
-      );
-      this.db.run("DELETE FROM template_exercises WHERE template_id=?", [t.id]);
-      t.exercises.forEach((e, i) =>
-        this.db.run(
-          "INSERT INTO template_exercises(id,template_id,exercise_id,position,sets,reps,weight,rest,rep_max) VALUES(?,?,?,?,?,?,?,?,?)",
-          [
-            id(),
-            t.id,
-            e.exerciseId,
-            i,
-            e.sets,
-            e.reps,
-            e.weight,
-            e.rest,
-            e.repMax ?? null,
-          ],
-        ),
-      );
+      this.writeTemplate(t);
       this.queue(t.id, "template", t);
     });
     return t;
+  }
+  /**
+   * Writes a validated template exactly as given, its save time included,
+   * without queueing it: restores and downloads keep the recorded time.
+   */
+  private writeTemplate(t: Template) {
+    this.db.run(
+      "INSERT INTO templates(id,name,notes,updated_at) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,notes=excluded.notes,updated_at=excluded.updated_at",
+      [t.id, t.name, t.notes, t.updatedAt],
+    );
+    this.db.run("DELETE FROM template_exercises WHERE template_id=?", [t.id]);
+    t.exercises.forEach((e, i) =>
+      this.db.run(
+        "INSERT INTO template_exercises(id,template_id,exercise_id,position,sets,reps,weight,rest,rep_max) VALUES(?,?,?,?,?,?,?,?,?)",
+        [
+          id(),
+          t.id,
+          e.exerciseId,
+          i,
+          e.sets,
+          e.reps,
+          e.weight,
+          e.rest,
+          e.repMax ?? null,
+        ],
+      ),
+    );
   }
   templateFromWorkout(workoutId: string, name: string) {
     return this.saveTemplate(
@@ -816,15 +870,19 @@ export class Repository {
       for (const w of b.workouts) this.putWorkout(w);
       for (const e of b.workoutExercises) this.putExercise(e);
       for (const s of b.sets) this.putSet(s);
-      for (const t of b.templates)
-        this.saveTemplate(t.name, t.exercises, t.id, t.notes);
+      // Templates and sessions keep the save times recorded in the file
+      // (Phase 7.8B, H2): restoring isn't editing.
+      for (const t of b.templates) {
+        this.writeTemplate(t);
+        this.queue(t.id, "template", t);
+      }
       for (const j of b.journals) {
         this.putJournal(j);
         this.queue(j.id, "journal", j);
       }
       for (const f of b.favorites)
         this.db.run("INSERT INTO favorites(exercise_id) VALUES(?)", [f]);
-      for (const w of b.workouts) this.queueWorkout(w.id);
+      for (const w of b.workouts) this.queueWorkout(w.id, false);
     });
   }
   clearData() {
@@ -858,17 +916,22 @@ export class Repository {
       [recordId, kind, JSON.stringify(payload), revision, Number(deleted)],
     );
   }
+  /**
+   * Waiting changes in upload order: custom exercises, then templates, then
+   * everything else; within a kind, changes that failed before go last so
+   * one troubled record can't hold up the rest.
+   */
   outbox() {
     return this.db.all<Outbox>(
-      "SELECT id,kind,payload,revision,attempts,next_attempt AS nextAttempt,deleted FROM outbox ORDER BY CASE kind WHEN 'exercise' THEN 0 WHEN 'template' THEN 1 ELSE 2 END",
+      `${outboxSelect} ORDER BY CASE kind WHEN 'exercise' THEN 0 WHEN 'template' THEN 1 ELSE 2 END,attempts,rowid`,
     );
+  }
+  outboxRow(recordId: string) {
+    return this.db.all<Outbox>(`${outboxSelect} WHERE id=?`, [recordId])[0];
   }
   acknowledge(recordId: string, revision: number, payload: string) {
     this.transaction(() => {
-      this.db.run(
-        "INSERT INTO sync_meta(id,revision) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET revision=excluded.revision",
-        [recordId, revision],
-      );
+      this.db.run(syncMetaUpsert, [recordId, revision]);
       this.db.run("DELETE FROM outbox WHERE id=? AND payload=?", [
         recordId,
         payload,
@@ -877,13 +940,17 @@ export class Repository {
         revision,
         recordId,
       ]);
+      this.clearSetting(sentKey(recordId));
     });
   }
   conflict(recordId: string, local: string, remote: string, revision: number) {
-    this.db.run(
-      "INSERT INTO conflicts(id,local,remote,revision) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET local=excluded.local,remote=excluded.remote,revision=excluded.revision",
-      [recordId, local, remote, revision],
-    );
+    this.transaction(() => {
+      this.db.run(
+        "INSERT INTO conflicts(id,local,remote,revision) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET local=excluded.local,remote=excluded.remote,revision=excluded.revision",
+        [recordId, local, remote, revision],
+      );
+      this.clearSetting(sentKey(recordId));
+    });
   }
   conflicts() {
     return this.db.all<{
@@ -900,17 +967,150 @@ export class Repository {
       recordId,
     ]);
   }
+  /**
+   * Written just before a change is sent (Phase 7.8B, H1). If the reply never
+   * arrives (no connection, a timeout, Forge closed), the cloud may already
+   * hold it; a later conflict whose cloud copy is exactly one of these is
+   * this phone's own write, not another device's change. Cleared once the
+   * outcome is known.
+   */
+  markSent(op: Outbox) {
+    const entry: SentVersion = { payload: op.payload, deleted: !!op.deleted };
+    const earlier = this.sentVersions(op.id, op.revision).filter(
+      (v) => v.payload !== entry.payload || v.deleted !== entry.deleted,
+    );
+    this.setSetting(
+      sentKey(op.id),
+      JSON.stringify({
+        revision: op.revision,
+        versions: [...earlier, entry].slice(-5),
+      }),
+    );
+  }
+  /** What was sent from this base revision without a confirmed outcome. */
+  sentVersions(recordId: string, revision: number): SentVersion[] {
+    const raw = this.setting(sentKey(recordId));
+    if (!raw) return [];
+    try {
+      const m = JSON.parse(raw) as { revision?: unknown; versions?: unknown };
+      if (m.revision !== revision || !Array.isArray(m.versions)) return [];
+      return (m.versions as Partial<SentVersion>[]).filter(
+        (v): v is SentVersion =>
+          typeof v?.payload === "string" && typeof v.deleted === "boolean",
+      );
+    } catch {
+      return [];
+    }
+  }
+  /**
+   * The cloud holds a version this phone sent, at `revision`: the waiting
+   * change was made on top of it, so it moves onto that revision and
+   * uploads normally. Nothing of anyone else's is replaced.
+   */
+  rebase(recordId: string, revision: number) {
+    this.transaction(() => {
+      this.db.run(syncMetaUpsert, [recordId, revision]);
+      this.db.run(
+        "UPDATE outbox SET revision=?,attempts=0,next_attempt=0 WHERE id=?",
+        [revision, recordId],
+      );
+      this.clearSetting(sentKey(recordId));
+    });
+  }
+  /**
+   * A saved conflict whose two versions turned out to be the same: settled
+   * at the cloud's revision without a choice (Phase 7.8B, H1).
+   */
+  settleConflict(recordId: string, revision: number, payload: string) {
+    this.transaction(() => {
+      this.acknowledge(recordId, revision, payload);
+      this.db.run("DELETE FROM conflicts WHERE id=?", [recordId]);
+    });
+  }
   keepLocal(recordId: string) {
     const c = this.conflicts().find((c) => c.id === recordId);
     if (!c) return;
+    // Replacing a cloud version this phone can't fully read would drop
+    // what a newer Forge recorded in it (Phase 7.8B, M3).
+    if (this.cloudNeedsUpdate(c.remote)) throw new HeldRecord("update");
     this.transaction(() => {
       this.db.run(
         "UPDATE outbox SET revision=?,attempts=0,next_attempt=0 WHERE id=?",
         [c.revision, recordId],
       );
       this.db.run("DELETE FROM conflicts WHERE id=?", [recordId]);
+      this.clearSetting(sentKey(recordId));
     });
   }
+  /** A saved cloud version naming a kind or exercises this Forge lacks. */
+  private cloudNeedsUpdate(remote: string) {
+    try {
+      const row = JSON.parse(remote) as {
+        kind?: unknown;
+        payload?: { exercises?: unknown };
+        deleted?: unknown;
+      };
+      if (row.deleted === true) return false;
+      // A kind this version doesn't know comes from a newer Forge; a copy
+      // with no kind at all is just unreadable, and can still be replaced.
+      if (typeof row.kind !== "string" || !row.kind) return false;
+      if (!SYNCED_KINDS.includes(row.kind)) return true;
+      if (row.kind !== "workout" && row.kind !== "template") return false;
+      const items = row.payload?.exercises;
+      return (
+        Array.isArray(items) &&
+        items.some((e: { exerciseId?: unknown } | null) => {
+          const exerciseId = e?.exerciseId;
+          return (
+            typeof exerciseId === "string" && !this.knowsExercise(exerciseId)
+          );
+        })
+      );
+    } catch {
+      return false;
+    }
+  }
+  /**
+   * The athlete chose the cloud version of a conflict: this phone's record
+   * is replaced by the preserved cloud copy and its waiting change dropped,
+   * together. A cloud copy this phone can't take yet (`HeldRecord`) changes
+   * nothing.
+   */
+  useCloudVersion(recordId: string) {
+    const c = this.conflicts().find((c) => c.id === recordId);
+    if (!c) return;
+    const row = JSON.parse(c.remote) as {
+      id?: unknown;
+      kind?: unknown;
+      payload?: unknown;
+      revision?: unknown;
+      deleted?: unknown;
+    };
+    if (
+      row.id !== recordId ||
+      typeof row.kind !== "string" ||
+      typeof row.revision !== "number"
+    )
+      throw new Error("The saved cloud version can't be read.");
+    const { kind, payload, revision } = row;
+    this.transaction(() => {
+      this.applyRemote(recordId, kind, payload, revision, row.deleted === true);
+      this.db.run("DELETE FROM outbox WHERE id=?", [recordId]);
+      this.db.run("DELETE FROM conflicts WHERE id=?", [recordId]);
+      this.clearSetting(sentKey(recordId));
+    });
+  }
+  /** Exercises a cloud record names that this version doesn't have. */
+  private requireExercises(exerciseIds: string[]) {
+    if (exerciseIds.some((e) => !this.knowsExercise(e)))
+      throw new HeldRecord("update");
+  }
+  /**
+   * Applies one cloud record. Nothing is written when it can't be taken yet
+   * (`HeldRecord`): an exercise or kind from a newer Forge, or a workout in
+   * progress elsewhere while another is in progress here. Two sessions in
+   * progress are never merged and neither replaces the other (Phase 7.8B).
+   */
   applyRemote(
     recordId: string,
     kind: string,
@@ -918,6 +1118,8 @@ export class Repository {
     revision: number,
     deleted = false,
   ) {
+    if (!deleted && !SYNCED_KINDS.includes(kind))
+      throw new HeldRecord("update");
     this.transaction(() => {
       if (deleted) {
         if (kind === "workout")
@@ -945,9 +1147,10 @@ export class Repository {
       } else if (kind === "template") {
         const t = templateSchema.parse(payload);
         if (t.id !== recordId) throw new Error("Remote identity mismatch");
-        this.saveTemplate(t.name, t.exercises, t.id, t.notes);
-        this.db.run("DELETE FROM outbox WHERE id=?", [recordId]);
-      } else if (kind === "workout") {
+        this.requireExercises(t.exercises.map((e) => e.exerciseId));
+        // Kept exactly as the cloud has it, its save time included.
+        this.writeTemplate(t);
+      } else {
         const p = payload as {
           workout: unknown;
           exercises: unknown[];
@@ -983,17 +1186,19 @@ export class Repository {
           if (existing && existing.workout_id !== recordId)
             throw new Error("Set identity owned by another workout");
         }
+        this.requireExercises(rows.map((e) => e.exerciseId));
+        if (w.status !== "completed") {
+          const active = this.active();
+          if (active && active.id !== recordId) throw new HeldRecord("active");
+        }
         this.putWorkout(w);
         this.db.run("DELETE FROM workout_exercises WHERE workout_id=?", [
           recordId,
         ]);
         for (const e of rows) this.putExercise(e);
         for (const s of sets) this.putSet(s);
-      } else throw new Error("Unsupported remote record kind");
-      this.db.run(
-        "INSERT INTO sync_meta(id,revision) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET revision=excluded.revision",
-        [recordId, revision],
-      );
+      }
+      this.db.run(syncMetaUpsert, [recordId, revision]);
     });
   }
 }

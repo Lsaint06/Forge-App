@@ -118,18 +118,26 @@ test("conflicting remote change preserves local content and blocks overwrite", a
   assert.equal(r.conflicts().length, 0);
   assert.equal(r.outbox().length, 0);
 });
-test("network failure retains edits and schedules retry", async () => {
+test("a refused upload keeps the change, and the next sync tries it again at once", async () => {
   const r = local();
   r.saveProfile({ name: "Ada" });
+  let refuse = true;
+  const cloud = remote();
   const server: CloudTransport = {
-    write: async () => {
-      throw new Error("Offline");
+    write: async (op) => {
+      if (refuse) throw new Error("Offline");
+      return cloud.write(op);
     },
-    list: async () => [],
+    list: () => cloud.list(),
   };
-  await synchronize(r, server, "user");
+  const first = await synchronize(r, server, "user");
+  assert.equal(first.rejected, 1);
   assert.equal(r.outbox()[0]!.attempts, 1);
-  assert.ok(r.outbox()[0]!.nextAttempt > Date.now());
+  // Phase 7.8B: a manual sync never waits out an earlier failure's back-off.
+  refuse = false;
+  const second = await synchronize(r, server, "user");
+  assert.equal(second.uploaded, 1);
+  assert.equal(r.outbox().length, 0);
 });
 test("different authenticated user cannot upload previous users local records", async () => {
   const r = local();

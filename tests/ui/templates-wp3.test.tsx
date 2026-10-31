@@ -477,6 +477,10 @@ test("scheduling picks a day from a calendar and writes the same planned record"
 test("closing the date picker schedules nothing", async () => {
   const { r, db } = pathRepository();
   try {
+    // Pinned to mid-month so "tomorrow" is always in the month the picker
+    // opens on (on a month's last day it would be in the next one).
+    fixToday("2026-10-23");
+    const tomorrow = addDays(localDate(), 1);
     r.saveTemplate("Upper A", [bench]);
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(<Templates />);
@@ -486,9 +490,11 @@ test("closing the date picker schedules nothing", async () => {
         view.getByRole("header", { name: "Schedule workout" }),
       ).toBeTruthy(),
     );
-    await fireEvent.press(
-      view.getByLabelText(dayLabel(addDays(localDate(), 1))),
-    );
+    await fireEvent.press(view.getByLabelText(dayLabel(tomorrow)));
+    // A different day is chosen, then the sheet is closed without confirming.
+    expect(
+      view.getByLabelText(`Schedule for ${dayLabel(tomorrow)}`),
+    ).toBeTruthy();
     await fireEvent.press(view.getByLabelText("Close"));
     expect(r.journal("schedule")).toHaveLength(0);
     expect(notifyAt).not.toHaveBeenCalled();

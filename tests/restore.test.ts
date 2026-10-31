@@ -122,6 +122,7 @@ test("an interrupted restore changes nothing, and trying again completes it", as
     claimIfEmpty(r, me.id);
     const failed = await synchronize(r, cloud(rows, true).transport, me.id);
     assert.equal(failed.downloaded, 0);
+    assert.equal(failed.stopped, "offline");
     assert.ok(failed.errors.length > 0);
     assert.equal(r.workouts().length, 0);
     assert.equal(r.profile().onboarded, false);
@@ -144,6 +145,7 @@ test("a partial restore keeps what arrived; the next try brings the rest", async
     claimIfEmpty(r, me.id);
     const partial = await synchronize(r, cloud(broken).transport, me.id);
     assert.equal(partial.errors.length, 1);
+    assert.equal(partial.failed, 1);
     assert.equal(partial.downloaded, rows.length - 1);
     assert.equal(r.workouts().length, 0);
     const rest = await synchronize(r, cloud(rows).transport, me.id);

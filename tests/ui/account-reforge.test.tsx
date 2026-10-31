@@ -226,13 +226,17 @@ test("signed in: the real email, one sync at a time, its result in words", async
       finish({
         uploaded: 3,
         downloaded: 1,
+        matched: 0,
+        rejected: 0,
+        failed: 0,
+        held: { update: 0, active: 0 },
         conflicts: 0,
         pending: 0,
         errors: [],
       }),
     );
     expect(
-      view.getByText("3 uploaded · 1 downloaded · 0 pending · 0 conflicts"),
+      view.getByText("Sync complete: 3 uploaded · 1 downloaded."),
     ).toBeTruthy();
     // Signing out keeps local data.
     await fireEvent.press(me.getByRole("button", { name: "Sign out" }));
@@ -270,17 +274,52 @@ test("a failed sync says so, and pending changes are kept", async () => {
   const { r, db } = setup();
   try {
     cloud({ user: { id: "u1", email: "a@b.co" } });
-    jest
-      .mocked(synchronize)
-      .mockRejectedValueOnce(new Error("Network request failed"));
     const pending = r.outbox().length;
+    // Phase 7.8B: a lost connection stops the sync, with its reason.
+    jest.mocked(synchronize).mockResolvedValueOnce({
+      uploaded: 0,
+      downloaded: 0,
+      matched: 0,
+      rejected: 0,
+      failed: 0,
+      held: { update: 0, active: 0 },
+      stopped: "offline",
+      conflicts: 0,
+      pending,
+      errors: ["TypeError: Network request failed"],
+    });
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
     const view = await render(<Account />);
     await flush();
     await fireEvent.press(
       view.getByRole("button", { name: "Synchronize now" }),
     );
     await flush();
-    expect(view.getByText("Network request failed")).toBeTruthy();
+    expect(
+      view.getByText(
+        `Forge couldn't reach the cloud, so sync stopped. Nothing was lost: ${pending} ${pending === 1 ? "change is" : "changes are"} still waiting on this phone. Check your connection and try again.`,
+      ),
+    ).toBeTruthy();
+    // The technical detail goes to the developer log, not the screen.
+    expect(view.queryByText(/TypeError/)).toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      "[FORGE] Sync details:",
+      "TypeError: Network request failed",
+    );
+    warn.mockRestore();
+    // A sync that throws is explained the same way.
+    jest
+      .mocked(synchronize)
+      .mockRejectedValueOnce(new TypeError("Network request failed"));
+    await fireEvent.press(
+      view.getByRole("button", { name: "Synchronize now" }),
+    );
+    await flush();
+    expect(
+      view.getByText(
+        "Forge couldn't reach the cloud, so sync stopped. Nothing was lost. Check your connection and try again.",
+      ),
+    ).toBeTruthy();
     expect(r.outbox()).toHaveLength(pending);
     expect(
       view.queryByText(
@@ -337,6 +376,90 @@ test("conflicts are named by what they are, never by record id; choices still as
       expect.any(Function),
       { action: "Replace with cloud version" },
     );
+  } finally {
+    db.close();
+  }
+});
+
+// Phase 7.8B, M4: both versions and what differs, so the choice isn't blind.
+test("a conflict shows this phone's and the cloud's versions, and Use cloud version replaces it", async () => {
+  const { r, db } = setup();
+  try {
+    cloud({ user: { id: "u1", email: "a@b.co" } });
+    const j = r.addJournal("measurement", {
+      name: "Bodyweight",
+      value: 80,
+      unit: "kg",
+    });
+    const op = r.outboxRow(j.id)!;
+    r.conflict(
+      j.id,
+      op.payload,
+      JSON.stringify({
+        id: j.id,
+        kind: "journal",
+        payload: { ...j, data: { ...j.data, value: 79 } },
+        revision: 2,
+        deleted: false,
+      }),
+      2,
+    );
+    const view = await render(<Account />);
+    await flush();
+    const card = within(view.getByTestId("account-conflict"));
+    expect(card.getByText("Measurement · Bodyweight")).toBeTruthy();
+    expect(card.getByLabelText(/^This phone: Dated .+Changed /)).toBeTruthy();
+    expect(card.getByLabelText(/^Cloud: Dated .+Changed /)).toBeTruthy();
+    expect(card.getByText("Differs in: Value")).toBeTruthy();
+    expect(view.queryByText(new RegExp(j.id))).toBeNull();
+    await fireEvent.press(
+      card.getByRole("button", { name: "Use cloud version" }),
+    );
+    // The confirmed choice runs the repository's tested resolution.
+    await act(async () => jest.mocked(confirm).mock.calls.at(-1)![2]());
+    expect(r.journal()[0]!.data.value).toBe(79);
+    expect(r.conflicts()).toHaveLength(0);
+    expect(r.outboxRow(j.id)).toBeUndefined();
+  } finally {
+    db.close();
+  }
+});
+
+test("a conflict from a newer Forge can't be resolved either way until Forge is updated (M3)", async () => {
+  const { r, db } = setup();
+  try {
+    cloud({ user: { id: "u1", email: "a@b.co" } });
+    const w = r.startWorkout("Push day");
+    r.addExercise(w.id, "barbell-bench-press");
+    r.finishWorkout(w.id);
+    const op = r.outboxRow(w.id)!;
+    const payload = JSON.parse(op.payload) as {
+      exercises: { exerciseId: string }[];
+    };
+    payload.exercises[0]!.exerciseId = "sled-push-from-a-newer-forge";
+    r.conflict(
+      w.id,
+      op.payload,
+      JSON.stringify({
+        id: w.id,
+        kind: "workout",
+        payload,
+        revision: 2,
+        deleted: false,
+      }),
+      2,
+    );
+    const view = await render(<Account />);
+    await flush();
+    const card = within(view.getByTestId("account-conflict"));
+    expect(
+      card.getByText(/uses exercises from a newer version of Forge/),
+    ).toBeTruthy();
+    for (const name of ["Keep local version", "Use cloud version"])
+      expect(
+        card.getByRole("button", { name }).props.accessibilityState.disabled,
+      ).toBe(true);
+    expect(r.conflicts()).toHaveLength(1);
   } finally {
     db.close();
   }

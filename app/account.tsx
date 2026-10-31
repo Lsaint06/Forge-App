@@ -29,7 +29,12 @@ import {
   DeleteLocalData,
   MembershipCard,
 } from "../src/screens/you/account";
-import { conflictTitle, pendingText } from "../src/domain/presentation/account";
+import {
+  conflictView,
+  pendingText,
+  syncFailureText,
+  syncSummary,
+} from "../src/domain/presentation/account";
 import { forge } from "../src/theme";
 const MODES = [
   { value: "Login", label: "Sign in" },
@@ -169,11 +174,16 @@ export default function Account() {
         shown.id,
       );
       useApp.getState().touch();
-      setStatus(
-        `${result.uploaded} uploaded · ${result.downloaded} downloaded · ${result.pending} pending · ${result.conflicts} conflicts${result.errors.length ? "\n" + result.errors.join("\n") : ""}`,
-      );
+      setStatus(syncSummary(result));
+      // Technical details stay in the developer log (error text only: never
+      // a payload or credential).
+      if (result.errors.length)
+        console.warn(
+          "[FORGE] Sync details:",
+          [...new Set(result.errors)].join(" | "),
+        );
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Sync failed");
+      setStatus(syncFailureText(e));
     } finally {
       setBusy(false);
     }
@@ -357,65 +367,69 @@ export default function Account() {
               )}
             </View>
           </ForgeCard>
-          {conflicts.map((cf) => (
-            <ForgeCard key={cf.id} gap={10}>
-              <State
-                icon="git-compare-outline"
-                text="Sync conflict"
-                tone="accent"
-                header
-              />
-              <FText variant="cardTitle" weight="700">
-                {conflictTitle(cf.remote)}
-              </FText>
-              <FText variant="label" tone="secondary">
-                The cloud record changed since this device last synchronized.
-                Your local record remains intact. Keeping local explicitly
-                replaces the cloud version on the next sync. Export a backup
-                first.
-              </FText>
-              <OutlineButton
-                title="Keep local version"
-                compact
-                onPress={() =>
-                  confirm(
-                    "Keep local version?",
-                    "This authorizes replacing the currently conflicting cloud version on your next sync.",
-                    () => r.keepLocal(cf.id),
-                    { action: "Keep local version", destructive: false },
-                  )
-                }
-              />
-              <OutlineButton
-                title="Use cloud version"
-                compact
-                onPress={() =>
-                  confirm(
-                    "Use cloud version?",
-                    "Export first. This replaces the local record with the preserved cloud version.",
-                    () => {
-                      const row = JSON.parse(
-                        cf.remote,
-                      ) as import("../src/cloud/sync").CloudRecord;
-                      r.transaction(() => {
-                        r.applyRemote(
-                          row.id,
-                          row.kind,
-                          row.payload,
-                          row.revision,
-                          row.deleted,
-                        );
-                        r.db.run("DELETE FROM outbox WHERE id=?", [row.id]);
-                        r.db.run("DELETE FROM conflicts WHERE id=?", [row.id]);
-                      });
-                      useApp.getState().touch();
-                    },
-                    { action: "Replace with cloud version" },
-                  )
-                }
-              />
-            </ForgeCard>
-          ))}
+          {conflicts.map((cf) => {
+            const view = conflictView(cf, r.outboxRow(cf.id), (id) =>
+              r.knowsExercise(id),
+            );
+            return (
+              <ForgeCard key={cf.id} gap={10} testID="account-conflict">
+                <State
+                  icon="git-compare-outline"
+                  text="Sync conflict"
+                  tone="accent"
+                  header
+                />
+                <FText variant="cardTitle" weight="700">
+                  {view.title}
+                </FText>
+                <FText variant="label" tone="secondary">
+                  The cloud record changed since this device last synchronized.
+                  Your local record remains intact. Keeping local explicitly
+                  replaces the cloud version on the next sync. Export a backup
+                  first.
+                </FText>
+                <Versions phone={view.phone} cloud={view.cloud} />
+                {view.differs.length > 0 && (
+                  <FText variant="label" tone="secondary">
+                    {`Differs in: ${view.differs.join(", ")}`}
+                  </FText>
+                )}
+                {view.update && (
+                  <FText variant="label" tone="accent">
+                    {
+                      "The cloud version uses exercises from a newer version of Forge. Update Forge on this phone to choose; both versions are kept until then."
+                    }
+                  </FText>
+                )}
+                <OutlineButton
+                  title="Keep local version"
+                  compact
+                  disabled={view.update}
+                  onPress={() =>
+                    confirm(
+                      "Keep local version?",
+                      "This authorizes replacing the currently conflicting cloud version on your next sync.",
+                      () => r.keepLocal(cf.id),
+                      { action: "Keep local version", destructive: false },
+                    )
+                  }
+                />
+                <OutlineButton
+                  title="Use cloud version"
+                  compact
+                  disabled={view.update}
+                  onPress={() =>
+                    confirm(
+                      "Use cloud version?",
+                      "Export first. This replaces the local record with the preserved cloud version.",
+                      () => r.useCloudVersion(cf.id),
+                      { action: "Replace with cloud version" },
+                    )
+                  }
+                />
+              </ForgeCard>
+            );
+          })}
         </Section>
       )}
 
@@ -543,6 +557,50 @@ function Fact({
       <FText variant="body" weight="600">
         {value}
       </FText>
+    </View>
+  );
+}
+
+/**
+ * A conflict's two versions side by side, as raised tiles that stack under
+ * large text (Phase 7.8B, M4). Each tile is read as one sentence.
+ */
+function Versions({ phone, cloud }: { phone: string[]; cloud: string[] }) {
+  const c = useColors();
+  if (!phone.length && !cloud.length) return null;
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+      {(
+        [
+          ["This phone", phone],
+          ["Cloud", cloud],
+        ] as const
+      ).map(([label, lines]) => (
+        <View
+          key={label}
+          accessible
+          accessibilityLabel={`${label}: ${lines.length ? lines.join(". ") : "no details"}`}
+          style={{
+            flexGrow: 1,
+            flexBasis: 140,
+            gap: 2,
+            padding: 10,
+            borderRadius: forge.radii.tile,
+            borderWidth: forge.border.card,
+            borderColor: c.cardBorder,
+            backgroundColor: c.cardRaised,
+          }}
+        >
+          <FText variant="overline" tone="secondary">
+            {label}
+          </FText>
+          {lines.map((line, i) => (
+            <FText key={i} variant="label">
+              {line}
+            </FText>
+          ))}
+        </View>
+      ))}
     </View>
   );
 }
