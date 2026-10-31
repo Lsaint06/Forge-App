@@ -3,6 +3,7 @@ import { Tabs, router } from "expo-router";
 import { useRepo } from "../../src/state";
 import { workoutTitle } from "../../src/domain/workout-display";
 import { ForgeTabBar, type TabSpec } from "../../src/components/reforge/TabBar";
+import { TAB_PATHS, TabFreeze } from "../../src/components/TabFreeze";
 
 // Five destinations (Phase 7.1A): Home, Train, Nutrition, Progress, You. The
 // exercise library lives in Train. Route names are unchanged ("index" is
@@ -38,6 +39,13 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{ headerShown: false }}
+      // Background tabs and the tab under the workout logger stop
+      // re-rendering on every saved change (Phase 7.6).
+      screenLayout={({ route, children }) => (
+        <TabFreeze path={TAB_PATHS[route.name] ?? `/${route.name}`}>
+          {children}
+        </TabFreeze>
+      )}
       tabBar={({ state, emitter, navigateToTab }) => (
         // Expo Router 58: `state.routes` lists every visible tab, with
         // placeholders for tabs not yet opened; switch with

@@ -707,3 +707,72 @@ The audit used code review and the automated suites; no renderer or device was u
 | `cloudAccountDeleted` written, never read | Correctness, low | No behaviour depends on it | Read it to block re-syncing a deleted account, or remove it |
 | No privacy policy or support contact | Compliance, high for public beta | Needed for App Store review and testers | Add real destinations (Phase 8) |
 | Guest-to-account first sync uploads queued guest data and binds the phone to that account | Communication, medium | Can surprise a tester who signs in later | Explain it in Phase 7.7 first-run onboarding |
+
+## Cross-tab integration (Phase 7.6)
+
+The five tabs were audited as one app: navigation, shared data, refresh, cohesion and performance. The audit used code review, the automated suites and a measured benchmark; no renderer or device was used.
+
+**Architecture.**
+
+- **Tabs:** expo-router `Tabs` (`index`, `train`, `nutrition`, `progress`, `profile`) under a root native `Stack`. The workout logger (`/workout`) is a full-screen modal; History, Goals, Measurements, Recovery, Preferences, Account and the other tools are pushed screens.
+- **Tab bar:** the custom `ForgeTabBar`. Tapping the current tab does nothing (no reset or reload). A resume strip appears on Nutrition, Progress and You while a workout is active.
+- **One source of truth:** every screen reads the repository through `useRepo`, which subscribes to the store revision; `mutate` bumps the revision after every save.
+
+**Shared figures (same sources):**
+
+| Figure | Source |
+| --- | --- |
+| Workouts completed, day streak | `summary` |
+| Weeks consistent | `weeksConsistent` (You) |
+| Progress range counts | Range-relative and labelled by range |
+| Volume (completed, non-warm-up sets) | `volume` |
+| Primary or next goal | `evaluate` + `nextTarget` |
+| Bodyweight | Latest weigh-in, else profile (labelled) |
+| Nutrition | The day's entries against profile targets, shown as the lifter's own only after `TARGETS_SAVED` |
+| Hydration | Profile goal and unit |
+
+Figures that legitimately differ say so: range versus all time, planned versus completed (7.5H), profile weight versus weigh-in, and pending versus synced.
+
+**Defect fixed (high, performance).**
+
+- **Problem:** every visited tab stays mounted, and each re-rendered on every saved change, including every set tick in the logger. Measured in jest with 400 workouts, 4 exercises × 3 sets each, desktop timings:
+
+| Mounted while logging | Per set edit |
+| --- | --- |
+| Logger only | 1 ms |
+| Nutrition | 29 ms |
+| Train | 104 ms |
+| Home | 146 ms |
+| You | 166 ms |
+| Progress | 230 ms |
+| **All five tabs** | **≈ 805 ms** |
+
+- **Fix:** Expo Router 58 hard-codes `freezeOnBlur: false`, so the tabs layout now wraps each tab scene in [TabFreeze](../../src/components/TabFreeze.tsx) (`screenLayout`, `react-freeze`, the library `react-native-screens` uses for its own freezing). Rules:
+  - hidden tabs are frozen;
+  - the tab under the full-screen logger freezes 600 ms after the logger opens, once it has slid in;
+  - the tab under any pushed screen stays live, so the iOS swipe-back still shows it.
+
+  A frozen tab keeps its state and renders once, with the latest data, the moment it is shown.
+- **Result:** with the logger open, a set edit is **≈ 1 ms** (was ≈ 805 ms). With Train shown and the others hidden, a save costs ≈ 116 ms (Train only).
+- **Scope:** no screen, store or data code changed; `react-freeze` (already installed through `react-native-screens`) is now declared explicitly.
+- **Tests:** `tab-freeze.test.tsx`.
+
+**Journeys covered by tests (new `cross-tab.test.tsx`, plus the existing suites):**
+
+- training totals, streak and volume agreeing across Home, Progress, History and You, with planned-but-not-done sets and the workout in progress counting nowhere, and pounds after a unit change;
+- a deleted workout updating every tab;
+- one goal reading the same on Home, Progress and You before and after an edit;
+- Home and the Nutrition tab showing the same day and the same updated target.
+
+Already covered elsewhere: starting from Home and Train, never starting a second workout, the logger and finishing (`today-train`, `redesign`, `workout-*`); measurements across tabs (`measurements-reforge`); goals across screens (`goals-reforge`).
+
+**Cohesion.** Every screen on the primary journeys uses the REFORGE frames. Only not-found, the development-only design system and onboarding (Phase 7.7) keep the older `Screen`.
+
+**Device checks still required:**
+
+- tab switching after a frozen tab has missed changes (the content should appear at once, already current);
+- the tab under the logger while it slides in and out (no blank frames);
+- the iOS swipe-back from pushed screens;
+- offline use and backgrounding (local-first: nothing needs a network; sync runs only when asked).
+
+**Beta-readiness risks.** The 7.5G.3 and 7.5H list is unchanged and still open: a privacy policy and support contact (high for a public beta), the conflict *Use cloud version* direct writes, guest-to-account first-sync communication, the missing last-sync time, and the unread `cloudAccountDeleted` flag.
