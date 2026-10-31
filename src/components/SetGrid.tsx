@@ -285,23 +285,36 @@ function NumberCell({
   );
 }
 
-/** A logged value in review mode: the same cell, but read-only text. */
+/**
+ * A logged value in review mode: the same cell, but read-only text. A set
+ * that was never completed keeps its stored (often planned) values, shown
+ * quieter and spoken as "not completed" so they never read as logged work.
+ */
 function ValueCell({
   label,
   text,
+  completed = true,
   style,
 }: {
   label: string;
   text: string;
+  completed?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   return (
     <View
       accessible
-      accessibilityLabel={`${label}: ${text || "not logged"}`}
+      accessibilityLabel={`${label}: ${text || "not logged"}${completed ? "" : ", not completed"}`}
       style={[{ minHeight: 44, justifyContent: "center" }, style]}
     >
-      <Txt variant="body" weight="600" tabular align="center" numberOfLines={1}>
+      <Txt
+        variant="body"
+        weight={completed ? "600" : "400"}
+        tone={completed ? "primary" : "secondary"}
+        tabular
+        align="center"
+        numberOfLines={1}
+      >
         {text || "–"}
       </Txt>
     </View>
@@ -706,6 +719,7 @@ export function SetRow({
         <ValueCell
           label={input.cell.label}
           text={formatNumber(input.cell.value)}
+          completed={s.completed}
         />
       ) : (
         <NumberCell

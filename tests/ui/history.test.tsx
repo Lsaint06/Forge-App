@@ -297,3 +297,40 @@ test("review shows what was logged for each exercise, not the plan target", asyn
     f.db.close();
   }
 });
+
+// Phase 7.5H: a planned set that was never completed must not read as logged.
+test("review: sets never completed are quieter and spoken as not completed", async () => {
+  const f = pathRepository();
+  try {
+    f.r.saveProfile({ units: "kg" });
+    const w = f.r.startWorkout("Push day");
+    const bench = f.r.addExercise(w.id, "barbell-bench-press");
+    f.r.editSet(f.r.addSet(bench.id).id, {
+      completed: true,
+      weight: 80,
+      reps: 5,
+    });
+    // Planned and prefilled, but never done.
+    f.r.addSet(bench.id, { weight: 85, reps: 5 });
+    f.r.finishWorkout(w.id);
+    mockParams.id = w.id;
+    jest.mocked(useRepo).mockReturnValue(f.r);
+    const view = await render(<WorkoutScreen />);
+    const done = view.getByLabelText("Set 1 weight (kg): 80");
+    const planned = view.getByLabelText("Set 2 weight (kg): 85, not completed");
+    expect(view.getByLabelText("Set 2 reps: 5, not completed")).toBeTruthy();
+    const color = (n: typeof done) =>
+      StyleSheet.flatten(within(n).getByText(/\d/).props.style).color;
+    expect(color(planned)).not.toBe(color(done));
+    expect(view.getByLabelText("Set 2 not done")).toBeTruthy();
+    // Only completed work is summarised.
+    expect(view.getByText("1 of 2 sets · top set 80 kg × 5")).toBeTruthy();
+    // Editing shows the ordinary inputs again.
+    await fireEvent.press(view.getByLabelText("Edit workout"));
+    expect(
+      view.queryByLabelText("Set 2 weight (kg): 85, not completed"),
+    ).toBeNull();
+  } finally {
+    f.db.close();
+  }
+});

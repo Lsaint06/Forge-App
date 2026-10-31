@@ -661,3 +661,49 @@ Presentation only. The Supabase auth calls, session storage, `synchronize`, conf
 
 - **Phase 7.7 (first run):** explain guest versus account before data exists, and the first-sync upload.
 - **Phase 8 (beta readiness):** a privacy policy and a support contact (none exist in the app); a stored last-successful-sync time if the sync engine is extended; a review of the conflict "Use cloud version" path.
+
+## You tab quality assurance (Phase 7.5H)
+
+A QA pass over the You tab and every screen reached from it, with no redesign. It covered:
+
+- You and Edit profile;
+- the current plan;
+- History and the workout review;
+- Goals;
+- Measurements;
+- Recovery;
+- Preferences;
+- Account & privacy.
+
+The audit used code review and the automated suites; no renderer or device was used. Visual acceptance remains the founder's iPhone check.
+
+**Defect fixed.** *Workout review showed never-completed sets like logged work* (medium).
+
+- **Problem:** a set that was planned and prefilled (for example from a program) but not completed kept its stored weight and reps. In review these were drawn in the same style as completed sets, and VoiceOver read "Set 4 weight (kg): 80". Only the empty check disc told them apart.
+- **Fix, in review mode only** (`SetGrid` `ValueCell`): such values are now quieter (secondary tone, regular weight) and spoken with ", not completed". Completed sets, the live logger and edit mode are unchanged.
+- **Regression test:** `history.test.tsx`.
+
+**Verified without change:**
+
+- Every You value comes from its established source: profile, `summary`, `weeksConsistent`, `evaluate` with `nextTarget`, Home's `bodyweight`, the profile height.
+- Every You route goes to its existing screen, and Back falls back to You. Recovery falls back to Home, as before, because it is also reached from Home.
+- `?edit=` links open their editors once.
+- Edits and deletions refresh through the store revision.
+- History, Goals, Measurements and Recovery keep their confirmations, Undo and paging.
+- Preferences saves through the profile.
+- Account keeps guest, signed-out and signed-in states truthful, protects the one-sync-at-a-time guard, reports failures as failures, and keeps the two deletions distinct.
+
+**Low findings (documented, unchanged):**
+
+- On Goals and Measurements, a goal or measurement detail is in-screen state. The iOS edge swipe, or Android Back, leaves the whole screen rather than returning to the list. This behaviour pre-dates REFORGE.
+- With a malformed (non-HTTPS) cloud URL in the build configuration, `cloudClient()` throws and the Account screen fails to render (You catches it). This is configuration only.
+
+**Carried-forward beta-readiness risks (from 7.5G.3):**
+
+| Risk | Class | Beta implication | Narrowest remediation |
+| --- | --- | --- | --- |
+| "Use cloud version" writes the database directly from the screen | Data integrity, medium | A cloud-connected beta exercises it; it works in one transaction but bypasses the repository | Move it into one repository method with a test (sync engine unchanged) |
+| No last-successful-sync time | Transparency, low | Users can't see when they last synced | Store a timestamp after a sync that reports no errors |
+| `cloudAccountDeleted` written, never read | Correctness, low | No behaviour depends on it | Read it to block re-syncing a deleted account, or remove it |
+| No privacy policy or support contact | Compliance, high for public beta | Needed for App Store review and testers | Add real destinations (Phase 8) |
+| Guest-to-account first sync uploads queued guest data and binds the phone to that account | Communication, medium | Can surprise a tester who signs in later | Explain it in Phase 7.7 first-run onboarding |
