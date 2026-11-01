@@ -48,19 +48,3 @@ export const splashAssets: SplashAssets = {
   ],
   wordmarkGlow: require("../../../assets/splash/wordmark/glow.png"),
 };
-
-// Stable keys for load tracking: "ember", "spark-0", "steel-2", ...
-// Reduced motion only needs the final steel letters.
-export function assetEntries(assets: SplashAssets, reduced = false) {
-  const steel = assets.steel.map((s, i) => [`steel-${i}`, s] as const);
-  if (reduced) return steel as [string, ImageSourcePropType][];
-  return [
-    ["ember", assets.ember],
-    ["smoke", assets.smoke],
-    ...assets.sparks.map((s, i) => [`spark-${i}`, s] as const),
-    ...assets.bokeh.map((s, i) => [`bokeh-${i}`, s] as const),
-    ...assets.molten.map((s, i) => [`molten-${i}`, s] as const),
-    ...steel,
-    ["wordmark-glow", assets.wordmarkGlow],
-  ] as [string, ImageSourcePropType][];
-}

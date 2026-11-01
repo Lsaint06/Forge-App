@@ -1,5 +1,5 @@
 import React from "react";
-import { Animated, AppState } from "react-native";
+import { Animated, AppState, StyleSheet } from "react-native";
 import { render, fireEvent, act, waitFor } from "@testing-library/react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ForgeSplash, INTRO } from "../../src/components/splash/ForgeSplash";
@@ -11,13 +11,13 @@ import {
 } from "../../src/components/splash/session";
 import {
   ASSET_GIVE_UP_MS,
+  BOKEH_COUNT,
   makeBokeh,
   makeParticles,
   makeSparks,
   PARTICLE_COUNT,
   SPARK_COUNT,
 } from "../../src/components/splash/timeline";
-import { assetEntries, splashAssets } from "../../src/components/splash/assets";
 import {
   WORDMARK_WIDTH,
   wordmarkLetters,
@@ -114,12 +114,30 @@ const advance = async (ms: number) =>
     jest.advanceTimersByTime(ms);
   });
 
-const preloads = (view: Awaited<ReturnType<typeof render>>) =>
-  view.queryAllByTestId(/^splash-preload-/, { includeHiddenElements: true });
-// Every artwork image finishes loading, which is what starts the intro.
+const hiddenToo = { includeHiddenElements: true };
+// Every image the intro draws, mounted (invisibly) from the first frame.
+const images = (view: Awaited<ReturnType<typeof render>>) =>
+  view.queryAllByTestId(/^splash-image-/, hiddenToo);
+// Every drawn image finishing loading is what starts the intro.
 const loadAll = async (view: Awaited<ReturnType<typeof render>>) => {
-  for (const image of preloads(view)) await fireEvent(image, "load");
+  for (const image of images(view)) await fireEvent(image, "load");
 };
+const sceneOpacity = (view: Awaited<ReturnType<typeof render>>) =>
+  StyleSheet.flatten(view.getByTestId("splash-scene", hiddenToo).props.style)
+    .opacity;
+const taglineOpacity = (view: Awaited<ReturnType<typeof render>>) =>
+  StyleSheet.flatten(
+    view.getByText("BUILT THROUGH DISCIPLINE", hiddenToo).props.style,
+  ).opacity;
+// One image per drawn layer: smoke, bokeh, a halo and a core per ember,
+// sparks, the wordmark's heat glow, and each letter's molten and steel art.
+const DRAWN_IMAGES =
+  1 +
+  BOKEH_COUNT +
+  PARTICLE_COUNT * 2 +
+  SPARK_COUNT +
+  1 +
+  wordmarkLetters.length * 2;
 
 test("the wordmark and timeline stay within the intended proportions", () => {
   expect(wordmarkLetters.map((l) => l.key).join("")).toBe("FORGE");
@@ -281,17 +299,19 @@ test("nothing but the charcoal background shows until every image loads", async 
     ),
   );
   const hidden = { includeHiddenElements: true };
-  expect(preloads(view)).toHaveLength(assetEntries(splashAssets).length);
-  // No drawn stand-in for the artwork: no letters, effects or tagline yet.
-  expect(view.queryByLabelText(LABEL, hidden)).toBeNull();
-  expect(view.queryByText("BUILT THROUGH DISCIPLINE", hidden)).toBeNull();
-  expect(view.queryByTestId("splash-smoke", hidden)).toBeNull();
-  const [last, ...rest] = preloads(view).reverse();
+  expect(images(view)).toHaveLength(DRAWN_IMAGES);
+  // No drawn stand-in for the artwork: the scene waits invisible and silent,
+  // with no letters, effects or tagline showing yet.
+  expect(sceneOpacity(view)).toBe(0);
+  expect(view.queryByLabelText(LABEL)).toBeNull();
+  expect(view.queryByText("BUILT THROUGH DISCIPLINE")).toBeNull();
+  const [last, ...rest] = images(view).reverse();
   for (const image of rest) await fireEvent(image, "load");
   await advance(ASSET_GIVE_UP_MS - 100);
-  expect(view.queryByLabelText(LABEL, hidden)).toBeNull();
+  expect(sceneOpacity(view)).toBe(0);
+  expect(view.queryByLabelText(LABEL)).toBeNull();
   await fireEvent(last!, "load");
-  expect(preloads(view)).toHaveLength(0);
+  expect(sceneOpacity(view)).toBe(1);
   expect(view.getByLabelText(LABEL)).toBeTruthy();
   expect(view.getByTestId("splash-smoke", hidden)).toBeTruthy();
   expect(view.getAllByTestId("splash-spark", hidden)).toHaveLength(SPARK_COUNT);
@@ -304,7 +324,68 @@ test("nothing but the charcoal background shows until every image loads", async 
   expect(onFinish).not.toHaveBeenCalled();
 });
 
-test.each(["splash-preload-smoke", "splash-preload-molten-2"])(
+// Regression (Mac / Expo Go tunnel, Nov 2026): small preloads finished, the
+// clock started, and the full-size letters arrived ~0.8 s late, so the
+// letters formed as bare glow outlines, vanished, then popped in. iOS decodes
+// and caches each image per display size, so the intro must wait for the
+// very images it draws.
+test("every image the intro draws has loaded before the sequence starts", async () => {
+  const view = await render(
+    phone(
+      <ForgeSplash ready={false} onFinish={jest.fn()} reduceMotion={false} />,
+    ),
+  );
+  // Every host Image in the tree, visible or not, whatever its test ID.
+  type Node = ReturnType<typeof view.toJSON>;
+  const drawn = () => {
+    const found: string[] = [];
+    const walk = (node: Node) => {
+      if (!node) return;
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (node.type === "Image") found.push(String(node.props.testID));
+      node.children?.forEach((child) => {
+        if (typeof child !== "string") walk(child);
+      });
+    };
+    walk(view.toJSON());
+    return found;
+  };
+  const before = drawn();
+  expect(before).toHaveLength(DRAWN_IMAGES);
+  expect(new Set(before).size).toBe(DRAWN_IMAGES);
+  const [last, ...rest] = images(view).reverse();
+  for (const image of rest) await fireEvent(image, "load");
+  // One image is still loading: the clock hasn't moved.
+  await advance(ASSET_GIVE_UP_MS - 100);
+  expect(taglineOpacity(view)).toBe(0);
+  await fireEvent(last!, "load");
+  // The intro draws exactly the images that loaded; none is first requested
+  // once it plays.
+  expect(drawn()).toEqual(before);
+  await advance(INTRO.total + 100);
+  expect(taglineOpacity(view)).toBe(1);
+});
+
+test("a letter's heat glow is drawn only over its loaded molten image", async () => {
+  const view = await render(
+    phone(
+      <ForgeSplash ready={false} onFinish={jest.fn()} reduceMotion={false} />,
+    ),
+  );
+  const glows = () =>
+    view
+      .queryAllByTestId(/^splash-letter-glow-/, hiddenToo)
+      .map((glow) => glow.props.testID);
+  expect(glows()).toEqual([]);
+  await fireEvent(view.getByTestId("splash-image-molten-2", hiddenToo), "load");
+  expect(glows()).toEqual(["splash-letter-glow-2"]);
+  await loadAll(view);
+  expect(glows()).toEqual(
+    wordmarkLetters.map((_, i) => `splash-letter-glow-${i}`),
+  );
+});
+
+test.each(["splash-image-smoke", "splash-image-molten-2"])(
   "a failed image (%s) skips the intro instead of drawing a stand-in",
   async (failing) => {
     const onFinish = jest.fn();
@@ -314,9 +395,9 @@ test.each(["splash-preload-smoke", "splash-preload-molten-2"])(
       ),
     );
     const hidden = { includeHiddenElements: true };
-    for (const image of preloads(view))
+    for (const image of images(view))
       await fireEvent(image, image.props.testID === failing ? "error" : "load");
-    expect(preloads(view)).toHaveLength(0);
+    expect(images(view)).toHaveLength(0);
     expect(view.queryByLabelText(LABEL, hidden)).toBeNull();
     expect(view.queryByTestId("splash-letter-textured", hidden)).toBeNull();
     expect(view.getByLabelText("Preparing FORGE")).toBeTruthy();
@@ -338,7 +419,7 @@ test("images that never arrive skip the intro after the wait", async () => {
   await advance(ASSET_GIVE_UP_MS - 50);
   expect(onFinish).not.toHaveBeenCalled();
   await advance(50);
-  expect(preloads(view)).toHaveLength(0);
+  expect(images(view)).toHaveLength(0);
   await advance(INTRO.exit + 50);
   expect(onFinish).toHaveBeenCalledTimes(1);
   expect(view.queryByLabelText(LABEL, hidden)).toBeNull();
@@ -365,10 +446,13 @@ test("reduced motion loads only the finished steel letters", async () => {
     phone(<ForgeSplash ready={false} onFinish={jest.fn()} reduceMotion />),
   );
   const hidden = { includeHiddenElements: true };
-  expect(preloads(view).map((p) => p.props.testID)).toEqual(
-    [0, 1, 2, 3, 4].map((i) => `splash-preload-steel-${i}`),
+  expect(images(view).map((p) => p.props.testID)).toEqual(
+    [0, 1, 2, 3, 4].map((i) => `splash-image-steel-${i}`),
   );
-  for (const image of preloads(view)) await fireEvent(image, "load");
+  // The static logo appears whole, never letter by letter as images arrive.
+  expect(sceneOpacity(view)).toBe(0);
+  for (const image of images(view)) await fireEvent(image, "load");
+  expect(sceneOpacity(view)).toBe(1);
   expect(view.getAllByTestId("splash-letter-textured", hidden)).toHaveLength(5);
   expect(view.queryByTestId("splash-wordmark-glow", hidden)).toBeNull();
   expect(view.queryByTestId("splash-smoke", hidden)).toBeNull();

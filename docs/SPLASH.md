@@ -59,10 +59,12 @@ Runtime images are stored in `assets/splash/effects/`: 10 PNGs, **115.7 KB total
 
 **Load gate (no fallback intro)**
 
-- Every artwork image (effects and all ten letter images) preloads invisibly while the screen stays plain charcoal `#101216`, matching the native launch screen.
-- The intro plays only once **every** image has loaded. There is no asset-free or vector-drawn version of the intro; the original procedural intro was removed and can never play.
+- Every image the intro draws is mounted from the first frame, invisible and at the exact size it is drawn, while the screen stays plain charcoal `#101216`, matching the native launch screen. That is 115 images: smoke, 3 bokeh, a halo and a core for each of the 44 embers, 12 sparks, the wordmark glow, and all ten letter images. The scene stays hidden from screen readers until it plays.
+- The clock starts only once **every** one of those images has loaded. There is no asset-free or vector-drawn version of the intro; the original procedural intro was removed and can never play.
+- Small separate preloads are not enough: iOS decodes and caches each image per display size, so full-size layers loaded that way still arrive after the sequence starts. In Expo Go over the tunnel (Oct 31, 2026), the letters formed as bare glow outlines, vanished, then appeared about 0.8 s late. The intro therefore waits for the very images it draws.
+- Each letter's heat glow (its vector rim) is drawn only once that letter's molten image has loaded, so a letter can never show as a bare outline.
 - If any image fails, or they have not all loaded within **2.5 s** (`ASSET_GIVE_UP_MS`), the intro is skipped and the app appears as soon as it is ready. Late loads after that are ignored.
-- Reduce Motion preloads only the five steel letters.
+- Reduce Motion loads only the five steel letters, and the finished logo appears whole once they have.
 - The intro always plays through once it starts; there is no skip control.
 
 **Readiness**
@@ -105,6 +107,7 @@ Development-specific behavior:
 - **Opening the project from the Expo Go home screen, or closing and reopening Expo Go:** starts a new runtime, so the intro plays.
 - **Background and foreground:** does not replay, the same as production.
 - **Development-only replay:** **You → Replay intro (development only)** plays the intro again instantly. It appears only in development builds (`__DEV__`) and is removed from production builds.
+- **Image loading:** Expo Go loads the intro's images from the development server, so the charcoal screen can hold for up to 2.5 s before the intro starts, longer than in a build. Over a slow tunnel the intro may be skipped.
 
 **Phone procedure**
 
@@ -137,6 +140,8 @@ The native launch screen and real production cold-start behavior require a devel
   - startup-error recovery without replay
   - effect images:
     - showing only charcoal until every image loads, then the full image intro
+    - every image the intro draws (115) mounted and loaded before the clock starts, with none first requested once it plays (this test fails on the earlier small-preload gate)
+    - a letter's heat glow drawn only over its loaded molten image
     - a failed effect or letter image skipping the intro, never drawing a stand-in
     - the 2.5 s wait skipping the intro when images never arrive
     - images that load within the wait playing the full intro
@@ -149,6 +154,7 @@ The native launch screen and real production cold-start behavior require a devel
   - The effect upgrade was previewed the same way with the real optimized images. That led to dropping the glint and lowering the smoke so it no longer lifts the blacks.
   - This verified composition and colors only. React Native rendering, frame pacing, and on-device performance were not observed.
 - **Bundling:** the iOS and Android export includes all 10 effect images.
+- **On device:** an Oct 31, 2026 screen recording (iPhone, Expo Go over the tunnel) showed the late letters that led to the drawn-image load gate. On Nov 1, 2026 the fix was confirmed working on the iPhone in Expo Go.
 - **Native configuration:** `expo prebuild` in a throwaway copy generated Android splash resources with `#101216` in light and dark modes and the transparent splash icon. iOS project generation is unavailable on Windows, so the iOS launch storyboard was not inspected.
 
 ## Wordmark artwork
@@ -192,7 +198,7 @@ The `brand/` files are master sources; the app does not bundle them. The 11 app 
 **Fallbacks**
 
 - None. If any letter image fails to load, the intro is skipped (see the load gate above); vector-drawn letters are never shown.
-- Reduce Motion preloads only the five steel letters, then shows the finished logo.
+- Reduce Motion loads only the five steel letters, then shows the finished logo whole.
 
 ## Brand assets still needed
 
