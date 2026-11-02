@@ -17,6 +17,7 @@ import { localDate } from "../../src/domain/types";
 import { addDays } from "../../src/domain/paths/model";
 import { dayLabel } from "../../src/domain/training-display";
 import { PROFILE_WEIGHT_OFFER } from "../../src/domain/measurements";
+import { pinClock } from "./clock";
 
 // Phase 7B WP4B: the Measurements screen, its log/edit sheet, the one-time
 // profile weight offer and the scoped Progress → Body chart fix.
@@ -134,6 +135,9 @@ test("pounds and inches are typed in the lifter's units and stored as kg and cm"
 });
 
 test("a past day is chosen from a calendar; errors are explained plainly", async () => {
+  // Mid-month, so the past day is in the month the calendar opens on.
+  pinClock("2026-10-14T12:00:00");
+  const past = "2026-10-13";
   const { r, db } = setup();
   try {
     const view = await render(<JournalScreen />);
@@ -146,16 +150,13 @@ test("a past day is chosen from a calendar; errors are explained plainly", async
     expect(alert).not.toHaveBeenCalled();
     await fireEvent.changeText(view.getByLabelText("Bodyweight (kg)"), "82");
     await fireEvent.press(view.getByLabelText("Day, Today. Change day"));
-    await fireEvent.press(
-      view.getByRole("button", { name: dayLabel(yesterday) }),
-    );
-    await fireEvent.press(
-      view.getByLabelText(`Choose for ${dayLabel(yesterday)}`),
-    );
+    await fireEvent.press(view.getByRole("button", { name: dayLabel(past) }));
+    await fireEvent.press(view.getByLabelText(`Choose for ${dayLabel(past)}`));
     await fireEvent.press(view.getByLabelText("Save measurement"));
-    expect(r.journal("measurement")[0]!.date).toBe(yesterday);
+    expect(r.journal("measurement")[0]!.date).toBe(past);
   } finally {
     db.close();
+    jest.useRealTimers();
   }
 });
 

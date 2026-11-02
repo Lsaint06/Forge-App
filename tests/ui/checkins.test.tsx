@@ -17,6 +17,7 @@ import { pathRepository } from "../path-fixture";
 import { localDate } from "../../src/domain/types";
 import { addDays } from "../../src/domain/paths/model";
 import { dayLabel } from "../../src/domain/training-display";
+import { pinClock } from "./clock";
 
 // Phase 7B WP4C: the Recovery screen, its check-in sheet, trends and history.
 
@@ -194,28 +195,50 @@ test("an untouched edit writes nothing; an edit changes only the answer changed"
 });
 
 test("a missed day is logged from the calendar; a day with a check-in offers to edit it", async () => {
+  // Mid-month, so the missed day is in the month the calendar opens on.
+  pinClock("2026-10-14T12:00:00");
+  const missed = "2026-10-13";
   const { r, db } = setup();
   try {
-    add(r, yesterday);
+    add(r, missed);
     const view = await render(<JournalScreen />);
     await fireEvent.press(view.getByRole("button", { name: "Log check-in" }));
     expect(view.queryByText(/You already checked in/)).toBeNull();
     await fireEvent.press(view.getByLabelText("Day, Today. Change day"));
+    await fireEvent.press(view.getByRole("button", { name: dayLabel(missed) }));
     await fireEvent.press(
-      view.getByRole("button", { name: dayLabel(yesterday) }),
-    );
-    await fireEvent.press(
-      view.getByLabelText(`Choose for ${dayLabel(yesterday)}`),
+      view.getByLabelText(`Choose for ${dayLabel(missed)}`),
     );
     expect(view.getByText(/You already checked in on Yesterday/)).toBeTruthy();
     await answerAll(view);
     await fireEvent.press(view.getByLabelText("Save check-in"));
-    expect(r.journal("recovery").map((e) => e.date)).toEqual([
-      yesterday,
-      yesterday,
-    ]);
+    expect(r.journal("recovery").map((e) => e.date)).toEqual([missed, missed]);
   } finally {
     db.close();
+    jest.useRealTimers();
+  }
+});
+
+test("on the 1st, yesterday is one month back in the calendar", async () => {
+  pinClock("2026-11-01T12:00:00");
+  const missed = "2026-10-31";
+  const { r, db } = setup();
+  try {
+    const view = await render(<JournalScreen />);
+    await fireEvent.press(view.getByRole("button", { name: "Log check-in" }));
+    await fireEvent.press(view.getByLabelText("Day, Today. Change day"));
+    expect(view.queryByRole("button", { name: dayLabel(missed) })).toBeNull();
+    await fireEvent.press(view.getByLabelText("Previous month"));
+    await fireEvent.press(view.getByRole("button", { name: dayLabel(missed) }));
+    await fireEvent.press(
+      view.getByLabelText(`Choose for ${dayLabel(missed)}`),
+    );
+    await answerAll(view);
+    await fireEvent.press(view.getByLabelText("Save check-in"));
+    expect(r.journal("recovery").map((e) => e.date)).toEqual([missed]);
+  } finally {
+    db.close();
+    jest.useRealTimers();
   }
 });
 

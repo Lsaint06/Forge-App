@@ -174,7 +174,10 @@ function finished(r: ReturnType<typeof pathRepository>["r"]) {
   return w;
 }
 
-test("backup state counts only workouts finished after the last backup", () => {
+test("backup state counts only workouts finished after the last backup", (t) => {
+  // A fixed clock: back-to-back calls can share a millisecond, and a tie
+  // counts as backed up (see the next test).
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-14T12:00") });
   const { r, db } = pathRepository();
   try {
     finished(r);
@@ -182,14 +185,45 @@ test("backup state counts only workouts finished after the last backup", () => {
       backupState(r).text,
       "Never backed up · 1 workout on this phone",
     );
+    t.mock.timers.tick(60_000);
     recordBackup(r);
     assert.equal(backupState(r).workoutsSince, 0);
     assert.equal(backupState(r).due, false);
+    t.mock.timers.tick(60_000);
     finished(r);
     assert.equal(backupState(r).workoutsSince, 1);
     // An active workout is not yet history.
     r.startWorkout("Pull");
     assert.equal(backupState(r).workoutsSince, 1);
+  } finally {
+    db.close();
+  }
+});
+
+test("a workout finished in the backup's millisecond is in it; one a millisecond later is not", (t) => {
+  // exportBackup reads everything synchronously at exportedAt, which is the
+  // time recorded for the backup.
+  const at = Date.parse("2026-10-14T12:00");
+  t.mock.timers.enable({ apis: ["Date"], now: at });
+  const { r, db } = pathRepository();
+  try {
+    const first = finished(r);
+    const backup = r.exportBackup();
+    assert.equal(backup.exportedAt, at);
+    assert.deepEqual(
+      backup.workouts.map((w) => w.id),
+      [first.id],
+    );
+    recordBackup(r, backup.exportedAt);
+    assert.equal(backupState(r).workoutsSince, 0);
+    t.mock.timers.tick(1);
+    finished(r);
+    assert.equal(backupState(r).workoutsSince, 1);
+    assert.equal(
+      backupStatus({ lastBackupAt: at, finishedAt: [at, at + 1] })
+        .workoutsSince,
+      1,
+    );
   } finally {
     db.close();
   }
