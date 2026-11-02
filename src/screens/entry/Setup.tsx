@@ -98,7 +98,7 @@ export default function Setup() {
   const doSignOut = () =>
     void work("signOut", async () => {
       if (endSession) return endSession();
-      const { error: e } = await client!.auth.signOut();
+      const { error: e } = await client!.auth.signOut({ scope: "local" });
       if (e) throw e;
     });
   // Nothing entered yet: just sign out (another account can then set the

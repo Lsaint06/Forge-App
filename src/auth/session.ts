@@ -79,9 +79,30 @@ export async function storedUser(): Promise<AuthUser | undefined> {
   }
 }
 
-/** Said on Welcome after signing out without a connection (Phase 7.7C, P5). */
+/**
+ * Said on Welcome after signing out without a connection (Phase 7.7C, P5;
+ * corrected in Phase 7.8E, L1). The sign-in still exists on the account
+ * service, but this phone no longer holds it.
+ */
 export const OFFLINE_SIGN_OUT_NOTICE =
-  "You're signed out on this phone. Forge couldn't reach its account service, so that sign-in wasn't ended there; it expires on its own. Your training stays on this phone.";
+  "You're signed out on this phone. Forge couldn't reach its account service, so it removed the sign-in from this phone only. To end it everywhere, sign in again when you're online and choose Sign out of all devices. Your training stays on this phone.";
+
+/** Said on Welcome after signing out of every device (Phase 7.8E, E3). */
+export const ALL_DEVICES_SIGN_OUT_NOTICE =
+  "You're signed out on all your devices. Other devices sign out the next time Forge renews their sign-in, usually within an hour. Each keeps its training, including changes not yet synchronized, until you sign in there again.";
+
+/** Said on Welcome when a password-reset link can't be used (Phase 7.8E, L2). */
+export const RESET_LINK_FAILED_NOTICE =
+  "That password reset link couldn't be used. It may have expired or already been used. Request a new one with Forgot password.";
+export const RESET_LINK_OFFLINE_NOTICE =
+  "Forge couldn't finish your password reset because it couldn't reach its account service. Check your connection, then request a new link with Forgot password.";
+
+/** A failure only because the network or the account service couldn't be reached. */
+export const isNetworkError = (e: unknown) =>
+  isAuthRetryableFetchError(e) ||
+  (e instanceof TypeError && /network|fetch/i.test(e.message));
+const resetLinkProblem = (e: unknown) =>
+  isNetworkError(e) ? RESET_LINK_OFFLINE_NOTICE : RESET_LINK_FAILED_NOTICE;
 
 /** Email links already acted on (one JavaScript runtime). */
 const handledLinks = new Set<string>();
@@ -160,6 +181,8 @@ export function useAuthSession(client: SupabaseClient | null) {
     handledLinks.add(incoming);
     if (signedIn) return;
     const tokens = recoveryTokens(incoming);
+    // A reset link without tokens is explained on Welcome and Sign in
+    // (src/auth/links.ts).
     if (!tokens) return;
     // Not tied to this effect's lifetime: setSession's own SIGNED_IN event
     // re-runs it before this resolves.
@@ -167,32 +190,44 @@ export function useAuthSession(client: SupabaseClient | null) {
     void client.auth
       .setSession(tokens)
       .then(({ data, error }) => {
-        if (error || !data.session) return;
+        if (error || !data.session) {
+          setNotice(resetLinkProblem(error));
+          return;
+        }
         setState({
           session: toUser(data.session.user),
           offline: undefined,
           recovering: true,
         });
       })
-      .catch(() => {})
+      .catch((e: unknown) => setNotice(resetLinkProblem(e)))
       .finally(() => {
         recoveryPending.current = false;
       });
   }, [client, incoming, restored, signedIn]);
   const finishRecovery = () => setState((s) => ({ ...s, recovering: false }));
   /**
-   * Signs out (Phase 7.7C, P5). Without a connection, Supabase can't end the
-   * session on its server, and with an expired access token it doesn't even
-   * remove it here. Forge then removes the stored session from this phone
-   * itself, says so plainly, and never claims the server session ended. The
-   * training and its owner stay exactly as they are.
+   * Signs out (Phase 7.7C, P5; Phase 7.8E, E3). Ordinarily only this
+   * phone's sign-in ends; the account's other devices stay signed in.
+   * `everywhere` ends every sign-in of the account. That needs the account
+   * service, so when it can't be reached nothing changes and the error is
+   * thrown. Without a connection, an ordinary sign-out still happens: Forge
+   * removes the stored session from this phone itself and says so plainly,
+   * never claiming the server's sign-in ended. The training and its owner
+   * stay exactly as they are either way.
    */
-  async function signOut() {
+  async function signOut(options: { everywhere?: boolean } = {}) {
     if (!client) return;
     setNotice(undefined);
-    const { error } = await client.auth.signOut();
-    if (!error) return;
-    if (!isAuthRetryableFetchError(error)) throw error;
+    const everywhere = options.everywhere === true;
+    const { error } = await client.auth.signOut({
+      scope: everywhere ? "global" : "local",
+    });
+    if (!error) {
+      if (everywhere) setNotice(ALL_DEVICES_SIGN_OUT_NOTICE);
+      return;
+    }
+    if (everywhere || !isAuthRetryableFetchError(error)) throw error;
     const key = sessionKey();
     if (key) await sessionStorage.removeItem(key);
     setState({ session: null, offline: undefined, recovering: false });
@@ -212,8 +247,11 @@ export const EntryContext = createContext<{
   entry: Entry;
   client: SupabaseClient | null;
   finishRecovery: () => void;
-  /** Signs out, on this phone alone when offline (see useAuthSession). */
-  signOut?: () => Promise<void>;
+  /**
+   * Signs out of this phone, or of every device with `everywhere`; on this
+   * phone alone when offline (see useAuthSession).
+   */
+  signOut?: (options?: { everywhere?: boolean }) => Promise<void>;
   /** Something to say on Welcome, such as an offline sign-out. */
   notice?: string;
   /** The latest link Forge was opened with (email confirmation, reset). */

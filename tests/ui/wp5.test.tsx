@@ -127,7 +127,13 @@ test("Account & privacy: delete-all and backup replacement say exactly what happ
     await fireEvent.press(view.getByLabelText("Delete all local data"));
     const del = last("Delete all local data?");
     expect(del.message).toMatch(/can't be undone/);
-    expect(del.message).toMatch(/cloud records are not deleted/);
+    // Guest mode (Phase 7.8E, M6): no account holds anything, and both
+    // changes exist only here, so the confirmation says exactly that.
+    expect(del.message).toMatch(
+      /2 changes were never synchronized: they exist only on this phone and would be lost for good\./,
+    );
+    expect(del.message).toMatch(/only a backup file can restore it/);
+    expect(del.message).not.toMatch(/cloud records/);
     expect(del.buttons[1]).toMatchObject({
       text: "Delete everything",
       style: "destructive",

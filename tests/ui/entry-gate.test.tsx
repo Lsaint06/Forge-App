@@ -27,7 +27,10 @@ jest.mock("../../src/fonts", () => ({ loadBrandFonts: jest.fn() }));
 // The route stack shows its entry kind and exposes what the entry screens
 // receive (sign-out, notice).
 const mockCtx: {
-  current?: { signOut?: () => Promise<void>; notice?: string };
+  current?: {
+    signOut?: (options?: { everywhere?: boolean }) => Promise<void>;
+    notice?: string;
+  };
 } = {};
 jest.mock("../../src/auth/AppStack", () => {
   const ReactActual = jest.requireActual("react");
@@ -477,4 +480,109 @@ test("the owner's sign-in is remembered, masked, for the conflict screen (P2)", 
     }),
   );
   expect(mockRepo.r.setting("cloudOwnerHint")).not.toContain("a@example.com");
+});
+
+// ---- Phase 7.8E, Stage 1 (E3, L2) ------------------------------------------
+
+const notices = () => jest.requireActual("../../src/auth/session");
+
+test("an ordinary sign-out ends only this phone's sign-in and keeps everything here (E3)", async () => {
+  const c = cloud();
+  mockRepo.r.saveProfile({ onboarded: true });
+  mockRepo.r.startWorkout("Not yet synchronized");
+  mockRepo.r.setSetting("cloudOwner", "user-a");
+  const waiting = mockRepo.r.outbox().map((o) => o.id);
+  expect(waiting.length).toBeGreaterThan(0);
+  const view = await root();
+  expect(await kind(view)).toBe("ready");
+  await act(async () => mockCtx.current!.signOut!());
+  expect(c.auth.signOut).toHaveBeenCalledTimes(1);
+  expect(c.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
+  expect(await kind(view)).toBe("signedOut");
+  expect(mockCtx.current!.notice).toBeUndefined();
+  // The training, its owner and every waiting change stay.
+  expect(owner()).toBe("user-a");
+  expect(mockRepo.r.outbox().map((o) => o.id)).toEqual(waiting);
+  expect(mockRepo.r.workouts()).toHaveLength(1);
+  expect(synchronize).not.toHaveBeenCalled();
+});
+
+test("signing out of all devices ends every sign-in and says what happens next (E3)", async () => {
+  const c = cloud();
+  mockRepo.r.saveProfile({ onboarded: true });
+  mockRepo.r.startWorkout("Not yet synchronized");
+  mockRepo.r.setSetting("cloudOwner", "user-a");
+  const waiting = mockRepo.r.outbox().map((o) => o.id);
+  const view = await root();
+  expect(await kind(view)).toBe("ready");
+  await act(async () => mockCtx.current!.signOut!({ everywhere: true }));
+  expect(c.auth.signOut).toHaveBeenCalledWith({ scope: "global" });
+  expect(await kind(view)).toBe("signedOut");
+  expect(mockCtx.current!.notice).toBe(notices().ALL_DEVICES_SIGN_OUT_NOTICE);
+  expect(owner()).toBe("user-a");
+  expect(mockRepo.r.outbox().map((o) => o.id)).toEqual(waiting);
+  expect(mockRepo.r.workouts()).toHaveLength(1);
+  // Signing in again brings back the same training.
+  await c.emit("SIGNED_IN", { user: me });
+  expect(await kind(view)).toBe("ready");
+  expect(mockCtx.current!.notice).toBeUndefined();
+});
+
+test("offline, signing out of all devices changes nothing and is reported (E3)", async () => {
+  const c = cloud(offlineSession);
+  mockStored = JSON.stringify({ user: me });
+  mockRepo.r.saveProfile({ onboarded: true });
+  mockRepo.r.setSetting("cloudOwner", "user-a");
+  const view = await root();
+  expect(await kind(view)).toBe("ready");
+  c.auth.signOut.mockResolvedValueOnce({
+    error: new AuthRetryableFetchError("Failed to fetch", 0),
+  });
+  await act(async () => {
+    await expect(
+      mockCtx.current!.signOut!({ everywhere: true }),
+    ).rejects.toBeTruthy();
+  });
+  expect(c.auth.signOut).toHaveBeenCalledWith({ scope: "global" });
+  // Other devices couldn't be signed out, so this one stays signed in too.
+  expect(await kind(view)).toBe("ready");
+  expect(storage().removeItem).not.toHaveBeenCalled();
+  expect(mockCtx.current!.notice).toBeUndefined();
+  expect(owner()).toBe("user-a");
+});
+
+test("a reset link whose sign-in can't start is explained on Welcome (L2)", async () => {
+  const c = cloud(async () => ({ data: { session: null }, error: null }));
+  c.auth.setSession.mockResolvedValueOnce({
+    data: { session: null },
+    error: new AuthApiError(
+      "Invalid Refresh Token: Refresh Token Not Found",
+      400,
+      "refresh_token_not_found",
+    ),
+  } as never);
+  mockURL = "forge://account#access_token=at4&refresh_token=rt4&type=recovery";
+  const view = await root();
+  await waitFor(() =>
+    expect(mockCtx.current!.notice).toBe(notices().RESET_LINK_FAILED_NOTICE),
+  );
+  expect(c.auth.setSession).toHaveBeenCalledTimes(1);
+  expect(await kind(view)).toBe("signedOut");
+});
+
+test("a reset link that fails for want of a connection says so on Welcome (L2)", async () => {
+  const c = cloud(async () => ({ data: { session: null }, error: null }));
+  c.auth.setSession.mockResolvedValueOnce({
+    data: { session: null },
+    error: new AuthRetryableFetchError("Failed to fetch", 0),
+  } as never);
+  mockURL = "forge://account#access_token=at5&refresh_token=rt5&type=recovery";
+  const view = await root();
+  await waitFor(() =>
+    expect(mockCtx.current!.notice).toBe(notices().RESET_LINK_OFFLINE_NOTICE),
+  );
+  expect(await kind(view)).toBe("signedOut");
+  // A real session clears the notice.
+  await c.emit("SIGNED_IN", { user: me });
+  expect(mockCtx.current!.notice).toBeUndefined();
 });

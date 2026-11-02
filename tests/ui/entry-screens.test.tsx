@@ -661,6 +661,33 @@ describe("Email links", () => {
     expect(authLinkStatus(undefined)).toBeUndefined();
   });
 
+  test("a reset link cut short is explained, never ignored (7.8E, L2)", async () => {
+    const broken = "forge:///account#type=recovery&access_token=at";
+    expect(authLinkStatus(broken)).toEqual({
+      tone: "error",
+      text: "That password reset link couldn't be used. It may have expired or already been used. Request a new one with Forgot password.",
+    });
+    expect(authLinkStatus("forge://account#type=recovery")?.tone).toBe("error");
+    // An expired reset link keeps its own explanation.
+    expect(authLinkStatus(expired)?.text).toMatch(
+      /expired or was already used/,
+    );
+    const view = await render(
+      withEntry(
+        <Welcome />,
+        { kind: "signedOut" },
+        client(),
+        jest.fn(),
+        broken,
+      ),
+    );
+    expect(
+      view.getByText(/That password reset link couldn't be used/),
+    ).toBeTruthy();
+    // Tokens in the link are never shown.
+    expect(view.queryByText(/access_token/)).toBeNull();
+  });
+
   test("a confirmed email lands on Sign in with a confirmation, shown once", async () => {
     const entry: Entry = { kind: "signedOut" };
     const view = await render(

@@ -5,7 +5,7 @@ import { Alert } from "../src/platform/alert";
 import * as Linking from "expo-linking";
 import { recoveryTokens } from "../src/cloud/recovery";
 import { signInMethods } from "../src/auth/methods";
-import { authErrorText, useEntry } from "../src/auth/session";
+import { authErrorText, isNetworkError, useEntry } from "../src/auth/session";
 import { router } from "expo-router";
 import { useColors } from "../src/components/ui";
 import {
@@ -13,7 +13,6 @@ import {
   FText,
   ForgeCard,
   ForgeField,
-  ForgeSegments,
   ForgeSubScreen,
   OutlineButton,
   SectionLabel,
@@ -40,11 +39,18 @@ import {
 import { syncStatus } from "../src/cloud/sync-state";
 import { dataOwner, hasSyncHistory } from "../src/data/ownership";
 import { forge } from "../src/theme";
-const MODES = [
-  { value: "Login", label: "Sign in" },
-  { value: "Register", label: "Create account" },
-  { value: "Reset password", label: "Reset password" },
-];
+
+/** Said before ending every sign-in of the account (Phase 7.8E, E3). */
+const ALL_DEVICES_CONFIRM =
+  "This ends your Forge sign-in on every phone and tablet, including this one. Training stays on each device, and changes not yet synchronized wait there until you sign in again. Use this if a device was lost or someone else might be signed in.";
+
+/** A reset link opened while signed in that couldn't be used (Phase 7.8E, L2). */
+const RESET_LINK_FAILED_HERE =
+  "That password reset link couldn't be used. It may have expired or already been used. To get a new one, sign out and choose Forgot password.";
+const RESET_LINK_OFFLINE_HERE =
+  "Forge couldn't reach its account service to finish the password reset. Check your connection, then sign out and request a new link with Forgot password.";
+const resetLinkFailure = (e: unknown) =>
+  isNetworkError(e) ? RESET_LINK_OFFLINE_HERE : RESET_LINK_FAILED_HERE;
 
 // Account & privacy (REFORGE since Phase 7.5G.3): the account, cloud sync,
 // data and privacy, membership, About and, apart from everything else, the
@@ -61,14 +67,12 @@ export default function Account() {
   const entryUser = entry.kind === "ready" ? entry.user : undefined;
   const offline = entry.kind === "ready" && entry.offline;
   const hasEntryUser = !!entryUser;
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [user, setUser] = useState<{
     id: string;
     email?: string;
     app_metadata?: { provider?: unknown; providers?: unknown };
   }>();
-  const [mode, setMode] = useState("Login");
   const [recovery, setRecovery] = useState(false);
   const incoming = Linking.useURL();
   const [busy, setBusy] = useState(false);
@@ -91,14 +95,19 @@ export default function Account() {
     const tokens = recoveryTokens(incoming);
     if (!tokens) return;
     let active = true;
-    void client.auth.setSession(tokens).then(({ error }) => {
-      if (!active) return;
-      if (error) setStatus(error.message);
-      else {
-        setRecovery(true);
-        setStatus("Recovery session verified. Enter a new password below.");
-      }
-    });
+    void client.auth
+      .setSession(tokens)
+      .then(({ error }) => {
+        if (!active) return;
+        if (error) setStatus(resetLinkFailure(error));
+        else {
+          setRecovery(true);
+          setStatus("Recovery session verified. Enter a new password below.");
+        }
+      })
+      .catch((e: unknown) => {
+        if (active) setStatus(resetLinkFailure(e));
+      });
     return () => {
       active = false;
     };
@@ -120,50 +129,43 @@ export default function Account() {
       setBusy(false);
     }
   }
-  async function auth() {
-    if (!client) return;
-    setBusy(true);
-    try {
-      if (!email.trim() || (!password && mode !== "Reset password"))
-        throw new Error("Enter your email and password");
-      const result =
-        mode === "Register"
-          ? await client.auth.signUp({ email: email.trim(), password })
-          : mode === "Reset password"
-            ? await client.auth.resetPasswordForEmail(email.trim(), {
-                redirectTo: Linking.createURL("/account"),
-              })
-            : await client.auth.signInWithPassword({
-                email: email.trim(),
-                password,
-              });
-      if (result.error) throw result.error;
-      setPassword("");
-      setStatus(
-        mode === "Register"
-          ? "Registration submitted. Check email if confirmation is enabled."
-          : mode === "Reset password"
-            ? "Password-reset email requested. Use the secure link to set a new password."
-            : "Signed in. Synchronization remains opt-in.",
-      );
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Authentication failed");
-    } finally {
-      setBusy(false);
-    }
-  }
   async function signOutNow() {
     if (!client) return;
     setBusy(true);
     try {
       if (endSession) await endSession();
       else {
-        const { error } = await client.auth.signOut();
+        const { error } = await client.auth.signOut({ scope: "local" });
         if (error) throw error;
         setStatus("Signed out. Your local records remain on this device.");
       }
     } catch (e) {
       setStatus(authErrorText(e, "Forge couldn't sign you out. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
+  /** Ends every sign-in of the account, this phone's included (E3). */
+  async function signOutEverywhere() {
+    if (!client) return;
+    setBusy(true);
+    setStatus("");
+    try {
+      if (endSession) await endSession({ everywhere: true });
+      else {
+        const { error } = await client.auth.signOut({ scope: "global" });
+        if (error) throw error;
+        setStatus(
+          "Signed out on all devices. Your local records remain on this device.",
+        );
+      }
+    } catch (e) {
+      setStatus(
+        authErrorText(
+          e,
+          "Forge couldn't sign you out of all devices. Try again.",
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -266,49 +268,32 @@ export default function Account() {
               onPress={() => void signOutNow()}
             />
             <FText variant="label" tone="secondary">
-              Signing out keeps everything on this phone.
+              Signing out affects only this phone and keeps everything on it.
             </FText>
+            <OutlineButton
+              title="Sign out of all devices"
+              compact
+              disabled={busy}
+              onPress={() =>
+                confirm(
+                  "Sign out of all devices?",
+                  ALL_DEVICES_CONFIRM,
+                  () => void signOutEverywhere(),
+                  { action: "Sign out everywhere", destructive: false },
+                )
+              }
+            />
           </ForgeCard>
         ) : (
-          <ForgeCard testID="account-sign-in" gap={12}>
+          // Unreachable inside the app (Phase 7.8E, E9): Account & privacy
+          // opens only for a signed-in athlete. Signing in, creating an
+          // account and password resets live on the entry screens.
+          <ForgeCard testID="account-signed-out" gap={8}>
             <State icon="person-outline" text="Not signed in" />
             <FText variant="label" tone="secondary">
               Your training data is on this phone. Sign in to synchronize it
               with your account; sync runs only when you choose.
             </FText>
-            <ForgeSegments
-              accessibilityLabel="Account action"
-              options={MODES}
-              value={mode}
-              onChange={setMode}
-            />
-            <ForgeField
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-            />
-            {mode !== "Reset password" && (
-              <ForgeField
-                label="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoComplete="password"
-              />
-            )}
-            <CtaButton
-              title={
-                busy
-                  ? "Working…"
-                  : (MODES.find((m) => m.value === mode)?.label ?? mode)
-              }
-              compact
-              disabled={busy}
-              onPress={() => void auth()}
-            />
           </ForgeCard>
         )}
         {!!status && (
@@ -374,7 +359,7 @@ export default function Account() {
               <FText variant="label" tone="secondary">
                 {shown
                   ? "Sync sends your local training and lifestyle data to your configured Supabase project. It runs only when requested. Export a backup before your first sync."
-                  : "Sign in above to synchronize. Nothing is uploaded until you sync."}
+                  : "Sign in to synchronize. Nothing is uploaded until you sync."}
               </FText>
               {shown && (
                 <CtaButton

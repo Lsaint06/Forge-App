@@ -6,7 +6,15 @@ import Constants from "expo-constants";
 import { Alert } from "../../platform/alert";
 import { pickBackup } from "../../platform/backup";
 import { backupState, backupExportedAt, recordBackup } from "../../data/backup";
-import { importBackupKeepingOwner } from "../../data/ownership";
+import {
+  dataOwner,
+  importBackupKeepingOwner,
+  localSummary,
+} from "../../data/ownership";
+import {
+  deleteLocalDataText,
+  unsyncedRowText,
+} from "../../domain/presentation/account";
 import { BackupSheet } from "../../components/Backup";
 import { cancelAllNotifications } from "../../notifications";
 import { InfoSheet } from "../../components/system";
@@ -203,20 +211,22 @@ export function AboutForge() {
 }
 
 /**
- * Deleting everything on this phone: the same confirmation and result as
- * before (cloud records are not deleted). Shown in Account & privacy's
- * Delete section, apart from everyday actions.
+ * Deleting everything on this phone (cloud records are not deleted). Shown
+ * in Account & privacy's Delete section, apart from everyday actions. Since
+ * Phase 7.8E (M6) it says, before anything is deleted, how many changes were
+ * never synchronized: those are lost for good.
  */
 export function DeleteLocalData() {
   const r = useRepo();
+  const waiting = unsyncedRowText(localSummary(r).unsynced);
   return (
     <DangerRow
       title="Delete all local data"
-      description="Removes every workout, template, preference and journal entry on this phone."
+      description={`Removes every workout, template, preference and journal entry on this phone.${waiting ? ` ${waiting}` : ""}`}
       onPress={() =>
         confirm(
           "Delete all local data?",
-          "Every workout, template, preference and journal entry on this phone is deleted, and FORGE starts again from setup. This can't be undone, so export a backup first. Your cloud account and cloud records are not deleted; a later sync can restore them.",
+          deleteLocalDataText(localSummary(r).unsynced, !!dataOwner(r)),
           () => {
             r.clearData();
             void cancelAllNotifications().catch((e) =>

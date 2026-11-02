@@ -323,6 +323,11 @@ test("Welcome says when a sign-out happened offline", async () => {
     ),
   );
   expect(view.getByText(OFFLINE_SIGN_OUT_NOTICE)).toBeTruthy();
-  // It never claims the account service ended the session.
-  expect(OFFLINE_SIGN_OUT_NOTICE).toMatch(/wasn't ended there/);
+  // It never claims the account service ended the session, nor that the
+  // session expires by itself (Phase 7.8E, L1), and says how to end it.
+  expect(OFFLINE_SIGN_OUT_NOTICE).toMatch(
+    /removed the sign-in from this phone only/,
+  );
+  expect(OFFLINE_SIGN_OUT_NOTICE).toMatch(/Sign out of all devices/);
+  expect(OFFLINE_SIGN_OUT_NOTICE).not.toMatch(/expires|ended there/);
 });

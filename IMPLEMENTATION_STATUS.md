@@ -67,9 +67,9 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 | Local rest/planned reminders / permission denial fallback | Implemented but unverified | Native APIs present; background/denial delivery requires device |
 | Recurring workout/goal/consistency reminders | Not implemented | Only explicitly scheduled local events |
 | SecureStore session storage | Implemented but unverified | Chunked storage adapter; device restoration not tested |
-| Email register/login/logout/session restoration | Blocked by external configuration | Real Supabase calls; no live project credentials supplied |
+| Email register/login/logout/session restoration | Blocked by external configuration | Real Supabase calls; no live project credentials supplied. Sign out ends this device's sign-in; Sign out of all devices ends every sign-in (Phase 7.8E) |
 | Password recovery callback and password update | Blocked by external configuration | Callback parsing tested; live email/link/password change unverified |
-| PostgreSQL migration, RLS and optimistic-write RPC | Implemented and tested | Isolated PostgreSQL compatibility test with auth scaffold; not deployed/live Supabase verification |
+| PostgreSQL migration, RLS and optimistic-write RPC | Implemented and tested | Isolated PostgreSQL compatibility test with auth scaffold; two-account isolation, signed-out access, deletion cleanup and Supabase's default privileges tested against the unchanged migration (Phase 7.8E); live grants not yet read |
 | Authenticated cloud-account deletion | Blocked by external configuration | Owned SQL deletion tested locally; live endpoint/user session unverified |
 | Full normalized cloud data model | Partially implemented | Normalized local workout/template core; atomic JSON aggregates in PostgreSQL, journals structured JSON |
 | Durable sync outbox and retry backoff | Implemented and tested | Coalescing/retry integration tests |

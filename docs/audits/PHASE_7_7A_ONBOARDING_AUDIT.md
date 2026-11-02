@@ -258,6 +258,7 @@ Without the configuration, the build shows "Accounts aren't available", and trai
 - **Password reset** keeps its redirect `Linking.createURL("/account")`. Each link is handled once, only after the stored session is restored, and only while signed out. A link that arrives while signed in is left to the Account screen; signing out never replays a link.
 - **No flash during reset:** while a reset link's session is being started, the arriving session is treated as a recovery, so neither setup nor Home appears on the way to *Set a new password*.
 - **Dashboard:** the allow-list entries `exp://**` and `forge://account` cover Expo Go. A native build also needs `forge://sign-in`. Leaving the Site URL at localhost is harmless while those are allowed; set it to a real HTTPS page before release.
+  - **Superseded (Phase 7.8E):** don't add broad entries. They let a password-reset link deliver a sign-in to someone else's Expo Go project. Use only the four entries in README → Redirect URLs (verified Nov 1, 2026).
 
 ## Addendum: Phase 7.7B.1 (frictionless sign-in)
 
@@ -308,6 +309,8 @@ The same rule affected email confirmation and password-reset links opened in Exp
 - Expo Go testing uses a tunnel (a hostname).
 
 **Dashboard:** add `exps://**` and `forge://**` to Redirect URLs; keep `exp://**`.
+
+> **Superseded (Phase 7.8E):** don't add broad entries. They let a password-reset link deliver a sign-in to someone else's Expo Go project. Use only the four entries in README → Redirect URLs (verified Nov 1, 2026).
 
 **Tests:** `tests/oauth-redirect.test.ts` (the rule, and the real supabase-js authorization URL) and the "Expo Go return address" cases in `tests/ui/social-auth.test.tsx`.
 

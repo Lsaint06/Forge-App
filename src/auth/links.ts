@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useEntry } from "./session";
+import { brokenRecoveryLink } from "../cloud/recovery";
+import { RESET_LINK_FAILED_NOTICE, useEntry } from "./session";
 
 // What an email link from the account service did (Phase 7.7B). Supabase
 // verifies a confirmation or reset link itself, then redirects to Forge
@@ -33,6 +34,9 @@ export function authLinkStatus(
 ): LinkStatus | undefined {
   const get = url ? linkParams(url) : undefined;
   if (!get) return undefined;
+  // A reset link cut short or edited: it can't start a session (7.8E, L2).
+  if (brokenRecoveryLink(url!))
+    return { tone: "error", text: RESET_LINK_FAILED_NOTICE };
   const error = get("error_code") ?? get("error");
   if (error)
     return {

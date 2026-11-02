@@ -11,6 +11,7 @@ import { linkChecked } from "../../cloud/link";
 import { BackupSheet } from "../../components/Backup";
 import { authErrorText, useEntry } from "../../auth/session";
 import { localSummary, ownerHint } from "../../data/ownership";
+import { unsyncedLossText } from "../../domain/presentation/account";
 import { cancelAllNotifications } from "../../notifications";
 import { DangerRow, DeleteLocalData } from "../you/account";
 import { EntryFrame, EntryMessage } from "./EntryFrame";
@@ -67,7 +68,7 @@ export default function AccountCheck() {
       "signOut",
       async () => {
         if (endSession) return endSession();
-        const { error: e } = await client!.auth.signOut();
+        const { error: e } = await client!.auth.signOut({ scope: "local" });
         if (e) throw e;
       },
       "Forge couldn't sign you out. Try again.",
@@ -291,9 +292,9 @@ function OtherAccount({
   const contents = removed.length
     ? `${removed.join(", ")}, with that account's profile and preferences`
     : "that account's profile and preferences";
-  const unsynced = summary.unsynced
-    ? `${plural(summary.unsynced, "change")} ${summary.unsynced === 1 ? "was" : "were"} never synchronized: ${summary.unsynced === 1 ? "it exists" : "they exist"} only on this phone and would be lost for good.`
-    : "Everything here had been synchronized, so that account keeps its training in the cloud.";
+  const unsynced =
+    unsyncedLossText(summary.unsynced) ??
+    "Everything here had been synchronized, so that account keeps its training in the cloud.";
   const remove = () =>
     confirm(
       "Delete the other account's training?",

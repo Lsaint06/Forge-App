@@ -6,7 +6,7 @@ import { useRepo, confirm } from "../../src/state";
 import { synchronize } from "../../src/cloud/sync";
 import { pathRepository } from "../path-fixture";
 import { theme } from "../../src/theme";
-import { AuthRetryableFetchError } from "@supabase/supabase-js";
+import { AuthApiError, AuthRetryableFetchError } from "@supabase/supabase-js";
 import { EntryContext } from "../../src/auth/session";
 import { recordSyncOutcome } from "../../src/cloud/sync-state";
 
@@ -55,6 +55,12 @@ jest.mock("../../src/cloud/client", () => ({
   transport: jest.fn(() => ({})),
 }));
 jest.mock("../../src/cloud/sync", () => ({ synchronize: jest.fn() }));
+// The link Forge was opened with (a password-reset link, in some tests).
+let mockURL: string | null = null;
+jest.mock("expo-linking", () => ({
+  ...jest.requireActual("expo-linking"),
+  useURL: () => mockURL,
+}));
 
 function cloud(session: Session) {
   const auth = {
@@ -79,6 +85,7 @@ function cloud(session: Session) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockURL = null;
   Object.assign(mockCloud, {
     configured: false,
     session: null,
@@ -148,35 +155,24 @@ test("guest: the sections in order, guest copy, no sync or cloud deletion", asyn
   }
 });
 
-test("signed out: the existing sign-in flow, password hidden, nothing uploaded", async () => {
+test("signed out: no sign-in form here; signing in lives on the entry screens (7.8E, E9)", async () => {
   const { r, db } = setup();
   try {
     const auth = cloud(null);
     const view = await render(<Account />);
     await flush();
-    const form = within(view.getByTestId("account-sign-in"));
-    expect(form.getByText("Not signed in")).toBeTruthy();
-    expect(form.getByRole("tab", { name: "Create account" })).toBeTruthy();
-    expect(form.getByLabelText("Password").props.secureTextEntry).toBe(true);
-    // Validation is the existing one.
-    await fireEvent.press(form.getByRole("button", { name: "Sign in" }));
-    await flush();
-    expect(view.getByText("Enter your email and password")).toBeTruthy();
+    // Account & privacy opens only for a signed-in athlete; outside the gate
+    // it says so and offers nothing to type into.
+    const card = within(view.getByTestId("account-signed-out"));
+    expect(card.getByText("Not signed in")).toBeTruthy();
+    expect(view.queryByTestId("account-sign-in")).toBeNull();
+    expect(view.queryByLabelText("Email")).toBeNull();
+    expect(view.queryByLabelText("Password")).toBeNull();
+    expect(view.queryByRole("tab")).toBeNull();
+    expect(view.queryByRole("button", { name: "Sign in" })).toBeNull();
     expect(auth.signInWithPassword).not.toHaveBeenCalled();
-    await fireEvent.changeText(
-      form.getByLabelText("Email"),
-      "  alex@example.com ",
-    );
-    await fireEvent.changeText(form.getByLabelText("Password"), "secret-pass");
-    await fireEvent.press(form.getByRole("button", { name: "Sign in" }));
-    await flush();
-    expect(auth.signInWithPassword).toHaveBeenCalledWith({
-      email: "alex@example.com",
-      password: "secret-pass",
-    });
-    expect(
-      view.getByText("Signed in. Synchronization remains opt-in."),
-    ).toBeTruthy();
+    expect(auth.signUp).not.toHaveBeenCalled();
+    expect(auth.resetPasswordForEmail).not.toHaveBeenCalled();
     // Cloud sync explains that signing in comes first; local changes wait.
     const sync = within(view.getByTestId("account-sync"));
     expect(
@@ -184,12 +180,9 @@ test("signed out: the existing sign-in flow, password hidden, nothing uploaded",
         `On this phone: ${r.outbox().length} ${r.outbox().length === 1 ? "change" : "changes"} waiting to upload`,
       ),
     ).toBeTruthy();
-    expect(sync.getByText(/Sign in above to synchronize/)).toBeTruthy();
+    expect(sync.getByText(/^Sign in to synchronize\./)).toBeTruthy();
     expect(view.queryByRole("button", { name: "Synchronize now" })).toBeNull();
     expect(synchronize).not.toHaveBeenCalled();
-    // Reset password asks only for the email.
-    await fireEvent.press(form.getByRole("tab", { name: "Reset password" }));
-    expect(form.queryByLabelText("Password")).toBeNull();
   } finally {
     db.close();
   }
@@ -239,10 +232,10 @@ test("signed in: the real email, one sync at a time, its result in words", async
     expect(
       view.getByText("Sync complete: 3 uploaded · 1 downloaded."),
     ).toBeTruthy();
-    // Signing out keeps local data.
+    // Signing out ends only this phone's sign-in and keeps local data.
     await fireEvent.press(me.getByRole("button", { name: "Sign out" }));
     await flush();
-    expect(auth.signOut).toHaveBeenCalled();
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: "local" });
     expect(
       view.getByText("Signed out. Your local records remain on this device."),
     ).toBeTruthy();
@@ -718,6 +711,213 @@ test("offline: still signed in, said plainly, never the old sign-in form (7.7C)"
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(auth.signOut).not.toHaveBeenCalled();
     expect(r.profile().onboarded).toBe(true);
+  } finally {
+    db.close();
+  }
+});
+
+// ---- Phase 7.8E, Stage 1 ---------------------------------------------------
+
+const lastConfirm = () => {
+  const [title, message, run, options] = jest
+    .mocked(confirm)
+    .mock.calls.at(-1)!;
+  return { title, message, run, options };
+};
+
+test("Sign out of all devices asks first, ends every sign-in and keeps local data (E3)", async () => {
+  const { r, db } = setup();
+  try {
+    const auth = cloud({ user: { id: "u1", email: "a@b.co" } });
+    r.setSetting("cloudOwner", "u1");
+    r.startWorkout("Unsynced session");
+    const waiting = r.outbox().map((o) => o.id);
+    const view = await render(<Account />);
+    await flush();
+    const me = within(view.getByTestId("account-signed-in"));
+    expect(
+      me.getByText(
+        "Signing out affects only this phone and keeps everything on it.",
+      ),
+    ).toBeTruthy();
+    await fireEvent.press(
+      me.getByRole("button", { name: "Sign out of all devices" }),
+    );
+    const ask = lastConfirm();
+    expect(ask.title).toBe("Sign out of all devices?");
+    expect(ask.message).toMatch(/every phone and tablet, including this one/);
+    expect(ask.message).toMatch(/changes not yet synchronized wait there/);
+    expect(ask.options).toEqual({
+      action: "Sign out everywhere",
+      destructive: false,
+    });
+    // Nothing happens until it's confirmed.
+    expect(auth.signOut).not.toHaveBeenCalled();
+    await act(async () => ask.run());
+    expect(auth.signOut).toHaveBeenCalledTimes(1);
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: "global" });
+    expect(
+      view.getByText(
+        "Signed out on all devices. Your local records remain on this device.",
+      ),
+    ).toBeTruthy();
+    // The training, its owner and every waiting change are untouched.
+    expect(r.outbox().map((o) => o.id)).toEqual(waiting);
+    expect(r.setting("cloudOwner")).toBe("u1");
+    expect(r.workouts()).toHaveLength(1);
+  } finally {
+    db.close();
+  }
+});
+
+test("offline, Sign out of all devices changes nothing and says why (E3)", async () => {
+  const { r, db } = setup();
+  try {
+    const auth = cloud({ user: { id: "u1", email: "a@b.co" } });
+    auth.signOut.mockResolvedValueOnce({
+      error: new AuthRetryableFetchError("Failed to fetch", 0),
+    } as never);
+    const view = await render(<Account />);
+    await flush();
+    await fireEvent.press(
+      view.getByRole("button", { name: "Sign out of all devices" }),
+    );
+    await act(async () => lastConfirm().run());
+    expect(
+      view.getByText(
+        "Can't reach Forge's account service. Check your connection and try again.",
+      ),
+    ).toBeTruthy();
+    expect(view.getByTestId("account-signed-in")).toBeTruthy();
+    expect(view.queryByText(/^Signed out/)).toBeNull();
+    expect(r.profile().onboarded).toBe(true);
+  } finally {
+    db.close();
+  }
+});
+
+test("through the entry gate, each sign-out says which kind it is (E3)", async () => {
+  const { db } = setup();
+  try {
+    cloud(null);
+    const signOut = jest.fn(async () => {});
+    const view = await render(
+      <EntryContext.Provider
+        value={{
+          entry: {
+            kind: "ready",
+            user: { id: "u1", email: "a@example.com" },
+            offline: false,
+          },
+          client: mockCloud.client as never,
+          finishRecovery: jest.fn(),
+          signOut,
+        }}
+      >
+        <Account />
+      </EntryContext.Provider>,
+    );
+    await flush();
+    await fireEvent.press(view.getByRole("button", { name: "Sign out" }));
+    await flush();
+    expect(signOut).toHaveBeenLastCalledWith();
+    await fireEvent.press(
+      view.getByRole("button", { name: "Sign out of all devices" }),
+    );
+    await act(async () => lastConfirm().run());
+    expect(signOut).toHaveBeenLastCalledWith({ everywhere: true });
+    expect(signOut).toHaveBeenCalledTimes(2);
+    const auth = (mockCloud.client as { auth: { signOut: jest.Mock } }).auth;
+    expect(auth.signOut).not.toHaveBeenCalled();
+  } finally {
+    db.close();
+  }
+});
+
+test("Delete all local data counts what was never synchronized, before anything is deleted (M6)", async () => {
+  const { r, db } = setup();
+  try {
+    cloud({ user: { id: "u1", email: "a@b.co" } });
+    r.setSetting("cloudOwner", "u1");
+    r.addJournal("measurement", { name: "Bodyweight", value: 80, unit: "kg" });
+    expect(r.outbox()).toHaveLength(2);
+    const view = await render(<Account />);
+    await flush();
+    const row = view.getByRole("button", { name: "Delete all local data" });
+    expect(row.props.accessibilityHint).toMatch(
+      /on this phone\. 2 changes haven't been synchronized and would be lost\.$/,
+    );
+    await fireEvent.press(row);
+    const ask = lastConfirm();
+    expect(ask.title).toBe("Delete all local data?");
+    expect(ask.message).toMatch(
+      /2 changes were never synchronized: they exist only on this phone and would be lost for good\./,
+    );
+    expect(ask.message).toMatch(
+      /cloud records are not deleted; a later sync can restore what was synchronized\./,
+    );
+    // Asking deletes nothing.
+    expect(r.outbox()).toHaveLength(2);
+    expect(r.journal("measurement")).toHaveLength(1);
+
+    // Once everything is synchronized, there's nothing extra to warn about.
+    r.db.run("DELETE FROM outbox");
+    await view.rerender(<Account />);
+    await flush();
+    const synced = view.getByRole("button", { name: "Delete all local data" });
+    expect(synced.props.accessibilityHint).not.toMatch(/synchronized/);
+    await fireEvent.press(synced);
+    expect(lastConfirm().message).not.toMatch(/never synchronized/);
+  } finally {
+    db.close();
+  }
+});
+
+test("a reset link that can't be used while signed in is explained plainly (L2)", async () => {
+  const { db } = setup();
+  try {
+    const auth = cloud({ user: { id: "u1", email: "a@b.co" } });
+    auth.setSession.mockResolvedValueOnce({
+      error: new AuthApiError(
+        "Invalid Refresh Token: Refresh Token Not Found",
+        400,
+        "refresh_token_not_found",
+      ),
+    } as never);
+    mockURL = "forge:///account#access_token=at&refresh_token=rt&type=recovery";
+    const view = await render(<Account />);
+    await flush();
+    expect(auth.setSession).toHaveBeenCalledWith({
+      access_token: "at",
+      refresh_token: "rt",
+    });
+    expect(
+      view.getByText(
+        "That password reset link couldn't be used. It may have expired or already been used. To get a new one, sign out and choose Forgot password.",
+      ),
+    ).toBeTruthy();
+    expect(view.queryByText(/Refresh Token/)).toBeNull();
+    expect(view.queryByLabelText("New password")).toBeNull();
+  } finally {
+    db.close();
+  }
+});
+
+test("a reset link that fails for want of a connection says so (L2)", async () => {
+  const { db } = setup();
+  try {
+    const auth = cloud({ user: { id: "u1", email: "a@b.co" } });
+    auth.setSession.mockResolvedValueOnce({
+      error: new AuthRetryableFetchError("Failed to fetch", 0),
+    } as never);
+    mockURL = "forge:///account#access_token=at&refresh_token=rt&type=recovery";
+    const view = await render(<Account />);
+    await flush();
+    expect(
+      view.getByText(
+        "Forge couldn't reach its account service to finish the password reset. Check your connection, then sign out and request a new link with Forgot password.",
+      ),
+    ).toBeTruthy();
   } finally {
     db.close();
   }

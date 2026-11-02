@@ -86,6 +86,37 @@ export function pendingText(pending: number) {
     : "No local changes waiting to upload";
 }
 
+// Phase 7.8E (M6): before anything deletes this phone's data, say how much
+// of it was never synchronized, because nothing can bring that back.
+
+/** The unsynchronized changes that deleting this phone's data would lose. */
+export function unsyncedLossText(unsynced: number) {
+  if (!unsynced) return undefined;
+  return `${plural(unsynced, "change")} ${unsynced === 1 ? "was" : "were"} never synchronized: ${unsynced === 1 ? "it exists" : "they exist"} only on this phone and would be lost for good.`;
+}
+
+/** The same, short enough for the delete row itself. */
+export function unsyncedRowText(unsynced: number) {
+  if (!unsynced) return undefined;
+  return `${plural(unsynced, "change")} ${unsynced === 1 ? "hasn't" : "haven't"} been synchronized and would be lost.`;
+}
+
+/**
+ * The confirmation for "Delete all local data". `linked`: this phone's data
+ * belongs to an account, which keeps whatever was synchronized.
+ */
+export function deleteLocalDataText(unsynced: number, linked: boolean) {
+  return [
+    "Every workout, template, preference and journal entry on this phone is deleted, and FORGE starts again from setup. This can't be undone, so export a backup first.",
+    unsyncedLossText(unsynced),
+    linked
+      ? "Your cloud account and cloud records are not deleted; a later sync can restore what was synchronized."
+      : "This training isn't linked to a Forge account, so only a backup file can restore it.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 // Phase 7.8B: what a sync did, in plain words. Nothing is called "backed up"
 // or "safe" beyond what the sync itself confirmed.
 
