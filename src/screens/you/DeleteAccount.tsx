@@ -8,15 +8,16 @@ import {
 } from "../../components/reforge";
 import { BackupChoices, useBackupActions } from "../../components/Backup";
 import { useRepo, useApp, confirm } from "../../state";
-import { cloudClient, verifierClient } from "../../cloud/client";
+import { cloudClient, tokenClient, verifierClient } from "../../cloud/client";
 import { goBack } from "../../navigation";
 import { authErrorCode, authErrorText, useEntry } from "../../auth/session";
 import {
+  checkDeletion,
   cloudDeletion,
   deleteAccount,
+  deletedAccount,
   dismissDeletion,
   pendingDeletion,
-  resumeDeletion,
   type DeletionDeps,
   type DeletionOutcome,
 } from "../../auth/account-deletion";
@@ -33,6 +34,7 @@ import {
 import { dataOwner, localSummary } from "../../data/ownership";
 import { backupState } from "../../data/backup";
 import {
+  ACCOUNT_GONE_HERE,
   DELETION_DIDNT_HAPPEN,
   unsyncedLossText,
 } from "../../domain/presentation/account";
@@ -56,6 +58,7 @@ type Step =
   | "working"
   | "uncertain"
   | "notDeleted"
+  | "gone"
   | "deleted";
 type Busy = "password" | "google" | "check";
 
@@ -63,6 +66,8 @@ const CONFIRM_AGAIN =
   "It's been a few minutes since you confirmed it's you. Confirm again to delete your account.";
 const SERVICE_ASKS =
   "Forge's account service asks you to sign in again first. Confirm it's you, then delete.";
+const NOT_SENT =
+  "Forge couldn't use your sign-in to send the request, so nothing was sent and nothing changed. Confirm it's you again.";
 const STILL_UNCONFIRMED =
   "Forge still couldn't confirm the deletion. Check your connection and try again.";
 const plural = (n: number, one: string, many = `${one}s`) =>
@@ -80,11 +85,28 @@ function holdings(s: ReturnType<typeof localSummary>) {
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
+/**
+ * A different account came back from the sign-in (D4). Forge refused it,
+ * ended only its new session, and changed nothing else; a Google sign-in may
+ * have created that account just now, which Forge never deletes.
+ */
+function differentAccountText(
+  e: ReauthError,
+  email: string | undefined,
+  google: boolean,
+) {
+  const mine = `Confirm with ${email ?? "the account you're signed in to"}.`;
+  const chosen = e.other?.email ? ` (${e.other.email})` : "";
+  return google
+    ? `That's a different Google account${chosen}, so it can't confirm this deletion. Forge signed it out here and didn't change it or anything else. If it had no Forge account, choosing it may have created an empty one. ${mine}`
+    : `That's a different account${chosen}. Forge signed it out here and didn't change it or anything else. ${mine}`;
+}
+
 /** Plain words for a failed confirmation (never the service's message). */
-function reauthText(e: unknown, email?: string) {
+function reauthText(e: unknown, email?: string, google = false) {
   if (e instanceof ReauthError)
     return e.reason === "wrong_account"
-      ? `That's a different account. Confirm with ${email ?? "the account you're signed in to"}.`
+      ? differentAccountText(e, email, google)
       : "Forge couldn't confirm it's you. Try again.";
   if (authErrorCode(e) === "invalid_credentials")
     return "That password isn't right. Try again.";
@@ -98,13 +120,23 @@ export default function DeleteAccount() {
   const user = entry.kind === "ready" ? entry.user : undefined;
   const offline = entry.kind === "ready" && entry.offline;
   const social = useSocialOptions();
-  const [step, setStep] = useState<Step>(() => {
+  /**
+   * Where this phone's own records put the deletion now. The launch check
+   * can settle it while this screen is open, so this is read again whenever
+   * a check returns nothing new.
+   */
+  function recorded(): Step {
+    if (!user) return "explain";
+    // Already known to be gone (deleted elsewhere, or found at launch).
+    const gone = deletedAccount(r);
+    if (gone?.owner === user.id) return gone.localRemoved ? "deleted" : "gone";
     const marker = pendingDeletion(r);
-    if (!user || marker?.owner !== user.id) return "explain";
+    if (marker?.owner !== user.id) return "explain";
     if (marker.state === "requested") return "uncertain";
     if (marker.state === "notDeleted") return "notDeleted";
     return "explain";
-  });
+  }
+  const [step, setStep] = useState<Step>(recorded);
   const [exported, setExported] = useState<"saved" | "shared">();
   const actions = useBackupActions(setExported);
   const [password, setPassword] = useState("");
@@ -132,9 +164,9 @@ export default function DeleteAccount() {
   }
 
   /** What deleting needs from this phone: its sign-in and its reminders. */
-  function deps(): DeletionDeps {
+  function deps(owner: string): DeletionDeps {
     return {
-      ...cloudDeletion(client!),
+      ...cloudDeletion(client!, owner, tokenClient),
       signOut: async () => {
         if (endSession) await endSession({ deleted: true });
         else await client!.auth.signOut({ scope: "local" });
@@ -157,15 +189,16 @@ export default function DeleteAccount() {
       case "reauthenticate":
         setConfirmedAt(undefined);
         return show("identity", SERVICE_ASKS);
+      case "notSent":
+        setConfirmedAt(undefined);
+        return show("identity", NOT_SENT);
+      case "accountGone":
+        return show("gone");
       case "uncertain":
         return show("uncertain", quiet ? undefined : STILL_UNCONFIRMED);
-      default: {
-        const marker = pendingDeletion(r);
-        return show(
-          marker?.state === "requested" ? "uncertain" : "explain",
-          undefined,
-        );
-      }
+      default:
+        // Nothing new from this check (a launch check may have settled it).
+        return show(recorded());
     }
   }
 
@@ -183,16 +216,18 @@ export default function DeleteAccount() {
   }
 
   /**
-   * Something threw while deleting or checking: say what this phone's own
-   * state shows, never more.
+   * Something threw while deleting or checking: say only what this phone's
+   * own records show. The engine marks a confirmed deletion before this
+   * phone's part, and removes the training and records it in one step.
    */
   function failed(owner: string) {
     const marker = pendingDeletion(r);
+    const gone = deletedAccount(r);
     useApp.getState().touch();
     // Confirmed: this phone's part finishes the next time Forge opens.
     if (marker?.state === "deleted") return show("deleted");
-    // Removed already: clearing the training clears the marker with it.
-    if (!marker && dataOwner(r) !== owner) return show("deleted");
+    if (gone?.owner === owner)
+      return show(gone.localRemoved ? "deleted" : "gone");
     if (marker?.state === "requested") {
       setStep("uncertain");
       return setError(
@@ -223,14 +258,17 @@ export default function DeleteAccount() {
     void guarded("google", async () => {
       if (!client || !user) return;
       try {
-        // Cancelled: nothing changes, and the athlete can try again.
-        if ((await reauthWithGoogle(client, user)) === "cancelled") return;
+        // Cancelled: nothing changes, and the athlete can try again. The
+        // returned sign-in is checked by a client that stores nothing.
+        const checker = verifierClient()?.auth;
+        const result = await reauthWithGoogle(client, user, checker);
+        if (result === "cancelled") return;
         setConfirmedAt(Date.now());
         show("final");
       } catch (e) {
         setError(
           e instanceof ReauthError
-            ? reauthText(e, email)
+            ? reauthText(e, email, true)
             : socialErrorText("google", e),
         );
       }
@@ -248,7 +286,7 @@ export default function DeleteAccount() {
       }
       show("working");
       try {
-        settle(await deleteAccount(r, user.id, deps()), true);
+        settle(await deleteAccount(r, user.id, deps(user.id)), true);
       } catch {
         failed(user.id);
       }
@@ -258,7 +296,7 @@ export default function DeleteAccount() {
     void guarded("check", async () => {
       if (!client || !user) return;
       try {
-        settle(await resumeDeletion(r, user.id, deps()));
+        settle(await checkDeletion(r, user.id, deps(user.id)));
       } catch {
         failed(user.id);
       }
@@ -294,10 +332,15 @@ export default function DeleteAccount() {
   // Before anything is sent, only the owner of this phone's training gets
   // this far. Once a request is underway the sign-in and the training go
   // away as planned, so those steps don't depend on them.
-  const before = ["explain", "backup", "identity", "final"].includes(step);
-  if (step === "deleted" || (step === "working" && !user)) {
+  // Settled elsewhere while this screen was open (the launch check, or a
+  // sync): an account known to be gone has nothing left to delete here.
+  const known = !!user && deletedAccount(r)?.owner === user.id;
+  const view: Step =
+    known && step !== "deleted" && step !== "working" ? recorded() : step;
+  const before = ["explain", "backup", "identity", "final"].includes(view);
+  if (view === "deleted" || (view === "working" && !user)) {
     body =
-      step === "deleted" ? (
+      view === "deleted" ? (
         <ForgeCard gap={8} testID="delete-done">
           <FText variant="body">Your Forge account was deleted.</FText>
         </ForgeCard>
@@ -321,7 +364,7 @@ export default function DeleteAccount() {
       </ForgeCard>
     );
     footer = <OutlineButton title="Back" onPress={leave} />;
-  } else if (step === "explain") {
+  } else if (view === "explain") {
     body = (
       <>
         {offlineNote}
@@ -385,7 +428,7 @@ export default function DeleteAccount() {
         <OutlineButton title="Keep my account" onPress={leave} />
       </>
     );
-  } else if (step === "backup") {
+  } else if (view === "backup") {
     body = (
       <>
         <ForgeCard gap={8} testID="delete-backup">
@@ -430,7 +473,7 @@ export default function DeleteAccount() {
         />
       </>
     );
-  } else if (step === "identity") {
+  } else if (view === "identity") {
     body = (
       <>
         {offlineNote}
@@ -469,6 +512,9 @@ export default function DeleteAccount() {
                   Or confirm with Google.
                 </FText>
               )}
+              <FText variant="label" tone="secondary">
+                {`In Google's sheet, choose ${email ?? "this account"}. A different Google account can't confirm this deletion.`}
+              </FText>
               <GoogleButton disabled={!!busy} onPress={confirmWithGoogle} />
             </>
           )}
@@ -491,8 +537,8 @@ export default function DeleteAccount() {
         onPress={leave}
       />
     );
-  } else if (step === "final" || step === "working") {
-    const working = step === "working";
+  } else if (view === "final" || view === "working") {
+    const working = view === "working";
     body = (
       <>
         {offlineNote}
@@ -549,7 +595,7 @@ export default function DeleteAccount() {
         onPress={leave}
       />
     );
-  } else if (step === "uncertain") {
+  } else if (view === "uncertain") {
     body = (
       <>
         {offlineNote}
@@ -567,6 +613,11 @@ export default function DeleteAccount() {
               "Check again when you're connected. If the account was deleted, Forge then removes this phone's training, as you confirmed. If you've added training since, export a backup first."
             }
           </FText>
+          {!!unsynced && (
+            <FText variant="label" tone="error">
+              {unsynced}
+            </FText>
+          )}
         </ForgeCard>
         <BackupChoices actions={actions} />
         <EntryMessage text={note} />
@@ -586,6 +637,45 @@ export default function DeleteAccount() {
           onPress={leave}
         />
       </>
+    );
+  } else if (view === "gone") {
+    body = (
+      <>
+        <ForgeCard gap={10} testID="delete-gone">
+          <FText variant="cardTitle" weight="700" header>
+            This Forge account no longer exists
+          </FText>
+          <FText variant="body">{ACCOUNT_GONE_HERE}</FText>
+          {!!unsynced && (
+            <FText variant="label" tone="error">
+              {unsynced}
+            </FText>
+          )}
+          <FText variant="label" tone="secondary">
+            {
+              "After exporting, remove it with Delete all local data in Account & privacy."
+            }
+          </FText>
+        </ForgeCard>
+        <BackupChoices actions={actions} />
+        <EntryMessage
+          text={
+            exported === "saved"
+              ? "Backup saved and checked."
+              : exported === "shared"
+                ? "You shared a copy. Forge can't confirm it was saved."
+                : undefined
+          }
+          tone={exported === "saved" ? "positive" : "secondary"}
+        />
+      </>
+    );
+    footer = (
+      <OutlineButton
+        title="Back to Account & privacy"
+        disabled={!!actions.busy}
+        onPress={leave}
+      />
     );
   } else {
     body = (

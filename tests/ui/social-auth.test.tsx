@@ -767,6 +767,86 @@ describe("Confirming a Google account before deleting it (Phase 7.8E)", () => {
     expect(c.auth.admin.signOut).toHaveBeenCalledWith("at", "local");
     expect(c.auth.admin.signOut).not.toHaveBeenCalledWith("current", "local");
   });
+
+  /** A client that stores no session: it only asks about, and ends, a sign-in. */
+  function checker(user: object) {
+    return {
+      getUser: jest.fn(async () => ({ data: { user }, error: null })),
+      admin: { signOut: jest.fn(async () => ({ data: null, error: null })) },
+    };
+  }
+  const justCreated = {
+    id: "user-c",
+    email: "c@gmail.com",
+    created_at: "2026-11-02T19:45:00.123456Z",
+    last_sign_in_at: "2026-11-02T19:45:00.401Z",
+    identities: [{ provider: "google" }],
+  };
+
+  test("a Google account the choice just created is refused and named, never deleted or changed (D4)", async () => {
+    browser.mockResolvedValue({ type: "success", url: RETURNED });
+    const c = signedIn(me.id);
+    const check = checker(justCreated);
+    const error = await reauthWithGoogle(c as never, me, check as never).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ReauthError);
+    expect((error as ReauthError).reason).toBe("wrong_account");
+    expect((error as ReauthError).other).toEqual({ email: "c@gmail.com" });
+    // Asked about and ended by the client that stores nothing: only that
+    // sign-in's own new session. Nothing can delete or change the account.
+    expect(check.getUser).toHaveBeenCalledWith("at");
+    expect(check.admin.signOut).toHaveBeenCalledTimes(1);
+    expect(check.admin.signOut).toHaveBeenCalledWith("at", "local");
+    // This phone's own sign-in is never read, replaced or ended.
+    expect(c.auth.getUser).not.toHaveBeenCalled();
+    expect(c.auth.getSession).not.toHaveBeenCalled();
+    expect(c.auth.setSession).not.toHaveBeenCalled();
+    expect(c.auth.admin.signOut).not.toHaveBeenCalled();
+  });
+
+  test("an existing different account, and repeated attempts, are each refused the same way", async () => {
+    browser.mockResolvedValue({ type: "success", url: RETURNED });
+    const c = signedIn(me.id);
+    const check = checker({
+      id: "user-b",
+      email: "b@gmail.com",
+      created_at: "2025-01-01T00:00:00Z",
+      last_sign_in_at: "2026-11-02T19:45:00Z",
+      identities: [{ provider: "google" }, { provider: "email" }],
+    });
+    for (let attempt = 0; attempt < 3; attempt++)
+      await expect(
+        reauthWithGoogle(c as never, me, check as never),
+      ).rejects.toBeInstanceOf(ReauthError);
+    expect(check.admin.signOut).toHaveBeenCalledTimes(3);
+    expect(c.auth.setSession).not.toHaveBeenCalled();
+    expect(c.auth.admin.signOut).not.toHaveBeenCalled();
+    // Then the right account: adopted, with the client that stores nothing
+    // checking it first.
+    const right = checker({ id: me.id, email: me.email });
+    expect(await reauthWithGoogle(c as never, me, right as never)).toBe(
+      "confirmed",
+    );
+    expect(right.admin.signOut).not.toHaveBeenCalled();
+    expect(c.auth.setSession).toHaveBeenCalledWith({
+      access_token: "at",
+      refresh_token: "rt",
+    });
+  });
+
+  test("a cancelled sheet asks nothing and changes nothing, with the checker too", async () => {
+    browser.mockResolvedValue({ type: "cancel" } as never);
+    const c = signedIn(me.id);
+    const check = checker(justCreated);
+    expect(await reauthWithGoogle(c as never, me, check as never)).toBe(
+      "cancelled",
+    );
+    expect(check.getUser).not.toHaveBeenCalled();
+    expect(check.admin.signOut).not.toHaveBeenCalled();
+    expect(c.auth.setSession).not.toHaveBeenCalled();
+  });
 });
 
 describe("helpers", () => {

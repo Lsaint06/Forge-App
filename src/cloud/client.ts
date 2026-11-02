@@ -47,3 +47,17 @@ export function verifierClient(): SupabaseClient | null {
     global: { fetch: withTimeout((input, init) => fetch(input, init)) },
   });
 }
+
+/**
+ * A client that acts only as the holder of `accessToken` and stores nothing
+ * (Phase 7.8E): for requests that must go out as one particular account,
+ * whatever this phone's own sign-in is at that moment.
+ */
+export function tokenClient(accessToken: string): SupabaseClient | null {
+  if (!url || !key) return null;
+  if (!/^https:\/\//.test(url)) throw new Error("Supabase URL must use HTTPS");
+  return createClient(url, key, {
+    accessToken: async () => accessToken,
+    global: { fetch: withTimeout((input, init) => fetch(input, init)) },
+  });
+}

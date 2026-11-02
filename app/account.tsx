@@ -18,7 +18,7 @@ import {
 } from "../src/components/reforge";
 import { goBack } from "../src/navigation";
 import { useRepo, useApp, confirm } from "../src/state";
-import { cloudClient, transport } from "../src/cloud/client";
+import { cloudClient, tokenClient, transport } from "../src/cloud/client";
 import { synchronize } from "../src/cloud/sync";
 import { stopReason } from "../src/cloud/errors";
 import {
@@ -182,17 +182,22 @@ export default function Account() {
   async function sync() {
     if (!client || !shown) return;
     setBusy(true);
-    // The account was deleted, here or on another device (Phase 7.8E): this
-    // phone remembers it, and keeps its training until the athlete decides.
-    const gone = () => {
+    // Asked as this account only (Phase 7.8E): the answer is about it alone.
+    const account = cloudDeletion(client, shown.id, tokenClient);
+    // The account was deleted, here or on another device: this phone
+    // remembers it only on the account service's word, and keeps its
+    // training until the athlete decides.
+    const gone = async () => {
+      if (!(await account.currentUser()).missing) return;
       noteAccountGone(r, shown.id);
       useApp.getState().touch();
     };
     try {
       // Asked first, so a deleted account is said plainly even with nothing
       // to upload. Unanswered (offline), sync itself reports why.
-      if ((await cloudDeletion(client).currentUser()).missing) {
-        gone();
+      if ((await account.currentUser()).missing) {
+        noteAccountGone(r, shown.id);
+        useApp.getState().touch();
         setStatus(ACCOUNT_GONE_SYNC_TEXT);
         return;
       }
@@ -201,7 +206,7 @@ export default function Account() {
         transport(client, shown.id),
         shown.id,
       );
-      if (result.stopped === "deleted") gone();
+      if (result.stopped === "deleted") await gone();
       useApp.getState().touch();
       setStatus(syncSummary(result));
       // Technical details stay in the developer log (error text only: never
@@ -212,7 +217,7 @@ export default function Account() {
           [...new Set(result.errors)].join(" | "),
         );
     } catch (e) {
-      if (stopReason(e) === "deleted") gone();
+      if (stopReason(e) === "deleted") await gone();
       setStatus(syncFailureText(e));
     } finally {
       setBusy(false);

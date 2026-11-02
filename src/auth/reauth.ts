@@ -7,6 +7,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // for Stage 3), so on its own it is not a security boundary. No password is
 // kept: it goes to the account service once, from a client that stores
 // nothing.
+//
+// A different account (D4): choosing another Google account in Google's
+// sheet signs that account in, and Supabase creates a Forge account for it
+// if it has none, before Forge sees anything. Forge only refuses it: that
+// sign-in is never adopted, its own new session is ended (never this
+// phone's), and the account and its records are never deleted or changed.
 
 export type Tokens = { access_token: string; refresh_token: string };
 
@@ -18,7 +24,11 @@ export const RECENT_SIGN_IN_MS = 5 * 60_000;
 
 /** Why the athlete couldn't be confirmed, beyond account-service errors. */
 export class ReauthError extends Error {
-  constructor(readonly reason: "wrong_account" | "no_session") {
+  constructor(
+    readonly reason: "wrong_account" | "no_session",
+    /** The account the sign-in turned out to be, for the athlete's words. */
+    readonly other?: { email?: string },
+  ) {
     super(
       reason === "wrong_account"
         ? "That's a different account."
@@ -32,24 +42,35 @@ type Auth = Pick<
   SupabaseClient["auth"],
   "getUser" | "getSession" | "setSession" | "admin"
 >;
+/**
+ * Asks the account service about freshly issued tokens and ends them: a
+ * client that stores no session (see verifierClient), so nothing about
+ * another sign-in can touch this phone's own.
+ */
+export type Checker = Pick<SupabaseClient["auth"], "getUser" | "admin">;
 
 /**
  * Makes freshly issued tokens this phone's session only when the account
- * service confirms they belong to `userId`. Tokens for any other account
- * are ended at once and never kept; the session they replace is ended too.
+ * service confirms they belong to `userId`. Tokens it doesn't confirm as
+ * `userId`'s are never kept: only their own new session is ended, and
+ * nothing else is changed. Once adopted, the session they replace is ended.
  */
 export async function adoptIfSameAccount(
   client: { auth: Auth },
   userId: string,
   tokens: Tokens,
+  checker: Checker = client.auth,
 ) {
-  const { data, error } = await client.auth.getUser(tokens.access_token);
-  if (error) throw error;
-  if (data.user?.id !== userId) {
-    await client.auth.admin
-      .signOut(tokens.access_token, "local")
-      .catch(() => {});
-    throw new ReauthError("wrong_account");
+  const end = () =>
+    checker.admin.signOut(tokens.access_token, "local").catch(() => {});
+  const { data, error } = await checker.getUser(tokens.access_token);
+  if (error || !data.user) {
+    await end();
+    throw error ?? new ReauthError("no_session");
+  }
+  if (data.user.id !== userId) {
+    await end();
+    throw new ReauthError("wrong_account", { email: data.user.email });
   }
   const previous = (await client.auth.getSession()).data.session?.access_token;
   const { error: adopted } = await client.auth.setSession(tokens);
@@ -76,8 +97,13 @@ export async function reauthWithPassword(
   });
   if (error) throw error;
   if (!data.session) throw new ReauthError("no_session");
-  await adoptIfSameAccount(client, user.id, {
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-  });
+  await adoptIfSameAccount(
+    client,
+    user.id,
+    {
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    },
+    verifier.auth,
+  );
 }

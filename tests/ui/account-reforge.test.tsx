@@ -63,9 +63,20 @@ jest.mock("expo-linking", () => ({
   useURL: () => mockURL,
 }));
 
+/** A Supabase-shaped access token naming `sub` (never verified in tests). */
+const jwt = (sub: string) =>
+  `h.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.s`;
+
 function cloud(session: Session) {
+  // The stored sign-in carries its account's token, as Supabase's does.
+  const stored = session
+    ? { ...session, access_token: jwt(session.user.id) }
+    : null;
   const auth = {
-    getSession: jest.fn(async () => ({ data: { session }, error: null })),
+    getSession: jest.fn(async () => ({
+      data: { session: stored },
+      error: null,
+    })),
     // The account as the account service sees it now (Phase 7.8E).
     getUser: jest.fn(async () => ({
       data: { user: session?.user ?? null },
@@ -743,6 +754,50 @@ test("a sync stopped because the account no longer exists is remembered", async 
   const { r, db } = setup();
   try {
     r.setSetting("cloudOwner", "u1");
+    const auth = cloud({ user: { id: "u1", email: "a@b.co" } });
+    jest.mocked(synchronize).mockResolvedValue({
+      uploaded: 0,
+      downloaded: 0,
+      matched: 0,
+      rejected: 0,
+      failed: 0,
+      held: { update: 0, active: 0 },
+      conflicts: 0,
+      pending: 2,
+      errors: [],
+      stopped: "deleted",
+    });
+    // Still there when sync starts; gone by the time it writes, and the
+    // account service then says so.
+    auth.getUser
+      .mockResolvedValueOnce({
+        data: { user: { id: "u1", email: "a@b.co" } },
+        error: null,
+      } as never)
+      .mockResolvedValueOnce({
+        data: { user: null },
+        error: new AuthApiError("User not found", 403, "user_not_found"),
+      } as never);
+    const view = await render(<Account />);
+    await flush();
+    await fireEvent.press(
+      view.getByRole("button", { name: "Synchronize now" }),
+    );
+    await flush();
+    expect(synchronize).toHaveBeenCalledTimes(1);
+    expect(view.getByText(/no longer exists, so sync stopped/)).toBeTruthy();
+    expect(JSON.parse(r.setting("accountDeleted")!).source).toBe("sync");
+    // Both questions were asked as this account's own sign-in.
+    expect(auth.getUser.mock.calls).toEqual([[jwt("u1")], [jwt("u1")]]);
+  } finally {
+    db.close();
+  }
+});
+
+test("a sync stop the account service doesn't confirm is never recorded as a deleted account", async () => {
+  const { r, db } = setup();
+  try {
+    r.setSetting("cloudOwner", "u1");
     cloud({ user: { id: "u1", email: "a@b.co" } });
     jest.mocked(synchronize).mockResolvedValue({
       uploaded: 0,
@@ -763,8 +818,11 @@ test("a sync stopped because the account no longer exists is remembered", async 
     );
     await flush();
     expect(synchronize).toHaveBeenCalledTimes(1);
-    expect(view.getByText(/no longer exists, so sync stopped/)).toBeTruthy();
-    expect(JSON.parse(r.setting("accountDeleted")!).source).toBe("sync");
+    // The account service still knows the account: nothing is recorded, the
+    // delete row stays, and nothing on this phone changes.
+    expect(r.setting("accountDeleted")).toBeFalsy();
+    expect(view.queryByTestId("account-deletion")).toBeNull();
+    expect(view.getByLabelText("Delete Forge account")).toBeTruthy();
   } finally {
     db.close();
   }

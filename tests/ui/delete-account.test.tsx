@@ -7,6 +7,7 @@ import { useRepo, confirm } from "../../src/state";
 import { EntryContext } from "../../src/auth/session";
 import type { AuthUser } from "../../src/auth/entry";
 import { ReauthError } from "../../src/auth/reauth";
+import { noteAccountGone } from "../../src/auth/account-deletion";
 import { reauthWithGoogle } from "../../src/auth/social";
 import { saveBackupToFolder, shareBackup } from "../../src/platform/backup";
 import { cancelAllNotifications } from "../../src/notifications";
@@ -69,6 +70,8 @@ let mockClient: ReturnType<typeof service> | null = null;
 jest.mock("../../src/cloud/client", () => ({
   cloudClient: () => mockClient,
   verifierClient: () => mockClient?.verifier,
+  // Requests pinned to one sign-in's token (the deletion request).
+  tokenClient: (token: string) => mockClient?.asToken(token),
 }));
 
 const ME = "user-a";
@@ -80,24 +83,30 @@ const notFound = () =>
     "user_not_found",
   );
 const noConnection = () => new TypeError("Network request failed");
+/** A Supabase-shaped access token naming `sub` (never verified in tests). */
+const jwt = (sub: string) =>
+  `h.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.s`;
 
 /** The account service: who each token is, and what the RPC answers. */
 function service() {
   const state = {
-    // The signed-in account as the service sees it now.
+    // This phone's stored sign-in.
+    session: jwt(ME),
+    // This phone's account as the service sees it now.
     current: (): Promise<unknown> =>
       Promise.resolve({ data: { user: { id: ME } }, error: null }),
+    // Whose account a fresh confirmation sign-in turned out to be.
     tokenOwner: ME,
     rpc: (): Promise<unknown> => Promise.resolve({ error: null }),
   };
   const auth = {
-    getUser: jest.fn(async (jwt?: string) =>
-      jwt
+    getUser: jest.fn(async (token?: string) =>
+      token === "fresh"
         ? { data: { user: { id: state.tokenOwner } }, error: null }
         : state.current(),
     ),
     getSession: jest.fn(async () => ({
-      data: { session: { access_token: "old-access" } },
+      data: { session: { access_token: state.session } },
       error: null,
     })),
     setSession: jest.fn(async () => ({ data: {}, error: null })),
@@ -106,6 +115,12 @@ function service() {
   };
   const verifier = {
     auth: {
+      getUser: jest.fn(async (token?: string) =>
+        token === "fresh"
+          ? { data: { user: { id: state.tokenOwner } }, error: null }
+          : { data: { user: null }, error: new Error("unknown token") },
+      ),
+      admin: { signOut: jest.fn(async () => ({ data: null, error: null })) },
       signInWithPassword: jest.fn(async ({ password }: { password: string }) =>
         password === "right password"
           ? {
@@ -125,8 +140,16 @@ function service() {
       ),
     },
   };
-  const rpc = jest.fn(() => state.rpc());
-  return { auth, rpc, verifier, state };
+  // Only ever called through a client pinned to one token.
+  const rpc = jest.fn((name: string, token: string) => {
+    void name;
+    void token;
+    return state.rpc();
+  });
+  const asToken = (token: string) => ({
+    rpc: (name: string) => rpc(name, token),
+  });
+  return { auth, rpc, asToken, verifier, state };
 }
 
 const endSession = jest.fn(async () => {});
@@ -304,9 +327,17 @@ test("confirming it's you: a wrong password, another account or no connection ke
     );
     await press(view, "Confirm with password");
     expect(
-      view.getByText("That's a different account. Confirm with a@example.com."),
+      view.getByText(
+        "That's a different account. Forge signed it out here and didn't change it or anything else. Confirm with a@example.com.",
+      ),
     ).toBeTruthy();
-    expect(cloud.auth.admin.signOut).toHaveBeenCalledWith("fresh", "local");
+    expect(cloud.verifier.auth.admin.signOut).toHaveBeenCalledWith(
+      "fresh",
+      "local",
+    );
+    // This phone's own sign-in was never ended or replaced.
+    expect(cloud.auth.admin.signOut).not.toHaveBeenCalled();
+    expect(cloud.auth.signOut).not.toHaveBeenCalled();
     // No connection.
     cloud.verifier.auth.signInWithPassword.mockRejectedValueOnce(
       noConnection(),
@@ -340,10 +371,16 @@ test("Google: cancelling changes nothing, another Google account is refused, the
     expect(view.queryByLabelText("Password")).toBeNull();
     jest.mocked(reauthWithGoogle).mockResolvedValueOnce("cancelled");
     await press(view, "Continue with Google");
-    expect(reauthWithGoogle).toHaveBeenLastCalledWith(cloud, {
-      ...me,
-      methods: ["Google"],
-    });
+    expect(reauthWithGoogle).toHaveBeenLastCalledWith(
+      cloud,
+      { ...me, methods: ["Google"] },
+      cloud.verifier.auth,
+    );
+    expect(
+      view.getByText(
+        "In Google's sheet, choose a@example.com. A different Google account can't confirm this deletion.",
+      ),
+    ).toBeTruthy();
     expect(view.getByTestId("delete-identity")).toBeTruthy();
     expect(view.queryByText(/different account/)).toBeNull();
     jest
@@ -351,7 +388,9 @@ test("Google: cancelling changes nothing, another Google account is refused, the
       .mockRejectedValueOnce(new ReauthError("wrong_account"));
     await press(view, "Continue with Google");
     expect(
-      view.getByText("That's a different account. Confirm with a@example.com."),
+      view.getByText(
+        "That's a different Google account, so it can't confirm this deletion. Forge signed it out here and didn't change it or anything else. If it had no Forge account, choosing it may have created an empty one. Confirm with a@example.com.",
+      ),
     ).toBeTruthy();
     jest.mocked(reauthWithGoogle).mockResolvedValueOnce("confirmed");
     await press(view, "Continue with Google");
@@ -662,6 +701,193 @@ test("a failure before anything was sent says nothing changed", async () => {
         "Forge couldn't send the request. Nothing changed. Try again.",
       ),
     ).toBeTruthy();
+    expect(cloud.rpc).not.toHaveBeenCalled();
+    expect(localSummary(r).workouts).toBe(1);
+  } finally {
+    db.close();
+  }
+});
+
+test("Google: a different account is refused and named, may have been created, and nothing is deleted; repeated attempts too", async () => {
+  const { r, db, cloud } = setup();
+  try {
+    mockSocial.google = true;
+    const view = await open({ ...me, methods: ["Google"] });
+    await press(view, "Continue");
+    await press(view, "Continue without a backup");
+    for (const chosen of ["b@gmail.com", "c@gmail.com"]) {
+      jest
+        .mocked(reauthWithGoogle)
+        .mockRejectedValueOnce(
+          new ReauthError("wrong_account", { email: chosen }),
+        );
+      await press(view, "Continue with Google");
+      expect(
+        view.getByText(
+          `That's a different Google account (${chosen}), so it can't confirm this deletion. Forge signed it out here and didn't change it or anything else. If it had no Forge account, choosing it may have created an empty one. Confirm with a@example.com.`,
+        ),
+      ).toBeTruthy();
+      // Still confirming: nothing sent, deleted, signed out or removed.
+      expect(view.getByTestId("delete-identity")).toBeTruthy();
+    }
+    expect(reauthWithGoogle).toHaveBeenCalledTimes(2);
+    expect(cloud.rpc).not.toHaveBeenCalled();
+    expect(cloud.auth.signOut).not.toHaveBeenCalled();
+    expect(endSession).not.toHaveBeenCalled();
+    expect(marker(r)).toBeNull();
+    expect(localSummary(r).workouts).toBe(1);
+    expect(dataOwner(r)).toBe(ME);
+  } finally {
+    db.close();
+  }
+});
+
+test("Google: a second tap while the sheet is open starts nothing more", async () => {
+  const { db } = setup();
+  try {
+    mockSocial.google = true;
+    let finish: (v: "cancelled") => void = () => {};
+    jest
+      .mocked(reauthWithGoogle)
+      .mockImplementationOnce(() => new Promise((done) => (finish = done)));
+    const view = await open({ ...me, methods: ["Google"] });
+    await press(view, "Continue");
+    await press(view, "Continue without a backup");
+    await press(view, "Continue with Google");
+    await press(view, "Continue with Google");
+    expect(reauthWithGoogle).toHaveBeenCalledTimes(1);
+    await act(async () => finish("cancelled"));
+    expect(view.getByTestId("delete-identity")).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
+test("the deletion request goes out as this account's own sign-in", async () => {
+  const { db, cloud } = setup();
+  try {
+    const view = await open();
+    await toFinal(view);
+    await deleteNow(view);
+    expect(cloud.rpc).toHaveBeenCalledTimes(1);
+    expect(cloud.rpc).toHaveBeenCalledWith("forge_delete_account", jwt(ME));
+  } finally {
+    db.close();
+  }
+});
+
+test("with another account's sign-in on this phone, nothing is sent and nothing changes", async () => {
+  const { r, db, cloud } = setup();
+  try {
+    const view = await open();
+    await toFinal(view);
+    cloud.state.session = jwt("user-b");
+    await deleteNow(view);
+    expect(cloud.rpc).not.toHaveBeenCalled();
+    expect(view.getByTestId("delete-identity")).toBeTruthy();
+    expect(
+      view.getByText(/couldn't use your sign-in to send the request/),
+    ).toBeTruthy();
+    expect(marker(r)).toBeNull();
+    expect(localSummary(r).workouts).toBe(1);
+  } finally {
+    db.close();
+  }
+});
+
+test("an account already known to be gone: export, then remove it yourself; no deletion steps", async () => {
+  const { r, db, cloud } = setup();
+  try {
+    r.setSetting(
+      "accountDeleted",
+      JSON.stringify({
+        owner: ME,
+        at: 1,
+        localRemoved: false,
+        source: "this-phone",
+      }),
+    );
+    const view = await open();
+    const gone = within(view.getByTestId("delete-gone"));
+    expect(
+      gone.getByRole("header", { name: "This Forge account no longer exists" }),
+    ).toBeTruthy();
+    expect(gone.getByText(/can't be synchronized again/)).toBeTruthy();
+    expect(gone.getByText(/never synchronized/)).toBeTruthy();
+    expect(gone.getByText(/remove it with Delete all local data/)).toBeTruthy();
+    expect(view.getByRole("button", { name: "Share a copy" })).toBeTruthy();
+    expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
+    await press(view, "Back to Account & privacy");
+    expect(router.back).toHaveBeenCalled();
+    expect(cloud.rpc).not.toHaveBeenCalled();
+    expect(localSummary(r).workouts).toBe(1);
+  } finally {
+    db.close();
+  }
+});
+
+test("waiting on an unconfirmed deletion, the never-synchronized count is shown before Check again", async () => {
+  const { r, db } = setup();
+  try {
+    r.setSetting(
+      "accountDeletion",
+      JSON.stringify({ owner: ME, state: "requested", at: 1 }),
+    );
+    const view = await open();
+    expect(
+      within(view.getByTestId("delete-uncertain")).getByText(
+        /never synchronized: .* would be lost for good/,
+      ),
+    ).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
+test("settled by the launch check while this screen is open: Check again shows where it stands", async () => {
+  const { r, db, cloud } = setup();
+  try {
+    r.setSetting(
+      "accountDeletion",
+      JSON.stringify({ owner: ME, state: "requested", at: 1 }),
+    );
+    // The launch check found the account still there.
+    let view = await open();
+    expect(view.getByTestId("delete-uncertain")).toBeTruthy();
+    r.setSetting(
+      "accountDeletion",
+      JSON.stringify({ owner: ME, state: "notDeleted", at: 2 }),
+    );
+    await press(view, "Check again");
+    expect(view.getByTestId("delete-not-deleted")).toBeTruthy();
+    await view.unmount();
+    // The launch check found it gone: training kept, never the deletion steps.
+    r.setSetting(
+      "accountDeletion",
+      JSON.stringify({ owner: ME, state: "requested", at: 1 }),
+    );
+    view = await open();
+    noteAccountGone(r, ME, "this-phone");
+    await press(view, "Check again");
+    expect(view.getByTestId("delete-gone")).toBeTruthy();
+    expect(view.queryByRole("button", { name: "Continue" })).toBeNull();
+    expect(cloud.rpc).not.toHaveBeenCalled();
+    expect(localSummary(r).workouts).toBe(1);
+  } finally {
+    db.close();
+  }
+});
+
+test("found gone mid-flow: the deletion steps give way to export and removal guidance", async () => {
+  const { r, db, cloud } = setup();
+  try {
+    const view = await open();
+    expect(view.getByTestId("delete-cloud")).toBeTruthy();
+    noteAccountGone(r, ME);
+    await press(view, "Continue");
+    expect(view.getByTestId("delete-gone")).toBeTruthy();
+    expect(view.queryByTestId("delete-backup")).toBeNull();
+    expect(view.queryByLabelText("Password")).toBeNull();
     expect(cloud.rpc).not.toHaveBeenCalled();
     expect(localSummary(r).workouts).toBe(1);
   } finally {

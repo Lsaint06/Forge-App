@@ -11,7 +11,7 @@ import {
 } from "@supabase/supabase-js";
 import { OAUTH_RETURN_PATH } from "./links";
 import { socialOptions, useAuthProviders } from "./providers";
-import { adoptIfSameAccount } from "./reauth";
+import { adoptIfSameAccount, type Checker } from "./reauth";
 import { returnUrlRefusal, supabaseAcceptsReturnUrl } from "./redirects";
 
 // Continue with Apple or Google (Phase 7.7B.1), through the existing
@@ -126,16 +126,19 @@ async function googleTokens(client: SupabaseClient, hint?: string) {
 
 /**
  * Confirms the signed-in Google account again before it's deleted (Phase
- * 7.8E, Stage 2): a different Google account is refused and its sign-in
- * ended, and this phone stays signed in as before.
+ * 7.8E, Stage 2): a different Google account is refused, only its own new
+ * session is ended, and it is never deleted or changed (see
+ * src/auth/reauth.ts). This phone stays signed in as before. `checker` is a
+ * client that stores no session, used to ask about the returned sign-in.
  */
 export async function reauthWithGoogle(
   client: SupabaseClient,
   user: { id: string; email?: string },
+  checker?: Checker,
 ): Promise<"confirmed" | "cancelled"> {
   const tokens = await googleTokens(client, user.email);
   if (tokens === "cancelled") return "cancelled";
-  await adoptIfSameAccount(client, user.id, tokens);
+  await adoptIfSameAccount(client, user.id, tokens, checker);
   return "confirmed";
 }
 

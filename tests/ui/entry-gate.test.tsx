@@ -624,28 +624,47 @@ test("a deletion confirmed before Forge closed is finished at launch, offline-sa
   expect(mockCtx.current!.notice).toBeUndefined();
 });
 
-test("an unconfirmed deletion, checked at launch by its own account: the account is gone", async () => {
-  const c = cloud();
-  Object.assign(c.auth, {
-    getUser: jest.fn(async () => ({
-      data: { user: null },
-      error: new AuthApiError(
-        "User from sub claim in JWT does not exist",
-        403,
-        "user_not_found",
-      ),
-    })),
-  });
+/** A Supabase-shaped access token naming `sub` (never verified in tests). */
+const jwt = (sub: string) =>
+  `h.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.s`;
+/** The owner's stored sign-in, with its token (as Supabase stores it). */
+const ownSession = async () => ({
+  data: { session: { user: me, access_token: jwt("user-a") } },
+  error: null,
+});
+
+test("an unconfirmed deletion found gone at launch: nothing removed unseen; kept for export, still signed in", async () => {
+  const c = cloud(ownSession);
+  const getUser = jest.fn(async () => ({
+    data: { user: null },
+    error: new AuthApiError(
+      "User from sub claim in JWT does not exist",
+      403,
+      "user_not_found",
+    ),
+  }));
+  Object.assign(c.auth, { getUser });
   athleteWithTraining();
   markDeletion("requested");
   const view = await root();
-  await waitFor(() => expect(routes(view)).toBe("signedOut"));
-  expect(mockRepo.r.workouts()).toHaveLength(0);
-  expect(mockCtx.current!.deletion).toBe(text().DELETED_HERE_TEXT);
+  await waitFor(() =>
+    expect(mockRepo.r.setting("accountDeleted")).toBeTruthy(),
+  );
+  // Asked as the owner's own sign-in, and only that.
+  expect(getUser).toHaveBeenCalledWith(jwt("user-a"));
+  expect(routes(view)).toBe("ready");
+  expect(c.auth.signOut).not.toHaveBeenCalled();
+  expect(mockRepo.r.workouts()).toHaveLength(1);
+  expect(owner()).toBe("user-a");
+  expect(markerState()).toBeUndefined();
+  expect(JSON.parse(mockRepo.r.setting("accountDeleted")!)).toMatchObject({
+    owner: "user-a",
+    localRemoved: false,
+  });
 });
 
 test("an unconfirmed deletion, checked at launch: the account still exists, nothing removed", async () => {
-  const c = cloud();
+  const c = cloud(ownSession);
   const getUser = jest.fn(async () => ({ data: { user: me }, error: null }));
   Object.assign(c.auth, { getUser });
   athleteWithTraining();

@@ -13,6 +13,7 @@ import { useApp, useRepo } from "../src/state";
 import { AppStack } from "../src/auth/AppStack";
 import { entryState } from "../src/auth/entry";
 import { EntryContext, authClient, useAuthSession } from "../src/auth/session";
+import { tokenClient } from "../src/cloud/client";
 import {
   claimIfEmpty,
   dataOwner,
@@ -108,20 +109,24 @@ function Navigation() {
   // An account deletion this phone started (Phase 7.8E, Stage 2), settled
   // when the sign-in is known at launch and whenever it changes: a confirmed
   // deletion is finished without a connection; an unconfirmed one is checked
-  // only while its own account is signed in online. Never mid-session, so it
-  // can't race the Delete Forge account screen's own request or check.
+  // only while its own account is signed in online, and if it turns out the
+  // account is gone, this phone's training is kept for the athlete to
+  // export (src/auth/account-deletion). Never mid-session, so it can't race
+  // the Delete Forge account screen's own request or check.
   const signedIn =
     auth.session === undefined ? undefined : (auth.session?.id ?? "");
   const endSession = auth.signOut;
   useEffect(() => {
     if (signedIn === undefined || !client) return;
+    let owner: string | undefined;
     try {
-      if (!pendingDeletion(repository())) return;
+      owner = pendingDeletion(repository())?.owner;
     } catch {
       return;
     }
+    if (!owner) return;
     void resumeDeletion(repository(), signedIn || undefined, {
-      ...cloudDeletion(client),
+      ...cloudDeletion(client, owner, tokenClient),
       signOut: () => endSession({ deleted: true }),
       afterRemove: () => void cancelAllNotifications().catch(() => {}),
     })

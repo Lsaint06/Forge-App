@@ -7,6 +7,7 @@ import { claimIfEmpty, dataOwner, localSummary } from "../src/data/ownership";
 import type { Repository } from "../src/data/repository";
 import {
   acknowledgeDeletedAccount,
+  checkDeletion,
   cloudDeletion,
   deleteAccount,
   deletedAccount,
@@ -61,6 +62,7 @@ function phoneOf(owner = A) {
 
 type Reply = {
   error?: { message?: string; hint?: string; code?: string } | null;
+  notSent?: boolean;
 };
 function service(
   f: {
@@ -196,12 +198,79 @@ test("no answer either way: uncertain, nothing removed, and checked again only b
     assert.deepEqual(other.calls, []);
   }
   assert.equal(localSummary(r).workouts, 1);
-  // Its own account again, and the account service says it's gone.
+  // The athlete's Check again, and the account service says it's gone: the
+  // deletion finishes, as they asked on a screen offering a backup first.
   const later = service({ user: { missing: true } });
-  assert.deepEqual(await resumeDeletion(r, A, later.deps), {
+  assert.deepEqual(await checkDeletion(r, A, later.deps), {
     kind: "deleted",
   });
   assert.equal(localSummary(r).workouts, 0);
+});
+
+test("found deleted only at a later launch: nothing is removed unseen; the training is kept for export", async () => {
+  const r = phoneOf();
+  await deleteAccount(r, A, service({ reply: offline, user: {} }).deps);
+  // Training logged after the request, while it was unconfirmed.
+  r.addJournal("measurement", { name: "Bodyweight", value: 80, unit: "kg" });
+  const waiting = localSummary(r).unsynced;
+  const launch = service({ user: { missing: true } });
+  assert.deepEqual(await resumeDeletion(r, A, launch.deps), {
+    kind: "accountGone",
+  });
+  assert.deepEqual(launch.calls, ["check"]);
+  assert.equal(localSummary(r).workouts, 1);
+  assert.equal(localSummary(r).journal, 1);
+  assert.equal(localSummary(r).unsynced, waiting);
+  assert.equal(dataOwner(r), A);
+  // Settled: no longer "unconfirmed", and said plainly with an export.
+  assert.equal(pendingDeletion(r), undefined);
+  assert.deepEqual(
+    { ...deletedAccount(r), at: 0 },
+    { owner: A, at: 0, localRemoved: false, source: "this-phone" },
+  );
+  assert.equal(accountDeletionText(facts(r)), ACCOUNT_GONE_HERE);
+  // Nothing left to check, and Check again changes nothing.
+  assert.equal(await checkDeletion(r, A, launch.deps), undefined);
+  assert.equal(localSummary(r).workouts, 1);
+});
+
+test("nothing is sent when this phone's sign-in isn't the account's own", async () => {
+  const r = phoneOf();
+  const { deps, calls } = service({ reply: { notSent: true } });
+  assert.deepEqual(await deleteAccount(r, A, deps), { kind: "notSent" });
+  assert.deepEqual(calls, ["delete"]);
+  assert.equal(pendingDeletion(r), undefined);
+  assert.equal(localSummary(r).workouts, 1);
+});
+
+test("an unconfirmed request is settled when the account is found gone another way", async () => {
+  const r = phoneOf();
+  await deleteAccount(r, A, service({ reply: offline, user: {} }).deps);
+  assert.equal(pendingDeletion(r)?.state, "requested");
+  noteAccountGone(r, A);
+  assert.equal(pendingDeletion(r), undefined);
+  assert.equal(deletedAccount(r)?.localRemoved, false);
+  assert.equal(localSummary(r).workouts, 1);
+});
+
+test("removing this phone's training and recording it are one step", async () => {
+  const r = phoneOf();
+  const setSetting = r.setSetting.bind(r);
+  r.setSetting = (key: string, value: string) => {
+    if (key === "accountDeleted") throw new Error("disk I/O error");
+    setSetting(key, value);
+  };
+  await assert.rejects(deleteAccount(r, A, service().deps), /disk I\/O/);
+  // Rolled back: nothing removed, and the confirmed deletion is still known,
+  // so the next launch finishes it.
+  assert.equal(localSummary(r).workouts, 1);
+  assert.equal(pendingDeletion(r)?.state, "deleted");
+  r.setSetting = setSetting;
+  assert.deepEqual(await resumeDeletion(r, undefined, service().deps), {
+    kind: "deleted",
+  });
+  assert.equal(localSummary(r).workouts, 0);
+  assert.equal(deletedAccount(r)?.localRemoved, true);
 });
 
 test("Forge closed after the deletion was confirmed: the next launch finishes it, without a connection", async () => {
@@ -253,6 +322,21 @@ test("a delete that meets a launch check waits, and stops if the check settled i
   user.resolve({ id: A });
   assert.deepEqual(await check, { kind: "notDeleted" });
   assert.deepEqual(await deletion, { kind: "notDeleted" });
+  assert.deepEqual(tap.calls, []);
+  assert.equal(localSummary(r).workouts, 1);
+});
+
+test("a delete that meets a launch check finding the account gone removes nothing", async () => {
+  const r = phoneOf();
+  await deleteAccount(r, A, service({ reply: offline, user: {} }).deps);
+  const user = deferred<object>();
+  const launch = service({ user: () => user.promise });
+  const check = resumeDeletion(r, A, launch.deps);
+  const tap = service();
+  const deletion = deleteAccount(r, A, tap.deps);
+  user.resolve({ missing: true });
+  assert.deepEqual(await check, { kind: "accountGone" });
+  assert.deepEqual(await deletion, { kind: "accountGone" });
   assert.deepEqual(tap.calls, []);
   assert.equal(localSummary(r).workouts, 1);
 });
@@ -338,22 +422,48 @@ test("Forge before Stage 2: its never-read flag now says the owner's account was
   assert.equal(deletedAccount(r), undefined);
 });
 
-test("cloudDeletion: the RPC, and the account service's answer about the account", async () => {
+/** A Supabase-shaped access token naming `sub` (unsigned: never verified here). */
+const jwt = (sub: string) =>
+  `h.${Buffer.from(JSON.stringify({ sub, role: "authenticated" })).toString("base64url")}.s`;
+
+test("cloudDeletion: pinned to the account's own sign-in, the RPC and the account service's answer", async () => {
+  const sent: string[] = [];
   const client = (
+    session: string | undefined,
     rpc: () => Promise<unknown>,
-    getUser: () => Promise<unknown>,
+    getUser: (token?: string) => Promise<unknown>,
   ) =>
-    cloudDeletion({
-      rpc: rpc as never,
-      auth: { getUser } as never,
-    });
+    cloudDeletion(
+      {
+        auth: {
+          getSession: async () => ({
+            data: { session: session ? { access_token: session } : null },
+            error: null,
+          }),
+          getUser,
+        } as never,
+      },
+      A,
+      (token) => {
+        sent.push(token);
+        return { rpc: rpc as never, from: (() => {}) as never };
+      },
+    );
+  const asked: (string | undefined)[] = [];
   const ok = client(
+    jwt(A),
     async () => ({ error: null }),
-    async () => ({ data: { user: { id: A } }, error: null }),
+    async (token) => {
+      asked.push(token);
+      return { data: { user: { id: A } }, error: null };
+    },
   );
   assert.deepEqual(await ok.deleteInCloud(), { error: null });
+  assert.deepEqual(sent, [jwt(A)]);
   assert.deepEqual(await ok.currentUser(), { id: A });
+  assert.deepEqual(asked, [jwt(A)]);
   const gone = client(
+    jwt(A),
     () => Promise.reject(new TypeError("Network request failed")),
     async () => ({
       data: { user: null },
@@ -373,9 +483,46 @@ test("cloudDeletion: the RPC, and the account service's answer about the account
     () => Promise.reject(new TypeError("Network request failed")),
   ])
     assert.deepEqual(
-      await client(async () => ({ error: null }), answer).currentUser(),
+      await client(jwt(A), async () => ({ error: null }), answer).currentUser(),
       {},
     );
+});
+
+test("cloudDeletion: with another account's sign-in, or none, nothing is sent and nothing concluded", async () => {
+  for (const session of [jwt(B), undefined, "not-a-token"]) {
+    let rpcCalls = 0;
+    let lookups = 0;
+    const deletion = cloudDeletion(
+      {
+        auth: {
+          getSession: async () => ({
+            data: { session: session ? { access_token: session } : null },
+            error: null,
+          }),
+          // Another account's deleted sign-in must never stand for A's.
+          getUser: async () => {
+            lookups++;
+            return {
+              data: { user: null },
+              error: { code: "user_not_found", status: 403 },
+            };
+          },
+        } as never,
+      },
+      A,
+      () => ({
+        rpc: (async () => {
+          rpcCalls++;
+          return { error: null };
+        }) as never,
+        from: (() => {}) as never,
+      }),
+    );
+    assert.deepEqual(await deletion.deleteInCloud(), { notSent: true });
+    assert.deepEqual(await deletion.currentUser(), {});
+    assert.equal(rpcCalls, 0);
+    assert.equal(lookups, 0);
+  }
 });
 
 test("sync and restore say plainly that the account no longer exists", () => {
