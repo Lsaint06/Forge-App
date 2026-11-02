@@ -30,6 +30,7 @@ const mockCtx: {
   current?: {
     signOut?: (options?: { everywhere?: boolean }) => Promise<void>;
     notice?: string;
+    deletion?: string;
   };
 } = {};
 jest.mock("../../src/auth/AppStack", () => {
@@ -585,4 +586,118 @@ test("a reset link that fails for want of a connection says so on Welcome (L2)",
   // A real session clears the notice.
   await c.emit("SIGNED_IN", { user: me });
   expect(mockCtx.current!.notice).toBeUndefined();
+});
+
+// ---- Phase 7.8E, Stage 2: account deletion ----------------------------------
+
+const text = () =>
+  jest.requireActual("../../src/domain/presentation/account") as {
+    DELETED_HERE_TEXT: string;
+    DELETION_UNCONFIRMED_SIGNED_OUT: string;
+  };
+const routes = (view: Awaited<ReturnType<typeof render>>) =>
+  view.getByTestId("routes").props.children as string;
+function athleteWithTraining() {
+  mockRepo.r.saveProfile({ onboarded: true });
+  mockRepo.r.startWorkout("Mine");
+  mockRepo.r.setSetting("cloudOwner", "user-a");
+}
+const markDeletion = (state: string, owner = "user-a") =>
+  mockRepo.r.setSetting(
+    "accountDeletion",
+    JSON.stringify({ owner, state, at: 1 }),
+  );
+const markerState = () =>
+  JSON.parse(mockRepo.r.setting("accountDeletion") ?? "null")?.state;
+
+test("a deletion confirmed before Forge closed is finished at launch, offline-safe; Welcome says so", async () => {
+  const c = cloud();
+  athleteWithTraining();
+  markDeletion("deleted");
+  const view = await root();
+  await waitFor(() => expect(routes(view)).toBe("signedOut"));
+  expect(c.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
+  expect(mockRepo.r.workouts()).toHaveLength(0);
+  expect(owner()).toBeUndefined();
+  expect(markerState()).toBeUndefined();
+  expect(mockCtx.current!.deletion).toBe(text().DELETED_HERE_TEXT);
+  expect(mockCtx.current!.notice).toBeUndefined();
+});
+
+test("an unconfirmed deletion, checked at launch by its own account: the account is gone", async () => {
+  const c = cloud();
+  Object.assign(c.auth, {
+    getUser: jest.fn(async () => ({
+      data: { user: null },
+      error: new AuthApiError(
+        "User from sub claim in JWT does not exist",
+        403,
+        "user_not_found",
+      ),
+    })),
+  });
+  athleteWithTraining();
+  markDeletion("requested");
+  const view = await root();
+  await waitFor(() => expect(routes(view)).toBe("signedOut"));
+  expect(mockRepo.r.workouts()).toHaveLength(0);
+  expect(mockCtx.current!.deletion).toBe(text().DELETED_HERE_TEXT);
+});
+
+test("an unconfirmed deletion, checked at launch: the account still exists, nothing removed", async () => {
+  const c = cloud();
+  const getUser = jest.fn(async () => ({ data: { user: me }, error: null }));
+  Object.assign(c.auth, { getUser });
+  athleteWithTraining();
+  markDeletion("requested");
+  const view = await root();
+  await waitFor(() => expect(markerState()).toBe("notDeleted"));
+  expect(routes(view)).toBe("ready");
+  expect(mockRepo.r.workouts()).toHaveLength(1);
+  expect(c.auth.signOut).not.toHaveBeenCalled();
+});
+
+test("another account signed in, then signed out: an unconfirmed deletion is left alone, and said plainly", async () => {
+  const c = cloud(async () => ({
+    data: { session: { user: { id: "user-b", email: "b@example.com" } } },
+    error: null,
+  }));
+  const getUser = jest.fn();
+  Object.assign(c.auth, { getUser });
+  athleteWithTraining();
+  markDeletion("requested");
+  const view = await root();
+  expect(await kind(view)).toBe("otherAccount");
+  await act(async () => {});
+  await c.emit("SIGNED_OUT", null);
+  expect(await kind(view)).toBe("signedOut");
+  expect(mockCtx.current!.deletion).toBe(
+    text().DELETION_UNCONFIRMED_SIGNED_OUT,
+  );
+  expect(getUser).not.toHaveBeenCalled();
+  expect(markerState()).toBe("requested");
+  expect(mockRepo.r.workouts()).toHaveLength(1);
+  expect(owner()).toBe("user-a");
+});
+
+test("after a deletion, a new sign-in (even the same email) starts setup on the empty phone; the notice ends", async () => {
+  const c = cloud(async () => ({ data: { session: null }, error: null }));
+  mockRepo.r.setSetting(
+    "accountDeleted",
+    JSON.stringify({
+      owner: "user-a",
+      at: 1,
+      localRemoved: true,
+      source: "this-phone",
+    }),
+  );
+  const view = await root();
+  expect(await kind(view)).toBe("signedOut");
+  expect(mockCtx.current!.deletion).toBe(text().DELETED_HERE_TEXT);
+  await c.emit("SIGNED_IN", {
+    user: { id: "user-new", email: "a@example.com" },
+  });
+  expect(await kind(view)).toBe("setup");
+  await waitFor(() => expect(owner()).toBe("user-new"));
+  expect(mockRepo.r.setting("accountDeleted")).toBeFalsy();
 });

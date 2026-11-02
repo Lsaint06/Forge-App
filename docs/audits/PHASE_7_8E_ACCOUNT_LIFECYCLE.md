@@ -1,15 +1,17 @@
 # Phase 7.8E: Account lifecycle and server hardening
 
-Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Stage 0 (redirect security) is verified and complete on the live project. Stage 1 is implemented and **not committed**; it awaits founder review.
+Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Stage 0 (redirect security) is verified and complete on the live project. Stage 1 is committed and pushed (`3409972`, `13eb666`). Stage 2 (safe account deletion, section 9) is committed with this report after founder review (Nov 2, 2026); decisions D1–D5 remain open.
 
 **Unchanged in Stage 1:** Supabase SQL, row-level security, functions and the live project's settings; sign-in providers and their flows; account ownership rules; the sync engine and the 7.8B–7.8D safeguards; the splash screen and screen designs (one new action and some wording only).
+
+**Unchanged in Stage 2:** Supabase SQL (the migration is byte-identical), the live project and its dashboard, sign-in providers and Apple, PKCE (not started), the entry gate's ownership rules, the sync engine (`src/cloud/sync.ts`), the splash screen, REFORGE components, Forge Paths, workouts, Nutrition and Progress. No live account was deleted or touched.
 
 ## 1. Decisions (founder review, Nov 1, 2026)
 
 | | Decision | Status |
 |---|---|---|
-| E1 | Account deletion with an export opportunity, local-data choices and recovery from interruptions; never silently destroy unsynced training | Approved in principle; Stage 2 |
-| E2 | Recent reauthentication before deletion, enforced on the server too; review Google and future Apple | Approved in principle; Stages 2–3 |
+| E1 | Account deletion with an export opportunity, local-data choices and recovery from interruptions; never silently destroy unsynced training | **App side done in Stage 2**; keeping local data after deletion awaits decision D1 (section 9) |
+| E2 | Recent reauthentication before deletion, enforced on the server too; review Google and future Apple | **App-side check in Stage 2**; server check in Stage 3 (draft SQL, section 9) |
 | E3 | Sign out of this device by default; a separate all-devices action | **Done in Stage 1** |
 | E4 | Finish an active workout safely after an unexpected sign-in loss, with no cloud writes while signed out | Approved in principle; Stage 4 |
 | E5 | PKCE for email links, after a compatibility assessment | Approved in principle; Stage 5 |
@@ -23,18 +25,18 @@ Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Sta
 
 | | Severity | Finding | Status |
 |---|---|---|---|
-| H1 | High | Deleting the cloud account leaves the phone's training (then the only copy) owned by a deleted account, with no way to export it | Stage 2 (P3) |
+| H1 | High | Deleting the cloud account leaves the phone's training (then the only copy) owned by a deleted account, with no way to export it | **Fixed in Stage 2:** export offered first, then removed after a confirmed deletion; other devices' copies stay locked (section 9) |
 | H2 | High | The redirect allow list accepted any `exp://` and `exps://` address, so a reset link chosen by someone else could deliver a sign-in to their own Expo Go project | **Fixed and verified live (Stage 0)** |
-| M1 | Medium | No reauthentication before permanent deletion | Stages 2–3 |
+| M1 | Medium | No reauthentication before permanent deletion | **App-side check (Stage 2)**; server check Stage 3 |
 | M2 | Medium | Email links carry the sign-in itself over the `forge://` scheme (implicit flow) | Stage 5 (PKCE) |
 | M3 | Medium | Sign out ended the sign-in on every device | **Fixed (Stage 1)** |
 | M4 | Medium | An unexpected end of the sign-in leaves an active workout | Stage 4 |
-| M5 | Medium | An interrupted deletion isn't recorded or recovered | Stage 2 |
+| M5 | Medium | An interrupted deletion isn't recorded or recovered | **Fixed (Stage 2)** |
 | M6 | Medium | Delete all local data didn't mention changes never synchronized | **Fixed (Stage 1)** |
 | M7 | Medium | Default email service (team addresses only) and a localhost Site URL | Dashboard, before release |
 | L1 | Low | The offline sign-out notice said the sign-in "expires on its own" | **Fixed (Stage 1)** |
 | L2 | Low | An unusable reset link gave no feedback | **Fixed (Stage 1)** |
-| L3 | Low | After deletion, a still-valid sign-in fails record by record | Stages 2–3 |
+| L3 | Low | After deletion, a still-valid sign-in fails record by record | **Fixed in the app (Stage 2):** sync asks first and stops once, saying the account no longer exists |
 | L4 | Low | `synchronize` still claims a phone with no owner (unreachable) | Later |
 | L5 | Low | Unreachable legacy sign-in form in Account & privacy | **Removed (Stage 1)** |
 | L6 | Low | Table privileges wider than needed (not reachable through the API) | Baseline tested (Stage 1); revoke in E7 |
@@ -171,7 +173,7 @@ All suites ran inside the window in which the three date-sensitive tests used to
 2. **Other devices sign out after up to one access-token lifetime** (Supabase's default is one hour; the setting isn't read yet).
 3. **After an offline sign-out**, the server's session for this phone stays until it's ended with Sign out of all devices; it can't be used, because this phone no longer holds it.
 4. **The L6 grants are still live** (not reachable through the API) until the E7 migration.
-5. **Deletion (H1, M1, M5), PKCE (M2) and workout continuation (M4)** are unchanged until their stages.
+5. **Deletion (H1, M1, M5), PKCE (M2) and workout continuation (M4)** are unchanged until their stages. *(Deletion: Stage 2, section 9.)*
 6. **Date coverage:** the complete suites ran in the real fall-back window, and the three fixed tests ran across 11 daylight-saving moments in 4 time zones. The complete suites have not run inside a spring-forward window, because the system clock can't be moved.
 
 ## 7. iPhone tests (Expo Go)
@@ -186,8 +188,207 @@ Global sign-out ends the sign-in on every device, so be ready to sign in again e
 
 ## 8. Next stages
 
-- **Stage 2:** account deletion (P3), with an export opportunity, local-data choices, recovery from interruptions and client reauthentication.
+- **Stage 2:** account deletion (P3), with an export opportunity, local-data choices, recovery from interruptions and client reauthentication. *Implemented: section 9.*
 - **Stage 3:** server migration (E7): revoke the L6 grants, check recent sign-in before deletion, refuse anonymous users. Exact SQL for separate approval, in a development project first.
 - **Stage 4:** finishing an active workout after an unexpected sign-in loss (E4).
 - **Stage 5:** PKCE (E5) and separate development and production projects (E6).
 - **Stage 6:** live tests with throwaway accounts (E10). Apple revocation (E8) is required before App Store release.
+
+## 9. Stage 2: safe account deletion and lifecycle recovery
+
+Baseline `13eb666`. App-side only: the Supabase migration, the live project and the dashboard are unchanged, and nothing was run against the live service.
+
+### Flow
+Account & privacy → **Delete Forge account** (the old one-step "Delete cloud account" row is gone) opens a separate screen (`app/delete-account.tsx`, reachable only in the entry gate's `ready` state). It is built from the existing REFORGE pieces: sub-screen frame, cards, danger row, backup choices, password field and Google button.
+
+1. **What deleting means.**
+   - **In the cloud:** the account and everything saved to it are deleted permanently.
+   - **On this phone:** what it holds, how many changes were never synchronized, and that it is removed only once the deletion is confirmed.
+   - **Other devices:** they're signed out when their sign-in renews, and their copy stays locked to the deleted account.
+   - **Signing up again** with the same email creates a new, empty account.
+   - **A backup is a file, not the account.**
+   - **Only want to clear this phone?** Use Delete all local data instead.
+2. **Export first.** The existing backup choices. A folder save is reported as "saved and checked"; a share as unconfirmed; a cancelled or failed export claims nothing. The athlete may continue without a backup (a secondary button); the final step says which happened.
+3. **Confirm it's you.** A password (email accounts) or Google (Google accounts). Accounts that sign in only with Apple, or with Google where Google can't open (Expo Go on a local address), are told they can't delete here yet.
+4. **Final.** What will happen, the never-synchronized count, the backup status, then a danger row and one more dialog ("Delete your Forge account?" / "Delete account").
+5. **Working, then the outcome.**
+   - **Deleted:** this phone is signed out, its training removed, and Welcome says so.
+   - **Not confirmed:** nothing is removed; offers **Check again** and an export.
+   - **Didn't go through:** offers **Keep my account** or **Try again**.
+
+Leaving at any step before the final dialog changes nothing (tested).
+
+The engine is `src/auth/account-deletion.ts` (no React Native imports; tested in Node):
+- **Marker.** Before the request it writes `{owner, state: "requested", at}` to local settings. The marker holds the account ID, a state and a time only: never a token, password or email (tested).
+- **Success** (`forge_delete_account` returns no error, so the account row no longer exists):
+  1. the marker becomes `deleted`;
+  2. this phone's sign-in ends (local scope; the stored session is removed even if the service can't confirm it);
+  3. the training is removed with `clearData()`, but only if it still belongs to that account;
+  4. a record `{owner, at, localRemoved, source}` is kept for the notices.
+- **Any failure is checked, never guessed.** The account service is asked about the signed-in account:
+  - "user not found" means deleted, so the steps above are finished;
+  - the same account still there means **not deleted** (nothing changed);
+  - no answer, or another sign-in, leaves it **uncertain**: the marker stays and nothing is removed.
+
+### Files
+- **New:**
+  - `src/auth/account-deletion.ts`: the engine, marker and record;
+  - `src/auth/reauth.ts`: same-account confirmation;
+  - `src/screens/you/DeleteAccount.tsx` and `app/delete-account.tsx`;
+  - `tests/account-deletion.test.ts`, `tests/reauth.test.ts` and `tests/ui/delete-account.test.tsx`.
+- **Changed:**
+  - `src/auth/social.ts`: Google's sheet is shared by sign-in and confirmation; confirmation adds `login_hint`; sign-in is unchanged.
+  - `src/auth/session.ts`: `signOut({ deleted })`, now a stable callback; the entry context carries a deletion notice.
+  - `src/cloud/client.ts`: `verifierClient()`, a client that stores and refreshes nothing.
+  - `src/cloud/errors.ts` and `src/cloud/transport.ts`: a new `deleted` stop, mapped from foreign-key error `23503`, the only foreign key on cloud records being their owner.
+  - `src/domain/presentation/account.ts`: the deletion, sync and restore wording.
+  - `app/account.tsx`: the row now opens the flow; a deletion banner; sync checks the account first.
+  - `app/_layout.tsx`: finishes or checks an interrupted deletion at launch; Welcome's notice.
+  - `src/auth/AppStack.tsx`: the route, under the `ready` guard.
+  - `src/screens/entry/Welcome.tsx`, `src/screens/entry/AccountCheck.tsx`: wording.
+  - `README.md`, `IMPLEMENTATION_STATUS.md` and this report.
+  - Tests: `tests/ui/account-reforge.test.tsx`, `entry-gate.test.tsx`, `entry-screens.test.tsx` and `social-auth.test.tsx`.
+
+### Ownership safeguards
+- **Only the owner.** Only the signed-in account that owns this phone's training can start a deletion, checked by the engine and the screen.
+- **Same account only.** Confirmation is accepted only when the account service itself says the fresh sign-in is the same account ID. Any other account's new sign-in is ended at once, and this phone stays as it was (tested for password and Google).
+- **Owner-bound removal.** Local removal happens only when the training still belongs to the deleted account. Otherwise only the marker is cleared.
+- **No transfer.** Records are never moved to another account:
+  - this phone's copy is removed;
+  - other devices keep theirs locked, and any other account, including a new one with the same email (a new ID), gets the existing "belongs to another account" screen;
+  - nothing claims a phone that holds data (unchanged rules).
+- **Checks only for their own account.** An interrupted deletion is checked only while its own account is signed in online. Signed out, or with another account, nothing is asked or changed (tested at launch through the real entry gate).
+- **Nothing uploaded after deletion.** Another device's sync asks the account service first. If the account is gone, it stops before uploading; if a write is refused for the missing owner, the sync stops at that first refusal. Nothing is uploaded, and its local training and waiting changes are kept (PGlite test against the real migration).
+- **Notices show no training.** Welcome only says that an account, or its deletion, exists.
+
+### Reauthentication: what it does and doesn't prove
+- **Password:** sent once to the account service from a client that stores nothing. The resulting session replaces this phone's only after the same-account check, and the previous session is ended. The password is never stored: it stays in the field only until it's confirmed (or corrected after a wrong attempt), then the field is cleared.
+- **Google:** the sheet always asks which account (`prompt=select_account`) and suggests the signed-in one (`login_hint`). Cancelling changes nothing; another Google account is refused.
+- **App-side only.** The final step requires a confirmation from the last five minutes. **This is a check in the app, not a security boundary:** `forge_delete_account` still accepts any valid session of that account, of any age. Stage 3 adds the server's own check (draft below). The fresh session the confirmation creates is what that check will read.
+- **Not covered:**
+  - **Apple-only accounts** can't confirm or delete in the app yet; Apple confirmation and token revocation (E8) are release requirements.
+  - **Choosing a different Google account** that has no Forge account makes Supabase create one, as signing in would. Forge ends its session at once, but the empty account remains.
+  - **Expo Go on a local network address** hides Google, so a Google-only account can delete only through the tunnel or a development build.
+
+### Interruptions and recovery
+| Situation | What happens |
+|---|---|
+| Two taps, or the dialog confirmed twice | One request: the screen and the engine share it (tested) |
+| The request never reached the service | The check finds the account: "didn't go through", nothing changed |
+| The service deleted it, the reply was lost | The check gets "user not found": finished |
+| No answer either way | Uncertain: marker kept, nothing removed, Check again. Next launch checks once the owner is signed in online |
+| Forge closed before a reply | Next launch checks, as above |
+| Forge closed after the deletion was confirmed | Next launch finishes it without a connection (tested) |
+| A launch check meets a new tap | The tap waits; if the check settled it, that's the answer (tested) |
+| Confirmation older than five minutes | Back to Confirm it's you; nothing sent (tested) |
+| The service asks to sign in again (Stage 3) | Back to Confirm it's you; marker cleared, nothing changed (tested) |
+| Sign-in invalid because the deletion succeeded | The sign-out for a deleted account removes the stored session whatever the service answers, with no offline notice |
+| Offline | The final button is disabled and says why |
+
+The uncertain state is deliberately conservative. A request the service refused (for example, a sign-in revoked mid-flow) also shows as uncertain when the follow-up check can't reach the account. It resolves at the next check, and nothing is removed meanwhile.
+
+### Other devices, signing up again, older versions
+- **Another device still signed in** (up to one access-token lifetime):
+  - Synchronize now says "This Forge account no longer exists, so sync stopped. Nothing on this phone was removed…"; nothing is uploaded or removed.
+  - Account & privacy shows a banner with **Export backup**. Delete Forge account is hidden; Delete all local data stays.
+- **After that device is signed out:**
+  - **If it learned of the deletion** (any sync while still signed in), Welcome says the account that used it was deleted and its training is locked. Any account that signs in sees "belongs to a deleted account", with no instructions to sign in to it and only removal offered (the strict rule: another account never exports it).
+  - **If it never learned,** it shows the usual "belongs to another account" screen, and signing in to the deleted account fails. Removal is still available there.
+- **Same email again:** a new account with a new ID and no cloud records (tested). Import a backup into it explicitly.
+- **Forge before Stage 2:** its `cloudAccountDeleted` flag (written, never read) is now read as "this phone's owner was deleted" when an owner exists, so those phones get the same wording.
+
+### Keeping local data after deletion (decision D1)
+Not implemented. Forge's database isn't encrypted, so the only lock would be the entry gate (screens). After deletion that account can never sign in again, so a "locked" copy could never be opened in Forge, while staying readable to anyone with the device's files. Options:
+- **R1. Keep it, gated:** honest wording, the same protection as signed-out data today, but no way back in. Little use; not recommended.
+- **R2. Keep it, encrypted:** a passphrase- or Keychain-protected copy (for example SQLCipher in a development build), with a way to unlock and export later. A stage of its own.
+- **R3. Export, then remove (implemented):** the backup file is the athlete's copy and can be imported into any account later.
+
+**Recommendation:** R3 now; R2 only if athletes need to keep training on the phone without a file.
+
+### Verification (Stage 2, Nov 2, 2026, PST and UTC, macOS, Node 26)
+- **TypeScript:** passes. **ESLint:** 0 errors; the 1 warning is pre-existing (`tests/ui/templates-wp3.test.tsx`). **Prettier:** passes.
+- **Logic tests:** **705 of 705** (683 before, plus 22: 16 deletion, 6 confirmation).
+- **UI tests:** **743 of 743** in Pacific time and **743 of 743** in UTC (712 before, plus 31: 17 Delete Forge account, 5 launch and entry gate, 3 Account & privacy, 3 conflict screen and Welcome, 3 Google confirmation).
+- **Mutation checks:** the suites were run against two deliberate breaks, each restored afterwards:
+  - ignoring the five-minute window: caught;
+  - treating "no answer" as "deleted": caught by 2 logic tests and 1 UI test.
+- **Independent code review** of the whole uncommitted diff, against the invariants in this section: no significant issues. One hardening came out of the self-review that ran alongside it: if something fails unexpectedly mid-deletion, the screen now reports only what this phone's own state shows. If the deletion was confirmed, it says so, and the next launch finishes it. If nothing was sent, it says nothing changed. Both cases are tested.
+- **iOS and Android production exports:** pass on the final code. The new screen is present in both bundles.
+- **Diff review:** 25 files (18 changed, 7 new). No Supabase SQL, splash, theme, REFORGE component, asset, configuration or package changes; no generated artifacts, env files or secrets; line endings unchanged.
+
+**Updated tests:** the Account screen's old one-step deletion test now checks that the row opens the flow and deletes nothing; the sync test uses the new row name; the Account screen's test client gained `getUser`.
+
+### Stage 3: remaining server-side requirements (draft, not applied)
+For review only. Apply to a development project first (E6/E7) and verify there before it goes anywhere near athletes' data.
+
+```sql
+-- DRAFT (Stage 3). Not applied to any project.
+create or replace function public.forge_delete_account()
+returns void language plpgsql security definer
+set search_path = public, auth, pg_temp as $$
+declare
+  claims jsonb := coalesce(auth.jwt(), '{}'::jsonb);
+  signed_in_at bigint;
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  if coalesce((claims ->> 'is_anonymous')::boolean, false) then
+    raise exception 'Anonymous sign-ins cannot delete an account';
+  end if;
+  -- The most recent sign-in of this session (Supabase's amr claim).
+  select max((entry ->> 'timestamp')::bigint) into signed_in_at
+    from jsonb_array_elements(coalesce(claims -> 'amr', '[]'::jsonb)) entry;
+  if signed_in_at is null or signed_in_at < extract(epoch from now())::bigint - 600 then
+    raise exception 'Sign in again to delete your account'
+      using errcode = '42501', hint = 'reauthentication_needed';
+  end if;
+  delete from auth.users where id = auth.uid();
+end; $$;
+revoke all on function public.forge_delete_account() from public, anon;
+grant execute on function public.forge_delete_account() to authenticated;
+-- L6: privileges the API never needs.
+revoke select on public.forge_records from anon;
+revoke truncate, references, trigger on public.forge_records from anon, authenticated;
+```
+
+**To verify in the development project first:**
+- `amr` timestamps for password and Google sessions, and that refreshing doesn't change them;
+- that the hint reaches the app (it already returns to Confirm it's you on `reauthentication_needed`, tested);
+- the PGlite tests extended to the new function.
+
+**Also before App Store release:**
+- Apple confirmation and authorization revocation (E8, needs the Apple client secret on the server, for example in an Edge Function);
+- the dashboard checklist from Stage 0.
+
+### Remaining risks (Stage 2)
+1. **Not run on a device or against a live account.** The flow ran against the real client library, a simulated account service and the real migration in PGlite.
+2. **App-side confirmation only** until Stage 3 (above).
+3. **Apple-only accounts** can't delete in the app; a release blocker under App Store rules.
+4. **Other devices' copies** stay locked to the deleted account. Their athlete can export only while still signed in (up to an access-token lifetime) or remove it later.
+5. **A Google account chosen by mistake** during confirmation may leave an empty Forge account.
+6. **Brief view on relaunch.** If Forge closes after the deletion was confirmed but before this phone's part, the next launch may show the training for a moment before finishing the removal.
+7. **A deliberately conservative "uncertain"** (see Interruptions).
+
+### Manual tests (development project, throwaway accounts only)
+Never on the founder's real account. Two devices signed in to the same throwaway account.
+
+1. **Leave without deleting.** Open Delete Forge account and leave at each step: nothing changes.
+2. **Export.** Save to a folder (Android: saved and checked) and share (unconfirmed); cancel the picker; then continue.
+3. **Confirm it's you.**
+   - Wrong password: plain message.
+   - Google: cancel the sheet, then choose another Google account (refused), then the right one; check the right account is suggested.
+4. **Delete.** Welcome says the account was deleted; this phone is empty.
+5. **The other device.**
+   - Synchronize now: "no longer exists"; nothing is uploaded; the banner offers Export backup.
+   - Later it signs out. Sign in with another account: "belongs to a deleted account".
+6. **Interruptions.**
+   - Airplane mode right after the final confirmation: not confirmed, or didn't go through. Online again, Check again.
+   - Force-quit during "Deleting your account…", then reopen.
+7. **Same email again.** Sign up with the same email: setup on an empty phone; import the exported backup.
+
+### Decisions for approval
+- **D1.** Local data after deletion: R3 (implemented) now, R2 later if needed, R1 not recommended.
+- **D2.** The Stage 3 SQL above: a 10-minute server window against the app's 5 minutes; anonymous refusal; the L6 revokes. Development project first.
+- **D3.** Apple: confirmation and revocation (E8) scheduled before App Store submission; until then Apple-only accounts can't delete in the app.
+- **D4.** Accept the empty-account side effect of choosing the wrong Google account, or plan a server-side cleanup.
+- **D5.** Keep the strict rule that another account can never export a deleted account's training from a shared device.
+- **D6.** Approval to commit and push Stage 2. **Approved (Nov 2, 2026).**

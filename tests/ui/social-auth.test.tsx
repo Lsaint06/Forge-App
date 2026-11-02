@@ -14,10 +14,12 @@ import {
 } from "../../src/auth/providers";
 import {
   oauthRedirectResult,
+  reauthWithGoogle,
   signInWithApple,
   signInWithGoogle,
   socialErrorText,
 } from "../../src/auth/social";
+import { ReauthError } from "../../src/auth/reauth";
 import { signInMethods } from "../../src/auth/methods";
 import { authLinkStatus } from "../../src/auth/links";
 
@@ -704,6 +706,66 @@ describe("Continue with Apple (Forge's own build)", () => {
       "Apple sign-in didn't finish. Try again, or continue with email.",
     );
     expect(c.auth.updateUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("Confirming a Google account before deleting it (Phase 7.8E)", () => {
+  /** The account service: the account each returned token belongs to. */
+  function signedIn(tokenOwner: string) {
+    const c = client();
+    return Object.assign(c, {
+      auth: {
+        ...c.auth,
+        getUser: jest.fn(async () => ({
+          data: { user: { id: tokenOwner } },
+          error: null,
+        })),
+        getSession: jest.fn(async () => ({
+          data: { session: { access_token: "current" } },
+          error: null,
+        })),
+        admin: { signOut: jest.fn(async () => ({ data: null, error: null })) },
+      },
+    });
+  }
+
+  test("the same account: the sheet suggests it, and its fresh sign-in replaces this phone's", async () => {
+    browser.mockResolvedValue({ type: "success", url: RETURNED });
+    const c = signedIn(me.id);
+    expect(await reauthWithGoogle(c as never, me)).toBe("confirmed");
+    expect(c.auth.signInWithOAuth).toHaveBeenCalledWith({
+      provider: "google",
+      options: {
+        redirectTo: "forge://welcome",
+        skipBrowserRedirect: true,
+        queryParams: { prompt: "select_account", login_hint: me.email },
+      },
+    });
+    expect(c.auth.getUser).toHaveBeenCalledWith("at");
+    expect(c.auth.setSession).toHaveBeenCalledWith({
+      access_token: "at",
+      refresh_token: "rt",
+    });
+    expect(c.auth.admin.signOut).toHaveBeenCalledWith("current", "local");
+  });
+
+  test("closing the sheet changes nothing", async () => {
+    browser.mockResolvedValue({ type: "cancel" } as never);
+    const c = signedIn(me.id);
+    expect(await reauthWithGoogle(c as never, me)).toBe("cancelled");
+    expect(c.auth.getUser).not.toHaveBeenCalled();
+    expect(c.auth.setSession).not.toHaveBeenCalled();
+  });
+
+  test("another Google account is refused, and its new sign-in ended at once", async () => {
+    browser.mockResolvedValue({ type: "success", url: RETURNED });
+    const c = signedIn("user-b");
+    await expect(reauthWithGoogle(c as never, me)).rejects.toBeInstanceOf(
+      ReauthError,
+    );
+    expect(c.auth.setSession).not.toHaveBeenCalled();
+    expect(c.auth.admin.signOut).toHaveBeenCalledWith("at", "local");
+    expect(c.auth.admin.signOut).not.toHaveBeenCalledWith("current", "local");
   });
 });
 

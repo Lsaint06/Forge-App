@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Alert } from "../src/platform/alert";
 import * as Linking from "expo-linking";
 import { recoveryTokens } from "../src/cloud/recovery";
 import { signInMethods } from "../src/auth/methods";
@@ -21,6 +20,14 @@ import { goBack } from "../src/navigation";
 import { useRepo, useApp, confirm } from "../src/state";
 import { cloudClient, transport } from "../src/cloud/client";
 import { synchronize } from "../src/cloud/sync";
+import { stopReason } from "../src/cloud/errors";
+import {
+  cloudDeletion,
+  deletedAccount,
+  noteAccountGone,
+  pendingDeletion,
+} from "../src/auth/account-deletion";
+import { BackupSheet } from "../src/components/Backup";
 import {
   AboutForge,
   DangerRow,
@@ -29,6 +36,8 @@ import {
   MembershipCard,
 } from "../src/screens/you/account";
 import {
+  ACCOUNT_GONE_SYNC_TEXT,
+  accountDeletionText,
   conflictView,
   lastSyncNote,
   lastSyncText,
@@ -173,12 +182,26 @@ export default function Account() {
   async function sync() {
     if (!client || !shown) return;
     setBusy(true);
+    // The account was deleted, here or on another device (Phase 7.8E): this
+    // phone remembers it, and keeps its training until the athlete decides.
+    const gone = () => {
+      noteAccountGone(r, shown.id);
+      useApp.getState().touch();
+    };
     try {
+      // Asked first, so a deleted account is said plainly even with nothing
+      // to upload. Unanswered (offline), sync itself reports why.
+      if ((await cloudDeletion(client).currentUser()).missing) {
+        gone();
+        setStatus(ACCOUNT_GONE_SYNC_TEXT);
+        return;
+      }
       const result = await synchronize(
         r,
         transport(client, shown.id),
         shown.id,
       );
+      if (result.stopped === "deleted") gone();
       useApp.getState().touch();
       setStatus(syncSummary(result));
       // Technical details stay in the developer log (error text only: never
@@ -189,6 +212,7 @@ export default function Account() {
           [...new Set(result.errors)].join(" | "),
         );
     } catch (e) {
+      if (stopReason(e) === "deleted") gone();
       setStatus(syncFailureText(e));
     } finally {
       setBusy(false);
@@ -203,6 +227,17 @@ export default function Account() {
   const isOwner = !!shown && dataOwner(r) === shown.id;
   const lastSync = isOwner ? syncStatus(r, shown.id) : undefined;
   const lastSyncDetail = lastSyncNote(lastSync);
+  // What this phone knows about deleting this account (Phase 7.8E).
+  const marker = isOwner ? pendingDeletion(r) : undefined;
+  const deleted = isOwner ? deletedAccount(r) : undefined;
+  const ownMarker = marker && marker.owner === shown?.id ? marker : undefined;
+  const accountGone =
+    deleted && deleted.owner === shown?.id ? deleted : undefined;
+  const deletionText = accountDeletionText({
+    marker: ownMarker,
+    deleted: accountGone,
+  });
+  const [backupOpen, setBackupOpen] = useState(false);
   return (
     <ForgeSubScreen
       title="Account & privacy"
@@ -223,67 +258,92 @@ export default function Account() {
             </FText>
           </ForgeCard>
         ) : shown ? (
-          <ForgeCard testID="account-signed-in" gap={10}>
-            <State
-              icon={offline ? "cloud-offline-outline" : "person-circle-outline"}
-              text={offline ? "Signed in · offline" : "Signed in"}
-              tone="accent"
-            />
-            <FText variant="cardTitle" weight="700" header>
-              {shown.email ?? "Signed-in account"}
-            </FText>
-            {methods.length > 0 && (
-              <FText variant="label" tone="secondary">
-                {`Signs in with ${methods.join(" · ")}`}
-              </FText>
+          <>
+            {!!deletionText && (
+              <ForgeCard testID="account-deletion" gap={10}>
+                <State icon="alert-circle-outline" text="Account deletion" />
+                <FText variant="body">{deletionText}</FText>
+                {ownMarker?.state === "requested" && (
+                  <OutlineButton
+                    title="Open Delete Forge account"
+                    compact
+                    disabled={busy}
+                    onPress={() => router.push("/delete-account")}
+                  />
+                )}
+                {!ownMarker && !!accountGone && (
+                  <OutlineButton
+                    title="Export backup"
+                    compact
+                    onPress={() => setBackupOpen(true)}
+                  />
+                )}
+              </ForgeCard>
             )}
-            {offline && (
-              <FText variant="label" tone="secondary">
-                {
-                  "You're offline. Forge reconnects to your account when you're back online; synchronizing needs a connection."
+            <ForgeCard testID="account-signed-in" gap={10}>
+              <State
+                icon={
+                  offline ? "cloud-offline-outline" : "person-circle-outline"
                 }
+                text={offline ? "Signed in · offline" : "Signed in"}
+                tone="accent"
+              />
+              <FText variant="cardTitle" weight="700" header>
+                {shown.email ?? "Signed-in account"}
               </FText>
-            )}
-            {recovery && (
-              <>
-                <ForgeField
-                  label="New password"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                  autoComplete="new-password"
-                />
-                <CtaButton
-                  title="Set new password"
-                  compact
-                  disabled={busy}
-                  onPress={() => void updatePassword()}
-                />
-              </>
-            )}
-            <OutlineButton
-              title="Sign out"
-              compact
-              disabled={busy}
-              onPress={() => void signOutNow()}
-            />
-            <FText variant="label" tone="secondary">
-              Signing out affects only this phone and keeps everything on it.
-            </FText>
-            <OutlineButton
-              title="Sign out of all devices"
-              compact
-              disabled={busy}
-              onPress={() =>
-                confirm(
-                  "Sign out of all devices?",
-                  ALL_DEVICES_CONFIRM,
-                  () => void signOutEverywhere(),
-                  { action: "Sign out everywhere", destructive: false },
-                )
-              }
-            />
-          </ForgeCard>
+              {methods.length > 0 && (
+                <FText variant="label" tone="secondary">
+                  {`Signs in with ${methods.join(" · ")}`}
+                </FText>
+              )}
+              {offline && (
+                <FText variant="label" tone="secondary">
+                  {
+                    "You're offline. Forge reconnects to your account when you're back online; synchronizing needs a connection."
+                  }
+                </FText>
+              )}
+              {recovery && (
+                <>
+                  <ForgeField
+                    label="New password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoComplete="new-password"
+                  />
+                  <CtaButton
+                    title="Set new password"
+                    compact
+                    disabled={busy}
+                    onPress={() => void updatePassword()}
+                  />
+                </>
+              )}
+              <OutlineButton
+                title="Sign out"
+                compact
+                disabled={busy}
+                onPress={() => void signOutNow()}
+              />
+              <FText variant="label" tone="secondary">
+                Signing out affects only this phone and keeps everything on it.
+              </FText>
+              <OutlineButton
+                title="Sign out of all devices"
+                compact
+                disabled={busy}
+                onPress={() =>
+                  confirm(
+                    "Sign out of all devices?",
+                    ALL_DEVICES_CONFIRM,
+                    () => void signOutEverywhere(),
+                    { action: "Sign out everywhere", destructive: false },
+                  )
+                }
+              />
+            </ForgeCard>
+          </>
         ) : (
           // Unreachable inside the app (Phase 7.8E, E9): Account & privacy
           // opens only for a signed-in athlete. Signing in, creating an
@@ -455,38 +515,19 @@ export default function Account() {
       <Section title="Delete">
         <ForgeCard padding={0} gap={0}>
           <DeleteLocalData />
-          {client && shown && (
+          {/* A deleted account has nothing left to delete (Phase 7.8E). */}
+          {client && shown && !accountGone && (
             <DangerRow
-              title="Delete cloud account"
-              description="Permanently deletes your account and every cloud record. Data on this phone stays."
+              title="Delete Forge account"
+              description="Permanently deletes your account and its cloud training, then this phone's training. You can export a backup first."
               divider
               disabled={busy}
-              onPress={() =>
-                confirm(
-                  "Delete account permanently?",
-                  "This permanently deletes your account and every cloud record. It can't be undone. Records on this phone stay until you delete them in You.",
-                  () => {
-                    void client
-                      .rpc("forge_delete_account")
-                      .then(async ({ error }) => {
-                        if (error) {
-                          Alert.alert("Account deletion failed", error.message);
-                          return;
-                        }
-                        await client.auth.signOut({ scope: "local" });
-                        r.setSetting("cloudAccountDeleted", "true");
-                        setStatus(
-                          "Cloud account deleted. Export then clear local data before using a different account.",
-                        );
-                      });
-                  },
-                  { action: "Delete account" },
-                )
-              }
+              onPress={() => router.push("/delete-account")}
             />
           )}
         </ForgeCard>
       </Section>
+      <BackupSheet visible={backupOpen} onClose={() => setBackupOpen(false)} />
     </ForgeSubScreen>
   );
 }

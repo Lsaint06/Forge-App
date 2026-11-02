@@ -117,6 +117,54 @@ export function deleteLocalDataText(unsynced: number, linked: boolean) {
     .join(" ");
 }
 
+// Phase 7.8E, Stage 2: deleting the account, in plain words. What a phone
+// knows comes from its deletion marker and record (src/auth/account-deletion).
+
+type DeletionFacts = {
+  marker?: { state: "requested" | "deleted" | "notDeleted" };
+  deleted?: { localRemoved: boolean };
+};
+
+export const DELETED_HERE_TEXT =
+  "Your Forge account was deleted, with its cloud training and the training on this phone. Signing up again with the same email creates a new, empty account; a backup you exported can be imported into it from Account & privacy.";
+export const DELETION_UNCONFIRMED_SIGNED_OUT =
+  "Forge couldn't confirm whether your account was deleted, so nothing on this phone was removed. Sign in to that account to finish checking. If it no longer exists, its training stays locked on this phone, and signing in with another account lets you remove it.";
+export const OWNER_DELETED_SIGNED_OUT =
+  "The Forge account that used this phone was deleted. Its training is still here, locked to that account: no other account can open it. Sign in with any account to remove it.";
+export const DELETION_UNCONFIRMED_HERE =
+  "Forge couldn't confirm your account deletion, so nothing on this phone was removed yet. Open Delete Forge account to check again. If you've added training since, export a backup first: a confirmed deletion removes this phone's training.";
+export const DELETION_DIDNT_HAPPEN =
+  "Your account deletion didn't go through: your account, its cloud training and this phone's training are unchanged.";
+export const ACCOUNT_GONE_HERE =
+  "This Forge account no longer exists, so this phone's training can't be synchronized again. It stays here until you remove it: export a backup now to keep a copy.";
+export const OWNER_DELETED_TEXT =
+  "The account that owned this training was deleted, so no account can open it in Forge again. You can remove it from this phone.";
+export const OWNER_DELETION_UNCONFIRMED =
+  "That account's deletion was requested on this phone but never confirmed. Its training stays locked to it: no other account can open it.";
+
+/** For Welcome, signed out. */
+export function welcomeDeletionText({ marker, deleted }: DeletionFacts) {
+  if (deleted?.localRemoved) return DELETED_HERE_TEXT;
+  if (deleted) return OWNER_DELETED_SIGNED_OUT;
+  if (marker?.state === "requested") return DELETION_UNCONFIRMED_SIGNED_OUT;
+  return undefined;
+}
+
+/** For Account & privacy, while the account that owns this phone is signed in. */
+export function accountDeletionText({ marker, deleted }: DeletionFacts) {
+  if (marker?.state === "requested") return DELETION_UNCONFIRMED_HERE;
+  if (marker?.state === "notDeleted") return DELETION_DIDNT_HAPPEN;
+  if (deleted && !deleted.localRemoved) return ACCOUNT_GONE_HERE;
+  return undefined;
+}
+
+/** For the conflict screen, when another account is signed in. */
+export function ownerDeletionText({ marker, deleted }: DeletionFacts) {
+  if (deleted && !deleted.localRemoved) return OWNER_DELETED_TEXT;
+  if (marker?.state === "requested") return OWNER_DELETION_UNCONFIRMED;
+  return undefined;
+}
+
 // Phase 7.8B: what a sync did, in plain words. Nothing is called "backed up"
 // or "safe" beyond what the sync itself confirmed.
 
@@ -124,16 +172,24 @@ const STOP_LEAD: Record<SyncStop, string> = {
   offline: "Forge couldn't reach the cloud, so sync stopped.",
   unavailable: "Forge's cloud isn't answering right now, so sync stopped.",
   auth: "Forge couldn't confirm your sign-in, so sync stopped.",
+  deleted: "This Forge account no longer exists, so sync stopped.",
 };
 const STOP_NEXT: Record<SyncStop, string> = {
   offline: "Check your connection and try again.",
   unavailable: "Try again in a few minutes.",
   auth: "Sign in again, then sync.",
+  deleted: "To keep this phone's training, export a backup now.",
 };
+/**
+ * The account was deleted (Phase 7.8E): whatever this phone sent first went
+ * with it, and nothing waiting here can ever be sent.
+ */
+export const ACCOUNT_GONE_SYNC_TEXT = `${STOP_LEAD.deleted} Nothing on this phone was removed, but it can't be synchronized again. ${STOP_NEXT.deleted}`;
 const are = (n: number) => (n === 1 ? "is" : "are");
 
 /** The result of "Synchronize now", for the account screen. */
 export function syncSummary(s: SyncResult) {
+  if (s.stopped === "deleted") return ACCOUNT_GONE_SYNC_TEXT;
   if (s.stopped)
     return [
       STOP_LEAD[s.stopped],
@@ -191,6 +247,7 @@ export function syncSummary(s: SyncResult) {
 /** A sync that couldn't start or ended abruptly (it threw). */
 export function syncFailureText(e: unknown) {
   const reason = stopReason(e);
+  if (reason === "deleted") return ACCOUNT_GONE_SYNC_TEXT;
   if (reason)
     return `${STOP_LEAD[reason]} Nothing was lost. ${STOP_NEXT[reason]}`;
   return e instanceof Error && e.message
@@ -207,6 +264,13 @@ export type RestoreOutcome =
  * progress elsewhere that will arrive later still makes it partial.
  */
 export function restoreOutcome(s: SyncResult): RestoreOutcome {
+  if (s.stopped === "deleted")
+    return {
+      kind: "failed",
+      text: s.downloaded
+        ? "This Forge account no longer exists, so the restore stopped and this phone's training can't be synchronized again."
+        : "This Forge account no longer exists, so there's nothing to restore. Nothing on this phone changed.",
+    };
   if (s.stopped && !s.downloaded)
     return {
       kind: "failed",

@@ -20,6 +20,15 @@ import {
   hasSyncHistory,
   recordOwnerHint,
 } from "../src/data/ownership";
+import {
+  acknowledgeDeletedAccount,
+  cloudDeletion,
+  deletedAccount,
+  pendingDeletion,
+  resumeDeletion,
+} from "../src/auth/account-deletion";
+import { welcomeDeletionText } from "../src/domain/presentation/account";
+import { cancelAllNotifications } from "../src/notifications";
 import { Loading, dark, useColors } from "../src/components/ui";
 import * as SplashScreen from "expo-splash-screen";
 import { ForgeSplash } from "../src/components/splash/ForgeSplash";
@@ -96,6 +105,51 @@ function Navigation() {
     // The key holds everything the hint is made from.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hintKey]);
+  // An account deletion this phone started (Phase 7.8E, Stage 2), settled
+  // when the sign-in is known at launch and whenever it changes: a confirmed
+  // deletion is finished without a connection; an unconfirmed one is checked
+  // only while its own account is signed in online. Never mid-session, so it
+  // can't race the Delete Forge account screen's own request or check.
+  const signedIn =
+    auth.session === undefined ? undefined : (auth.session?.id ?? "");
+  const endSession = auth.signOut;
+  useEffect(() => {
+    if (signedIn === undefined || !client) return;
+    try {
+      if (!pendingDeletion(repository())) return;
+    } catch {
+      return;
+    }
+    void resumeDeletion(repository(), signedIn || undefined, {
+      ...cloudDeletion(client),
+      signOut: () => endSession({ deleted: true }),
+      afterRemove: () => void cancelAllNotifications().catch(() => {}),
+    })
+      .then((outcome) => {
+        if (outcome) useApp.getState().touch();
+      })
+      // Left as it is: the next launch tries again.
+      .catch(() => {});
+  }, [signedIn, client, endSession]);
+  // Someone signed in after this phone's account was deleted: Welcome's
+  // notice about it has done its job.
+  useEffect(() => {
+    if (!signedIn) return;
+    try {
+      acknowledgeDeletedAccount(repository());
+    } catch {
+      // The notice simply stays until the next sign-in.
+    }
+  }, [signedIn]);
+  // Signed out, Welcome says what this phone knows about a deletion: never
+  // training, only that the account (or its deletion) exists.
+  const deletion =
+    entry.kind === "signedOut"
+      ? welcomeDeletionText({
+          marker: pendingDeletion(r),
+          deleted: deletedAccount(r),
+        })
+      : undefined;
   if (entry.kind === "initializing") return <Loading />;
   return (
     <EntryContext.Provider
@@ -105,6 +159,7 @@ function Navigation() {
         finishRecovery: auth.finishRecovery,
         signOut: auth.signOut,
         notice: auth.notice,
+        deletion,
         link: auth.link,
       }}
     >

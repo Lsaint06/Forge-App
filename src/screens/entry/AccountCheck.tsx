@@ -10,8 +10,12 @@ import { useRepo, useApp, confirm } from "../../state";
 import { linkChecked } from "../../cloud/link";
 import { BackupSheet } from "../../components/Backup";
 import { authErrorText, useEntry } from "../../auth/session";
-import { localSummary, ownerHint } from "../../data/ownership";
-import { unsyncedLossText } from "../../domain/presentation/account";
+import { dataOwner, localSummary, ownerHint } from "../../data/ownership";
+import {
+  ownerDeletionText,
+  unsyncedLossText,
+} from "../../domain/presentation/account";
+import { deletedAccount, pendingDeletion } from "../../auth/account-deletion";
 import { cancelAllNotifications } from "../../notifications";
 import { DangerRow, DeleteLocalData } from "../you/account";
 import { EntryFrame, EntryMessage } from "./EntryFrame";
@@ -281,6 +285,19 @@ function OtherAccount({
   const summary = localSummary(r);
   const owner = hint?.email ?? "a different Forge account";
   const methods = hint?.methods?.length ? orList(hint.methods) : undefined;
+  // What this phone knows about the owner's account being deleted (Phase
+  // 7.8E): only ever about the account that owns this training.
+  const ownerId = dataOwner(r);
+  const marker = pendingDeletion(r);
+  const deleted = deletedAccount(r);
+  const ownerGone =
+    deleted && ownerId && deleted.owner === ownerId && !deleted.localRemoved
+      ? deleted
+      : undefined;
+  const deletion = ownerDeletionText({
+    marker: marker && marker.owner === ownerId ? marker : undefined,
+    deleted: ownerGone,
+  });
   const removed = [
     summary.workouts && plural(summary.workouts, "workout"),
     summary.templates && plural(summary.templates, "template"),
@@ -292,9 +309,10 @@ function OtherAccount({
   const contents = removed.length
     ? `${removed.join(", ")}, with that account's profile and preferences`
     : "that account's profile and preferences";
-  const unsynced =
-    unsyncedLossText(summary.unsynced) ??
-    "Everything here had been synchronized, so that account keeps its training in the cloud.";
+  const unsynced = ownerGone
+    ? "That account was deleted, so this phone holds the only copy of this training left in Forge."
+    : (unsyncedLossText(summary.unsynced) ??
+      "Everything here had been synchronized, so that account keeps its training in the cloud.");
   const remove = () =>
     confirm(
       "Delete the other account's training?",
@@ -307,7 +325,11 @@ function OtherAccount({
     );
   return (
     <EntryFrame
-      title="This phone's training belongs to another account"
+      title={
+        ownerGone
+          ? "This phone's training belongs to a deleted account"
+          : "This phone's training belongs to another account"
+      }
       eyebrow="Your account"
       footer={
         <CtaButton title={signOutTitle} disabled={!!busy} onPress={onSignOut} />
@@ -315,28 +337,37 @@ function OtherAccount({
     >
       <ForgeCard gap={10} testID="account-other">
         <FText variant="body">
-          {`You're signed in as ${who}, but the training on this phone belongs to ${owner}.`}
+          {ownerGone
+            ? `You're signed in as ${who}, but the training on this phone belongs to ${owner}, a Forge account that was deleted.`
+            : `You're signed in as ${who}, but the training on this phone belongs to ${owner}.`}
         </FText>
         <FText variant="label" tone="secondary">
           {
             "Forge keeps each account's training separate: it never shows, moves or combines one account's training with another's."
           }
         </FText>
+        {!!deletion && (
+          <FText variant="label" tone="secondary">
+            {deletion}
+          </FText>
+        )}
       </ForgeCard>
-      <ForgeCard gap={8} testID="account-other-return">
-        <FText variant="cardTitle" weight="700" header>
-          To use this phone&apos;s training
-        </FText>
-        <FText variant="body">1. Sign out.</FText>
-        <FText variant="body">
-          {hint?.email
-            ? `2. Sign in with ${hint.email}${methods ? ` using ${methods}` : ""}.`
-            : `2. Sign in with the account that used this phone before${methods ? `, using ${methods}` : ""}.`}
-        </FText>
-        <FText variant="label" tone="secondary">
-          Everything on this phone will be just as it was.
-        </FText>
-      </ForgeCard>
+      {!ownerGone && (
+        <ForgeCard gap={8} testID="account-other-return">
+          <FText variant="cardTitle" weight="700" header>
+            To use this phone&apos;s training
+          </FText>
+          <FText variant="body">1. Sign out.</FText>
+          <FText variant="body">
+            {hint?.email
+              ? `2. Sign in with ${hint.email}${methods ? ` using ${methods}` : ""}.`
+              : `2. Sign in with the account that used this phone before${methods ? `, using ${methods}` : ""}.`}
+          </FText>
+          <FText variant="label" tone="secondary">
+            Everything on this phone will be just as it was.
+          </FText>
+        </ForgeCard>
+      )}
       <FText variant="overline" tone="secondary" header>
         {`Use this phone for ${who} instead`}
       </FText>

@@ -28,7 +28,7 @@ import { AppleButton, GoogleButton } from "./ProviderButtons";
 export default function Welcome() {
   // A reset link that expired lands here (signed out); say what happened.
   const linkStatus = useAuthLinkStatus();
-  const { client, notice } = useEntry();
+  const { client, notice, deletion } = useEntry();
   const options = useSocialOptions();
   const [busy, setBusy] = useState<SocialProvider>();
   const [finishing, setFinishing] = useState(false);
@@ -111,6 +111,7 @@ export default function Welcome() {
           and synchronized to your account only when you choose.
         </FText>
         <EntryMessage text={notice} />
+        <EntryMessage text={deletion} />
         <EntryMessage text={linkStatus?.text} tone={linkStatus?.tone} />
         <EntryMessage
           text={finishing ? "Signing you in…" : undefined}

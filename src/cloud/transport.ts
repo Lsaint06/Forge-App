@@ -57,6 +57,9 @@ export function cloudFailure(
       : `Request failed (${status})`;
   const code = typeof error.code === "string" ? error.code : "";
   if (status === 0) return new SyncStopError("offline", message);
+  // The only foreign key on cloud records is their owner: a write refused
+  // for it means the signed-in account no longer exists (Phase 7.8E).
+  if (code === "23503") return new SyncStopError("deleted", message);
   if (
     status === 401 ||
     status === 403 ||

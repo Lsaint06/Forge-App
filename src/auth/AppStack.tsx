@@ -40,6 +40,7 @@ export function AppStack({ entry }: { entry: Entry["kind"] }) {
         <Stack.Screen name="forge-paths/current" />
         <Stack.Screen name="exercise" />
         <Stack.Screen name="account" />
+        <Stack.Screen name="delete-account" />
         <Stack.Screen name="preferences" />
         <Stack.Screen name="design-system" />
       </Stack.Protected>

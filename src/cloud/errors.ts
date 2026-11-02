@@ -3,10 +3,11 @@
 
 /**
  * Why a sync stopped early: no connection or no reply in time (`offline`),
- * the cloud not answering (`unavailable`), or the sign-in not confirmed
- * (`auth`). Nothing further is tried until the next sync.
+ * the cloud not answering (`unavailable`), the sign-in not confirmed
+ * (`auth`), or the account no longer existing (`deleted`, Phase 7.8E:
+ * another device deleted it). Nothing further is tried until the next sync.
  */
-export type SyncStop = "offline" | "unavailable" | "auth";
+export type SyncStop = "offline" | "unavailable" | "auth" | "deleted";
 
 /** Thrown by a transport when a sync should stop (see `SyncStop`). */
 export class SyncStopError extends Error {
@@ -29,7 +30,10 @@ export function stopReason(e: unknown): SyncStop | undefined {
   };
   if (
     name === "SyncStopError" &&
-    (reason === "offline" || reason === "unavailable" || reason === "auth")
+    (reason === "offline" ||
+      reason === "unavailable" ||
+      reason === "auth" ||
+      reason === "deleted")
   )
     return reason;
   if (name === "AbortError" || name === "TimeoutError") return "offline";

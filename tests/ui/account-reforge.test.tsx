@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet } from "react-native";
 import { render, fireEvent, within, act } from "@testing-library/react-native";
 import Account from "../../app/account";
+import { router } from "expo-router";
 import { useRepo, confirm } from "../../src/state";
 import { synchronize } from "../../src/cloud/sync";
 import { pathRepository } from "../path-fixture";
@@ -65,6 +66,11 @@ jest.mock("expo-linking", () => ({
 function cloud(session: Session) {
   const auth = {
     getSession: jest.fn(async () => ({ data: { session }, error: null })),
+    // The account as the account service sees it now (Phase 7.8E).
+    getUser: jest.fn(async () => ({
+      data: { user: session?.user ?? null },
+      error: null,
+    })),
     onAuthStateChange: jest.fn(() => ({
       data: { subscription: { unsubscribe: jest.fn() } },
     })),
@@ -211,9 +217,9 @@ test("signed in: the real email, one sync at a time, its result in words", async
     expect(synchronize).toHaveBeenCalledTimes(1);
     const working = view.getByRole("button", { name: "Working…" });
     expect(working.props.accessibilityState.disabled).toBe(true);
-    // Deleting the cloud account waits while sync runs.
+    // Deleting the account waits while sync runs.
     expect(
-      view.getByRole("button", { name: "Delete cloud account" }).props
+      view.getByRole("button", { name: "Delete Forge account" }).props
         .accessibilityState.disabled,
     ).toBe(true);
     await act(async () =>
@@ -607,30 +613,158 @@ test("the owner's last complete sync is shown, and a last sync that didn't finis
   }
 });
 
-test("deleting the cloud account asks first and is told apart from local data", async () => {
+test("Delete Forge account opens its own steps, told apart from deleting local data", async () => {
   const { db } = setup();
   try {
     cloud({ user: { id: "u1", email: "a@b.co" } });
     const view = await render(<Account />);
     await flush();
+    expect(view.queryByLabelText("Delete cloud account")).toBeNull();
     const cloudDelete = view.getByRole("button", {
-      name: "Delete cloud account",
+      name: "Delete Forge account",
     });
     expect(cloudDelete.props.accessibilityHint).toMatch(
-      /Data on this phone stays/,
+      /cloud training, then this phone's training.*export a backup first/,
     );
     expect(
       view.getByRole("button", { name: "Delete all local data" }).props
         .accessibilityHint,
     ).toMatch(/on this phone/);
     await fireEvent.press(cloudDelete);
-    expect(confirm).toHaveBeenLastCalledWith(
-      "Delete account permanently?",
-      expect.stringContaining("Records on this phone stay"),
-      expect.any(Function),
-      { action: "Delete account" },
-    );
+    // Nothing is asked or deleted here: the steps start on their own screen.
+    expect(router.push).toHaveBeenCalledWith("/delete-account");
+    expect(confirm).not.toHaveBeenCalled();
     expect((mockCloud.client as { rpc: jest.Mock }).rpc).not.toHaveBeenCalled();
+  } finally {
+    db.close();
+  }
+});
+
+test("account deletion states: unconfirmed, didn't go through, and deleted on another device", async () => {
+  const { r, db } = setup();
+  try {
+    r.setSetting("cloudOwner", "u1");
+    cloud({ user: { id: "u1", email: "a@b.co" } });
+    const mark = (state: string) =>
+      r.setSetting(
+        "accountDeletion",
+        JSON.stringify({ owner: "u1", state, at: 1 }),
+      );
+    mark("requested");
+    let view = await render(<Account />);
+    await flush();
+    let banner = within(view.getByTestId("account-deletion"));
+    expect(
+      banner.getByText(/couldn't confirm your account deletion/),
+    ).toBeTruthy();
+    await fireEvent.press(
+      banner.getByRole("button", { name: "Open Delete Forge account" }),
+    );
+    expect(router.push).toHaveBeenCalledWith("/delete-account");
+    await view.unmount();
+
+    mark("notDeleted");
+    view = await render(<Account />);
+    await flush();
+    expect(
+      within(view.getByTestId("account-deletion")).getByText(
+        /deletion didn't go through/,
+      ),
+    ).toBeTruthy();
+    await view.unmount();
+
+    // Another account's marker is never shown.
+    r.setSetting(
+      "accountDeletion",
+      JSON.stringify({ owner: "someone-else", state: "requested", at: 1 }),
+    );
+    view = await render(<Account />);
+    await flush();
+    expect(view.queryByTestId("account-deletion")).toBeNull();
+    await view.unmount();
+
+    r.clearSetting("accountDeletion");
+    r.setSetting(
+      "accountDeleted",
+      JSON.stringify({
+        owner: "u1",
+        at: 1,
+        localRemoved: false,
+        source: "sync",
+      }),
+    );
+    view = await render(<Account />);
+    await flush();
+    banner = within(view.getByTestId("account-deletion"));
+    expect(banner.getByText(/no longer exists/)).toBeTruthy();
+    expect(banner.getByRole("button", { name: "Export backup" })).toBeTruthy();
+    // Nothing left to delete in the cloud; this phone's data still can be.
+    expect(view.queryByLabelText("Delete Forge account")).toBeNull();
+    expect(view.getByLabelText("Delete all local data")).toBeTruthy();
+  } finally {
+    db.close();
+  }
+});
+
+test("sync finds the account deleted: said plainly, nothing sent, nothing removed", async () => {
+  const { r, db } = setup();
+  try {
+    r.setSetting("cloudOwner", "u1");
+    const auth = cloud({ user: { id: "u1", email: "a@b.co" } });
+    auth.getUser.mockResolvedValue({
+      data: { user: null },
+      error: new AuthApiError("User not found", 403, "user_not_found"),
+    } as never);
+    const workouts = r.workouts().length;
+    const view = await render(<Account />);
+    await flush();
+    await fireEvent.press(
+      view.getByRole("button", { name: "Synchronize now" }),
+    );
+    await flush();
+    expect(synchronize).not.toHaveBeenCalled();
+    expect(
+      within(view.getByTestId("account-status")).getByText(
+        /no longer exists, so sync stopped\. Nothing on this phone was removed/,
+      ),
+    ).toBeTruthy();
+    expect(r.workouts().length).toBe(workouts);
+    expect(JSON.parse(r.setting("accountDeleted")!)).toMatchObject({
+      owner: "u1",
+      localRemoved: false,
+      source: "sync",
+    });
+  } finally {
+    db.close();
+  }
+});
+
+test("a sync stopped because the account no longer exists is remembered", async () => {
+  const { r, db } = setup();
+  try {
+    r.setSetting("cloudOwner", "u1");
+    cloud({ user: { id: "u1", email: "a@b.co" } });
+    jest.mocked(synchronize).mockResolvedValue({
+      uploaded: 0,
+      downloaded: 0,
+      matched: 0,
+      rejected: 0,
+      failed: 0,
+      held: { update: 0, active: 0 },
+      conflicts: 0,
+      pending: 2,
+      errors: [],
+      stopped: "deleted",
+    });
+    const view = await render(<Account />);
+    await flush();
+    await fireEvent.press(
+      view.getByRole("button", { name: "Synchronize now" }),
+    );
+    await flush();
+    expect(synchronize).toHaveBeenCalledTimes(1);
+    expect(view.getByText(/no longer exists, so sync stopped/)).toBeTruthy();
+    expect(JSON.parse(r.setting("accountDeleted")!).source).toBe("sync");
   } finally {
     db.close();
   }

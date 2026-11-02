@@ -11,6 +11,7 @@ import {
 } from "@supabase/supabase-js";
 import { OAUTH_RETURN_PATH } from "./links";
 import { socialOptions, useAuthProviders } from "./providers";
+import { adoptIfSameAccount } from "./reauth";
 import { returnUrlRefusal, supabaseAcceptsReturnUrl } from "./redirects";
 
 // Continue with Apple or Google (Phase 7.7B.1), through the existing
@@ -81,6 +82,21 @@ export async function signInWithGoogle(
   client: SupabaseClient,
   onAuthorized?: () => void,
 ): Promise<SocialOutcome> {
+  const tokens = await googleTokens(client);
+  if (tokens === "cancelled") return "cancelled";
+  onAuthorized?.();
+  const { error: session } = await client.auth.setSession(tokens);
+  if (session) throw session;
+  return "signedIn";
+}
+
+/**
+ * Google's sheet, through Supabase: the session tokens it returns, or
+ * "cancelled". Nothing is signed in here; the caller decides what to do
+ * with them (sign in, or confirm the athlete before deleting the account).
+ * `hint` suggests which Google account to choose; it proves nothing.
+ */
+async function googleTokens(client: SupabaseClient, hint?: string) {
   const redirectTo = oauthReturnUrl();
   // Supabase would send the athlete to its Site URL instead: never open a
   // sheet that can't come back.
@@ -92,20 +108,35 @@ export async function signInWithGoogle(
       redirectTo,
       skipBrowserRedirect: true,
       // Always ask which Google account: phones are shared.
-      queryParams: { prompt: "select_account" },
+      queryParams: {
+        prompt: "select_account",
+        ...(hint ? { login_hint: hint } : {}),
+      },
     },
   });
   if (error) throw error;
   if (!data?.url) throw new SocialSignInError("google", "no_url");
   const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-  if (result.type !== "success") return "cancelled";
+  if (result.type !== "success") return "cancelled" as const;
   const { tokens, error: denied } = oauthRedirectResult(result.url);
-  if (denied === "access_denied") return "cancelled";
+  if (denied === "access_denied") return "cancelled" as const;
   if (!tokens) throw new SocialSignInError("google", denied ?? "unknown");
-  onAuthorized?.();
-  const { error: session } = await client.auth.setSession(tokens);
-  if (session) throw session;
-  return "signedIn";
+  return tokens;
+}
+
+/**
+ * Confirms the signed-in Google account again before it's deleted (Phase
+ * 7.8E, Stage 2): a different Google account is refused and its sign-in
+ * ended, and this phone stays signed in as before.
+ */
+export async function reauthWithGoogle(
+  client: SupabaseClient,
+  user: { id: string; email?: string },
+): Promise<"confirmed" | "cancelled"> {
+  const tokens = await googleTokens(client, user.email);
+  if (tokens === "cancelled") return "cancelled";
+  await adoptIfSameAccount(client, user.id, tokens);
+  return "confirmed";
 }
 
 /**

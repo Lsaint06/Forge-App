@@ -29,3 +29,21 @@ export function cloudClient() {
   }
   return client;
 }
+
+/**
+ * A client that stores and refreshes nothing (Phase 7.8E): for checking a
+ * password without touching this phone's session. One per check.
+ */
+export function verifierClient(): SupabaseClient | null {
+  if (!url || !key) return null;
+  if (!/^https:\/\//.test(url)) throw new Error("Supabase URL must use HTTPS");
+  return createClient(url, key, {
+    auth: {
+      storageKey: "forge-reauth",
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+    global: { fetch: withTimeout((input, init) => fetch(input, init)) },
+  });
+}

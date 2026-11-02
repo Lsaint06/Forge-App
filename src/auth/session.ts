@@ -1,4 +1,11 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import * as Linking from "expo-linking";
 import {
   isAuthError,
@@ -213,26 +220,33 @@ export function useAuthSession(client: SupabaseClient | null) {
    * service, so when it can't be reached nothing changes and the error is
    * thrown. Without a connection, an ordinary sign-out still happens: Forge
    * removes the stored session from this phone itself and says so plainly,
-   * never claiming the server's sign-in ended. The training and its owner
-   * stay exactly as they are either way.
+   * never claiming the server's sign-in ended. `deleted` (Stage 2): the
+   * account no longer exists, so its sign-in is removed from this phone
+   * whatever the account service answers, without another notice. The
+   * training and its owner stay exactly as they are; removing them is the
+   * caller's explicit step.
    */
-  async function signOut(options: { everywhere?: boolean } = {}) {
-    if (!client) return;
-    setNotice(undefined);
-    const everywhere = options.everywhere === true;
-    const { error } = await client.auth.signOut({
-      scope: everywhere ? "global" : "local",
-    });
-    if (!error) {
-      if (everywhere) setNotice(ALL_DEVICES_SIGN_OUT_NOTICE);
-      return;
-    }
-    if (everywhere || !isAuthRetryableFetchError(error)) throw error;
-    const key = sessionKey();
-    if (key) await sessionStorage.removeItem(key);
-    setState({ session: null, offline: undefined, recovering: false });
-    setNotice(OFFLINE_SIGN_OUT_NOTICE);
-  }
+  const signOut = useCallback(
+    async (options: SignOutOptions = {}) => {
+      if (!client) return;
+      setNotice(undefined);
+      const everywhere = options.everywhere === true;
+      const { error } = await client.auth
+        .signOut({ scope: everywhere ? "global" : "local" })
+        .catch((e: unknown) => ({ error: e }));
+      if (!error) {
+        if (everywhere) setNotice(ALL_DEVICES_SIGN_OUT_NOTICE);
+        return;
+      }
+      const removeHere = options.deleted || isAuthRetryableFetchError(error);
+      if (everywhere || !removeHere) throw error;
+      const key = sessionKey();
+      if (key) await sessionStorage.removeItem(key);
+      setState({ session: null, offline: undefined, recovering: false });
+      if (!options.deleted) setNotice(OFFLINE_SIGN_OUT_NOTICE);
+    },
+    [client],
+  );
   return {
     ...state,
     finishRecovery,
@@ -241,6 +255,9 @@ export function useAuthSession(client: SupabaseClient | null) {
     link: incoming ?? undefined,
   };
 }
+
+/** How to sign out (Phase 7.8E): this phone, every device, or after deletion. */
+export type SignOutOptions = { everywhere?: boolean; deleted?: boolean };
 
 /** The entry state and its actions, for the entry screens. */
 export const EntryContext = createContext<{
@@ -251,9 +268,11 @@ export const EntryContext = createContext<{
    * Signs out of this phone, or of every device with `everywhere`; on this
    * phone alone when offline (see useAuthSession).
    */
-  signOut?: (options?: { everywhere?: boolean }) => Promise<void>;
+  signOut?: (options?: SignOutOptions) => Promise<void>;
   /** Something to say on Welcome, such as an offline sign-out. */
   notice?: string;
+  /** What this phone knows about an account deletion, for Welcome. */
+  deletion?: string;
   /** The latest link Forge was opened with (email confirmation, reset). */
   link?: string;
 }>({

@@ -148,6 +148,29 @@ describe("Welcome", () => {
       view.getByRole("header", { name: "Your training starts here." }),
     ).toBeTruthy();
   });
+
+  test("after an account deletion, Welcome says what happened (Phase 7.8E)", async () => {
+    const { DELETED_HERE_TEXT } = jest.requireActual(
+      "../../src/domain/presentation/account",
+    );
+    const view = await render(
+      <EntryContext.Provider
+        value={{
+          entry: { kind: "signedOut" },
+          client: client() as never,
+          finishRecovery: () => {},
+          deletion: DELETED_HERE_TEXT,
+        }}
+      >
+        <Welcome />
+      </EntryContext.Provider>,
+    );
+    expect(view.getByText(DELETED_HERE_TEXT)).toBeTruthy();
+    expect(DELETED_HERE_TEXT).toMatch(
+      /same email creates a new, empty account/,
+    );
+    expect(button(view, "Continue with Email")).toBeTruthy();
+  });
 });
 
 describe("Sign in", () => {
@@ -540,6 +563,111 @@ describe("Account checks", () => {
       onConfirm();
       expect(f.r.workouts()).toHaveLength(0);
       expect(dataOwner(f.r)).toBeUndefined();
+    } finally {
+      f.db.close();
+    }
+  });
+
+  test("the owner's account was deleted (Phase 7.8E): said plainly, no way back to it, only removal", async () => {
+    const f = repo();
+    try {
+      f.r.setSetting("cloudOwner", "user-b");
+      f.r.setSetting(
+        "cloudOwnerHint",
+        JSON.stringify({ owner: "user-b", email: "l•••@gmail.com" }),
+      );
+      const w = f.r.startWorkout();
+      f.r.finishWorkout(w.id);
+      f.r.setSetting(
+        "accountDeleted",
+        JSON.stringify({
+          owner: "user-b",
+          at: 1,
+          localRemoved: false,
+          source: "sync",
+        }),
+      );
+      const view = await render(
+        withEntry(
+          <AccountCheck />,
+          { kind: "otherAccount", user: me },
+          client(),
+        ),
+      );
+      expect(
+        view.getByRole("header", {
+          name: "This phone's training belongs to a deleted account",
+        }),
+      ).toBeTruthy();
+      expect(
+        view.getByText(
+          "You're signed in as a@example.com, but the training on this phone belongs to l•••@gmail.com, a Forge account that was deleted.",
+        ),
+      ).toBeTruthy();
+      expect(
+        view.getByText(/was deleted, so no account can open it in Forge again/),
+      ).toBeTruthy();
+      // No instructions to sign in to an account that no longer exists.
+      expect(view.queryByTestId("account-other-return")).toBeNull();
+      // Nothing is offered to the signed-in account but removal.
+      expect(view.queryByText(/Export/)).toBeNull();
+      await fireEvent.press(view.getByText("Delete this phone's training"));
+      expect(confirm).toHaveBeenCalledWith(
+        "Delete the other account's training?",
+        expect.stringMatching(/holds the only copy of this training/),
+        expect.any(Function),
+        { action: "Delete from this phone" },
+      );
+      expect(f.r.workouts()).toHaveLength(1);
+    } finally {
+      f.db.close();
+    }
+  });
+
+  test("the owner's deletion was never confirmed: its training stays locked to it", async () => {
+    const f = repo();
+    try {
+      f.r.setSetting("cloudOwner", "user-b");
+      f.r.startWorkout();
+      f.r.setSetting(
+        "accountDeletion",
+        JSON.stringify({ owner: "user-b", state: "requested", at: 1 }),
+      );
+      const view = await render(
+        withEntry(
+          <AccountCheck />,
+          { kind: "otherAccount", user: me },
+          client(),
+        ),
+      );
+      expect(
+        view.getByRole("header", {
+          name: "This phone's training belongs to another account",
+        }),
+      ).toBeTruthy();
+      expect(
+        view.getByText(/requested on this phone but never confirmed/),
+      ).toBeTruthy();
+      expect(view.getByTestId("account-other-return")).toBeTruthy();
+      // Another account's deletion record says nothing about this owner.
+      f.r.clearSetting("accountDeletion");
+      f.r.setSetting(
+        "accountDeleted",
+        JSON.stringify({
+          owner: "user-z",
+          at: 1,
+          localRemoved: false,
+          source: "sync",
+        }),
+      );
+      await view.rerender(
+        withEntry(
+          <AccountCheck />,
+          { kind: "otherAccount", user: me },
+          client(),
+        ),
+      );
+      expect(view.queryByText(/deleted|never confirmed/)).toBeNull();
     } finally {
       f.db.close();
     }
