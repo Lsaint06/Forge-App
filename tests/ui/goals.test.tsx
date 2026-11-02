@@ -19,6 +19,7 @@ import { useRepo } from "../../src/state";
 import { pathRepository } from "../path-fixture";
 import { localDate } from "../../src/domain/types";
 import { addDays } from "../../src/domain/paths/model";
+import { pinClock } from "./clock";
 
 // Phase 7B WP4D: the Goals screen, its type-first sheet, detail, achievements
 // and past goals. All six goal types stay creatable.
@@ -62,7 +63,6 @@ const pressAlert = (title: string, button: string) => {
 beforeEach(() => jest.clearAllMocks());
 
 const today = localDate();
-const DAY = 86_400_000;
 type Repo = ReturnType<typeof pathRepository>["r"];
 type Db = ReturnType<typeof pathRepository>["db"];
 function setup(profile: Parameters<Repo["saveProfile"]>[0] = {}) {
@@ -84,12 +84,16 @@ const weigh = (r: Repo, kg: number, date: string) =>
     { name: "Bodyweight", value: kg, unit: "kg" },
     date,
   );
-function bench(r: Repo, db: Db, kg: number, reps: number, daysAgo: number) {
+/**
+ * A bench press finished on a calendar day, at local noon: well clear of
+ * midnight, so a daylight-saving change can't move it to another day.
+ */
+function bench(r: Repo, db: Db, kg: number, reps: number, day: string) {
   const w = r.startWorkout("Upper");
   const row = r.addExercise(w.id, "barbell-bench-press");
   r.editSet(r.addSet(row.id).id, { weight: kg, reps, completed: true });
   r.finishWorkout(w.id);
-  const end = Date.now() - daysAgo * DAY;
+  const end = new Date(`${day}T12:00:00`).getTime();
   db.prepare("UPDATE workouts SET started_at=?, finished_at=? WHERE id=?").run(
     end - 3_600_000,
     end,
@@ -236,9 +240,13 @@ test("errors are plain sentences and nothing is saved", async () => {
 });
 
 test("a lift already done before the goal asks first and says so, with the real date", async () => {
+  // Pinned to the last hour of the Sunday US daylight saving ended, when
+  // ten 24-hour days back is no longer ten calendar days back.
+  pinClock("2026-11-01T23:30:00");
+  const lifted = addDays(localDate(), -10);
   const { r, db } = setup();
   try {
-    bench(r, db, 102.5, 3, 10);
+    bench(r, db, 102.5, 3, lifted);
     const view = await render(<JournalScreen />);
     await newGoal(view, "Lift");
     await fireEvent.press(
@@ -267,13 +275,14 @@ test("a lift already done before the goal asks first and says so, with the real 
     await view.unmount();
     const g = goals(r)[0]!;
     expect(g.data.status).toBe("achieved");
-    expect(g.data.achievedOn).toBe(addDays(today, -10));
+    expect(g.data.achievedOn).toBe(lifted);
     expect(g.data.achievedValue).toBe(102.5);
     expect(Math.abs(Number(g.data.confirmedAt) - Date.now())).toBeLessThan(
       60_000,
     );
   } finally {
     db.close();
+    jest.useRealTimers();
   }
 });
 

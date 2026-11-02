@@ -6,6 +6,8 @@ import You from "../../src/screens/You";
 import { useRepo } from "../../src/state";
 import { pathRepository } from "../path-fixture";
 import { localDate } from "../../src/domain/types";
+import { addDays } from "../../src/domain/paths/model";
+import { pinClock } from "./clock";
 import { summary } from "../../src/domain/metrics";
 import { evaluate, type Goal } from "../../src/domain/goals";
 import { goalSources } from "../../src/data/goal-sources";
@@ -60,14 +62,17 @@ beforeEach(() => {
 type Repo = ReturnType<typeof pathRepository>["r"];
 type View = Awaited<ReturnType<typeof render>>;
 const today = localDate();
-/** A completed workout, moved back `daysAgo` days. */
-function finished(r: Repo, daysAgo = 0) {
+/**
+ * A completed workout: now, or on a calendar day at local noon, well clear
+ * of midnight, so a daylight-saving change can't move it to another day.
+ */
+function finished(r: Repo, day?: string) {
   const w = r.startWorkout("Push day");
   const row = r.addExercise(w.id, "barbell-bench-press");
   r.editSet(r.addSet(row.id).id, { completed: true, weight: 50, reps: 5 });
   r.finishWorkout(w.id);
-  if (daysAgo) {
-    const end = Date.now() - daysAgo * 86400000;
+  if (day) {
+    const end = new Date(`${day}T12:00:00`).getTime();
     (r as unknown as { db: { run: (s: string, p: unknown[]) => void } }).db.run(
       "UPDATE workouts SET started_at=?, finished_at=? WHERE id=?",
       [end - 3000000, end, w.id],
@@ -94,13 +99,20 @@ const weighIn = (r: Repo, kg: number, date = today) =>
 
 // ---- Performance strip -------------------------------------------------------------
 
+// The weeks tests are pinned to the last hour of a Sunday, the night US
+// daylight saving ended: the moment a week ago in 24-hour days lands in the
+// current week.
+const WEEK_EDGE = "2026-11-01T23:30:00";
+
 test("strip: workouts, the shared streak and weeks consistent, from completed workouts", async () => {
+  pinClock(WEEK_EDGE);
+  const sunday = localDate();
   const { r, db } = setup();
   try {
     // Today, a week ago and two weeks ago: three consecutive calendar weeks.
     finished(r);
-    finished(r, 7);
-    finished(r, 14);
+    finished(r, addDays(sunday, -7));
+    finished(r, addDays(sunday, -14));
     // An unfinished workout is not counted.
     r.startWorkout("Leg day");
     const view = await render(<You />);
@@ -114,27 +126,31 @@ test("strip: workouts, the shared streak and weeks consistent, from completed wo
     expect(
       view.getByLabelText(`${life.streak} day streak. Open progress`),
     ).toBeTruthy();
-    expect(weeksConsistent(r.workouts(), today)).toBe(3);
+    expect(weeksConsistent(r.workouts(), sunday)).toBe(3);
     // Training history is the strip's action.
     await fireEvent.press(s.getByRole("button", { name: "Training history" }));
     expect(router.push).toHaveBeenLastCalledWith("/history");
   } finally {
     db.close();
+    jest.useRealTimers();
   }
 });
 
 test("strip: a fully missed week ends weeks consistent", async () => {
+  pinClock(WEEK_EDGE);
+  const sunday = localDate();
   const { r, db } = setup();
   try {
     // This week and last week; two weeks back has nothing; three weeks back.
     finished(r);
-    finished(r, 7);
-    finished(r, 21);
+    finished(r, addDays(sunday, -7));
+    finished(r, addDays(sunday, -21));
     const view = await render(<You />);
     expect(strip(view).getByLabelText("Weeks consistent: 2")).toBeTruthy();
     expect(strip(view).getByLabelText("Workouts completed: 3")).toBeTruthy();
   } finally {
     db.close();
+    jest.useRealTimers();
   }
 });
 
