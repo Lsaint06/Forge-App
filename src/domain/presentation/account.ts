@@ -5,6 +5,7 @@ import { canonical } from "../../cloud/compare";
 import { stopReason, type SyncStop } from "../../cloud/errors";
 import type { SyncResult } from "../../cloud/sync";
 import type { SyncStatus } from "../../cloud/sync-state";
+import { cloudCopyNeedsUpdate, namesUnknownExercises } from "../format";
 import { localDate } from "../types";
 import { dayLabel, plural, templateLine } from "../training-display";
 
@@ -17,7 +18,13 @@ const JOURNAL: Record<string, string> = {
   hydration: "Water log entry",
   schedule: "Scheduled workout",
   program: "Program",
+  favorite: "Favorite exercise",
 };
+/** The exercise a favourite record names, from its id (Phase 7.8D). */
+const favoriteOf = (recordId: unknown) =>
+  typeof recordId === "string" && recordId.startsWith("favorite:")
+    ? recordId.slice("favorite:".length)
+    : undefined;
 
 const text = (v: unknown) =>
   typeof v === "string" && v.trim() ? v.trim() : undefined;
@@ -25,10 +32,14 @@ const text = (v: unknown) =>
 /**
  * What a sync conflict is about, from the preserved cloud record, without
  * internal identifiers: "Workout · Push day", "Goal · Cut to 80",
- * "Your profile". Unreadable records are "A synced record".
+ * "Your profile", "Favorite exercise · Back Squat". Unreadable records are
+ * "A synced record".
  */
-export function conflictTitle(remote: string) {
-  let row: { kind?: unknown; payload?: unknown };
+export function conflictTitle(
+  remote: string,
+  exerciseName?: (exerciseId: string) => string | undefined,
+) {
+  let row: { id?: unknown; kind?: unknown; payload?: unknown };
   try {
     row = JSON.parse(remote) as typeof row;
   } catch {
@@ -36,6 +47,12 @@ export function conflictTitle(remote: string) {
   }
   const p = (row.payload ?? {}) as Record<string, unknown>;
   const data = (p.data ?? {}) as Record<string, unknown>;
+  // Known by its id even when the cloud copy is a deletion.
+  const favorite = row.kind === "journal" ? favoriteOf(row.id) : undefined;
+  if (favorite !== undefined) {
+    const name = text(exerciseName?.(favorite));
+    return name ? `Favorite exercise · ${clip(name)}` : "Favorite exercise";
+  }
   switch (row.kind) {
     case "profile":
       return "Your profile";
@@ -251,11 +268,13 @@ export type ConflictView = {
   /** What differs, in words: "Sets", "Display name". */
   differs: string[];
   /**
-   * The cloud version uses exercises (or a kind of record) this version of
-   * Forge doesn't know: both choices wait for an update, so the newer
-   * record is neither replaced nor half-applied.
+   * The cloud version uses exercises (or a kind of record, a format or
+   * fields) this version of Forge doesn't know: both choices wait for an
+   * update, so the newer record is neither replaced nor half-applied.
    */
   update: boolean;
+  /** Why both choices wait, when they do. */
+  updateText: string;
 };
 
 type Obj = Record<string, unknown>;
@@ -270,7 +289,6 @@ const parse = (text: string): unknown => {
   }
 };
 const clip = (s: string) => (s.length > 40 ? `${s.slice(0, 39)}…` : s);
-const KNOWN_KINDS = ["profile", "exercise", "workout", "template", "journal"];
 
 /** "today, 2:05 PM", "yesterday, 9:10 AM", "Oct 20, 6:40 PM". */
 function moment(time: number, now: number) {
@@ -492,19 +510,24 @@ function profileLines(local: Obj, cloud: Obj) {
   return { phone: line(local), cloud: line(cloud) };
 }
 
-/** Whether a cloud version needs exercises or a record kind this Forge lacks. */
-function needsUpdate(
+const UPDATE_EXERCISES =
+  "The cloud version uses exercises from a newer version of Forge. Update Forge on this phone to choose; both versions are kept until then.";
+const UPDATE_NEWER =
+  "The cloud version was saved by a newer version of Forge. Update Forge on this phone to choose; both versions are kept until then.";
+
+/**
+ * Why both choices must wait for an update, if they must: the same rule the
+ * data layer enforces (Phase 7.8D).
+ */
+function updateReason(
   kind: string,
   payload: unknown,
   knows: (exerciseId: string) => boolean,
 ) {
-  if (!kind) return false;
-  if (!KNOWN_KINDS.includes(kind)) return true;
-  if (kind !== "workout" && kind !== "template") return false;
-  return list(obj(payload).exercises).some((e) => {
-    const exerciseId = obj(e).exerciseId;
-    return typeof exerciseId === "string" && !knows(exerciseId);
-  });
+  if (!cloudCopyNeedsUpdate(kind, payload, knows)) return "";
+  return namesUnknownExercises(kind, payload, knows)
+    ? UPDATE_EXERCISES
+    : UPDATE_NEWER;
 }
 
 /**
@@ -517,30 +540,59 @@ export function conflictView(
   waiting: { payload: string; deleted: number | boolean } | undefined,
   knows: (exerciseId: string) => boolean,
   now = Date.now(),
+  extra: {
+    /** Names favourites by their exercise. */
+    exerciseName?: (exerciseId: string) => string | undefined;
+    /**
+     * The profile's two choices (Phase 7.8D), which differ only in the
+     * fields the athlete decides; everything else merged already.
+     */
+    profile?: { phone: Obj; cloud: Obj };
+  } = {},
 ): ConflictView {
-  const title = conflictTitle(saved.remote);
+  const title = conflictTitle(saved.remote, extra.exerciseName);
   const row = obj(parse(saved.remote));
   const kind = typeof row.kind === "string" ? row.kind : "";
   const local = parse(waiting?.payload ?? saved.local);
   const localDeleted = waiting ? !!waiting.deleted : canonical(local) === "{}";
   const cloudDeleted = row.deleted === true;
-  const update = !cloudDeleted && needsUpdate(kind, row.payload, knows);
+  const updateText = cloudDeleted ? "" : updateReason(kind, row.payload, knows);
+  const update = !!updateText;
+  const favorite = kind === "journal" && favoriteOf(row.id) !== undefined;
   if (localDeleted || cloudDeleted)
     return {
       title,
       phone: localDeleted
-        ? ["Deleted on this phone"]
-        : summary(kind, local, now),
+        ? [
+            favorite
+              ? "Removed from favorites on this phone"
+              : "Deleted on this phone",
+          ]
+        : favorite
+          ? ["Favorite on this phone"]
+          : summary(kind, local, now),
       cloud: cloudDeleted
-        ? ["Deleted on another device"]
-        : summary(kind, row.payload, now),
+        ? [
+            favorite
+              ? "Removed from favorites on another device"
+              : "Deleted on another device",
+          ]
+        : favorite
+          ? ["Favorite on another device"]
+          : summary(kind, row.payload, now),
       differs: [],
       update,
+      updateText,
     };
-  const differs = differences(kind, obj(local), obj(row.payload));
+  const sides = kind === "profile" ? extra.profile : undefined;
+  const differs = sides
+    ? differences(kind, sides.phone, sides.cloud)
+    : differences(kind, obj(local), obj(row.payload));
   const lines =
     kind === "profile"
-      ? profileLines(obj(local), obj(row.payload))
+      ? sides
+        ? profileLines(sides.phone, sides.cloud)
+        : profileLines(obj(local), obj(row.payload))
       : {
           phone: summary(kind, local, now),
           cloud: summary(kind, row.payload, now),
@@ -550,5 +602,6 @@ export function conflictView(
     ...lines,
     differs: differs.length ? differs : ["Other details"],
     update,
+    updateText,
   };
 }

@@ -327,9 +327,19 @@ test("v2 migration adds nullable columns once without changing any legacy rows",
   const before = tables.map((table) => r.db.all(`SELECT * FROM ${table}`));
   for (let run = 0; run < 2; run++) {
     r.migrate();
+    // Phase 7.8D (v3) only adds: the favourite becomes a synced record,
+    // queued to upload. Every legacy row stays exactly as it was.
+    const legacyRows = tables.map((table) =>
+      r.db
+        .all<{ id?: unknown }>(`SELECT * FROM ${table}`)
+        .filter((row) => !String(row.id ?? "").startsWith("favorite:")),
+    );
+    assert.deepEqual(legacyRows, before);
+    assert.deepEqual(r.favorites(), ["barbell-bench-press"]);
+    // Uploads in Forge's order: a change that failed before goes last.
     assert.deepEqual(
-      tables.map((table) => r.db.all(`SELECT * FROM ${table}`)),
-      before,
+      r.outbox().map((o) => `${o.id}@${o.revision}`),
+      ["favorite:barbell-bench-press@0", "w@3"],
     );
     assert.deepEqual(
       r.db
@@ -337,7 +347,7 @@ test("v2 migration adds nullable columns once without changing any legacy rows",
           "SELECT version FROM migrations ORDER BY version",
         )
         .map((row) => row.version),
-      [1, 2],
+      [1, 2, 3],
     );
     assert.deepEqual(r.templates()[0]!.exercises, [
       {

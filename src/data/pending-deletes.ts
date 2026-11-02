@@ -77,6 +77,9 @@ export function markPending(
   record: { id: string; updatedAt: number },
   now = Date.now(),
 ): PendingMarker {
+  // A record saved by a newer Forge can't be deleted here (Phase 7.8D):
+  // refused before it's hidden, so it never disappears and comes back.
+  r.assertCanChange(record.id, "journal");
   const marker: PendingMarker = {
     v: 1,
     kind,
@@ -96,7 +99,7 @@ export function cancelPending(r: Repository, kind: PendingKind, id: string) {
 }
 
 export type CommitResult =
-  "deleted" | "missing" | "changed" | "other-account" | "none";
+  "deleted" | "missing" | "changed" | "other-account" | "newer" | "none";
 
 /**
  * Writes a pending deletion: in one transaction, the record (only this id
@@ -120,6 +123,8 @@ export function commitPending(
     )[0];
     if (!row) return "missing";
     if (row.updated_at !== m.updatedAt) return "changed";
+    // Saved by a newer Forge since it was hidden: kept, and shown again.
+    if (!r.canChange(m.id)) return "newer";
     r.deleteJournal(m.id);
     return "deleted";
   });

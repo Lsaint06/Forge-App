@@ -294,7 +294,16 @@ test("an existing user's backup restores with every generated Path readable", ()
     assert.equal(b.workouts.length, legacyBackup.workouts.length);
     assert.equal(b.sets.length, legacyBackup.sets.length);
     assert.equal(b.templates.length, legacyBackup.templates.length);
-    assert.equal(b.journals.length, legacyBackup.journals.length);
+    // Phase 7.8D: the backup's favourite is now also a synced record.
+    assert.equal(
+      b.journals.filter((j) => j.kind !== "favorite").length,
+      legacyBackup.journals.length,
+    );
+    assert.deepEqual(b.favorites, legacyBackup.favorites);
+    assert.equal(
+      b.journals.filter((j) => j.kind === "favorite").length,
+      legacyBackup.favorites.length,
+    );
     assert.deepEqual(
       b.sets.map((s) => [s.id, s.weight, s.reps]).sort(),
       legacyBackup.sets.map((s) => [s.id, s.weight, s.reps]).sort(),

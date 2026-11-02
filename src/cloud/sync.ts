@@ -206,9 +206,14 @@ export async function synchronize(
           sameRecord(queuedVersion({ kind: op.kind, ...sent }), cloudVersion),
         )
     ) {
-      r.rebase(op.id, remote.revision);
+      r.rebase(op.id, remote.revision, JSON.stringify(remote.payload));
       return "rebased" as const;
     }
+    // Phase 7.8D: the profile merges field by field when that's safe; the
+    // merged profile then goes up on top of the cloud's revision.
+    const merged = r.mergeProfileChange(op, remote);
+    if (merged === "matched") return "matched" as const;
+    if (merged === "merged") return "rebased" as const;
     r.conflict(op.id, op.payload, JSON.stringify(remote), remote.revision);
     return "conflict" as const;
   }
@@ -226,7 +231,13 @@ export async function synchronize(
       ) {
         r.settleConflict(c.id, remote.revision, op.payload);
         matched++;
-      }
+      } else if (
+        op &&
+        remote?.id === c.id &&
+        r.mergeProfileChange(op, remote, true)
+      )
+        // A saved profile conflict that now merges (Phase 7.8D).
+        matched++;
     }
     const blocked = new Set(r.conflicts().map((c) => c.id));
     // Every waiting change is tried on each manual sync: a sync the athlete

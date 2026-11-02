@@ -431,6 +431,11 @@ test("a cloud version from a newer Forge waits for an update (M3)", () => {
     NOW,
   );
   assert.equal(newer.update, true);
+  // Unchanged wording when the reason is exercises (Phase 7.8D).
+  assert.match(
+    newer.updateText,
+    /^The cloud version uses exercises from a newer version of Forge\./,
+  );
   assert.equal(
     conflictView(saved("favorite", {}, {}), undefined, knows, NOW).update,
     true,
@@ -447,6 +452,7 @@ test("a cloud version from a newer Forge waits for an update (M3)", () => {
     cloud: [],
     differs: ["Other details"],
     update: false,
+    updateText: "",
   });
 });
 

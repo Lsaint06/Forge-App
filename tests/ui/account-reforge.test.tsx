@@ -466,6 +466,116 @@ test("a conflict from a newer Forge can't be resolved either way until Forge is 
   }
 });
 
+// Phase 7.8D: the profile's card lists only what the athlete decides; the
+// rest merged already.
+test("a profile conflict shows only the setting the athlete decides", async () => {
+  const { r, db } = setup();
+  try {
+    cloud({ user: { id: "u1", email: "a@b.co" } });
+    // Synchronized once (the merge base), then changed on both sides.
+    r.acknowledge("profile", 1, r.outboxRow("profile")!.payload);
+    const remote = { ...r.profileDocument(), name: "Ada A", rest: 120 };
+    r.saveProfile({ name: "Ada B", calories: 2600 });
+    r.conflict(
+      "profile",
+      r.outboxRow("profile")!.payload,
+      JSON.stringify({
+        id: "profile",
+        kind: "profile",
+        payload: remote,
+        revision: 2,
+        deleted: false,
+      }),
+      2,
+    );
+    const view = await render(<Account />);
+    await flush();
+    const card = within(view.getByTestId("account-conflict"));
+    expect(card.getByText("Your profile")).toBeTruthy();
+    expect(card.getByText("Display name: Ada B")).toBeTruthy();
+    expect(card.getByText("Display name: Ada A")).toBeTruthy();
+    expect(card.getByText("Differs in: Display name")).toBeTruthy();
+    expect(card.queryByText(/Calorie goal|Default rest/)).toBeNull();
+  } finally {
+    db.close();
+  }
+});
+
+test("a favourite conflict names the exercise and both choices", async () => {
+  const { r, db } = setup();
+  try {
+    cloud({ user: { id: "u1", email: "a@b.co" } });
+    r.toggleFavorite("barbell-bench-press");
+    const id = "favorite:barbell-bench-press";
+    r.conflict(
+      id,
+      r.outboxRow(id)!.payload,
+      JSON.stringify({
+        id,
+        kind: "journal",
+        payload: {},
+        revision: 2,
+        deleted: true,
+      }),
+      2,
+    );
+    const view = await render(<Account />);
+    await flush();
+    const card = within(view.getByTestId("account-conflict"));
+    expect(
+      card.getByText(
+        `Favorite exercise · ${r.exercise("barbell-bench-press")!.name}`,
+      ),
+    ).toBeTruthy();
+    expect(card.getByText("Favorite on this phone")).toBeTruthy();
+    expect(
+      card.getByText("Removed from favorites on another device"),
+    ).toBeTruthy();
+    for (const name of ["Keep local version", "Use cloud version"])
+      expect(
+        card.getByRole("button", { name }).props.accessibilityState?.disabled,
+      ).not.toBe(true);
+  } finally {
+    db.close();
+  }
+});
+
+test("a conflict with a record saved by a newer Forge says why both choices wait", async () => {
+  const { r, db } = setup();
+  try {
+    cloud({ user: { id: "u1", email: "a@b.co" } });
+    const w = r.startWorkout("Push day");
+    r.addExercise(w.id, "barbell-bench-press");
+    r.finishWorkout(w.id);
+    const op = r.outboxRow(w.id)!;
+    const payload = JSON.parse(op.payload) as { workout: { effort?: number } };
+    payload.workout.effort = 8;
+    r.conflict(
+      w.id,
+      op.payload,
+      JSON.stringify({
+        id: w.id,
+        kind: "workout",
+        payload,
+        revision: 2,
+        deleted: false,
+      }),
+      2,
+    );
+    const view = await render(<Account />);
+    await flush();
+    const card = within(view.getByTestId("account-conflict"));
+    expect(
+      card.getByText(/was saved by a newer version of Forge/),
+    ).toBeTruthy();
+    for (const name of ["Keep local version", "Use cloud version"])
+      expect(
+        card.getByRole("button", { name }).props.accessibilityState.disabled,
+      ).toBe(true);
+  } finally {
+    db.close();
+  }
+});
 // Phase 7.8C: the last complete sync, for this phone's owner only.
 test("another account's sync history is never shown", async () => {
   const { r, db } = setup();

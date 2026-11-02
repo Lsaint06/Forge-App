@@ -38,6 +38,14 @@ function content(kind: string, payload: unknown) {
   if (kind === "template" || kind === "journal") {
     const { updatedAt: _saved, ...rest } = payload;
     void _saved;
+    // A favourite is only which exercise: when each phone starred it doesn't
+    // make two different records (Phase 7.8D).
+    if (kind === "journal" && rest.kind === "favorite") {
+      const { date: _day, createdAt: _starred, ...favorite } = rest;
+      void _day;
+      void _starred;
+      return favorite;
+    }
     return rest;
   }
   return payload;

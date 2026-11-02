@@ -30,7 +30,7 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 | Exercise catalog / metadata structure | Implemented and tested | 366 unique names/IDs, schema and search checks; coaching content not professionally reviewed |
 | Exercise instructions/safety metadata | Partially implemented | Authored general cues, many shared by movement class; advanced technique should be reviewed |
 | Exercise search/filter/sort | Implemented and tested | Token/muscle/equipment search tests; native list unverified |
-| Favorites/recent list/custom exercise editing | Implemented but unverified | Local persistence/UI; favorites do not cloud-sync |
+| Favorites/recent list/custom exercise editing | Implemented but unverified | Local persistence/UI; favorites sync with the account since Phase 7.8D |
 | Exercise history and best load/reps/e1RM | Implemented and tested | Record/analytics functions; history UI unverified |
 | Template prescriptions/start/duplicate | Implemented and tested | Actual template-to-workout integration test |
 | Purposeful hypertrophy rep ranges and frozen workout targets | Implemented and tested | Planner 5 range, duration, migration/backup/sync and native UI regressions; existing plans require an explicit rebuild to adopt new ranges |

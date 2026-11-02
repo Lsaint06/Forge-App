@@ -130,7 +130,15 @@ export const journalKinds = [
   "schedule",
   "program",
   "hydration",
+  "favorite",
 ] as const;
+/**
+ * A favourite exercise (Phase 7.8D): one synchronized record per exercise,
+ * always this id, so two phones starring the same exercise write the same
+ * record and unstarring leaves a deletion that every phone applies.
+ */
+export const FAVORITE = "favorite";
+export const favoriteId = (exerciseId: string) => `${FAVORITE}:${exerciseId}`;
 export const isKnownJournalKind = (kind: string) =>
   (journalKinds as readonly string[]).includes(kind);
 export const journalSchema = z.object({
@@ -179,6 +187,7 @@ export function validateJournal(
   }
   const n = (key: string, max: number, min = 0) =>
     z.number().finite().min(min).max(max).parse(data[key]);
+  if (kind === FAVORITE) z.string().min(1).max(190).parse(data.exerciseId);
   if (kind === "nutrition" || kind === "food") {
     z.string().trim().min(1).parse(data.name);
     for (const k of ["calories", "protein", "carbs", "fat"]) n(k, 20000);
@@ -276,4 +285,16 @@ export const backupSchema = z.object({
   journals: z.array(journalSchema).max(100000),
   customExercises: z.array(exerciseSchema).max(10000),
   favorites: z.array(z.string()).max(10000),
+  // Phase 7.8D: records saved by a newer Forge, exactly as the cloud had
+  // them. Versions before 7.8D skip this.
+  newerRecords: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(200),
+        kind: z.enum(["workout", "template", "journal"]),
+        payload: z.record(z.string(), z.unknown()),
+      }),
+    )
+    .max(100000)
+    .optional(),
 });

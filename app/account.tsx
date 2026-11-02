@@ -388,8 +388,16 @@ export default function Account() {
             </View>
           </ForgeCard>
           {conflicts.map((cf) => {
-            const view = conflictView(cf, r.outboxRow(cf.id), (id) =>
-              r.knowsExercise(id),
+            const view = conflictView(
+              cf,
+              r.outboxRow(cf.id),
+              (id) => r.knowsExercise(id),
+              undefined,
+              {
+                exerciseName: (id) => r.exercise(id)?.name,
+                profile:
+                  cf.id === "profile" ? r.profileConflictSides() : undefined,
+              },
             );
             return (
               <ForgeCard key={cf.id} gap={10} testID="account-conflict">
@@ -416,9 +424,7 @@ export default function Account() {
                 )}
                 {view.update && (
                   <FText variant="label" tone="accent">
-                    {
-                      "The cloud version uses exercises from a newer version of Forge. Update Forge on this phone to choose; both versions are kept until then."
-                    }
+                    {view.updateText}
                   </FText>
                 )}
                 <OutlineButton

@@ -27,3 +27,13 @@ ALTER TABLE template_exercises ADD COLUMN rep_max INTEGER;
 ALTER TABLE workout_exercises ADD COLUMN target TEXT;
 INSERT INTO migrations(version,applied_at) VALUES(2,CAST(strftime('%s','now') AS INTEGER)*1000);
 `;
+// Phase 7.8D, additive only (run inside the v3 transaction):
+// - sync_base: the cloud's copy of a record as this phone last saw it, at
+//   that revision; the profile's field-by-field merge compares against it.
+// - newer_records: cloud records saved by a newer Forge, kept exactly as
+//   received; this version shows them but never changes or deletes them.
+export const migrationV3 = `
+CREATE TABLE IF NOT EXISTS sync_base(id TEXT PRIMARY KEY,revision INTEGER NOT NULL,payload TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS newer_records(id TEXT PRIMARY KEY,kind TEXT NOT NULL,revision INTEGER NOT NULL,payload TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS favorites_seen(exercise_id TEXT PRIMARY KEY,revision INTEGER NOT NULL);
+`;

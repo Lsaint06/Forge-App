@@ -107,7 +107,8 @@ export type JournalKind =
   | "food"
   | "schedule"
   | "program"
-  | "hydration";
+  | "hydration"
+  | "favorite";
 export type Journal = {
   id: string;
   kind: JournalKind;
