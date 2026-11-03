@@ -22,17 +22,19 @@ Forge is moving from one Supabase project to two: a **development** project for 
 |---|---|---|---|---|
 | FORGE | unset or `production` | `com.lsaint06.forge` | `forge` | only `production` |
 | FORGE Dev | `development` | `com.lsaint06.forge.dev` | `forge-dev` | only `development` |
+| FORGE Dev, free Apple ID (iOS) | `development` and `FORGE_PERSONAL_TEAM=1` | `com.lsaint06.forge.dev.personal` | `forge-dev` | only `development` |
 | FORGE Preview | `preview` | `com.lsaint06.forge.preview` | `forge-preview` | either, named explicitly |
 
 - **Side by side.** Each app installs beside the others, and sign-in and email links (`<scheme>:///welcome`, `/sign-in`, `/account`) can only ever open the app that asked for them.
 - **Same look.** Name, IDs and scheme are all that differ: icon, splash, plugins and permissions are identical (tested in `tests/app-variants.test.ts`).
+- **Free Apple ID build.** `npm run dev:ios` (Phase 8.1) builds FORGE Dev for a free Apple ID's Personal Team under its own bundle ID, without Sign in with Apple, which Apple doesn't offer free Apple IDs (`docs/NATIVE_BUILDS.md`). The runtime treats it exactly as FORGE Dev.
 - **Unset means production.** With `APP_VARIANT` unset, the config is `app.json` exactly, which is what Expo Go uses today.
 
 ### The runtime rule (`src/cloud/environment.ts`)
 When a client is created, Forge checks which app is running and what it was given:
 - **Expo Go** (and tests and scripts): unchanged. With neither `EXPO_PUBLIC_FORGE_ENV` nor `EXPO_PUBLIC_SUPABASE_PROJECT_REF` set, today's behavior.
 - **Forge's own builds**, recognized by their native application ID:
-  - the app ID must be one of the three above;
+  - the app ID must be one of those above;
   - the JavaScript must carry that app's own link scheme;
   - the build must name its environment, and only its own (FORGE Dev: `development`; FORGE: `production`);
   - the environment must pin its project's ref, and the Supabase address must be exactly `https://<ref>.supabase.co`.
@@ -109,7 +111,7 @@ The rule is simple: the development project's values live only in `.env.forge-de
   2. If the consent screen is in **Testing**, add your throwaway Google accounts as test users.
   3. Paste the client ID and secret into the development project → Authentication → Providers → Google. The secret lives only in Supabase.
   4. Production's Google client isn't touched.
-- **Apple:** later (see `docs/NATIVE_BUILDS.md`). The development project's Apple provider will need `com.lsaint06.forge.dev` among its Client IDs.
+- **Apple:** later, with the paid Apple Developer Program (see `docs/NATIVE_BUILDS.md`). The development project's Apple provider will need `com.lsaint06.forge.dev` among its Client IDs. Leave Apple off until then: the free Apple ID build has no Sign in with Apple, so its button would appear and fail.
 
 ## Connect and check (Founder, then Forge)
 1. `npm run dev:check` runs read-only checks of the development project from `.env.forge-dev`. It creates and changes nothing, refuses any project Expo's own settings files point at, and prints no key or address. Expected:

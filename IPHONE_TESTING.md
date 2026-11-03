@@ -103,7 +103,19 @@ npx eas-cli build:configure
 npx eas-cli build --platform ios --profile preview
 ```
 
-For FORGE Dev, Forge's own development build (Phase 8), `expo-dev-client` is already installed. Follow [docs/NATIVE_BUILDS.md](docs/NATIVE_BUILDS.md):
+For FORGE Dev, Forge's own development build (Phase 8), `expo-dev-client` is already installed. Follow [docs/NATIVE_BUILDS.md](docs/NATIVE_BUILDS.md).
+
+**With a free Apple ID** (Phase 8.1): on a Mac with Xcode, with the iPhone connected by cable:
+
+```sh
+npm run dev:ios -- --check               # what this Mac still needs
+npm run dev:ios -- --release --no-cloud  # opens without the Mac; no accounts yet
+npm run dev:ios                          # Debug; then npm run start:dev
+```
+
+It builds under its own bundle ID, without Sign in with Apple (not offered to free Apple IDs), and must be rebuilt every 7 days.
+
+**With the paid Apple Developer Program:**
 
 ```sh
 npx eas-cli build --platform ios --profile development
@@ -112,9 +124,9 @@ npm run start:dev        # Metro for FORGE Dev: the development project only
 
 `npm start` keeps opening Expo Go (`expo start --go`). FORGE Dev connects only to the development Supabase project ([docs/DEVELOPMENT_ENVIRONMENT.md](docs/DEVELOPMENT_ENVIRONMENT.md)), and refuses to connect if Metro wasn't started with `npm run start:dev`. Set each environment's public Supabase variables in its EAS environment.
 
-A signed **physical-device** iOS preview/development build typically needs membership in the Apple Developer Program and device registration for internal/ad hoc distribution. EAS guides credential creation and signing. TestFlight/App Store distribution also requires Apple's developer program and App Store Connect setup. Do not confuse an iOS simulator build with an iPhone install; simulator use normally requires a Mac. Expo Go does not require your own Apple developer membership.
+A signed **physical-device** iOS preview/development build from EAS needs membership in the Apple Developer Program and device registration for internal/ad hoc distribution; a local Xcode build for your own iPhone doesn't (`npm run dev:ios`, above). EAS guides credential creation and signing. TestFlight/App Store distribution also requires Apple's developer program and App Store Connect setup. Do not confuse an iOS simulator build with an iPhone install; simulator use normally requires a Mac. Expo Go does not require your own Apple developer membership.
 
-No EAS build, Apple signing, UDID registration or TestFlight upload was run here. Do not share Apple credentials or private keys in chat or commit them.
+No EAS build, Xcode build, Apple signing, UDID registration or TestFlight upload was run here. Do not share Apple credentials or private keys in chat or commit them.
 
 ## Supabase and password recovery on the phone
 

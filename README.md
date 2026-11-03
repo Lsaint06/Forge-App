@@ -23,7 +23,7 @@ npm ci
 npm start
 ```
 
-Install the matching Expo Go version on your phone and follow [IPHONE_TESTING.md](IPHONE_TESTING.md). No Mac or Xcode is needed for the initial Expo Go workflow. FORGE Dev, Forge's own development build (Phase 8), is prepared: `npm run start:dev` starts Metro for it against the development Supabase project only, while `npm start` stays Expo Go. See [docs/NATIVE_BUILDS.md](docs/NATIVE_BUILDS.md) and [docs/DEVELOPMENT_ENVIRONMENT.md](docs/DEVELOPMENT_ENVIRONMENT.md). The GitHub repository is source code, not a running application or a public development server.
+Install the matching Expo Go version on your phone and follow [IPHONE_TESTING.md](IPHONE_TESTING.md). No Mac or Xcode is needed for the initial Expo Go workflow. FORGE Dev, Forge's own development build (Phase 8), is prepared: `npm run dev:ios` builds and installs it on an iPhone connected to a Mac with Xcode, with a free Apple ID (Phase 8.1), and `npm run start:dev` starts Metro for it against the development Supabase project only, while `npm start` stays Expo Go. See [docs/NATIVE_BUILDS.md](docs/NATIVE_BUILDS.md) and [docs/DEVELOPMENT_ENVIRONMENT.md](docs/DEVELOPMENT_ENVIRONMENT.md). The GitHub repository is source code, not a running application or a public development server.
 
 ```sh
 npm run typecheck
@@ -115,7 +115,7 @@ These values are compiled into the mobile bundle. **Never use a service-role key
 - **Expo Go is unchanged:** with both left empty, it connects as before.
 - **Forge's own builds must name their environment, and only their own:** FORGE Dev only `development`, the production app only `production`.
 - **Anything missing or mismatched** (another address, an unknown name, a name without a ref, JavaScript built for another app) shows "Accounts aren't available" and keeps the phone's training.
-- **The development project's values** live in `.env.forge-dev` (copied from `.env.forge-dev.example`, never committed). Only `npm run start:dev`, `npm run dev:check` and `npm run dev:verify-stage3` read it.
+- **The development project's values** live in `.env.forge-dev` (copied from `.env.forge-dev.example`, never committed). Only `npm run start:dev`, `npm run dev:check`, `npm run dev:verify-stage3` and `npm run dev:ios -- --release` read it.
 - **Custom domains:** one would need the check in `src/cloud/environment.ts` changed deliberately.
 
 Setup and verification: [docs/DEVELOPMENT_ENVIRONMENT.md](docs/DEVELOPMENT_ENVIRONMENT.md).

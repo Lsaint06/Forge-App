@@ -11,6 +11,8 @@
     "prestart:dev": "npm run branded:ensure",
     "dev:check": "tsx scripts/dev/check-project.ts",
     "dev:verify-stage3": "tsx scripts/dev/verify-stage3.ts",
+    "dev:ios": "tsx scripts/dev/run-ios.ts",
+    "predev:ios": "npm run branded:ensure",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "tsx --test tests/*.test.ts",

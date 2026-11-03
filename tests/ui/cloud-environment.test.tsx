@@ -173,6 +173,26 @@ test("FORGE Dev connects only to its development project, with its own JavaScrip
   expect(mockCreated).toEqual([]);
 });
 
+test("FORGE Dev from a free Apple ID connects only to the development project", () => {
+  inApp("com.lsaint06.forge.dev.personal", "forge-dev");
+  expect(build(development).session.authClient().misconfigured).toBe(false);
+  expect(mockCreated).toEqual([`https://${DEV}.supabase.co`]);
+  mockCreated.length = 0;
+  for (const env of [
+    todays,
+    {
+      ...todays,
+      EXPO_PUBLIC_FORGE_ENV: "production",
+      EXPO_PUBLIC_SUPABASE_PROJECT_REF: PROD,
+    },
+  ])
+    expect(build(env).session.authClient()).toEqual({
+      client: null,
+      misconfigured: true,
+    });
+  expect(mockCreated).toEqual([]);
+});
+
 test("the production app needs production named; an unknown app never connects", () => {
   inApp("com.lsaint06.forge", "forge");
   for (const env of [todays, development])
