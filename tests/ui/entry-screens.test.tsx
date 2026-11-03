@@ -149,6 +149,39 @@ describe("Welcome", () => {
     ).toBeTruthy();
   });
 
+  test("signed out mid-workout: Welcome says the workout is saved and leads back to it (Stage 4)", async () => {
+    const { WORKOUT_CONTINUES_TEXT, WORKOUT_FINISHED_SIGNED_OUT_TEXT } =
+      jest.requireActual("../../src/domain/presentation/account");
+    const welcome = (continuation: { text: string; canReturn: boolean }) => (
+      <EntryContext.Provider
+        value={{
+          entry: { kind: "continuing", user: me },
+          client: client() as never,
+          finishRecovery: () => {},
+          continuation,
+        }}
+      >
+        <Welcome />
+      </EntryContext.Provider>
+    );
+    const view = await render(
+      welcome({ text: WORKOUT_CONTINUES_TEXT, canReturn: true }),
+    );
+    expect(view.getByText(WORKOUT_CONTINUES_TEXT)).toBeTruthy();
+    await fireEvent.press(button(view, "Return to your workout"));
+    expect(router.push).toHaveBeenCalledWith("/workout");
+    // Signing in stays available.
+    expect(button(view, "Continue with Email")).toBeTruthy();
+    // Finished: said, with nothing to return to.
+    await view.rerender(
+      welcome({ text: WORKOUT_FINISHED_SIGNED_OUT_TEXT, canReturn: false }),
+    );
+    expect(view.getByText(WORKOUT_FINISHED_SIGNED_OUT_TEXT)).toBeTruthy();
+    expect(
+      view.queryByRole("button", { name: "Return to your workout" }),
+    ).toBeNull();
+  });
+
   test("after an account deletion, Welcome says what happened (Phase 7.8E)", async () => {
     const { DELETED_HERE_TEXT } = jest.requireActual(
       "../../src/domain/presentation/account",

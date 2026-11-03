@@ -700,3 +700,16 @@ export function conflictView(
     updateText,
   };
 }
+
+// Phase 7.8E, Stage 4: a workout kept going after the account service ended
+// this phone's sign-in without the athlete asking.
+
+/** Welcome, while the workout can be returned to. */
+export const WORKOUT_CONTINUES_TEXT =
+  "Your workout in progress is saved on this phone. Return to it to keep logging and finish it; sign in again afterwards to sync it.";
+/** Welcome, once it's finished. */
+export const WORKOUT_FINISHED_SIGNED_OUT_TEXT =
+  "Your workout is saved on this phone. Sign in with the same account to keep training and to sync it.";
+/** On the workout itself. */
+export const WORKOUT_SIGNED_OUT_NOTE =
+  "Signed out · Saved on this phone. Finish your workout, then sign in again to sync it.";

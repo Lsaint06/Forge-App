@@ -36,6 +36,14 @@ export type EntryFacts = {
   syncHistory?: boolean;
   /** The athlete finished first-time setup. */
   onboarded: boolean;
+  /**
+   * Signed out without asking (Phase 7.8E, Stage 4): the account whose
+   * sign-in the account service ended, while its own workout is in
+   * progress here (or was just finished, for its summary).
+   */
+  ended?: AuthUser;
+  /** `ended`'s workout can still be opened here (see continuedWorkout). */
+  continued?: boolean;
 };
 
 export type Entry =
@@ -43,6 +51,11 @@ export type Entry =
   | { kind: "unconfigured" }
   | { kind: "misconfigured" }
   | { kind: "signedOut" }
+  /**
+   * Signed out without asking mid-workout (Stage 4): only that account's
+   * own workout, and the way back in, can be opened. Nothing syncs.
+   */
+  | { kind: "continuing"; user: AuthUser }
   | { kind: "recovery"; user: AuthUser }
   /** This phone's data belongs to a different account. */
   | { kind: "otherAccount"; user: AuthUser }
@@ -56,7 +69,13 @@ export function entryState(f: EntryFacts): Entry {
   if (!f.configured) return { kind: "unconfigured" };
   if (f.session === undefined && !f.offline) return { kind: "initializing" };
   const user = f.session ?? f.offline;
-  if (!user) return { kind: "signedOut" };
+  if (!user) {
+    // The workout of the account whose sign-in just ended, never another
+    // account's: the phone's training must be that account's own.
+    if (f.ended && f.continued && f.owner === f.ended.id)
+      return { kind: "continuing", user: f.ended };
+    return { kind: "signedOut" };
+  }
   const offline = !f.session;
   if (f.recovering && !offline) return { kind: "recovery", user };
   // Another account's claim protects whatever it has here. A claim with
@@ -77,6 +96,7 @@ export function entryRoute(kind: Entry["kind"]) {
     case "setup":
       return "/onboarding" as const;
     case "signedOut":
+    case "continuing":
       return "/welcome" as const;
     default:
       return "/account-check" as const;

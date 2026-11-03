@@ -11,7 +11,14 @@ import {
 } from "../src/data/pending-deletes";
 import { useApp, useRepo } from "../src/state";
 import { AppStack } from "../src/auth/AppStack";
-import { entryState } from "../src/auth/entry";
+import { entryState, type AuthUser } from "../src/auth/entry";
+import {
+  continuation,
+  continuedWorkout,
+  endContinuation,
+  noteSessionEnded,
+  sessionEnded,
+} from "../src/auth/continuation";
 import { EntryContext, authClient, useAuthSession } from "../src/auth/session";
 import { tokenClient } from "../src/cloud/client";
 import {
@@ -28,7 +35,11 @@ import {
   pendingDeletion,
   resumeDeletion,
 } from "../src/auth/account-deletion";
-import { welcomeDeletionText } from "../src/domain/presentation/account";
+import {
+  WORKOUT_CONTINUES_TEXT,
+  WORKOUT_FINISHED_SIGNED_OUT_TEXT,
+  welcomeDeletionText,
+} from "../src/domain/presentation/account";
 import { cancelAllNotifications } from "../src/notifications";
 import { Loading, dark, useColors } from "../src/components/ui";
 import * as SplashScreen from "expo-splash-screen";
@@ -64,7 +75,16 @@ function Navigation() {
   const r = useRepo();
   // This phone's data is only consulted once someone is signed in.
   const user = auth.session ?? auth.offline;
-  const owner = user ? dataOwner(r) : undefined;
+  // Signed out without asking, mid-workout (Phase 7.8E, Stage 4): the
+  // account whose sign-in just ended, or, after a restart, the one a recent
+  // marker names for the same workout still in progress.
+  const restored = auth.session !== undefined;
+  const marker = !user && restored && !auth.ended ? continuation(r) : undefined;
+  const ended: AuthUser | undefined = user
+    ? undefined
+    : (auth.ended ?? (marker ? { id: marker.owner } : undefined));
+  const owner = user || ended ? dataOwner(r) : undefined;
+  const continued = ended ? continuedWorkout(r, ended.id) : undefined;
   const entry = entryState({
     configured: !!client,
     misconfigured,
@@ -75,7 +95,46 @@ function Navigation() {
     hasLocalData: user ? hasLocalData(r) : false,
     syncHistory: user && owner && owner !== user.id ? hasSyncHistory(r) : false,
     onboarded: user ? r.profile().onboarded : false,
+    ended,
+    continued: !!continued,
   });
+  // Recorded for a restart while it lasts; any sign-in ends it.
+  const endedId = auth.ended?.id;
+  useEffect(() => {
+    if (!endedId) return;
+    try {
+      noteSessionEnded(repository(), endedId);
+    } catch {
+      // Without the marker the workout still continues until Forge closes.
+    }
+  }, [endedId]);
+  const anyoneSignedIn = !!user;
+  useEffect(() => {
+    if (!anyoneSignedIn) return;
+    try {
+      endContinuation(repository());
+    } catch {
+      // A stale marker opens nothing: it must match the workout in progress.
+    }
+  }, [anyoneSignedIn]);
+  // After a continuation, signed out: that account's workout is still saved
+  // here. Only with a marker naming this phone's owner and a workout still on
+  // it: never on a new phone, after a deletion, or once it was discarded.
+  const lastEnded = entry.kind === "signedOut" ? sessionEnded(r) : undefined;
+  const continuationNotice =
+    entry.kind === "continuing"
+      ? {
+          text:
+            continued === "active"
+              ? WORKOUT_CONTINUES_TEXT
+              : WORKOUT_FINISHED_SIGNED_OUT_TEXT,
+          canReturn: continued === "active",
+        }
+      : lastEnded &&
+          lastEnded.owner === dataOwner(r) &&
+          r.workout(lastEnded.workout)
+        ? { text: WORKOUT_FINISHED_SIGNED_OUT_TEXT, canReturn: false }
+        : undefined;
   // Setup on an empty phone: what the athlete enters is theirs from the
   // start. Also replaces a claim with nothing behind it (P4).
   const claim =
@@ -165,6 +224,7 @@ function Navigation() {
         signOut: auth.signOut,
         notice: auth.notice,
         deletion,
+        continuation: continuationNotice,
         link: auth.link,
       }}
     >

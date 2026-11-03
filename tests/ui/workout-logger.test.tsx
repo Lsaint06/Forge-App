@@ -757,3 +757,39 @@ test("Next walks weight, reps and RIR, then the next set and exercise", () => {
   order.next("a1:weight");
   expect(focused).toEqual(["a1:rir"]);
 });
+
+test("signed out without asking mid-workout: one quiet note above the workout, and logging works as before (Stage 4)", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const workout = r.startWorkout("Freestyle");
+    const row = r.addExercise(workout.id, "barbell-bench-press");
+    r.addSet(row.id, { weight: 60, reps: 8 });
+    jest.mocked(useRepo).mockReturnValue(r);
+    const { EntryContext } = jest.requireActual("../../src/auth/session");
+    const { WORKOUT_SIGNED_OUT_NOTE } = jest.requireActual(
+      "../../src/domain/presentation/account",
+    );
+    const as = (kind: "ready" | "continuing") => (
+      <EntryContext.Provider
+        value={{
+          entry: { kind, user: { id: "user-a" }, offline: false },
+          client: null,
+          finishRecovery: () => {},
+        }}
+      >
+        <WorkoutScreen />
+      </EntryContext.Provider>
+    );
+    const view = await render(as("continuing"));
+    expect(view.getByTestId("workout-signed-out")).toBeTruthy();
+    expect(view.getByLabelText(WORKOUT_SIGNED_OUT_NOTE)).toBeTruthy();
+    // The workout itself is unchanged: its menu and Finish are there.
+    expect(view.getByLabelText("Workout options")).toBeTruthy();
+    expect(view.getByRole("button", { name: /Finish/ })).toBeTruthy();
+    // Signed in again (or never signed out): no note.
+    await view.rerender(as("ready"));
+    expect(view.queryByTestId("workout-signed-out")).toBeNull();
+  } finally {
+    db.close();
+  }
+});

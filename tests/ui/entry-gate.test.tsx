@@ -31,6 +31,7 @@ const mockCtx: {
     signOut?: (options?: { everywhere?: boolean }) => Promise<void>;
     notice?: string;
     deletion?: string;
+    continuation?: { text: string; canReturn: boolean };
   };
 } = {};
 jest.mock("../../src/auth/AppStack", () => {
@@ -622,6 +623,8 @@ test("a deletion confirmed before Forge closed is finished at launch, offline-sa
   expect(markerState()).toBeUndefined();
   expect(mockCtx.current!.deletion).toBe(text().DELETED_HERE_TEXT);
   expect(mockCtx.current!.notice).toBeUndefined();
+  // Nothing is left here, so nothing is said about a saved workout.
+  expect(mockCtx.current!.continuation).toBeUndefined();
 });
 
 /** A Supabase-shaped access token naming `sub` (never verified in tests). */
@@ -719,4 +722,219 @@ test("after a deletion, a new sign-in (even the same email) starts setup on the 
   expect(await kind(view)).toBe("setup");
   await waitFor(() => expect(owner()).toBe("user-new"));
   expect(mockRepo.r.setting("accountDeleted")).toBeFalsy();
+});
+
+// ---- Phase 7.8E, Stage 4: signed out without asking, mid-workout ----------
+
+const stage4 = () =>
+  jest.requireActual("../../src/domain/presentation/account") as {
+    WORKOUT_CONTINUES_TEXT: string;
+    WORKOUT_FINISHED_SIGNED_OUT_TEXT: string;
+  };
+const { SESSION_ENDED_NOTICE } = jest.requireActual("../../src/auth/session");
+const endedMarker = () =>
+  JSON.parse(mockRepo.r.setting("sessionEnded") ?? "null") as {
+    owner: string;
+    workout: string;
+  } | null;
+/** A's phone, set up, with A's workout in progress. */
+function midWorkout(owner = "user-a") {
+  mockRepo.r.saveProfile({ onboarded: true });
+  mockRepo.r.setSetting("cloudOwner", owner);
+  return mockRepo.r.startWorkout("Push day");
+}
+
+test("the sign-in ends without asking mid-workout: the workout continues, said plainly, nothing syncs", async () => {
+  const c = cloud();
+  const w = midWorkout();
+  const view = await root();
+  expect(await kind(view)).toBe("ready");
+  // The account service ends it (a refresh that failed for good).
+  await c.emit("SIGNED_OUT", null);
+  expect(await kind(view)).toBe("continuing");
+  await waitFor(() =>
+    expect(endedMarker()).toMatchObject({ owner: "user-a", workout: w.id }),
+  );
+  expect(mockCtx.current!.notice).toBe(SESSION_ENDED_NOTICE);
+  expect(mockCtx.current!.continuation).toEqual({
+    text: stage4().WORKOUT_CONTINUES_TEXT,
+    canReturn: true,
+  });
+  expect(mockRepo.r.active()?.id).toBe(w.id);
+  expect(owner()).toBe("user-a");
+  expect(synchronize).not.toHaveBeenCalled();
+  // Finished while signed out: its summary stays open, then Welcome says so.
+  await act(async () => {
+    mockRepo.r.finishWorkout(w.id);
+  });
+  await touch();
+  expect(await kind(view)).toBe("continuing");
+  expect(mockCtx.current!.continuation).toEqual({
+    text: stage4().WORKOUT_FINISHED_SIGNED_OUT_TEXT,
+    canReturn: false,
+  });
+  // Back with the same account: everything as it was, the marker gone.
+  await c.emit("SIGNED_IN", { user: me });
+  expect(await kind(view)).toBe("ready");
+  await waitFor(() => expect(endedMarker()).toBeNull());
+  expect(mockRepo.r.workouts()).toHaveLength(1);
+});
+
+test("a sign-out the athlete asks for never continues the workout", async () => {
+  cloud();
+  midWorkout();
+  const view = await root();
+  expect(await kind(view)).toBe("ready");
+  await act(async () => mockCtx.current!.signOut!());
+  expect(await kind(view)).toBe("signedOut");
+  expect(endedMarker()).toBeNull();
+  expect(mockCtx.current!.notice).toBeUndefined();
+  expect(mockCtx.current!.continuation).toBeUndefined();
+  // The workout is kept for the next sign-in.
+  expect(mockRepo.r.active()).toBeTruthy();
+});
+
+test("ended without asking but nothing in progress: Welcome says so, nothing continues", async () => {
+  const c = cloud();
+  mockRepo.r.saveProfile({ onboarded: true });
+  mockRepo.r.setSetting("cloudOwner", "user-a");
+  const view = await root();
+  expect(await kind(view)).toBe("ready");
+  await c.emit("SIGNED_OUT", null);
+  expect(await kind(view)).toBe("signedOut");
+  expect(mockCtx.current!.notice).toBe(SESSION_ENDED_NOTICE);
+  expect(endedMarker()).toBeNull();
+});
+
+test("another account's workout never continues for the account whose sign-in ended", async () => {
+  const c = cloud();
+  midWorkout("user-b");
+  const view = await root();
+  expect(await kind(view)).toBe("otherAccount");
+  await c.emit("SIGNED_OUT", null);
+  expect(await kind(view)).toBe("signedOut");
+  expect(endedMarker()).toBeNull();
+  expect(owner()).toBe("user-b");
+});
+
+test("after a restart: the same workout continues within 12 hours, and only that one", async () => {
+  const signedOut = async () => ({ data: { session: null }, error: null });
+  const w = midWorkout();
+  const mark = (workout: string, at: number) =>
+    mockRepo.r.setSetting(
+      "sessionEnded",
+      JSON.stringify({ owner: "user-a", workout, at }),
+    );
+  mark(w.id, Date.now() - 60_000);
+  cloud(signedOut);
+  let view = await root();
+  expect(await kind(view)).toBe("continuing");
+  expect(mockCtx.current!.continuation?.canReturn).toBe(true);
+  await view.unmount();
+  // Too long ago, or another workout: signed out like any other time.
+  for (const [workout, at] of [
+    [w.id, Date.now() - 13 * 3600_000],
+    ["another-workout", Date.now() - 60_000],
+  ] as const) {
+    mark(workout, at);
+    cloud(signedOut);
+    view = await root();
+    expect(await kind(view)).toBe("signedOut");
+    await view.unmount();
+  }
+});
+
+test("repeated changes of account keep the workout its owner's: another sign-in ends the continuation", async () => {
+  const c = cloud();
+  const w = midWorkout();
+  const view = await root();
+  await c.emit("SIGNED_OUT", null);
+  expect(await kind(view)).toBe("continuing");
+  await waitFor(() => expect(endedMarker()).not.toBeNull());
+  // Someone else signs in: A's training stays locked, and the marker ends.
+  await c.emit("SIGNED_IN", { user: { id: "user-b", email: "b@example.com" } });
+  expect(await kind(view)).toBe("otherAccount");
+  await waitFor(() => expect(endedMarker()).toBeNull());
+  // And their sign-in ending never reopens A's workout.
+  await c.emit("SIGNED_OUT", null);
+  expect(await kind(view)).toBe("signedOut");
+  expect(owner()).toBe("user-a");
+  expect(mockRepo.r.active()?.id).toBe(w.id);
+  // A again: everything as it was.
+  await c.emit("SIGNED_IN", { user: me });
+  expect(await kind(view)).toBe("ready");
+});
+
+test("Welcome mentions a saved workout only when there is one: not on a new phone, unowned training, or once it's discarded", async () => {
+  const signedOut = async () => ({ data: { session: null }, error: null });
+  // A new phone: no owner, no marker.
+  cloud(signedOut);
+  let view = await root();
+  expect(await kind(view)).toBe("signedOut");
+  expect(mockCtx.current!.continuation).toBeUndefined();
+  await view.unmount();
+  // Training from before accounts, owned by nobody.
+  mockRepo.r.saveProfile({ onboarded: true });
+  const unowned = mockRepo.r.startWorkout("Unowned");
+  cloud(signedOut);
+  view = await root();
+  expect(await kind(view)).toBe("signedOut");
+  expect(mockCtx.current!.continuation).toBeUndefined();
+  await view.unmount();
+  mockRepo.r.deleteWorkout(unowned.id);
+  // A's continued workout, its 12 hours over: still saved here, and said so.
+  const w = midWorkout();
+  mockRepo.r.setSetting(
+    "sessionEnded",
+    JSON.stringify({
+      owner: "user-a",
+      workout: w.id,
+      at: Date.now() - 13 * 3600_000,
+    }),
+  );
+  cloud(signedOut);
+  view = await root();
+  expect(await kind(view)).toBe("signedOut");
+  expect(mockCtx.current!.continuation).toEqual({
+    text: stage4().WORKOUT_FINISHED_SIGNED_OUT_TEXT,
+    canReturn: false,
+  });
+  await view.unmount();
+  // A marker naming another account says nothing about A's workout.
+  mockRepo.r.setSetting(
+    "sessionEnded",
+    JSON.stringify({ owner: "user-b", workout: w.id, at: Date.now() }),
+  );
+  cloud(signedOut);
+  view = await root();
+  expect(await kind(view)).toBe("signedOut");
+  expect(mockCtx.current!.continuation).toBeUndefined();
+  await view.unmount();
+  // Discarded: nothing is saved, so nothing is said.
+  mockRepo.r.setSetting(
+    "sessionEnded",
+    JSON.stringify({ owner: "user-a", workout: w.id, at: Date.now() }),
+  );
+  mockRepo.r.deleteWorkout(w.id);
+  cloud(signedOut);
+  view = await root();
+  expect(await kind(view)).toBe("signedOut");
+  expect(mockCtx.current!.continuation).toBeUndefined();
+  await view.unmount();
+});
+
+test("signing out of all devices from this phone, mid-workout, never continues it here", async () => {
+  const c = cloud();
+  const w = midWorkout();
+  const view = await root();
+  expect(await kind(view)).toBe("ready");
+  await act(async () => mockCtx.current!.signOut!({ everywhere: true }));
+  expect(c.auth.signOut).toHaveBeenCalledWith({ scope: "global" });
+  expect(await kind(view)).toBe("signedOut");
+  expect(endedMarker()).toBeNull();
+  expect(mockCtx.current!.notice).not.toBe(SESSION_ENDED_NOTICE);
+  expect(mockCtx.current!.continuation).toBeUndefined();
+  // Kept for the next sign-in, as with any sign-out.
+  expect(mockRepo.r.active()?.id).toBe(w.id);
+  expect(owner()).toBe("user-a");
 });

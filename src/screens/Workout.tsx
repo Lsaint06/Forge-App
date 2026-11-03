@@ -62,6 +62,8 @@ import { ReorderSheet } from "../components/ReorderSheet";
 import { hasValues } from "../domain/finish";
 import { goBack } from "../navigation";
 import { forge } from "../theme";
+import { useEntry } from "../auth/session";
+import { WORKOUT_SIGNED_OUT_NOTE } from "../domain/presentation/account";
 import {
   MenuSquare,
   ProgressCard,
@@ -317,9 +319,41 @@ function KeyboardBar() {
  * the exercises, and a dock with the rest timer and Finish Workout. Every
  * edit saves immediately, so leaving and resuming never loses logged sets.
  */
+/**
+ * Signed out without asking, mid-workout (Phase 7.8E, Stage 4): said once,
+ * quietly, above the workout. Nothing else on the screen changes.
+ */
+function SignedOutNote() {
+  const c = useColors();
+  return (
+    <View
+      testID="workout-signed-out"
+      accessible
+      accessibilityLabel={WORKOUT_SIGNED_OUT_NOTE}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: forge.radii.tile,
+        borderWidth: forge.border.card,
+        borderColor: c.cardBorder,
+        backgroundColor: c.cardRaised,
+      }}
+    >
+      <Ionicons name="cloud-offline-outline" size={16} color={c.text2} />
+      <FText variant="label" tone="secondary" style={{ flex: 1 }}>
+        {WORKOUT_SIGNED_OUT_NOTE}
+      </FText>
+    </View>
+  );
+}
+
 export default function WorkoutScreen() {
   const r = useRepo();
   const c = useColors();
+  const signedOut = useEntry().entry.kind === "continuing";
   const { id: workoutId } = useLocalSearchParams<{ id?: string }>();
   // Once finished, the workout is no longer "active": keep showing it while
   // the finish sheet shows the summary.
@@ -591,6 +625,7 @@ export default function WorkoutScreen() {
               keyboardDismissMode="interactive"
               automaticallyAdjustKeyboardInsets
             >
+              {signedOut && <SignedOutNote />}
               <WorkoutHero
                 overline={overline}
                 overlineTone={

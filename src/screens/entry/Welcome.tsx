@@ -28,7 +28,7 @@ import { AppleButton, GoogleButton } from "./ProviderButtons";
 export default function Welcome() {
   // A reset link that expired lands here (signed out); say what happened.
   const linkStatus = useAuthLinkStatus();
-  const { client, notice, deletion } = useEntry();
+  const { client, notice, deletion, continuation } = useEntry();
   const options = useSocialOptions();
   const [busy, setBusy] = useState<SocialProvider>();
   const [finishing, setFinishing] = useState(false);
@@ -59,6 +59,14 @@ export default function Welcome() {
     <EntryFrame
       footer={
         <>
+          {continuation?.canReturn && (
+            <OutlineButton
+              title="Return to your workout"
+              icon="barbell-outline"
+              tone="ember"
+              onPress={() => router.push("/workout")}
+            />
+          )}
           {options.apple && (
             <AppleButton
               disabled={!!busy}
@@ -112,6 +120,7 @@ export default function Welcome() {
         </FText>
         <EntryMessage text={notice} />
         <EntryMessage text={deletion} />
+        <EntryMessage text={continuation?.text} />
         <EntryMessage text={linkStatus?.text} tone={linkStatus?.tone} />
         <EntryMessage
           text={finishing ? "Signing you in…" : undefined}

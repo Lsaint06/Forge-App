@@ -1,6 +1,6 @@
 # Phase 7.8E: Account lifecycle and server hardening
 
-Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Stage 0 (redirect security) is verified and complete on the live project. Stage 1 is committed and pushed (`3409972`, `13eb666`). Stage 2 (safe account deletion, section 9) is committed and pushed (`7faef77`), followed by the founder-approved corrections from the final Stage 2 review (section 10), committed and pushed as `7204da4`. Stage 3 (server hardening, section 11) is committed locally and not pushed; nothing is deployed.
+Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Stage 0 (redirect security) is verified and complete on the live project. Stage 1 is committed and pushed (`3409972`, `13eb666`). Stage 2 (safe account deletion, section 9) is committed and pushed (`7faef77`), followed by the founder-approved corrections from the final Stage 2 review (section 10), committed and pushed as `7204da4`. Stages 3–4 (sections 11–12) are committed locally, one commit per stage, and not pushed; nothing is deployed.
 
 **Unchanged in Stage 1:** Supabase SQL, row-level security, functions and the live project's settings; sign-in providers and their flows; account ownership rules; the sync engine and the 7.8B–7.8D safeguards; the splash screen and screen designs (one new action and some wording only).
 
@@ -598,3 +598,89 @@ The baseline tests (`tests/server-security.test.ts`, `tests/postgres.test.ts`) s
 - **Recovery links count as a recent sign-in.** A password-reset link proves the inbox (by design).
 - **Freshness isn't knowledge of a password.** A recent Google sign-in can come from one tap when the browser is signed in.
 - **Default privileges.** Supabase grants new objects to anon by default; future migrations must revoke as this one does.
+
+## 12. Stage 4: keeping a workout going when the sign-in ends (implemented)
+
+### Goal
+A sign-in that ends without the athlete asking must never cost them the workout in progress, and must never weaken ownership (E4).
+
+### The states, told apart
+| State | What Forge does |
+|---|---|
+| No connection | Unchanged: the stored sign-in keeps training open (`ready`, offline); sync needs a connection |
+| Access token expired | Unchanged: Supabase refreshes it on its own |
+| Refresh fails for good, or the session is revoked or deleted elsewhere (sign out of all devices, account deleted) | **New:** if that account's own workout is in progress here, it continues (`continuing`); otherwise Welcome says "Your sign-in ended on this phone…" |
+| Sign out (this phone), Sign out of all devices (here), Delete Forge account | Asked for: never continues the workout. The workout stays saved for the next sign-in |
+| Another account's training on this phone | Unchanged: the account check holds it |
+| Recent sign-in required (deletion) | Unchanged: "Confirm it's you" (Stages 2–3) |
+
+### Design
+- **Telling the cases apart (`src/auth/session.ts`).** `useAuthSession` marks each sign-out the athlete asks for, and reads that mark the moment the account service's `SIGNED_OUT` arrives. Any other `SIGNED_OUT` ends the sign-in unexpectedly, and the account it belonged to is kept as `ended`. Any sign-in clears it.
+- **The entry state (`src/auth/entry.ts`).** `continuing` applies only when nobody is signed in, the phone's training belongs to `ended`, and `ended`'s workout is in progress. A workout just finished stays open for 10 minutes, so its summary can be read. Another account's training never qualifies.
+- **The marker (`src/auth/continuation.ts`).** A marker holds the owner's ID, the workout's ID and the time (never a token or email). It lets that same workout continue after an app restart for 12 hours. Any sign-in ends it; a different or finished workout, another owner, or an expired marker opens nothing.
+- **Routes (`src/auth/AppStack.tsx`).** While continuing, only the workout and the sign-in screens open; everything else leads to Welcome. The tabs stay in the stack, so the open workout isn't rebuilt (no lost input or rest timer), but a guard around them (`TabsGuard`) shows nothing and leads to Welcome if they're reached.
+- **Words.**
+  - **Workout screen:** one quiet note above it: "Signed out · Saved on this phone. Finish your workout, then sign in again to sync it." Nothing else on the screen changed.
+  - **Welcome:** says the workout is saved, with **Return to your workout** while it's in progress.
+- **Sync.** It needs Account & privacy, which only a signed-in owner reaches, so nothing syncs while continuing. Back with the same account, one sync uploads the workout once (revision-checked). Another account can't sync it, as before.
+
+### Files
+- **New:** `src/auth/continuation.ts`, `tests/continuation.test.ts`.
+- **Changed:**
+  - `src/auth/session.ts`, `src/auth/entry.ts`, `src/auth/AppStack.tsx`, `app/(tabs)/_layout.tsx` (wrapped in `TabsGuard`), `app/_layout.tsx`;
+  - `src/screens/entry/Welcome.tsx`, `src/screens/Workout.tsx` (the note);
+  - `src/domain/presentation/account.ts`;
+  - tests: `tests/ui/entry-routing.test.tsx`, `entry-gate.test.tsx`, `entry-screens.test.tsx`, `workout-logger.test.tsx`.
+
+### Verification
+- **Logic (7):**
+  - the entry decision;
+  - the marker (written only for the owner's workout in progress; no secret);
+  - restart within 12 hours, only for the same workout, owner and clock;
+  - the finished-summary grace;
+  - nothing changes ownership;
+  - back with the same account, one sync uploads everything once and the next uploads nothing;
+  - another account's sync is refused, and nothing moves.
+- **Routing, with real Expo Router (4):**
+  - signed out on the workout: the same screen stays mounted (nothing typed is lost), then back to `ready` still on it;
+  - while continuing, Home, history, account, a tab, the account check and setup all lead to Welcome; sign-in and the workout open;
+  - Back from the workout leads to Welcome, never Home;
+  - another account's sign-in holds the account check.
+- **Root layout and Supabase events (8):**
+  - an unexpected end mid-workout continues it, with the notice, the marker, no sync, a summary after finishing, and the same account back to `ready`;
+  - the athlete's own sign-out never continues it, nor a sign-out of all devices from this phone;
+  - nothing in progress: Welcome only;
+  - another account's workout never continues;
+  - a restart within 12 hours continues only the same workout;
+  - repeated changes of account keep the workout its owner's;
+  - Welcome mentions a saved workout only when there is one (fixed in the independent review, section 14).
+- **The real supabase-js client (6, `tests/ui/session-events.test.tsx`).** Forge's session hook runs on the client version Forge ships, with a simulated account service:
+  - Sign out, Sign out of all devices and an offline sign-out all count as asked: nothing continues, and the offline one doesn't come back.
+  - A refused renewal ends the sign-in unexpectedly once its access token has expired; it is kept while the token still works.
+  - `session_not_found` ends it at once.
+  - A renewal that fails only for want of a connection ends nothing.
+  - Signing in again clears it.
+- **Screens (2):** the workout note (and logging unchanged); Welcome's text and Return button.
+- **Deliberate breaks:** four, each caught and restored byte-for-byte:
+  - the owner check dropped (caught by the logic tests; the layout's own owner check is a second guard);
+  - the athlete's sign-out treated as unexpected;
+  - the tabs guard off;
+  - no time limit.
+
+The final review added four more for the sign-out classification (section 16), all caught; one was caught only by the real-client tests.
+
+### Known limits
+- **Ended while Forge was closed.** If the sign-in ends while Forge is closed (for example, revoked overnight), the next launch is signed out as usual. Forge can't tell whose sign-in ended once the account service has removed it. The workout is safe, and continues after signing in.
+- **A finished workout in a shared session** stays its owner's: it uploads only after that account signs in again.
+- **Up to one access-token lifetime.**
+  - When a sign-in is ended elsewhere (Sign out of all devices on another phone), this phone's access token keeps working until it expires: supabase-js 2.118 keeps a sign-in whose renewal is refused while its token is still valid.
+  - The workout continues from when supabase-js ends the sign-in: within about a minute of the token's expiry (an hour by default) while Forge is open, or at once if the account service reports the session gone.
+- **The phone's clock.** The 12-hour and 10-minute windows use the phone's clock. Changing it only lengthens or shortens access to the owner's own workout on that phone.
+
+### Physical-device checklist (iPhone)
+1. Start a workout. End the sign-in elsewhere: **Sign out of all devices** on a second device signed in to the same throwaway account. Keep Forge open until the access token expires (an hour by default). Expected: the workout stays open with the note; sets can be logged and the workout finished.
+2. Same, mid-rest: the rest timer keeps running.
+3. Force-quit mid-workout after the sign-in ended; reopen within 12 hours. Expected: Welcome, with **Return to your workout**.
+4. Sign in with the same account: the workout is there; sync uploads it once.
+5. Sign in with another account instead: the account check holds; the workout isn't visible.
+6. Airplane mode mid-workout (no sign-in loss): training continues as before; sync says it needs a connection.

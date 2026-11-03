@@ -119,7 +119,18 @@ export type AuthSession = {
   session: AuthUser | null | undefined;
   offline?: AuthUser;
   recovering: boolean;
+  /**
+   * The account whose sign-in the account service ended without the
+   * athlete asking (Phase 7.8E, Stage 4): a refresh that failed for good, a
+   * sign-out of all devices elsewhere, a deleted account. Cleared by any
+   * sign-in and by every sign-out the athlete asks for.
+   */
+  ended?: AuthUser;
 };
+
+/** Said on Welcome after the account service ended this phone's sign-in. */
+export const SESSION_ENDED_NOTICE =
+  "Your sign-in ended on this phone. Your training is still here: sign in with the same account to keep using it and to sync.";
 
 /** The current session, kept up to date by the account service's events. */
 export function useAuthSession(client: SupabaseClient | null) {
@@ -133,6 +144,9 @@ export function useAuthSession(client: SupabaseClient | null) {
   // SIGNED_IN comes before setSession resolves) is a recovery, so neither
   // setup nor Home is shown on the way to a new password.
   const recoveryPending = useRef(false);
+  // A sign-out the athlete asked for is in progress: its SIGNED_OUT isn't an
+  // unexpected end of the sign-in (Stage 4).
+  const askedToSignOut = useRef(false);
   useEffect(() => {
     if (!client) return;
     let active = true;
@@ -158,6 +172,10 @@ export function useAuthSession(client: SupabaseClient | null) {
     const { data } = client.auth.onAuthStateChange((event, session) => {
       if (event === "INITIAL_SESSION") return;
       if (session) setNotice(undefined);
+      // Read now, not when React applies the update: the sign-out the
+      // athlete asked for may have finished by then.
+      const unexpected = event === "SIGNED_OUT" && !askedToSignOut.current;
+      if (unexpected) setNotice(SESSION_ENDED_NOTICE);
       setState((s) => ({
         session: session ? toUser(session.user) : null,
         // A real session replaces offline use; signing out ends it.
@@ -169,6 +187,14 @@ export function useAuthSession(client: SupabaseClient | null) {
             : event === "SIGNED_OUT"
               ? false
               : s.recovering,
+        // Only a known sign-in can end unexpectedly; any sign-in clears it.
+        ended: session
+          ? undefined
+          : unexpected
+            ? (s.session ?? s.offline ?? s.ended)
+            : event === "SIGNED_OUT"
+              ? undefined
+              : s.ended,
       }));
     });
     return () => {
@@ -231,11 +257,18 @@ export function useAuthSession(client: SupabaseClient | null) {
       if (!client) return;
       setNotice(undefined);
       const everywhere = options.everywhere === true;
-      const { error } = await client.auth
-        .signOut({ scope: everywhere ? "global" : "local" })
-        .catch((e: unknown) => ({ error: e }));
+      askedToSignOut.current = true;
+      let error: unknown;
+      try {
+        ({ error } = await client.auth
+          .signOut({ scope: everywhere ? "global" : "local" })
+          .catch((e: unknown) => ({ error: e })));
+      } finally {
+        askedToSignOut.current = false;
+      }
       if (!error) {
         if (everywhere) setNotice(ALL_DEVICES_SIGN_OUT_NOTICE);
+        setState((s) => ({ ...s, ended: undefined }));
         return;
       }
       const removeHere = options.deleted || isAuthRetryableFetchError(error);
@@ -273,6 +306,11 @@ export const EntryContext = createContext<{
   notice?: string;
   /** What this phone knows about an account deletion, for Welcome. */
   deletion?: string;
+  /**
+   * A workout kept going after an unexpected sign-out (Stage 4): what to
+   * say on Welcome, and whether it can be returned to.
+   */
+  continuation?: { text: string; canReturn: boolean };
   /** The latest link Forge was opened with (email confirmation, reset). */
   link?: string;
 }>({
