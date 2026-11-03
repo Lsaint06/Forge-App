@@ -725,3 +725,163 @@ test("a caller's temporary objects can't stand in for the types the functions us
     await db.close();
   }
 });
+
+// ---- Stage 6: adversarial requests against the hardened schema ----
+
+test("Stage 6: direct changes to records are refused for every API role; another account's rows stay invisible", async () => {
+  const db = await supabase();
+  try {
+    await write(db, as(A), "shared");
+    await write(db, as(B), "shared");
+    const attempts = [
+      `INSERT INTO public.forge_records(user_id, id, kind, payload) VALUES ('${A}', 'direct', 'journal', '{}')`,
+      `INSERT INTO public.forge_records(user_id, id, kind, payload) VALUES ('${B}', 'planted', 'journal', '{}')`,
+      `UPDATE public.forge_records SET payload = '{"x":1}'`,
+      `UPDATE public.forge_records SET user_id = '${A}' WHERE id = 'shared'`,
+      "DELETE FROM public.forge_records",
+      "TRUNCATE public.forge_records",
+      // Only reading is granted, so no lock that could block the table.
+      "LOCK TABLE public.forge_records IN ACCESS EXCLUSIVE MODE",
+    ];
+    for (const caller of [as(A), anon])
+      for (const sql of attempts)
+        await assert.rejects(
+          request(db, caller, sql),
+          /permission denied/i,
+          sql,
+        );
+    // A asking for B's row by its owner and ID: nothing.
+    assert.deepEqual(
+      await request(
+        db,
+        as(A),
+        `SELECT id FROM public.forge_records WHERE user_id = '${B}' AND id = 'shared'`,
+      ),
+      [],
+    );
+    await intact(db, A);
+    await intact(db, B);
+  } finally {
+    await db.close();
+  }
+});
+
+test("Stage 6: hostile record IDs and kinds are stored as data, or refused whole", async () => {
+  const db = await supabase();
+  try {
+    const hostile = [
+      "x'); DROP TABLE public.forge_records; --",
+      "' OR '1'='1",
+      '\\"; SELECT pg_sleep(1); --',
+      "🏋️ José",
+      "a".repeat(200),
+    ];
+    for (const id of hostile)
+      assert.deepEqual(
+        (await write(db, as(A), id))[0]!.result,
+        { revision: 1 },
+        id,
+      );
+    const ids = await request<{ id: string }>(
+      db,
+      as(A),
+      "SELECT id FROM public.forge_records",
+    );
+    assert.deepEqual(ids.map((r) => r.id).sort(), [...hostile].sort());
+    const refused = (sql: string, params: unknown[], pattern: RegExp) =>
+      assert.rejects(request(db, as(A), sql, params), pattern, sql);
+    const writeSql =
+      "SELECT public.forge_write($1, $2, $3::jsonb, $4, false) AS result";
+    await refused(
+      writeSql,
+      ["a".repeat(201), "journal", "{}", 0],
+      /Invalid identity/,
+    );
+    await refused(writeSql, ["", "journal", "{}", 0], /Invalid identity/);
+    await refused(
+      writeSql,
+      ["k", "journal'; --", "{}", 0],
+      /violates check constraint/,
+    );
+    await refused(writeSql, ["k", "journal", "{}", -1], /Invalid revision/);
+    await refused(
+      writeSql,
+      ["big", "journal", JSON.stringify({ x: "a".repeat(5_242_880) }), 0],
+      /violates check constraint/,
+    );
+    // A record's kind can't change, so it can't be smuggled into another one.
+    await refused(
+      writeSql,
+      [hostile[0], "workout", "{}", 1],
+      /Record kind cannot change/,
+    );
+    assert.equal(await count(db, "public.forge_records", A), hostile.length);
+    await intact(db, B, 0);
+  } finally {
+    await db.close();
+  }
+});
+
+test("Stage 6: a deleted account's still-valid token can't write or read anything", async () => {
+  const db = await supabase();
+  try {
+    await write(db, as(A), "x");
+    await write(db, as(B), "x");
+    const fresh = as(A, { amr: [{ method: "password", timestamp: now() }] });
+    await deleteAccount(db, fresh);
+    assert.equal(await count(db, "auth.users", A), 0);
+    // The same token, before it expires.
+    await assert.rejects(write(db, fresh, "after"), /violates foreign key/);
+    assert.deepEqual(
+      await request(db, fresh, "SELECT id FROM public.forge_records"),
+      [],
+    );
+    assert.equal(await count(db, "public.forge_records", A), 0);
+    await intact(db, B);
+  } finally {
+    await db.close();
+  }
+});
+
+test("Stage 6: only Forge's two functions are exposed, none can rewrite a request's claims, and reading is the only policy", async () => {
+  const db = await supabase();
+  try {
+    const { rows: functions } = await db.query<{
+      name: string;
+      source: string;
+      anon: boolean;
+    }>(
+      `SELECT p.proname AS name, p.prosrc AS source,
+         has_function_privilege('anon', p.oid, 'EXECUTE') AS anon
+       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'public' ORDER BY 1`,
+    );
+    assert.deepEqual(
+      functions.map((f) => [f.name, f.anon]),
+      [
+        ["forge_delete_account", false],
+        ["forge_write", false],
+      ],
+    );
+    for (const f of functions)
+      assert.doesNotMatch(
+        f.source,
+        /set_config|request\.jwt|\bset\s+(local\s+)?role\b|\bexecute\b/i,
+        f.name,
+      );
+    const { rows: policies } = await db.query<{
+      name: string;
+      command: string;
+      roles: string;
+    }>(
+      `SELECT polname AS name, polcmd::text AS command,
+         polroles::regrole[]::text AS roles
+       FROM pg_policy WHERE polrelid = 'public.forge_records'::regclass`,
+    );
+    assert.deepEqual(policies, [
+      { name: "Read owned records", command: "r", roles: "{authenticated}" },
+    ]);
+  } finally {
+    await db.close();
+  }
+});

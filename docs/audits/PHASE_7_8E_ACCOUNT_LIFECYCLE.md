@@ -1,10 +1,16 @@
 # Phase 7.8E: Account lifecycle and server hardening
 
-Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Stage 0 (redirect security) is verified and complete on the live project. Stage 1 is committed and pushed (`3409972`, `13eb666`). Stage 2 (safe account deletion, section 9) is committed and pushed (`7faef77`), followed by the founder-approved corrections from the final Stage 2 review (section 10), committed and pushed as `7204da4`. Stages 3–5 (sections 11–13) are committed locally, one commit per stage, and not pushed; nothing is deployed or activated.
+Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Stage 0 (redirect security) is verified and complete on the live project. Stage 1 is committed and pushed (`3409972`, `13eb666`). Stage 2 (safe account deletion, section 9) is committed and pushed (`7faef77`), followed by the founder-approved corrections from the final Stage 2 review (section 10), committed and pushed as `7204da4`. Stages 3–6 (sections 11–17) are committed locally, one commit per stage (section 16), and not pushed; nothing is deployed or activated.
 
 **Unchanged in Stage 1:** Supabase SQL, row-level security, functions and the live project's settings; sign-in providers and their flows; account ownership rules; the sync engine and the 7.8B–7.8D safeguards; the splash screen and screen designs (one new action and some wording only).
 
 **Unchanged in Stage 2:** Supabase SQL (the migration is byte-identical), the live project and its dashboard, sign-in providers and Apple, PKCE (not started), the entry gate's ownership rules, the sync engine (`src/cloud/sync.ts`), the splash screen, REFORGE components, Forge Paths, workouts, Nutrition and Progress. No live account was deleted or touched.
+
+**Unchanged in Stages 3–6:**
+- **Live project:** the project, its dashboard settings and its users. The baseline migration is byte-identical; the hardening migration is new and **not deployed**.
+- **Sign-in:** sign-in flows and providers. PKCE and email codes are prepared but inactive.
+- **Untouched:** Apple; the sync engine; the splash screen and REFORGE components; Forge Paths, Nutrition and Progress; `app.json`, `eas.json` and the dependencies.
+- **No live account was created, changed or deleted.**
 
 ## 1. Decisions (founder review, Nov 1, 2026)
 
@@ -832,3 +838,331 @@ Apple's token-revocation reference: `POST https://appleid.apple.com/auth/revoke`
     - a lost answer reported as a refusal;
     - the flow ID not passed.
 - **Design corrected while reading auth-js:** a first draft let a code be retried after a lost answer. supabase-js discards the verifier on any failure, so such a retry can never succeed, and the outcome is now "start again".
+
+## 14. Stage 6: adversarial verification and release readiness
+
+### New adversarial tests
+**`tests/lifecycle-adversarial.test.ts` (5):**
+- **Entry state:** all **13,824** combinations of entry facts (two accounts; every session, offline, owner, data, sync-history, setup, recovery, ended and continued value). Training opens (`ready`, `setup`) only for the signed-in account, and never over another account's protected training. `continuing` means nobody signed in, and only the ended account's own training. An earlier ending never changes anything for someone signed in. `unlinked` only for unowned data.
+- **`tokenSubject`:**
+  - 5,000 seeded random tokens never throw;
+  - 500 real shapes, with accented names and emoji in the metadata, in either base64, are read correctly;
+  - only a top-level string `sub` counts (not one nested in `user_metadata`);
+  - a 1 MB token is read.
+- **Stored markers:** 26 corrupted or hostile values (JSON junk, wrong types, `__proto__` and `constructor` keys, 1 MB) are ignored by every marker reader, never thrown, and nothing leaks into other objects.
+- **Continuation:** a marker for another account, another workout, a future or expired time never continues, and B never opens A's workout.
+- **Deletion marker for another account:**
+  - A's screens and launch check ignore B's unconfirmed request.
+  - Even a "confirmed" marker for B removes nothing of A's, and "B is gone" changes nothing on A's phone.
+  - Residual (not reachable through the app; such a marker can't arise there): a "confirmed" marker naming B would still end A's sign-in at launch. Nothing is removed or exposed, and A can sign in again.
+
+**`tests/server-hardening.test.ts` (+4, now 17):** Stage 1's baseline attacks (`tests/server-security.test.ts`, live schema) repeated against the hardened migration, which replaces both functions, plus an exposure guard:
+- **Direct changes:** as a signed-in account and as anon, direct `INSERT` (own or planted for B), `UPDATE` (including reassigning `user_id`), `DELETE`, `TRUNCATE` and an exclusive `LOCK TABLE` are all refused, and B's row is invisible to A even when asked for by owner and ID.
+- **Hostile IDs and kinds:** IDs written as SQL, quotes, emoji and 200 characters are stored as data. These are refused whole:
+  - 201 characters, or an empty ID;
+  - an injected kind;
+  - a negative revision;
+  - a payload over 5 MB;
+  - a change of kind.
+- **Deleted accounts:** a deleted account's still-valid token can't write (foreign key) or read.
+- **Exposure guard:** only `forge_write` and `forge_delete_account` exist in `public`, neither runs for anon, and neither contains `set_config`, `request.jwt`, `SET ROLE` or dynamic `EXECUTE`. The only policy is the authenticated read policy. This catches a future migration that exposes a claim-setting function or a permissive policy.
+
+**Real supabase-js PKCE tests:** see section 13.
+
+**Deliberate breaks (Stage 6):** each restored byte-for-byte.
+- **App:** nine of ten weakenings were caught. The tenth (`session ?? ended` in the continuing branch) behaves identically, because that branch runs only without a session.
+- **Migration and rollback:** re-run after the review fix; all nine were caught:
+  - the first draft's named revoke, which kept `MAINTAIN`;
+  - `TRUNCATE` and `MAINTAIN` left granted;
+  - no revoke for `authenticated`;
+  - no revoke for anon;
+  - the rollback's restore statements naming privileges again;
+  - insert/update re-granted;
+  - a permissive read policy;
+  - a claim-setting function;
+  - the identity length unchecked.
+
+### Independent review (Stages 3–6)
+An independent code review of the uncommitted Stage 3–6 changes found two issues. Both are fixed and covered by tests that fail on the original code:
+1. **Welcome said "Your workout is saved on this phone" when nothing was** (medium).
+   - **Cause:** `app/_layout.tsx` compared the continuation marker's account with the phone's owner, and with neither present that was `undefined === undefined`.
+   - **Effect:** the text appeared on a new phone, on unowned training, and right after **Delete Forge account**, beside the notice that the training was deleted.
+   - **Fix:** it now needs a marker, naming this phone's owner, for a workout still on the phone (so not once it's discarded).
+   - **Tests:** `tests/ui/entry-gate.test.tsx`: one new test (new phone, unowned training, the 12 hours over, another account's marker, discarded), and the deletion test now checks there's no such text. Three weakenings were caught: the original condition, no workout check, no owner check.
+2. **`MAINTAIN` survived the privilege revoke on Postgres 17 and later** (medium; defense in depth, unreachable through the Data API).
+   - **Fix:** the migration now uses `revoke all` (section 11), and the rollback's restore statements are version-independent.
+   - **Tests:** check the table's exact access list, attempt an exclusive `LOCK TABLE`, and confirm that the rollback's statements restore the previous access list exactly.
+
+The review also confirmed:
+- no path deletes an account without a recent interactive sign-in, and malformed claims are refused cleanly;
+- the rollback's function bodies and policy are byte-identical to the baseline;
+- every deliberate sign-out goes through `auth.signOut`, and supabase-js 2.118 emits `SIGNED_OUT` while that call is still running, so the "asked" mark is always set in time;
+- no other account can reach the continuing state, and nothing syncs in it;
+- the environment guard is inert when unset;
+- no secrets or splash changes.
+
+### Traceability
+| Scenario | Tests |
+|---|---|
+| Deletion with local removal | `account-deletion`: confirmed…removed and recorded; `delete-account` (UI): deleted, one request |
+| Secure local retention | Not offered (D1): export, then remove |
+| Cancelling before the final confirmation | UI: final, asks once more; explains…leaving changes nothing |
+| Cancelled or failed confirmation | UI: confirming it's you (wrong password, another account, offline); Google cancelling; `reauth`: wrong password or no connection |
+| Export success, cancellation, failure | UI: export saved, shared, cancelled or failed |
+| Unsynced workouts | UI: never-synchronized count before Check again; Stage 1 wording tests |
+| Network loss, lost answer | `account-deletion`: reply lost, no answer, never arrived; UI: same three |
+| Restart during deletion | `account-deletion`: closed after confirmation, found deleted at a later launch; UI: reopened after an interrupted request |
+| Repeated attempts | `account-deletion`: second tap shares the request; server: repeated request is harmless; UI: one request however often it's pressed |
+| Account switching, same email again | `account-deletion`: a new account starts empty; UI: explains signing up again |
+| Other devices with old records | `account-deletion`: another device finds the account gone; real migration, another device uploads nothing |
+| Ownership boundaries | `account-deletion`: only the owner, `cloudDeletion` pinned; UI: another account's training; adversarial: 13,824 entry combinations, foreign markers |
+| Unrelated accounts untouched | server: deletes A and nothing else (hardened and baseline) |
+| Wrong Google account (D4) | `reauth`: existing or just created, refused; UI: refused and named, repeated attempts |
+| Recent sign-in on the server (Stage 3) | `server-hardening`: stale, methods, malformed, dead sessions, callers, no caller-supplied values, temporary objects, app engine against it |
+| Least privilege (L6) | `server-hardening`: privileges, direct changes, exposure guard |
+| Workout continuity (Stage 4) | `continuation` (7), `entry-gate` (+8), `session-events` (6, real supabase-js), `entry-routing` (+4), `workout-logger` (+1), `entry-screens` (+1), adversarial markers |
+| Email code, PKCE, environment (Stage 5) | `reauth` (+3), `pkce` (8), `environment` (3), `cloud-environment` (4) |
+
+### Release readiness
+| # | Item | State |
+|---|---|---|
+| 1 | Account deletion flow (Stage 2) | **Committed** (`7204da4`), verified locally. Needs device tests (section 9) |
+| 2 | Server-side recent sign-in (Stage 3) | **Prepared, verified locally (PGlite). Not deployed.** Blocks any external release of deletion (founder's restriction) |
+| 3 | Least privilege, fixed search path | Prepared in the same migration. Not deployed |
+| 4 | Workout continuity (Stage 4) | **Implemented, uncommitted**, verified locally. Needs the device checklist (section 12) |
+| 5 | Email-code confirmation | Logic prepared, not offered. Needs template, SMTP and UI approval |
+| 6 | PKCE | Prepared, not active. Needs the Web Crypto check on the phone |
+| 7 | Development/production separation | Guard prepared (inactive). Project not created |
+| 8 | Redirect allow list | **Verified live** (Stage 0, 13 of 13). Remove the tunnel entry from production before release |
+| 9 | Site URL | `http://localhost:3000`: must be a real HTTPS page before release |
+| 10 | Custom SMTP (M7) | Not configured. Required for real athletes (confirmation, reset, codes) |
+| 11 | Apple: own build, revocation, private relay | Not started. App Store blocker (E8) |
+| 12 | Deleting Apple-only accounts | No confirmation path yet. App Store blocker (D3) |
+| 13 | Live verification with throwaway accounts | Not done. Required for Stages 2–5, in the development project |
+
+## 15. Handoff: Stages 3–6 (Nov 2, 2026, before the final review)
+
+Section 16 supersedes the test totals and repository state below.
+
+### Summary
+- **Stage 2 committed.** Its founder-approved corrections are committed and pushed (`7204da4`). That was the only commit authorized, and the only one made.
+- **Stages 3–6 uncommitted.** They are implemented, documented (sections 11–14) and verified locally, and they wait for review.
+- **Nothing deployed.** No live project setting, SQL or account was touched.
+
+### Stage status
+| Stage | State | Verified | Still needs |
+|---|---|---|---|
+| 2: safe account deletion | Committed and pushed (`7faef77`, `7204da4`) | Locally (logic, UI, PGlite) | Device tests (section 9). No external release until Stage 3 is live |
+| 3: server hardening | Prepared: migration and rollback, **not deployed** | Locally: PGlite (PostgreSQL 18.6), 17 tests | Dashboard checks, development project, approval of the exact SQL (E7), deployment |
+| 4: workout continuity | Implemented | Locally (logic, UI) | iPhone checklist (section 12) |
+| 5: email code, PKCE, project pin | Prepared, **inactive** | Locally, including PKCE with the real supabase-js client | Template, SMTP, the device's Web Crypto, development project, UI approval |
+| 6: adversarial tests, readiness | Done | Locally | Live items in the readiness table (section 14) |
+
+### Final verification (macOS, Node 26)
+- **Logic:** **757 of 757**, in Pacific time and in UTC (714 at `7204da4`, plus 43):
+  - server hardening 17, PKCE 8, continuation 7, adversarial 5;
+  - email code 3, environment 3.
+- **UI:** **772 of 772** in 72 suites, in Pacific time and in UTC (755 at `7204da4`, plus 17):
+  - entry gate 7, entry routing 4, cloud environment 4;
+  - workout logger 1, entry screens 1.
+- **TypeScript:** passes. **ESLint:** 0 errors; its 1 warning (`tests/ui/templates-wp3.test.tsx`) is pre-existing. **Prettier:** passes.
+- **Exports:** the iOS and Android production exports pass. In the built bundle, `buildEnvironment()` reads both new variables as `undefined`, so the project pin is inert today.
+- **Deliberate breaks, Stages 3–6:** 49 in all. 48 were caught; the remaining one behaves identically to the original code.
+  - **Stage 3:** 8
+  - **Stage 4:** 4
+  - **Stage 5:** 15
+  - **Stage 6:** 19
+  - **Review fixes:** 3
+- **Independent code review:** two findings, both fixed and tested (section 14).
+
+### Repository
+- **Branch:** `feat/forge-paths-foundation`. HEAD and origin are both at `7204da4`; nothing after Stage 2 is committed.
+- **Modified (19):**
+  - `.env.example`, `IMPLEMENTATION_STATUS.md`, `README.md`, this report;
+  - `app/(tabs)/_layout.tsx`, `app/_layout.tsx`;
+  - `src/auth/AppStack.tsx`, `src/auth/entry.ts`, `src/auth/reauth.ts`, `src/auth/session.ts`, `src/cloud/client.ts`;
+  - `src/domain/presentation/account.ts`, `src/screens/Workout.tsx`, `src/screens/entry/Welcome.tsx`;
+  - `tests/reauth.test.ts`, `tests/ui/entry-gate.test.tsx`, `tests/ui/entry-routing.test.tsx`, `tests/ui/entry-screens.test.tsx`, `tests/ui/workout-logger.test.tsx`.
+- **New (11):**
+  - `src/auth/continuation.ts`, `src/auth/pkce.ts`, `src/cloud/environment.ts`;
+  - `supabase/migrations/202611020001_forge_security_hardening.sql`, `supabase/rollback/202611020001_forge_security_hardening.sql`;
+  - `tests/continuation.test.ts`, `tests/environment.test.ts`, `tests/lifecycle-adversarial.test.ts`, `tests/pkce.test.ts`, `tests/server-hardening.test.ts`, `tests/ui/cloud-environment.test.tsx`.
+- **Untouched:**
+  - the baseline migration;
+  - the splash screen and REFORGE components;
+  - Forge Paths, Nutrition and Progress;
+  - `app.json`, `eas.json` and the package files.
+- **Clean:** `.env` stays ignored; no secrets, project ref or key in the changes.
+
+### Founder checklist, in order
+1. **Review and commit.** Review sections 11–15 and the uncommitted changes, then decide how to commit (for example one commit per stage). Committing deploys nothing.
+2. **iPhone tests** (Expo Go through the tunnel, throwaway accounts only): Stage 4 (section 12), then Stage 2 (section 9).
+3. **Read-only dashboard checks for Stage 3:**
+   - Authentication → Hooks: no custom access token hook;
+   - the project's Postgres version (15 or 17; the migration handles both);
+   - the current table grants (Stage 0 queries).
+4. **Development project (section 13):** create it, then apply both migrations. Give it its own Google OAuth client and the four redirect entries, and point the local `.env` at it with `EXPO_PUBLIC_FORGE_ENV=development` and its ref.
+5. **Verify Stage 3 there** with throwaway accounts (section 11).
+6. **Production, after approving the exact SQL (E7):**
+   - back up the database;
+   - apply the migration in one transaction;
+   - run the read-only checks;
+   - delete one throwaway account;
+   - keep the rollback ready.
+7. **External testing of account deletion,** only after step 6.
+8. **Before real athletes:**
+   - custom SMTP;
+   - a real HTTPS Site URL;
+   - remove the tunnel entry from production.
+9. **Email code:** change the template and expiry on development, verify the flow, then approve the "Email me a code" option.
+10. **PKCE:** check Web Crypto on the phone, switch PKCE on in development, then test the four flows.
+11. **Apple, before the App Store:**
+    - Forge's own build;
+    - Apple confirmation and token revocation (Edge Function);
+    - the private email relay;
+    - a deletion path for Apple-only accounts.
+
+### Risks
+- **Stage 3 is verified only in PGlite.** On the live project, still to check:
+  - the `amr` shapes;
+  - the absence of hooks;
+  - `auth.sessions` behavior;
+  - that PostgREST passes the hint through.
+- **Stage 4 limit:** a sign-in that ends while Forge is closed can't be attributed; the next launch is simply signed out.
+- **Wrong Google account (D4):** choosing one may leave an empty Forge account (accepted).
+- **Apple-only accounts:** no deletion confirmation yet. This blocks the App Store.
+- **Recovery links:** they count as a recent sign-in, by design.
+- **Future migrations:** Supabase's default privileges grant new objects to anon, so each one must revoke as this one does.
+
+### Recommendation
+1. Commit Stages 3–6 after review; committing deploys nothing.
+2. Device-test Stages 2 and 4.
+3. Set up the development project and verify Stage 3 there.
+4. Deploy Stage 3 to production only with the exact SQL approved. Until then, account deletion stays internal.
+
+## 16. Final review and Git checkpoints (Nov 2, 2026)
+
+The founder approved a final review of Stages 3–6 and one local commit per stage. Nothing is pushed or deployed.
+
+### Starting point
+- **Branch:** `feat/forge-paths-foundation`. HEAD and origin were both at `7204da4` (checked against the remote with `git ls-remote`).
+- **Working tree:** exactly the 30 uncommitted files of section 15; nothing staged, no stashes.
+
+### Found and fixed
+1. **Stage 3: an empty search path searched the caller's temporary schema first** (low; worse than the live baseline).
+   - **Cause:** with `search_path = ''`, PostgreSQL searches the session's temporary schema *before* `pg_catalog` for table and type names, and both functions use unqualified built-in types (`uuid`, `jsonb`, `text`).
+   - **Effect, in PGlite:** a caller's temporary table named `uuid`, `jsonb` or `text` broke both functions. Every such call failed closed: nothing was deleted or written, but nothing worked either.
+   - **Exposure:** not reachable through Supabase's Data API, which can't create temporary objects. The live baseline (`public, auth, pg_temp`) isn't affected, because it lists `pg_temp` last.
+   - **Fix:** `set search_path = pg_catalog, pg_temp`, PostgreSQL's documented arrangement for `SECURITY DEFINER` functions.
+   - **Tests:** a regression test (the write works, stale is refused, fresh deletes, all with those temporary tables present), and the exact setting. Four weakenings were caught: the empty path, `pg_catalog` alone, and each function reverted on its own.
+2. **Stage 4: when a sign-in ended elsewhere ends on this phone** (library behavior; now tested and documented, no code change).
+   - supabase-js 2.118 keeps a sign-in whose renewal is refused while its access token still works, and ends it once the token has expired. The account service reporting `session_not_found` ends it at once.
+   - So after **Sign out of all devices** on another phone, this phone continues the workout up to an access-token lifetime later (an hour by default), not immediately. Section 12's device checklist said otherwise; it is corrected.
+   - **Tests:** `tests/ui/session-events.test.tsx` (6) runs Forge's session hook on the real client.
+     - It confirms the mocks' assumption: supabase-js announces `SIGNED_OUT` while `signOut()` is still running.
+     - Four weakenings were caught: the flag never set, the flag read when React applies the update, every sign-out treated as asked, and a sign-in not clearing the ended account. The last was caught only by these tests.
+3. **Stage 4: a missing negative case.** **Sign out of all devices** from this phone, mid-workout, was untested at the app level. Added: it never continues the workout.
+
+### Confirmed
+- **Stage 3:**
+  - **Recent sign-in:** freshness comes only from `amr`, never `iat`, and only from interactive methods, allowing a minute of clock difference. A live session row is required.
+  - **Callers:** anonymous, no-user and wrong-role callers are refused; a repeated request is harmless.
+  - **Privileges:** exactly `SELECT` for signed-in accounts and nothing for anon, on Postgres 15 and 17. Only `forge_write` and `forge_delete_account` are exposed, neither runs for anon, and the only policy is owner-only reading.
+  - **Rollback:** restores the baseline function bodies and policy, and its statements restore the previous privileges exactly. The baseline migration is byte-identical to `7204da4`.
+  - **Not deployed:** the Supabase CLI was never installed or linked here, and nothing ran against the live project.
+- **Stage 4:**
+  - **Sign-outs:** every sign-out the athlete can choose goes through the session hook. Its direct `client.auth.signOut` fallbacks run only without a session context, which happens only in tests.
+  - **When it applies:** continuing needs no one signed in, the phone's training owned by the ended account, and that account's workout in progress (or finished within 10 minutes).
+  - **What opens:** only the workout, Welcome, Sign in and Create account. The workout screen can only go back to the tabs, and the tabs lead to Welcome.
+  - **Sync and other accounts:** nothing syncs while continuing, and another account's sign-in holds the account check.
+- **Stage 5:**
+  - **PKCE is off:** no client sets `flowType` (supabase-js defaults to the implicit flow), and nothing imports `src/auth/pkce.ts`.
+  - **Email codes:** no screen imports the email-code functions.
+  - **The project pin is inert:** neither variable appears in `.env`, `app.json` or `eas.json`, and the built bundle reads both as `undefined`.
+  - **PKCE parsing:** the parser reads links the same way as Forge's working Google sign-in.
+  - **Secrets:** none in any change.
+- **Stage 6:** the adversarial tests exercise production code: the real migration in Postgres, the real sync and deletion engines, and real supabase-js (PKCE and session events). The entry decision is enumerated exhaustively. Still simulated: the account service (no live calls), and the screen contexts in the UI tests.
+
+### Read-only checks for the founder, before Stage 3 is applied
+1. **Hooks:** Authentication → Hooks shows no custom access token hook.
+2. **Postgres version:** the project's Postgres version (15 or 17; the migration handles both).
+3. **SQL editor, read-only:**
+   - `select proname, proconfig from pg_proc where proname in ('forge_write', 'forge_delete_account');` shows `search_path=public, pg_temp` and `search_path=public, auth, pg_temp`: still the baseline, so nothing is deployed.
+   - `select has_table_privilege('postgres', 'auth.sessions', 'select');` returns `true`.
+   - `select column_name from information_schema.columns where table_schema = 'auth' and table_name = 'sessions' and column_name in ('id', 'user_id', 'not_after');` returns three rows.
+4. **Access-token lifetime:** the project's JWT expiry setting (Supabase's default is 3,600 seconds). It sets the device test's waiting time (section 17).
+
+### Commits
+One local commit per stage, made after the checks below. Each commit's report header says exactly what is committed at that point.
+
+| | Commit | What it contains |
+|---|---|---|
+| A | `858e377` Stage 3 | The migration and its rollback; the Stage 3 tests in `tests/server-hardening.test.ts`; report section 11 and the corrected baseline privilege note; the Stage 3 status rows |
+| B | `ae4573d` Stage 4 | `src/auth/continuation.ts`; the session, entry and route changes; the root and tabs layouts; the Welcome and workout wording; the Stage 4 tests, including `tests/ui/session-events.test.tsx`; report section 12; the Stage 4 status row |
+| C | `83119f9` Stage 5 | `src/auth/pkce.ts`; the email-code functions; `src/cloud/environment.ts` and the client guard; their tests; `.env.example` and the README; report section 13; the Stage 5 status row |
+| D | this commit, Stage 6 | `tests/lifecycle-adversarial.test.ts`; the Stage 6 tests appended to `tests/server-hardening.test.ts`; report sections 14–17 and the final header |
+
+- **Split files:** `tests/server-hardening.test.ts` (Stage 3 tests in A, Stage 6 tests in D), this report (one section per stage) and `IMPLEMENTATION_STATUS.md` (each stage's rows with its stage). No other file mixes stages.
+- **Dependencies:** each commit builds on the previous one only through what it needs. B's tests use no Stage 5 code, and C's none of Stage 6; D's adversarial tests use Stage 4's continuation code.
+- **Each commit verified on its own:** A, B and C were checked out into temporary copies, sharing `node_modules`, and passed TypeScript and the complete logic and UI suites. D is the final tree.
+
+### Final verification (the final tree, which D commits unchanged)
+- **Logic:** **758 of 758**, in Pacific time and in UTC: section 15's 757, plus the search-path test.
+- **UI:** **779 of 779** in 73 suites, in Pacific time and in UTC: section 15's 772, plus 6 real-client session tests and the all-devices test.
+- **Server (PGlite, PostgreSQL 18.6):** `server-hardening` 18, `server-security` 9 and `postgres` 1, all pass. They are part of the logic suite.
+- **TypeScript:** passes. **ESLint:** 0 errors; the 1 warning is pre-existing. **Prettier:** passes.
+- **Exports:** iOS and Android production exports pass.
+
+## 17. Device testing: iPhone walkthrough
+
+Nothing here deletes an account, changes a Supabase setting, or uses your real Forge account.
+
+### Before you start
+- **One Supabase project today.** The only project is the live one, so these tests use throwaway accounts on it (E10). They create test records for those accounts only. Use the development project instead once it exists.
+- **Not on your own iPhone.** Its training belongs to your real account, so a throwaway account can't open it. Use a device whose Forge has no training yet, the *test device*:
+  - the **iOS Simulator** on the Mac (needs Xcode; press `i` in the Expo terminal, or `Shift+i` to choose a simulator; Expo Go installs itself);
+  - or a spare iPhone or iPad with Expo Go.
+- **Two throwaway accounts, A and B.** Two spare Google accounts are easiest, since Continue with Google needs no confirmation email. Supabase's built-in email sender only reaches your team's addresses.
+- **A second device for test 3:** A also needs to be signed in and set up on a *second device* (another simulator or a spare device), whose Account & privacy offers **Sign out of all devices**.
+- **Start Forge** with the tunnel (`npm start -- --tunnel` on the Mac), then open it on each device from the QR code (or with `i` for the simulator).
+
+### A. A workout continues after an unexpected sign-out (Stage 4). Today, in Expo Go.
+On the test device, signed in as A, with setup done:
+1. Open Forge and start a workout.
+2. Log several sets.
+3. **End A's sign-in elsewhere.**
+   - On the second device, open You → Account & privacy → **Sign out of all devices**, and confirm.
+   - On the test device, keep Forge open on the workout until A's access token expires: up to an hour by default. Turn Auto-Lock off on a phone; a simulator never sleeps.
+   - Forge notices within about a minute of the expiry.
+4. **Expected:** the workout stays open, with **"Signed out · Saved on this phone. Finish your workout, then sign in again to sync it."** above it. Every set is still there, and a running rest timer keeps going.
+5. Log more sets.
+6. Finish the workout. **Expected:** the summary opens as usual. After it closes, Welcome says **"Your workout is saved on this phone. Sign in with the same account to keep training and to sync it."**
+7. Sign in again as A, the same way as before.
+8. **Expected:** Home. The workout is in your history with every set from steps 2 and 5.
+9. **Sync.** In Account & privacy, tap **Synchronize now**; it succeeds. On the second device, sign in as A and tap **Synchronize now**: the workout appears there too. This writes only A's records to the live project; skip it until the development project exists if you prefer.
+10. **Another account.** On the test device, tap **Sign out**, then sign in as B. **Expected:** "This phone's training belongs to another account", and none of A's training is visible. Tap only **Sign out** there. Sign in as A again: everything is as it was.
+
+### B. Force-quit and reopen (Stage 4). Today, in Expo Go.
+1. Repeat A.1–A.4 with a new workout.
+2. Force-quit Forge (swipe it away) and reopen it within 12 hours. **Expected:** Welcome says **"Your workout in progress is saved on this phone. Return to it to keep logging and finish it; sign in again afterwards to sync it."**, with **Return to your workout**.
+3. Tap **Return to your workout**. Every set is there; log one more, then finish.
+4. **Ordinary case:** force-quit mid-workout while still signed in, then reopen. **Expected:** Home as usual, with the workout still in progress.
+5. **Known limit:** if the sign-in ends while Forge is closed, reopening shows a plain Welcome with no Return button. Sign in as A, and the workout is there.
+
+### C. A sign-out you ask for never continues (Stage 4). Today, in Expo Go.
+On the test device, signed in as A: start a workout, log a set, then go back to the tabs.
+1. Account & privacy → **Sign out**. **Expected:** Welcome, with no **Return to your workout** and no "Your sign-in ended" message. Sign in as A, and the workout is still in progress.
+2. The same with **Sign out of all devices**. **Expected:** "You're signed out on all your devices…", with no Return button.
+3. *Optional, on a phone:* turn on Airplane mode, then **Sign out**. **Expected:** "You're signed out on this phone. Forge couldn't reach its account service…", with no Return button. Turn Airplane mode off: you stay signed out. Sign in as A, and the workout is still there. (Metro also loses the phone while it's offline; reload Forge from Expo Go afterwards if needed.)
+
+### What each test needs
+| Test | Where |
+|---|---|
+| A, B and C above (workout continuity; sign-outs; another account) | **Today:** Expo Go through the tunnel, with throwaway accounts on a test device |
+| Sync between two devices (A.9) | Today with throwaway accounts, or the development project once it exists |
+| Stage 3 server checks (fresh versus stale deletion; sign out of all devices, then delete) | **The development project**, with the hardening applied |
+| Account deletion end to end (Stage 2) | **The development project** only, never the live project |
+| Email one-time code; PKCE links; the project pin | **The development project**, after the dashboard changes in section 13 |
+| Sign in with Apple, Apple revocation, `forge:///` return links | **Forge's own build** (an EAS development build) |
+
+If anything differs from **Expected**, note the step and what appeared, then stop; nothing needs fixing on the spot.
