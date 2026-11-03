@@ -86,13 +86,16 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 | Privacy disclosure/version/error recovery | Implemented but unverified | UI text and preserved database on startup failures |
 | CI workflow | Implemented but unverified | Workflow authored; equivalent commands ran locally, remote Actions run unconfirmed |
 | Maestro end-to-end scenario | Implemented but unverified | Authored smoke flow; no device/emulator/Maestro execution |
-| iPhone/Windows testing guide / EAS profiles | Implemented but unverified | Instructions/config exist; no signed build created |
+| iPhone/Windows testing guide / EAS profiles | Implemented but unverified | Instructions/config exist; EAS profiles development, development-simulator, preview and production (Phase 8) validate against EAS's schema; no signed build created |
+| Development/production separation: app variants and per-app environment guard (Phase 8) | Implemented and tested | `app.config.ts` (FORGE, FORGE Dev `com.lsaint06.forge.dev` / `forge-dev`, FORGE Preview); Forge's own builds must name their own environment and project, while Expo Go is unchanged; `npm run start:dev` serves FORGE Dev only the development project's values (bundle checked). The development Supabase project doesn't exist yet |
+| FORGE Dev native development build (Phase 8) | Implemented but unverified | `expo-dev-client` installed (`npm start` stays Expo Go); prebuild of both apps checked (IDs, schemes, Sign in with Apple only, splash). No build: needs Xcode or EAS, and the Apple Developer Program for the iPhone. Placeholder icon until C-00b |
+| Development-project tooling: `dev:check`, `dev:verify-stage3`, `schema_checks.sql` (Phase 8) | Implemented but unverified | Guards and readings unit-tested, and the SQL checks tested against both schemas in PGlite; not yet run against a real project (none exists) |
 | Physical iOS/Android performance and accessibility | Not implemented | No profiling, physical-device run or formal audit performed |
 
 ## Highest-priority continuation
 
 1. Run the iPhone checklist, fix any layout/native behavior defects and execute Maestro on disposable device data.
-2. Configure a test Supabase project and verify two-user RLS, callbacks, SecureStore restoration and conflict resolution end to end.
+2. Create the development Supabase project and verify there, end to end: two-user RLS, the Stage 3 hardening, callbacks, SecureStore restoration and conflict resolution ([docs/DEVELOPMENT_ENVIRONMENT.md](docs/DEVELOPMENT_ENVIRONMENT.md)). Then build FORGE Dev for the iPhone ([docs/NATIVE_BUILDS.md](docs/NATIVE_BUILDS.md)).
 3. Improve exercise-specific coaching metadata, safety classification and offline search indexing; obtain a qualified review for advanced exercises.
 4. Add dedicated PR events/strength trends, program completion and per-exercise progression rules.
 5. Add actual circuit rounds, recurring reminders and automatic incremental sync with audited lifecycle boundaries.

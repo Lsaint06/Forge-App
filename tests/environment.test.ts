@@ -91,3 +91,117 @@ test("anything unclear refuses to connect; problems never carry values", () => {
     ok: true,
   });
 });
+
+// ---- Phase 8: Forge's own builds, by their native application ID ----
+
+const DEV_APP = {
+  expoGo: false,
+  appId: "com.lsaint06.forge.dev",
+  scheme: "forge-dev",
+};
+const PROD_APP = {
+  expoGo: false,
+  appId: "com.lsaint06.forge",
+  scheme: "forge",
+};
+const PREVIEW_APP = {
+  expoGo: false,
+  appId: "com.lsaint06.forge.preview",
+  scheme: "forge-preview",
+};
+const todayEnv = { url: at(PROD) };
+const devEnv = { name: "development", projectRef: DEV, url: at(DEV) };
+const prodEnv = { name: "production", projectRef: PROD, url: at(PROD) };
+
+test("Expo Go, tests and scripts keep today's behavior", () => {
+  for (const app of [
+    { expoGo: true, appId: "host.exp.Exponent", scheme: "exp" },
+    { expoGo: true, appId: "host.exp.exponent" },
+    // Expo Go is recognized by how it runs, whatever ID it reports.
+    { expoGo: true, appId: "com.lsaint06.forge.dev", scheme: "forge" },
+    // No app at all.
+    {},
+    { expoGo: false, appId: null },
+    { expoGo: false, appId: "  " },
+  ]) {
+    assert.deepEqual(checkEnvironment({ ...todayEnv, ...app }), { ok: true });
+    assert.deepEqual(checkEnvironment({ ...devEnv, ...app }), {
+      ok: true,
+      environment: "development",
+    });
+  }
+});
+
+test("FORGE Dev never connects with today's settings, or to production", () => {
+  for (const env of [
+    // Today's .env: production, nothing named.
+    todayEnv,
+    {},
+    // Named, but production.
+    prodEnv,
+    // Development named, but no project, or another project's address.
+    { name: "development", url: at(DEV) },
+    { name: "development", projectRef: DEV, url: at(PROD) },
+    { name: " ", projectRef: DEV, url: at(DEV) },
+  ]) {
+    const check = checkEnvironment({ ...env, ...DEV_APP });
+    assert.equal(check.ok, false, JSON.stringify(env));
+  }
+  assert.deepEqual(checkEnvironment({ ...devEnv, ...DEV_APP }), {
+    ok: true,
+    environment: "development",
+  });
+});
+
+test("each app needs JavaScript built for it: its own link scheme", () => {
+  for (const [app, env] of [
+    [DEV_APP, devEnv],
+    [PROD_APP, prodEnv],
+    [PREVIEW_APP, devEnv],
+  ] as const)
+    for (const scheme of [
+      undefined,
+      "",
+      "forge",
+      "forge-dev",
+      "forge-preview",
+      "exp",
+    ]) {
+      const check = checkEnvironment({ ...env, ...app, scheme });
+      assert.equal(check.ok, scheme === app.scheme, `${app.appId} ${scheme}`);
+    }
+});
+
+test("the production app uses only production; a preview names either", () => {
+  for (const env of [todayEnv, devEnv, { ...prodEnv, name: "Production" }])
+    assert.equal(checkEnvironment({ ...env, ...PROD_APP }).ok, false);
+  assert.deepEqual(checkEnvironment({ ...prodEnv, ...PROD_APP }), {
+    ok: true,
+    environment: "production",
+  });
+  assert.equal(checkEnvironment({ ...todayEnv, ...PREVIEW_APP }).ok, false);
+  for (const env of [devEnv, prodEnv])
+    assert.equal(checkEnvironment({ ...env, ...PREVIEW_APP }).ok, true);
+});
+
+test("an app that isn't one of Forge's builds never connects; problems carry no values", () => {
+  for (const appId of [
+    "com.lsaint06.forge.staging",
+    "com.example.forge",
+    "constructor",
+    "__proto__",
+    "toString",
+  ]) {
+    for (const [env, scheme] of [todayEnv, devEnv, prodEnv].flatMap((env) =>
+      [undefined, "", "forge", "forge-dev"].map(
+        (scheme) => [env, scheme] as const,
+      ),
+    )) {
+      const check = checkEnvironment({ ...env, expoGo: false, appId, scheme });
+      assert.equal(check.ok, false, appId);
+      if (!check.ok)
+        for (const value of [PROD, DEV, "supabase.co"])
+          assert.ok(!check.problem.includes(value), check.problem);
+    }
+  }
+});

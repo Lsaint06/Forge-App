@@ -1,16 +1,44 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import * as Application from "expo-application";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import { sessionStorage } from "../platform/sessionStorage";
 import { AppState } from "react-native";
-import { buildEnvironment, checkEnvironment } from "./environment";
+import {
+  buildEnvironment,
+  checkEnvironment,
+  type BuildEnvironment,
+} from "./environment";
 import { withTimeout } from "./transport";
 export { transport } from "./transport";
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 let client: SupabaseClient | null = null;
 
+/**
+ * Which app is running (Phase 8): Expo Go, or one of Forge's own builds by
+ * its native application ID, and the link scheme its JavaScript was given.
+ */
+function appIdentity(): Pick<BuildEnvironment, "expoGo" | "appId" | "scheme"> {
+  const scheme = Constants.expoConfig?.scheme;
+  return {
+    expoGo: Constants.executionEnvironment === ExecutionEnvironment.StoreClient,
+    appId: Application.applicationId,
+    scheme:
+      typeof scheme === "string"
+        ? scheme
+        : Array.isArray(scheme) && typeof scheme[0] === "string"
+          ? scheme[0]
+          : undefined,
+  };
+}
+
 /** Refuses an address that isn't this build's own project (Phase 7.8E, E6). */
 function assertOwnProject(address: string) {
-  const check = checkEnvironment({ ...buildEnvironment(), url: address });
+  const check = checkEnvironment({
+    ...buildEnvironment(),
+    ...appIdentity(),
+    url: address,
+  });
   if (!check.ok) throw new Error(check.problem);
 }
 

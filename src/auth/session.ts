@@ -29,8 +29,13 @@ export function authClient(): {
 } {
   try {
     return { client: cloudClient(), misconfigured: false };
-  } catch {
-    // e.g. a non-HTTPS address: refused by the client itself.
+  } catch (e) {
+    // e.g. a non-HTTPS address, or a build pointed at another project. The
+    // reason names variables, never their values.
+    if (__DEV__)
+      console.warn(
+        `[FORGE] Accounts aren't available: ${e instanceof Error ? e.message : "misconfigured"}`,
+      );
     return { client: null, misconfigured: true };
   }
 }

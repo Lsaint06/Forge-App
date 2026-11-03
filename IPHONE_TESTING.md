@@ -103,15 +103,14 @@ npx eas-cli build:configure
 npx eas-cli build --platform ios --profile preview
 ```
 
-For a custom development client, first add the SDK-compatible client module and commit the resulting dependency changes:
+For FORGE Dev, Forge's own development build (Phase 8), `expo-dev-client` is already installed. Follow [docs/NATIVE_BUILDS.md](docs/NATIVE_BUILDS.md):
 
 ```sh
-npx expo install expo-dev-client
 npx eas-cli build --platform ios --profile development
-npx expo start --dev-client
+npm run start:dev        # Metro for FORGE Dev: the development project only
 ```
 
-Adding `expo-dev-client` changes Expo CLI's default launch target; continue using `--go` when you intend Expo Go. Set the public Supabase variables in the EAS build environment when enabling cloud features.
+`npm start` keeps opening Expo Go (`expo start --go`). FORGE Dev connects only to the development Supabase project ([docs/DEVELOPMENT_ENVIRONMENT.md](docs/DEVELOPMENT_ENVIRONMENT.md)), and refuses to connect if Metro wasn't started with `npm run start:dev`. Set each environment's public Supabase variables in its EAS environment.
 
 A signed **physical-device** iOS preview/development build typically needs membership in the Apple Developer Program and device registration for internal/ad hoc distribution. EAS guides credential creation and signing. TestFlight/App Store distribution also requires Apple's developer program and App Store Connect setup. Do not confuse an iOS simulator build with an iPhone install; simulator use normally requires a Mac. Expo Go does not require your own Apple developer membership.
 
@@ -121,6 +120,6 @@ No EAS build, Apple signing, UDID registration or TestFlight upload was run here
 
 Follow README database setup. Put only the public project URL and publishable key in `.env`, restart Metro, and register/login through Profile → Account. The app does not accept service-role credentials.
 
-Configure Auth allowed redirect URLs for the actual account callback. Signed builds use `forge://account`; Expo Go uses `exp://<host>:<port>/--/account` or its current tunnel equivalent. The reset-password request generates the current redirect using Expo Linking. Open the recovery email on the phone while the app/server is available, return to the account screen, and set a new password. Email delivery and redirect handling need a real project/device test.
+Configure Auth allowed redirect URLs for the actual account callback (README → Redirect URLs). Forge's own production build uses `forge:///account` and FORGE Dev `forge-dev:///account`, each allowed only in its own project; Expo Go uses its tunnel address (`exps://…/--/account`). The reset-password request generates the current redirect using Expo Linking. Open the recovery email on the phone while the app/server is available, return to the account screen, and set a new password. Email delivery and redirect handling need a real project/device test.
 
 Use two test accounts to verify isolation before trusting cloud data. Switching accounts requires exporting and clearing the local database; this prevents uploading one user's retained records into another account. Cloud synchronization is currently manual. Export a local backup before resolving a cloud conflict or deleting an account.

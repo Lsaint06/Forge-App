@@ -1,6 +1,6 @@
 # Phase 7.8E: Account lifecycle and server hardening
 
-Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Stage 0 (redirect security) is verified and complete on the live project. Stage 1 is committed and pushed (`3409972`, `13eb666`). Stage 2 (safe account deletion, section 9) is committed and pushed (`7faef77`), followed by the founder-approved corrections from the final Stage 2 review (section 10), committed and pushed as `7204da4`. Stages 3–6 (sections 11–17) are committed locally, one commit per stage (section 16), and not pushed; nothing is deployed or activated.
+Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Stage 0 (redirect security) is verified and complete on the live project. Stage 1 is committed and pushed (`3409972`, `13eb666`). Stage 2 (safe account deletion, section 9) is committed and pushed (`7faef77`), followed by the founder-approved corrections from the final Stage 2 review (section 10), committed and pushed as `7204da4`. Stages 3–6 (sections 11–17) are committed, one commit per stage (section 16), and pushed (`fa94657`); nothing is deployed or activated. The development-environment and Phase 8 groundwork (section 18) followed in one further commit after founder review, also pushed.
 
 **Unchanged in Stage 1:** Supabase SQL, row-level security, functions and the live project's settings; sign-in providers and their flows; account ownership rules; the sync engine and the 7.8B–7.8D safeguards; the splash screen and screen designs (one new action and some wording only).
 
@@ -1166,3 +1166,65 @@ On the test device, signed in as A: start a workout, log a set, then go back to 
 | Sign in with Apple, Apple revocation, `forge:///` return links | **Forge's own build** (an EAS development build) |
 
 If anything differs from **Expected**, note the step and what appeared, then stop; nothing needs fixing on the spot.
+
+## 18. Integration: development environment and Phase 8 groundwork
+
+The founder approved pushing Stages 3–6 and moving on to a separate development environment and native development builds.
+
+**Pushed.** `7204da4..fa94657`. Before pushing:
+- exactly the four approved commits were ahead of the remote;
+- the working tree was clean;
+- the combined diff had no secrets, generated files or protected areas.
+
+After fetching, local HEAD, the tracking branch and the remote (`git ls-remote`) all read `fa946573d8864139cd2748aee68a5ecd00cd0d69`.
+
+**Implemented and verified locally:**
+- **Three apps from one codebase** (`app.config.ts`, `APP_VARIANT`):
+  - FORGE (`com.lsaint06.forge`, `forge`), FORGE Dev (`com.lsaint06.forge.dev`, `forge-dev`) and FORGE Preview.
+  - Unset, the configuration is `app.json` exactly: today's Expo Go setup, proven against the resolved configuration before the change.
+- **The per-app environment guard** (`src/cloud/environment.ts`, `src/cloud/client.ts`):
+  - Expo Go behaves as before.
+  - Forge's own builds must be a known app, running JavaScript built for them, and must name only their own environment and project. Otherwise they refuse to connect ("Accounts aren't available", training kept), and Metro's log says why.
+- **FORGE Dev's Metro** (`npm run start:dev`):
+  - It reads only `.env.forge-dev`, and refuses an incomplete, mislabeled or secret-key file, or one pointing at the project of any of Expo's own settings files.
+  - It also refuses while `.env.local`, `.env.development` or `.env.development.local` exists, and `metro.config.js` keeps the root `.env*` files out of its bundle.
+  - Run with dummy values, its bundle held the development values and none of production's, nor of a `.env.local`.
+- **`npm start`** stays Expo Go (`expo start --go`); Metro's link was confirmed as `exp://`.
+- **`expo-dev-client` and `expo-application`** are installed (SDK-pinned).
+- **Remote push is switched off** (`enableRemoteNotifications: false`): Forge only uses local notifications, so the push entitlement isn't needed.
+- **EAS profiles** (development, development-simulator, preview, production) validate against EAS's schema.
+- **Prebuild of both apps:** IDs, schemes, Sign in with Apple as the only entitlement, the charcoal launch screen, iOS 16.4.
+- **Tooling for the development project:**
+  - `npm run dev:check` (read-only);
+  - `npm run dev:verify-stage3` (destructive, development only, guarded);
+  - `supabase/verify/schema_checks.sql` (read-only, tested against both schemas).
+
+**Independent review: two findings, both fixed and covered by tests that fail without the fix.**
+1. **High: a leak into FORGE Dev's bundle.** Expo's development env module bundles `.env.local`, `.env.development` and `.env.development.local` regardless of `EXPO_NO_DOTENV`, over the launcher's values. A `.env.local` holding production values could therefore have sent FORGE Dev to production.
+   - **Reproduced** with real Metro: a dummy `.env.local` ref appeared in FORGE Dev's bundle.
+   - **Fixed in three layers:**
+     - `metro.config.js` blocks the root `.env*` files while `EXPO_NO_DOTENV` is set; the same run then bundled none of it;
+     - the launcher refuses to start while one of those files exists;
+     - every Expo settings file is compared with `.env.forge-dev`.
+2. **Medium: reset links ignored.** Password-reset links to `forge-dev:///account` (and `forge-preview:`) were silently ignored: `src/cloud/recovery.ts` only knew `forge:`, `exp:` and `exps:`. It now takes the apps' schemes from the shared table.
+
+**Verification (the final tree, after both fixes):**
+- **Logic:** **778 of 778**, in Pacific time and in UTC: section 16's 758, plus 20:
+  - environment +5;
+  - recovery +1;
+  - app variants 4;
+  - development tools 8;
+  - verification SQL 2.
+- **UI:** **783 of 783** in 73 suites, in Pacific time and in UTC: section 16's 779, plus 4 environment-guard tests.
+- **Server (PGlite):** **30 of 30**: `server-hardening` 18, `server-security` 9, `postgres` 1 and `verify-sql` 2.
+- **TypeScript:** passes. **ESLint:** 0 errors; the 1 warning is pre-existing. **Prettier:** passes.
+- **Exports:** iOS and Android production exports pass.
+- **Configuration:** with `APP_VARIANT` unset it still resolves to FORGE, `forge`, `com.lsaint06.forge`.
+
+**Committed and pushed** after the founder's review (Nov 2, 2026), as a single commit on top of `fa94657`. Nothing is deployed, and no Supabase, Google or Apple setting changed.
+
+**Requires founder action:**
+- **Development project:** create it and configure it (`docs/DEVELOPMENT_ENVIRONMENT.md`), then run the Stage 3 procedure there.
+- **Native builds:** Xcode, or EAS with the Apple Developer Program (`docs/NATIVE_BUILDS.md`).
+- **App icon:** the decision (C-00b).
+- **Production SQL:** still needs separate approval (E7).

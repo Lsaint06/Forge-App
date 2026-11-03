@@ -1,3 +1,13 @@
+import { APP_SCHEMES } from "./environment";
+
+/**
+ * Where a reset link can arrive: each of Forge's own apps (FORGE, FORGE Dev,
+ * FORGE Preview: each receives only its own scheme) and Expo Go.
+ */
+const RECOVERY_SCHEMES = new Set(
+  [...Object.values(APP_SCHEMES), "exp", "exps"].map((s) => `${s}:`),
+);
+
 /** Extract only valid recovery callbacks. Never log a URL containing session tokens. */
 export function recoveryTokens(
   url: string,
@@ -28,7 +38,7 @@ export function brokenRecoveryLink(url: string) {
 function recoveryValues(url: string) {
   try {
     const u = new URL(url);
-    if (!["forge:", "exp:", "exps:"].includes(u.protocol)) return undefined;
+    if (!RECOVERY_SCHEMES.has(u.protocol)) return undefined;
     if (u.hostname !== "account" && !u.pathname.endsWith("/account"))
       return undefined;
     const values = new URLSearchParams(u.hash.slice(1));

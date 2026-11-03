@@ -60,3 +60,25 @@ test("a reset link without its tokens is recognized as broken; others aren't (7.
   );
   assert.equal(brokenRecoveryLink("not a url"), false);
 });
+
+test("reset links reach FORGE Dev and FORGE Preview too (Phase 8); other schemes never", () => {
+  const link = (scheme: string) =>
+    `${scheme}:///account#type=recovery&access_token=a&refresh_token=r`;
+  for (const scheme of ["forge", "forge-dev", "forge-preview"]) {
+    assert.deepEqual(recoveryTokens(link(scheme)), {
+      access_token: "a",
+      refresh_token: "r",
+    });
+    assert.equal(
+      brokenRecoveryLink(`${scheme}:///account#type=recovery`),
+      true,
+    );
+  }
+  for (const scheme of ["evil", "https", "forgedev", "forge-staging"]) {
+    assert.equal(recoveryTokens(link(scheme)), null, scheme);
+    assert.equal(
+      brokenRecoveryLink(`${scheme}:///account#type=recovery`),
+      false,
+    );
+  }
+});

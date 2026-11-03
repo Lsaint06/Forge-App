@@ -28,7 +28,12 @@
         }
       ],
       "expo-secure-store",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false
+        }
+      ],
       [
         "expo-splash-screen",
         {
