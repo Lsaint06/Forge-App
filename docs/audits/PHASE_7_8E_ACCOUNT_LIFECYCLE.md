@@ -1,6 +1,6 @@
 # Phase 7.8E: Account lifecycle and server hardening
 
-Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Stage 0 (redirect security) is verified and complete on the live project. Stage 1 is committed and pushed (`3409972`, `13eb666`). Stage 2 (safe account deletion, section 9) is committed and pushed (`7faef77`), followed by the founder-approved corrections from the final Stage 2 review (section 10). Stages 3–6 (sections 11–15) are uncommitted, pending founder review.
+Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Stage 0 (redirect security) is verified and complete on the live project. Stage 1 is committed and pushed (`3409972`, `13eb666`). Stage 2 (safe account deletion, section 9) is committed and pushed (`7faef77`), followed by the founder-approved corrections from the final Stage 2 review (section 10), committed and pushed as `7204da4`. Stage 3 (server hardening, section 11) is committed locally and not pushed; nothing is deployed.
 
 **Unchanged in Stage 1:** Supabase SQL, row-level security, functions and the live project's settings; sign-in providers and their flows; account ownership rules; the sync engine and the 7.8B–7.8D safeguards; the splash screen and screen designs (one new action and some wording only).
 
@@ -99,7 +99,7 @@ forge:///account
 - **Signed-out callers** see no rows and can't run either function. A signed-in request that names no user is refused.
 - **Deletion:** deleting an account removes its identities and cloud records, and only its own. Afterwards, its still-valid sign-in can't write or read, and deleting again is harmless.
 - **Limits:** identity length, revision, kind, kind changes and the 5 MB payload cap hold.
-- **Baseline (L6):** under Supabase's defaults the migration leaves `SELECT` for anon and `TRUNCATE`, `REFERENCES` and `TRIGGER` for both API roles. None is reachable through the Data API. E7 revokes them, and this test changes with it.
+- **Baseline (L6):** under Supabase's defaults the migration leaves `SELECT` for anon and `TRUNCATE`, `REFERENCES` and `TRIGGER` for both API roles, plus `MAINTAIN` on Postgres 17 and later (found in the Stage 3–6 review). None is reachable through the Data API. E7 revokes them, and this test changes with it.
 
 Each guarantee was checked against a deliberately broken copy of the migration (an open read policy, direct writes granted, no caller check, anon allowed to write, deletion of every account, no cascade). Every break was caught.
 
@@ -490,3 +490,111 @@ No redirect URL is involved (the code is typed), so the allow list doesn't chang
 
 ### Next
 - **Later:** the email one-time-code implementation, after its verification in a development project (dashboard changes). Prepared in Stage 5.
+
+## 11. Stage 3: server security hardening (prepared, not deployed)
+
+Stage 2 is final at `7204da4` (committed and pushed). Nothing in Stages 3–6 was deployed: the live Supabase project, its SQL, its settings and its users are unchanged.
+
+### Goal
+Before any external distribution, deleting an account must need a genuinely recent sign-in, enforced by the server rather than by the app, with no direct-table privileges beyond what the app uses.
+
+### What Supabase's tokens actually prove
+Read from the Supabase Auth source at the live project's version (v2.197.0; unchanged on `master`):
+- **The `amr` claim** lists each authentication method used on the session, with the time it was last used (`AMREntry{Method, Timestamp: claim.UpdatedAt}`). These come from the session's `mfa_amr_claims` rows, which are written only when the athlete authenticates: a sign-in creates a new session with its method (`AddClaimToSession` in `IssueRefreshToken`), and MFA adds to it.
+- **A token refresh never adds to `amr`.** The refresh grant reissues the token from the session's existing records (`CalculateAALAndAMR`). It passes `token_refresh` only as the request's own label, never as an `amr` entry. So `amr` timestamps measure real authentication, and refreshes can't renew them.
+- **`iat`** is the token's issue time, renewed by every refresh: never proof of a recent sign-in, and not used. `auth_time` exists only in OIDC ID tokens, not in access tokens.
+- **`session_id`** names the session, and **`is_anonymous`** is always present.
+- **Method names:** `password`, `oauth`, `otp`, `magiclink`, `recovery`, `email/signup`, `invite`, `sso/saml`, `web3`, `passkey`, `totp`, `mfa/phone`, `mfa/webauthn`, `mfa/recovery_code` are interactive. `token_refresh`, `anonymous`, `email_change` and `oauth_provider/authorization_code` (Supabase acting as an OAuth server for other apps) are not.
+- **Email codes:** `signInWithOtp` with `create_user: false` refuses an email that has no account (`otp_disabled`, "Signups not allowed for otp"). Verifying a code starts a session recorded as `otp`, and adds no identity; an email identity is created only when an email change is confirmed.
+
+### The migration
+`supabase/migrations/202611020001_forge_security_hardening.sql`, additive (no table, column or record changes):
+1. **`forge_delete_account`:**
+   - Refuses a caller without a user, a role claim other than `authenticated`, or an anonymous sign-in.
+   - If the account is already gone, it returns: a repeated request succeeds and changes nothing.
+   - The request's session must still exist for that account and not be past its `not_after`; signing out (here or everywhere) or revoking it ends its power to delete.
+   - The most recent interactive `amr` entry must be within 10 minutes (and not more than a minute in the future).
+   - Anything missing, malformed or not interactive is refused with `42501` and the hint `reauthentication_needed`.
+   - It takes no arguments, so no client-provided value can stand in for a sign-in.
+2. **`forge_write`:** unchanged behavior for every non-anonymous account, refuses anonymous sign-ins, with every name schema-qualified.
+3. **Search path:** both functions run with a fixed `search_path` of `pg_catalog, pg_temp`. PostgreSQL's built-ins come first and the caller's temporary schema last, as PostgreSQL advises for `SECURITY DEFINER` functions. The first draft used an empty search path, which searches the caller's temporary schema *first* for type names; the final review found and fixed this (section 16).
+4. **Reads:** the read policy still allows only the account's own rows (now `(select auth.uid())`, the form Supabase recommends) and excludes anonymous sign-ins.
+5. **Privileges (L6):** anon loses every table privilege; `authenticated` keeps only `SELECT` (row-level security). Both are revoked with `all`, so `TRUNCATE`, `REFERENCES`, `TRIGGER` and, on Postgres 17 and later, `MAINTAIN` (which allows `LOCK TABLE`, `VACUUM`, `REINDEX`) go too. Function execution stays `authenticated`-only. A first draft named the privileges one by one, which would have left `MAINTAIN`; the independent review found it (section 14).
+
+**Rollback:** `supabase/rollback/202611020001_forge_security_hardening.sql` restores the previous function bodies and read policy exactly. It leaves the unused privileges revoked, with the exact statements to restore them too.
+
+**App compatibility:** no app change needed.
+- The deletion flow already treats `reauthentication_needed` as "confirm it's you again" (tested against the hardened schema).
+- The app's 5-minute window sits inside the server's 10 minutes.
+- Password and Google confirmations start new sessions (`password`, `oauth`), as would email codes (`otp`).
+- Sync is unchanged: the app's real sync runs against the hardened schema in the tests.
+
+### Verification (local, PGlite)
+`tests/server-hardening.test.ts` sets PGlite up the way Supabase sets up a project: API roles, `auth.uid()` and `auth.jwt()` from the request's claims, the sessions and identities tables, Supabase's default privileges, and one transaction per request in the caller's role. It applies the live migration, then the hardening, and covers 14 cases:
+- **Deletion itself:** a fresh sign-in deletes the account with its records, identities and sessions, and nothing of B's.
+- **Stale sign-ins:** refused, including a token issued just now for a session signed in 30 minutes ago, and a fresh `token_refresh` entry.
+- **Methods:** 8 interactive methods accepted; 7 others refused.
+- **Malformed assurance:** 11 missing, malformed or future-dated `amr` shapes, each refused, with nothing changed.
+- **Dead sessions:** no, malformed, unknown, another account's, deleted or expired session, each refused.
+- **Callers:** anon, a signed-in token without a user, the wrong role, and an anonymous sign-in, each refused.
+- **Repeats:** a repeated request after deletion succeeds and changes nothing, even with a stale token.
+- **No caller-supplied value counts:** a timestamp argument isn't accepted, and claims outside `amr` (`auth_time`, `iat`…) don't count.
+- **Sync writes:** unchanged (revisions, conflicts); anonymous refused; reads owner-only, and empty for an anonymous sign-in.
+- **Privileges:** checked one by one (`has_table_privilege`, `has_function_privilege`, including `MAINTAIN` where Postgres has it), and as the table's exact access list, so a privilege a newer Postgres adds can't hide. Both functions are `SECURITY DEFINER` with `search_path=pg_catalog, pg_temp`. PGlite runs PostgreSQL 18.6.
+- **Temporary objects:** a caller's temporary tables named `uuid`, `jsonb` and `text` change nothing: the write works, a stale sign-in is refused, and a fresh one deletes.
+- **The app's real sync** against the hardened schema: upload, download on a second device, and nothing seen by another account.
+- **The app's deletion engine** against the hardened schema: stale returns to "confirm it's you" and removes nothing; fresh deletes.
+- **The rollback** restores the previous behavior exactly. Its documented statements for the table privileges (`grant all`, then `revoke insert, update, delete`) restore the previous access list exactly, on any Postgres version.
+
+**Deliberate breaks:** each of 8 weakenings was caught, and the file restored byte-for-byte:
+- using `iat` instead of `amr`;
+- skipping the session check;
+- counting `token_refresh`;
+- allowing anonymous deletion;
+- accepting future dates;
+- leaving the L6 privileges;
+- an unpinned search path;
+- anonymous reads.
+
+The final review added four more for the search path (section 16), all caught.
+
+The baseline tests (`tests/server-security.test.ts`, `tests/postgres.test.ts`) still describe the live, unhardened project and pass unchanged.
+
+### Assumptions (check in the dashboard before applying)
+1. **No custom access token hook** rewrites `amr`, `session_id` or `is_anonymous` (Authentication → Hooks).
+2. **The claims are the verified JWT's.** The Data API exposes no function that sets `request.jwt.*`; only `forge_write` and `forge_delete_account` are exposed in `public`.
+3. **`auth.sessions` keeps its documented shape** (`id`, `user_id`, `not_after`). If Supabase changed it, deletion would fail closed (refused), never open.
+4. **Clocks:** the database and Auth clocks agree within a minute.
+5. **The functions' owner can read `auth.sessions`.** Read-only check: `select has_table_privilege('postgres', 'auth.sessions', 'select');`. If it can't, deletion fails closed (refused), never open.
+
+### Development project: how to apply and verify
+1. Create the development project (E6, section 13) and apply `202610140001_forge.sql`, then this migration (`supabase db push`, or the SQL editor, wrapped in `begin; … commit;`).
+2. **Read-only checks:** `select proname, prosecdef, proconfig from pg_proc where proname like 'forge_%';` and the Stage 0 privilege queries.
+3. **With throwaway accounts** (one email, one Google):
+   - sign in and delete within 10 minutes: deleted;
+   - sign in, wait 11 minutes (refresh happens on its own), delete: "Forge's account service asks you to sign in again first", then confirm and delete: deleted;
+   - sign out of all devices on another device, then delete with the old sign-in: asked to sign in again;
+   - sync, conflicts, and a second device's download all work.
+4. Decode a real access token (on a developer machine, never logged) to confirm the `amr` shape for password and Google sessions.
+
+### Production: deployment and rollback checklist
+1. Founder approves this exact SQL (E7).
+2. Development project verified as above.
+3. Back up the production database (dashboard backup or `pg_dump` of `public.forge_records`).
+4. Apply the migration in one transaction during low use.
+5. Run the read-only checks.
+6. Delete a throwaway production account once (fresh, then stale).
+7. If anything regresses, apply the rollback script (one transaction) and re-run the checks.
+
+### Requires live verification
+- That the live functions are still the baseline until this is applied (nothing deployed): `select proname, proconfig from pg_proc where proname in ('forge_write', 'forge_delete_account');` shows `search_path=public, pg_temp` and `search_path=public, auth, pg_temp`.
+- The `amr` timestamps for password, Google and email-code sessions on the real project.
+- That a refresh after 10 minutes leaves deletion refused.
+- `auth.sessions` row removal on sign-out and sign-out of all devices.
+- That PostgREST passes the `hint` through to the app.
+
+### Remaining risks (Stage 3)
+- **PGlite only simulates Supabase's roles and claims;** live verification is still required.
+- **Recovery links count as a recent sign-in.** A password-reset link proves the inbox (by design).
+- **Freshness isn't knowledge of a password.** A recent Google sign-in can come from one tap when the browser is signed in.
+- **Default privileges.** Supabase grants new objects to anon by default; future migrations must revoke as this one does.
