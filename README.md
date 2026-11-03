@@ -111,6 +111,8 @@ These values are compiled into the mobile bundle. **Never use a service-role key
 4. For a custom EAS build make the same public variables available at build time. Mobile network access must reach that project's HTTPS hostname.
 5. Create an account or sign in on the Welcome screen. Training already on a phone with no owner can be linked only to an account with no cloud records (checked first; see `docs/audits/PHASE_7_7A_ONBOARDING_AUDIT.md`). Synchronize from You → Account & privacy and review first-sync conflicts explicitly.
 
+**Separate development and production projects (prepared, Phase 7.8E):** `EXPO_PUBLIC_FORGE_ENV` (`development` or `production`) and `EXPO_PUBLIC_SUPABASE_PROJECT_REF` pin a build to one project. Leave both empty while Forge has one project; nothing changes. Once they are set, the build connects only to `https://<ref>.supabase.co`. Any other address, an unknown environment name, or a name without a ref shows "Accounts aren't available" and keeps the phone's training. A custom domain would need the check in `src/cloud/environment.ts` changed deliberately. The separation plan is in section 13 of `docs/audits/PHASE_7_8E_ACCOUNT_LIFECYCLE.md`.
+
 ### Sign-in providers (Phase 7.7B.1)
 
 Welcome offers **Continue with Apple**, **Continue with Google** and **Continue with Email**. A provider's button appears only when Supabase Auth reports that provider enabled (its public `/auth/v1/settings`), so nothing is offered that would fail.

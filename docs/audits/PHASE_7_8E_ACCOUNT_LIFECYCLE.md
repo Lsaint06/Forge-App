@@ -1,6 +1,6 @@
 # Phase 7.8E: Account lifecycle and server hardening
 
-Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Stage 0 (redirect security) is verified and complete on the live project. Stage 1 is committed and pushed (`3409972`, `13eb666`). Stage 2 (safe account deletion, section 9) is committed and pushed (`7faef77`), followed by the founder-approved corrections from the final Stage 2 review (section 10), committed and pushed as `7204da4`. Stages 3–4 (sections 11–12) are committed locally, one commit per stage, and not pushed; nothing is deployed.
+Implementation report. Baseline: `feat/forge-paths-foundation` at `e541339`. Stage 0 (redirect security) is verified and complete on the live project. Stage 1 is committed and pushed (`3409972`, `13eb666`). Stage 2 (safe account deletion, section 9) is committed and pushed (`7faef77`), followed by the founder-approved corrections from the final Stage 2 review (section 10), committed and pushed as `7204da4`. Stages 3–5 (sections 11–13) are committed locally, one commit per stage, and not pushed; nothing is deployed or activated.
 
 **Unchanged in Stage 1:** Supabase SQL, row-level security, functions and the live project's settings; sign-in providers and their flows; account ownership rules; the sync engine and the 7.8B–7.8D safeguards; the splash screen and screen designs (one new action and some wording only).
 
@@ -684,3 +684,151 @@ The final review added four more for the sign-out classification (section 16), a
 4. Sign in with the same account: the workout is there; sync uploads it once.
 5. Sign in with another account instead: the account check holds; the workout isn't visible.
 6. Airplane mode mid-workout (no sign-in loss): training continues as before; sync says it needs a connection.
+
+## 13. Stage 5: authentication preparation (prepared, not activated)
+
+Everything in this stage is **inactive**. No screen offers it, no client option switches it on, and today's `.env` sets none of the new variables. Activating any part needs dashboard changes (or a development project) first, and the founder's approval.
+
+### Email one-time code (D4 follow-up, D3)
+**Code (`src/auth/reauth.ts`):**
+- `sendEmailCode` asks Supabase for a code for the signed-in account's own email, with `shouldCreateUser: false`, on a client that stores nothing. It can reach only an existing account and never creates one.
+- `reauthWithEmailCode` ignores spaces and refuses anything but 6–10 digits before asking the service (`invalid_code`). It verifies on the same storage-less client, then adopts the session only for the same account (`adoptIfSameAccount`). A session for anyone else is refused and ended, exactly like a wrong Google account.
+- **Not wired to a screen.** The project's email template today sends a link, not a code; offering "Email me a code" before the template changes would send a sign-in link instead.
+
+**Tests (`tests/reauth.test.ts`, 3 new):**
+- the code goes to the account's own email with `shouldCreateUser: false`;
+- Supabase's `otp_disabled` (no such account) is passed on unchanged;
+- no email: nothing is sent;
+- spaces are ignored, and the code is checked by the storage-less client;
+- malformed codes are refused without a request; an expired code changes nothing;
+- a code that signs in another account is refused, and only that session is ended.
+
+**To activate (development project first):**
+1. Email template ("Magic Link"): show `{{ .Token }}` and no link.
+2. Email OTP length (6–10 digits; the app accepts all) and expiry: about 10 minutes, rather than the 1-hour default.
+3. Custom SMTP (M7). Supabase's built-in sender reaches only the project team, and its rate limits are very low.
+4. Check the per-user resend cooldown and map its error ("wait before requesting another code").
+5. Confirm on the development project:
+   - a Google-only account can receive and use a code;
+   - no email identity is added;
+   - the session's `amr` is `otp`, which Stage 3 accepts.
+6. Add the "Email me a code" option to the Confirm-it's-you step: a UI change, for approval.
+
+### PKCE (E5)
+**Code (`src/auth/pkce.ts`):**
+- `pkceSupported` and `pkceAuthOptions`: PKCE can be switched on only where Web Crypto exists. Without it, the installed supabase-js (auth-js 2.118.0) quietly makes the verifier with `Math.random` and sends it as a `plain` challenge, which anyone who sees the sign-in address can read. `pkceAuthOptions` throws instead.
+- `readAuthCallback`:
+  - takes a code only from the query, never the fragment, and the account service's errors from either;
+  - reads the flow ID (`sb_flow_id`);
+  - refuses a malformed flow ID rather than dropping it, because without it supabase-js would try the latest flow's verifier and spend the single-use code.
+- `exchangeOnce`:
+  - exchanges a code once per runtime; a duplicate callback is ignored;
+  - any failure means starting again (expired, refused, or network). supabase-js discards a flow's verifier after any failed exchange, so not even a lost answer can be retried with the same code.
+  - Nothing is logged.
+
+**Findings from the installed library:**
+- `exchangeCodeForSession` saves the session in the starting client and announces `SIGNED_IN` to it. A confirmation must therefore start on the storage-less verifier client, never on this phone's own client, or a different account would be signed in before it is checked. A test shows the starting client holding the session.
+- Several flows can be in flight at once, so each callback should carry its flow ID. Appending it to redirects is an experimental supabase-js option (`experimental.appendPkceFlowIdToRedirects`); without it, the most recent verifier is used.
+
+**Tests (`tests/pkce.test.ts`, 8):**
+- callback shapes, including 12 refused ones;
+- the Web Crypto requirement;
+- one exchange per code, with its flow;
+- every failure means starting again, and the code is never retried;
+- nothing logged.
+- With the **real supabase-js client** and a simulated account service:
+  - the authorize address uses `s256`, and the verifier matches its challenge;
+  - one request per code;
+  - a lost answer discards the verifier;
+  - an unknown flow fails without spending the code.
+
+**What switching on would change:**
+
+| Flow | Today (implicit) | With PKCE |
+|---|---|---|
+| Google sign-in (`src/auth/social.ts`) | Tokens in the fragment | `?code=` exchanged by the client that started it (this phone's client) |
+| Google confirmation (deletion) | Tokens checked on the verifier client | Started and exchanged on the verifier client, then `adoptIfSameAccount` |
+| Email confirmation (`src/auth/links.ts`, `src/auth/email.ts`) | Tokens in the fragment | `?code=`; works only on the phone that signed up. Elsewhere the email is still confirmed, and the athlete signs in with their password |
+| Password reset (`src/cloud/recovery.ts`, `src/auth/session.ts`, `app/account.tsx`) | Tokens in the fragment | `?code=` with the `recovery` type, on the phone that asked for it |
+
+**Activation checklist:**
+1. On the phone (Expo Go and Forge's own build), check `pkceSupported()` (true/false only, nothing else logged). If it is false, add Web Crypto first: `crypto.getRandomValues` and `crypto.subtle.digest` (`expo-crypto` is already installed and provides both), and verify again.
+2. Switch the main and verifier clients to `pkceAuthOptions()` together, on the development project.
+3. Route `?code=` callbacks through `readAuthCallback` / `exchangeOnce` in the four flows above. Keep reading fragment tokens for at least the longest link lifetime, so emails sent before the switch still work.
+4. Existing sessions are unaffected: refresh doesn't depend on the flow type, so nobody is signed out.
+5. No redirect allow-list change: the addresses stay the same, and only what they carry changes.
+6. Test each flow, including a link opened on a second device ("start again", nothing changed), and a Google sheet cancelled mid-way.
+
+### Development and production separation (E6)
+**Code:**
+- `src/cloud/environment.ts`, with `EXPO_PUBLIC_FORGE_ENV` and `EXPO_PUBLIC_SUPABASE_PROJECT_REF`, used by `src/cloud/client.ts`.
+- With neither set (today), nothing changes. Once they are set, every client (the phone's, the verifier, the pinned deletion client) connects only to `https://<ref>.supabase.co`.
+- An unknown environment name, a name without a ref, or any other address leaves the build "misconfigured": "Accounts aren't available", training kept, no request made.
+- Problems name variables, never values. `.env.example` and the README document both variables.
+
+**Tests:**
+- `tests/environment.test.ts` (3): unchanged when unset or blank; each build only to its own project; unknown names, near-miss and look-alike addresses (`<ref>.evil.co`, `<ref>.supabase.co.evil.co`, `…@evil.co`) refused.
+- `tests/ui/cloud-environment.test.tsx` (4): the real client module, loaded fresh with each set of variables, creates no client of any kind for another project.
+
+**Plan (founder's steps, none done):**
+1. **Create** a development project (`forge-dev`) in the same organization and region.
+2. **Before any `supabase db push`,** run `supabase migration list` against production (read-only). If the baseline was applied in the SQL editor, the CLI doesn't know it was applied, and a push would try to apply it again. Mark it applied with `supabase migration repair --status applied 202610140001`, and only with approval.
+3. **Development schema:** link the CLI to the development project by default (`supabase link --project-ref <dev-ref>`) and apply both migrations there (`supabase db push`). Pushing to production stays a separate, approved step (E7).
+4. **Auth on development:**
+   - email/password;
+   - a **separate** Google OAuth client ("Forge Dev") whose redirect URI is `https://<dev-ref>.supabase.co/auth/v1/callback`;
+   - the same four redirect entries.
+   - Production's Google client, provider settings and redirect entries stay untouched until development works. Then remove the tunnel entry from production.
+5. **Variables:**
+   - Local `.env` (Mac and Windows) points to development, with `EXPO_PUBLIC_FORGE_ENV=development` and its ref.
+   - Production values live only in EAS environment variables (`production`), with `EXPO_PUBLIC_FORGE_ENV=production` and the production ref; the build profiles select them.
+6. **Testing:** throwaway accounts only (E10), and the Stage 3 checks (section 11).
+
+**Keeping Google sign-in working during the switch:**
+- **Production is unchanged.** Nothing on production changes until development is verified, so Google sign-in there keeps working.
+- **Switching projects doesn't sign anyone out.** Pointing the phone at development changes the session's storage key (`sb-<ref>-auth-token`). Forge simply looks signed out, and production's stored sign-in stays as it was.
+- **Don't test on the founder's own phone.** Its training belongs to the production account, so a development account sees "This phone's data belongs to a different account". Nothing is lost, but none of that screen's actions should be taken. Test development on a simulator or a second phone, or export a backup first.
+
+### Apple readiness (E8, D3): checklist only
+Apple's account-deletion guidance (App Review 5.1.1(v)):
+- Deletion must start in the app.
+- Reauthentication is allowed, including "entering a code from an email … already associated with the account".
+- It must not be "unnecessarily difficult".
+
+Apple's token-revocation reference: `POST https://appleid.apple.com/auth/revoke` with `client_id`, a `client_secret` JWT and a refresh or access token. The answer is `200` even when the token was already invalidated. If no token is kept, one can be generated from an authorization code.
+
+1. **Forge's own build** (EAS development build). Apple sign-in is deliberately never offered in Expo Go.
+2. **Reauthentication for Apple-only accounts:** Sign in with Apple again on the storage-less client (`signInWithIdToken` with a fresh nonce), then `adoptIfSameAccount`. A different Apple ID is refused, as with Google.
+3. **Revocation without storing Apple tokens (recommended).**
+   - The same confirmation sheet returns a fresh `authorizationCode`, which is single-use and short-lived.
+   - A Supabase Edge Function exchanges it at `https://appleid.apple.com/auth/token` and revokes the result.
+   - The Edge Function first checks that the caller's Supabase account owns that Apple identity.
+   - Only after revocation succeeds does the app call `forge_delete_account`, which still needs Stage 3's recent sign-in.
+   - Team ID, Key ID and the `.p8` key live only in the Edge Function's secrets, never in the app or the repository.
+4. **Hidden emails:** register Forge's sender for Apple's private email relay (with SPF/DKIM). Otherwise emails to `@privaterelay.appleid.com` (including codes) are dropped. That is why Apple-only accounts confirm with Apple, not email.
+5. **Optional:** Apple's server-to-server notifications (`consent-revoked`, `account-delete`) to an Edge Function.
+6. **Release gate:** no App Store submission with Apple sign-in until 1–4 are implemented and verified on a device.
+
+### Verification (Stage 5)
+- **Logic:** `tests/reauth.test.ts` 12 of 12, `tests/pkce.test.ts` 8 of 8, `tests/environment.test.ts` 3 of 3.
+- **UI:** `tests/ui/cloud-environment.test.tsx` 4 of 4.
+- **TypeScript:** passes.
+- **Deliberate breaks:** 15, each caught and then restored byte-for-byte.
+  - Environment:
+    - the guard removed from the phone's client, and from the pinned client;
+    - a prefix host match;
+    - unknown names accepted;
+    - a name accepted without its ref.
+  - Email code:
+    - `shouldCreateUser: true`;
+    - no format check;
+    - adoption checked through this phone's own client.
+  - PKCE:
+    - no dedupe;
+    - a code taken from the fragment;
+    - a malformed flow ID dropped;
+    - Web Crypto's digest not required;
+    - its random source not required;
+    - a lost answer reported as a refusal;
+    - the flow ID not passed.
+- **Design corrected while reading auth-js:** a first draft let a code be retried after a lost answer. supabase-js discards the verifier on any failure, so such a retry can never succeed, and the outcome is now "start again".

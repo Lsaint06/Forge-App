@@ -1,14 +1,23 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { sessionStorage } from "../platform/sessionStorage";
 import { AppState } from "react-native";
+import { buildEnvironment, checkEnvironment } from "./environment";
 import { withTimeout } from "./transport";
 export { transport } from "./transport";
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 let client: SupabaseClient | null = null;
+
+/** Refuses an address that isn't this build's own project (Phase 7.8E, E6). */
+function assertOwnProject(address: string) {
+  const check = checkEnvironment({ ...buildEnvironment(), url: address });
+  if (!check.ok) throw new Error(check.problem);
+}
+
 export function cloudClient() {
   if (!url || !key) return null;
   if (!/^https:\/\//.test(url)) throw new Error("Supabase URL must use HTTPS");
+  assertOwnProject(url);
   if (!client) {
     client = createClient(url, key, {
       auth: {
@@ -37,6 +46,7 @@ export function cloudClient() {
 export function verifierClient(): SupabaseClient | null {
   if (!url || !key) return null;
   if (!/^https:\/\//.test(url)) throw new Error("Supabase URL must use HTTPS");
+  assertOwnProject(url);
   return createClient(url, key, {
     auth: {
       storageKey: "forge-reauth",
@@ -56,6 +66,7 @@ export function verifierClient(): SupabaseClient | null {
 export function tokenClient(accessToken: string): SupabaseClient | null {
   if (!url || !key) return null;
   if (!/^https:\/\//.test(url)) throw new Error("Supabase URL must use HTTPS");
+  assertOwnProject(url);
   return createClient(url, key, {
     accessToken: async () => accessToken,
     global: { fetch: withTimeout((input, init) => fetch(input, init)) },

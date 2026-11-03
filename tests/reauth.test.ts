@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   ReauthError,
   adoptIfSameAccount,
+  reauthWithEmailCode,
   reauthWithPassword,
+  sendEmailCode,
   type Tokens,
 } from "../src/auth/reauth";
 import { tokenSubject } from "../src/auth/jwt";
@@ -279,4 +281,135 @@ test("tokenSubject reads the account a token names, and nothing else", () => {
     assert.equal(tokenSubject(bad), undefined);
   // Standard base64 and padding are read the same way.
   assert.equal(tokenSubject(jwt({ sub: "x-1" }, "base64")), "x-1");
+});
+
+// ---- Stage 5: email one-time code (prepared, not offered in the app yet) ----
+
+/** The verifier (stores nothing) as Supabase answers email codes. */
+function emailVerifier(
+  f: {
+    owner?: string | object;
+    sendError?: Error;
+    verifyError?: Error;
+  } = {},
+) {
+  const checker = client({ "code-access": f.owner ?? A });
+  const asked: unknown[] = [];
+  const verifier = {
+    auth: {
+      ...checker.client.auth,
+      async signInWithOtp(params: unknown) {
+        asked.push(["send", params]);
+        return { data: {}, error: f.sendError ?? null };
+      },
+      async verifyOtp(params: unknown) {
+        asked.push(["verify", params]);
+        return f.verifyError
+          ? { data: { session: null }, error: f.verifyError }
+          : {
+              data: {
+                session: {
+                  access_token: "code-access",
+                  refresh_token: "code-refresh",
+                },
+              },
+              error: null,
+            };
+      },
+    },
+  };
+  return { verifier, asked, checks: checker.calls };
+}
+
+test("email code: sent to the account's own email, never creating an account", async () => {
+  const { verifier, asked } = emailVerifier();
+  await sendEmailCode(verifier as never, { email: "a@example.com" });
+  assert.deepEqual(asked, [
+    ["send", { email: "a@example.com", options: { shouldCreateUser: false } }],
+  ]);
+  // Supabase's answer for an email with no account is passed on, unchanged.
+  const noAccount = Object.assign(new Error("Signups not allowed for otp"), {
+    code: "otp_disabled",
+  });
+  const refused = emailVerifier({ sendError: noAccount });
+  await assert.rejects(
+    sendEmailCode(refused.verifier as never, { email: "nobody@example.com" }),
+    (e: unknown) => e === noAccount,
+  );
+  // No email: nothing is sent.
+  const none = emailVerifier();
+  await assert.rejects(
+    sendEmailCode(none.verifier as never, {}),
+    (e: unknown) => e instanceof ReauthError && e.reason === "no_session",
+  );
+  assert.deepEqual(none.asked, []);
+});
+
+test("email code: the right code for the same account is adopted; spaces are ignored", async () => {
+  const phone = client({});
+  const { verifier, asked, checks } = emailVerifier();
+  await reauthWithEmailCode(
+    phone.client,
+    verifier as never,
+    { id: A, email: "a@example.com" },
+    " 123 456 ",
+  );
+  assert.deepEqual(asked, [
+    ["verify", { email: "a@example.com", token: "123456", type: "email" }],
+  ]);
+  assert.deepEqual(checks, ["getUser code-access"]);
+  assert.deepEqual(phone.calls, [
+    "getSession",
+    "setSession code-access",
+    "signOut old local",
+  ]);
+});
+
+test("email code: malformed, wrong or expired codes, or another account, change nothing here", async () => {
+  for (const code of ["", "12345", "abcdef", "12345678901", "1234-56"]) {
+    const phone = client({});
+    const { verifier, asked } = emailVerifier();
+    const e = await refusal(
+      reauthWithEmailCode(
+        phone.client,
+        verifier as never,
+        { id: A, email: "a@x.co" },
+        code,
+      ),
+    );
+    assert.equal(e.reason, "invalid_code", code);
+    assert.deepEqual(asked, []);
+    assert.deepEqual(phone.calls, []);
+  }
+  const expired = Object.assign(new Error("Token has expired or is invalid"), {
+    code: "otp_expired",
+  });
+  const phone = client({});
+  const wrong = emailVerifier({ verifyError: expired });
+  await assert.rejects(
+    reauthWithEmailCode(
+      phone.client,
+      wrong.verifier as never,
+      { id: A, email: "a@x.co" },
+      "123456",
+    ),
+    (e: unknown) => e === expired,
+  );
+  assert.deepEqual(phone.calls, []);
+  // A code that somehow signs in another account is refused like any other.
+  const other = emailVerifier({ owner: "user-b" });
+  const e = await refusal(
+    reauthWithEmailCode(
+      phone.client,
+      other.verifier as never,
+      { id: A, email: "a@x.co" },
+      "123456",
+    ),
+  );
+  assert.equal(e.reason, "wrong_account");
+  assert.deepEqual(other.checks, [
+    "getUser code-access",
+    "signOut code-access local",
+  ]);
+  assert.deepEqual(phone.calls, []);
 });
