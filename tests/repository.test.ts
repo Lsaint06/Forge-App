@@ -42,6 +42,26 @@ test("only one active workout and completion is idempotent", () => {
   assert.equal(r.workouts().length, 1);
   assert.equal(r.active(), undefined);
 });
+test("a new workout never starts mid-rest; resuming keeps the rest (Phase 8.3C-3)", () => {
+  const { r } = open();
+  const running = () => String(Date.now() + 60_000);
+  // A countdown left by a workout that ended some other way.
+  r.setSetting("restDeadline", running());
+  const w = r.startWorkout("Push");
+  assert.equal(r.setting("restDeadline"), "0");
+  // Starting while that workout is in progress just returns it: its rest
+  // carries on.
+  const resting = running();
+  r.setSetting("restDeadline", resting);
+  assert.equal(r.startWorkout("Pull").id, w.id);
+  assert.equal(r.setting("restDeadline"), resting);
+  r.finishWorkout(w.id);
+  r.setSetting("restDeadline", running());
+  r.startPrescribedWorkout("Legs", [
+    { exerciseId: "back-squat", sets: 1, reps: 5, weight: 100, rest: 120 },
+  ]);
+  assert.equal(r.setting("restDeadline"), "0");
+});
 test("template creates prescribed sets and duplicates without identity reuse", () => {
   const { r } = open();
   const t = r.saveTemplate("Push", [

@@ -6,7 +6,7 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 | --- | --- | --- |
 | Expo SDK 58 / strict TypeScript foundation | Implemented and tested | Typecheck and iOS/Android bundle export |
 | Five custom tabs and persistent workout entry point | Implemented but unverified | Bundled; no physical navigation run |
-| Theme, safe areas, large targets and accessible labels | Implemented but unverified | Source implemented; no VoiceOver/device audit. Phase 8.3C: in the standalone FORGE Dev build the logger's header drew under the iPhone status bar (a native modal without its own safe-area provider); fixed in source with a regression test, device re-test pending ([results](docs/audits/PHASE_8_3C_DEVICE_RESULTS.md)) |
+| Theme, safe areas, large targets and accessible labels | Implemented but unverified | Source implemented; no VoiceOver/device audit. Phase 8.3C: in the standalone FORGE Dev build the logger's header drew under the iPhone status bar (a native modal without its own safe-area provider); fixed in `5398dc9` with a regression test and founder-verified on the iPhone 17 (Nov 4) ([results](docs/audits/PHASE_8_3C_DEVICE_RESULTS.md)) |
 | Reduced-motion progress/sheets, haptics | Implemented but unverified | Native behavior untested |
 | Skeleton loading states | Partially implemented | Startup loading indicator; no skeleton card system |
 | Swipe interactions | Not implemented | Explicit reorder/delete controls are available |
@@ -18,11 +18,11 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 | Set creation/editing, cascade deletion, stable ordering | Implemented and tested | SQLite persistence/ordering/validation tests |
 | Restartable active workout | Implemented and tested | Stored rows reopened through repository; phone process termination still unverified |
 | Empty completed-set rejection | Implemented and tested | Regression rejects completion without reps/duration/distance |
-| Workout editor controls, exercise substitution and notes | Implemented but unverified | Typecheck/export; device flow outstanding |
+| Workout editor controls, exercise substitution and notes | Implemented but unverified | Typecheck/export; device flow outstanding. Phase 8.3C-3: an edit to a finished workout that leaves no completed set isn't saved; the lifter keeps editing or deletes the session after the usual confirmation (regression tests) |
 | Collapsible exercise cards and compact set logging | Implemented and tested | Path/workout/input interaction regressions cover summaries, completion/rest, optional effort/notes and retained target history; physical-device testing outstanding |
 | Valid numeric edits persist before blur | Implemented and tested | React Native interaction tests |
 | Pause/resume duration arithmetic | Implemented and tested | Pure timestamp timer test; background native behavior outstanding |
-| Rest deadlines/manual start/skip/extend/per-exercise defaults | Implemented but unverified | Persisted settings and native notification hooks; device delivery outstanding |
+| Rest deadlines/manual start/skip/extend/per-exercise defaults | Implemented but unverified | Persisted settings and native notification hooks; device delivery outstanding. Phase 8.3C-3: discarding a workout ends its rest and cancels its alert, and a new workout never starts mid-countdown (regression tests) |
 | Warmup/drop/failure kinds, RPE/RIR, tempo and unilateral sides | Implemented but unverified | Validated persisted set fields; complete UI flows unverified |
 | Bodyweight, duration and distance inputs | Implemented but unverified | Canonical fields and category-dependent editors |
 | Superset/circuit tracking | Partially implemented | Group labels/notes only; no automatic circuit rounds or rotation |
@@ -64,7 +64,7 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 | Secondary-screen consistency: named confirmations, friendly save errors, profile editors in your units, exercise library/detail/custom form, shared picker, Account, legacy Path reschedule calendar, History paging, not-found page (WP5) | Implemented and tested | Presentation only; same storage, schemas, backup and sync; increment stored in kg; legacy custom exercises keep their text; untouched custom-exercise saves write nothing; History order unchanged; auth and Paths rules unchanged; logic/UI tests and Android emulator review; iPhone review outstanding |
 | Basic achievements | Implemented and tested | First/10/100 workouts, 10,000 kg, first recorded strength record thresholds |
 | Four-week consistency and custom exercise milestones | Not implemented | No fabricated unlocks |
-| Local rest/planned reminders / permission denial fallback | Implemented but unverified | Native APIs present; background/denial delivery requires device |
+| Local rest/planned reminders / permission denial fallback | Implemented but unverified | Native APIs present; background/denial delivery requires device. Phase 8.3C-3: during a rest with alerts off, the logger invites the lifter once to turn them on; the phone is asked for permission only when they tap Enable notifications, and any answer (or a choice in Preferences) is remembered (UI tests; device check pending) |
 | Recurring workout/goal/consistency reminders | Not implemented | Only explicitly scheduled local events |
 | SecureStore session storage | Implemented but unverified | Chunked storage adapter; device restoration not tested |
 | Email register/login/logout/session restoration | Implemented but unverified | Real Supabase calls. Live projects exist: production (Expo Go) and FORGE DEV (development; email confirmation off for disposable accounts, Nov 3, 2026). Verification with throwaway accounts in FORGE Dev is Phase 8.3. Founder-observed on the iPhone (Phase 8.3C, Nov 4): one disposable FORGE DEV account, created by the founder (approval A1, limited to that account), signs in; further accounts and deletion need approval. Sign out ends this device's sign-in; Sign out of all devices ends every sign-in (Phase 7.8E) |
@@ -84,7 +84,7 @@ Statuses describe **specific capabilities**, not an assertion that the entire pr
 | Automatic/background sync | Not implemented | Sync is manual by design; bounded retry on the next manual sync |
 | Export/import validation and atomic rollback | Implemented and tested | Backup round-trip, malformed JSON and FK rollback tests |
 | Backup file checker: `npm run backup:check` (Phase 8.3B) | Implemented and tested | Reads a backup file only: the app's backup format, then a trial restore with Forge's own import into a throwaway in-memory database and an export whose counts must match; prints counts, dates and a SHA-256 fingerprint, no names or notes. Tests with synthetic valid, truncated, empty, foreign, duplicated, two-in-progress and newer-format files; the file stays byte-identical |
-| Native backup share/import and deletion controls | Implemented but unverified | File/share APIs and confirmations; physical device outstanding |
+| Native backup share/import and deletion controls | Implemented but unverified | File/share APIs and confirmations; physical device outstanding. Phase 8.3C-3: Import backup and Delete all local data name a workout in progress before replacing or deleting it; importing during a rest cancels that rest's alert only once the backup is in |
 | Privacy disclosure/version/error recovery | Implemented but unverified | UI text and preserved database on startup failures |
 | CI workflow | Implemented and tested | GitHub Actions ("Validate FORGE") runs on every push to `feat/**` and `main`; it has passed on every push to `feat/forge-paths-foundation` since Nov 1, 2026 (through `5f07c9b`). It builds no signed app and runs no device |
 | Maestro end-to-end scenario | Implemented but unverified | Authored smoke flow; no device/emulator/Maestro execution |

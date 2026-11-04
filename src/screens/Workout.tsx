@@ -56,7 +56,18 @@ import {
   useSetFocus,
   SET_KEYBOARD_ID,
 } from "../components/SetGrid";
-import { restNotification, cancelRestNotification } from "../notifications";
+import {
+  restNotification,
+  cancelRestNotification,
+  notificationsAvailable,
+} from "../notifications";
+import { turnOnNotifications } from "../components/ProfileForm";
+import {
+  REST_ALERT_INVITE,
+  offeredIn,
+  showRestAlertInvite,
+  type RestAlertAnswer,
+} from "../domain/rest-alerts";
 import { FinishSheet } from "../components/FinishSheet";
 import { ReorderSheet } from "../components/ReorderSheet";
 import { hasValues } from "../domain/finish";
@@ -67,6 +78,7 @@ import { WORKOUT_SIGNED_OUT_NOTE } from "../domain/presentation/account";
 import {
   MenuSquare,
   ProgressCard,
+  RestAlertCard,
   RestRing,
   SessionCard,
   WorkoutBackdrop,
@@ -264,6 +276,58 @@ export function RestTimer() {
   );
 }
 
+/**
+ * Invites the lifter, during a rest, to turn on the alert that ends it
+ * (Phase 8.3C-3), until they answer. Permission is asked for only when they
+ * tap Enable notifications; turning alerts on also covers the rest already
+ * running.
+ */
+function RestAlertInvite({ workoutId }: { workoutId: string }) {
+  const r = useRepo();
+  const { left } = useRestLeft();
+  const asking = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const answer = r.setting(REST_ALERT_INVITE);
+  const show = showRestAlertInvite({
+    resting: left > 0,
+    alertsOn: r.profile().notifications,
+    available: !!notificationsAvailable,
+    answer,
+    workoutId,
+  });
+  // Unanswered, the offer stays with the workout it first appeared in.
+  useEffect(() => {
+    if (show && !answer) r.setSetting(REST_ALERT_INVITE, offeredIn(workoutId));
+  }, [show, answer, r, workoutId]);
+  if (!show) return null;
+  const answerWith = (value: RestAlertAnswer) =>
+    mutate(() => r.setSetting(REST_ALERT_INVITE, value));
+  async function enable() {
+    if (asking.current) return;
+    asking.current = true;
+    setBusy(true);
+    try {
+      const on = await turnOnNotifications(r);
+      answerWith(on ? "enabled" : "declined");
+      const deadline = Number(r.setting("restDeadline") ?? 0);
+      if (on && deadline > Date.now())
+        void restNotification(deadline).catch((e) =>
+          Alert.alert("Reminder unavailable", String(e)),
+        );
+    } finally {
+      asking.current = false;
+      setBusy(false);
+    }
+  }
+  return (
+    <RestAlertCard
+      busy={busy}
+      onEnable={() => void enable()}
+      onDismiss={() => answerWith("dismissed")}
+    />
+  );
+}
+
 /** iOS keyboard toolbar for set inputs: rest countdown, Next and Done. */
 function KeyboardBar() {
   const c = useColors();
@@ -397,6 +461,24 @@ export default function WorkoutScreen() {
   }
   function saveEdit() {
     if (!w) return;
+    // A finished workout keeps at least one completed set: an edit that
+    // leaves none is not saved as finished, and nothing is deleted unless
+    // the lifter confirms it (Phase 8.3C-3).
+    if (!r.workoutSets(w.id).some((s) => s.completed)) {
+      Alert.alert(
+        "No sets marked done",
+        "A finished workout needs at least one completed set. Keep editing to mark your sets done, or delete this session.",
+        [
+          { text: "Keep editing", style: "cancel" },
+          {
+            text: "Delete session",
+            style: "destructive",
+            onPress: confirmRemove,
+          },
+        ],
+      );
+      return;
+    }
     mutate(() => saveWorkoutEdit(r, w.id));
     setEditing(false);
   }
@@ -482,6 +564,29 @@ export default function WorkoutScreen() {
     .filter(Boolean)
     .join(" · ");
   const close = () => setSheet(undefined);
+  // Deleting a finished session, or discarding the workout in progress.
+  function confirmRemove() {
+    confirm(
+      completed ? "Delete this workout?" : "Discard this workout?",
+      completed
+        ? "The session and all its sets are removed from your history and progress. This cannot be undone, so export a backup first if you need to keep it."
+        : "The workout and the sets logged so far are removed. This cannot be undone.",
+      () => {
+        r.transaction(() => {
+          // Any saved pre-edit copy goes with it.
+          saveWorkoutEdit(r, w!.id);
+          r.deleteWorkout(w!.id);
+          // A discarded workout's rest ends with it, so the next workout
+          // never starts mid-countdown. Deleting a finished session leaves
+          // the rest of a workout in progress alone.
+          if (!completed) r.setSetting("restDeadline", "0");
+        });
+        if (!completed) void cancelRestNotification().catch(() => {});
+        returnToTraining();
+      },
+      { action: completed ? "Delete workout" : "Discard workout" },
+    );
+  }
   function finish() {
     const all = r.workoutSets(w!.id);
     if (!all.some((s) => s.completed || hasValues(s))) {
@@ -549,20 +654,7 @@ export default function WorkoutScreen() {
       label: completed ? "Delete session" : "Discard workout",
       icon: "trash-outline",
       destructive: true,
-      onPress: () =>
-        confirm(
-          completed ? "Delete this workout?" : "Discard this workout?",
-          completed
-            ? "The session and all its sets are removed from your history and progress. This cannot be undone, so export a backup first if you need to keep it."
-            : "The workout and the sets logged so far are removed. This cannot be undone.",
-          () => {
-            // Any saved pre-edit copy goes with it.
-            saveWorkoutEdit(r, w.id);
-            r.deleteWorkout(w.id);
-            returnToTraining();
-          },
-          { action: completed ? "Delete workout" : "Discard workout" },
-        ),
+      onPress: confirmRemove,
     },
   );
   const overline = editing
@@ -752,7 +844,10 @@ export default function WorkoutScreen() {
                     onPress={() => mutate(() => r.pauseWorkout(w.id))}
                   />
                 ) : (
-                  <RestTimer />
+                  <>
+                    {!keyboard && <RestAlertInvite workoutId={w.id} />}
+                    <RestTimer />
+                  </>
                 )}
                 {/* While typing on Android the dock sits on the keyboard: keep
                   the rest timer, hide Finish. On iOS the keyboard covers the

@@ -12,11 +12,16 @@ import {
   localSummary,
 } from "../../data/ownership";
 import {
+  activeWorkoutWarning,
   deleteLocalDataText,
   unsyncedRowText,
 } from "../../domain/presentation/account";
+import { workoutTitle } from "../../domain/workout-display";
 import { BackupSheet } from "../../components/Backup";
-import { cancelAllNotifications } from "../../notifications";
+import {
+  cancelAllNotifications,
+  cancelRestNotification,
+} from "../../notifications";
 import { InfoSheet } from "../../components/system";
 import { useColors } from "../../components/ui";
 import {
@@ -50,6 +55,17 @@ export function cloudConfigured() {
   } catch {
     return false;
   }
+}
+
+/** The workout in progress, named for the replace and delete warnings. */
+function inProgress(r: ReturnType<typeof useRepo>) {
+  const w = r.active();
+  return w
+    ? {
+        name: workoutTitle(w.name),
+        done: r.workoutSets(w.id).filter((s) => s.completed).length,
+      }
+    : undefined;
 }
 
 /** The membership card, as it was on You: free plan, nothing to buy. */
@@ -108,8 +124,18 @@ export function DataPrivacy() {
       if (text === null) return;
       confirm(
         "Replace local data from backup?",
-        "Every workout, template, preference and journal entry on this phone is replaced by the backup's contents, if the file is valid. This can't be undone, so export first. If cloud sync is enabled, the local sync identity resets and your next sync may report conflicts.",
+        [
+          activeWorkoutWarning(inProgress(r), "replaced"),
+          "Every workout, template, preference and journal entry on this phone is replaced by the backup's contents, if the file is valid. This can't be undone, so export first. If cloud sync is enabled, the local sync identity resets and your next sync may report conflicts.",
+        ]
+          .filter(Boolean)
+          .join(" "),
         () => {
+          // A rest running now belongs to the data being replaced. Its
+          // alert's id is read first (the import clears local settings) and
+          // the alert is cancelled only once the backup is in: a refused or
+          // failed import leaves the rest and its alert as they were.
+          const restAlert = r.setting("restNotification");
           try {
             importBackupKeepingOwner(r, text);
           } catch (e) {
@@ -126,6 +152,7 @@ export function DataPrivacy() {
             }
             throw e;
           }
+          if (restAlert) void cancelRestNotification(restAlert).catch(() => {});
           // The data now matches that backup file, so it is protected up to
           // the moment it was exported.
           const at = backupExportedAt(text);
@@ -226,7 +253,12 @@ export function DeleteLocalData() {
       onPress={() =>
         confirm(
           "Delete all local data?",
-          deleteLocalDataText(localSummary(r).unsynced, !!dataOwner(r)),
+          [
+            activeWorkoutWarning(inProgress(r), "deleted"),
+            deleteLocalDataText(localSummary(r).unsynced, !!dataOwner(r)),
+          ]
+            .filter(Boolean)
+            .join(" "),
           () => {
             r.clearData();
             void cancelAllNotifications().catch((e) =>

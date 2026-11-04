@@ -8,6 +8,8 @@ import { repository } from "./data/native";
 // where reminders behave as before. Expo Go 58 reports its execution
 // environment as "bare", so detect Expo Go directly.
 const unavailable = Platform.OS === "android" && isRunningInExpoGo();
+/** Whether reminders can work here at all: everywhere but Expo Go on Android. */
+export const notificationsAvailable = !unavailable;
 type NotificationsModule = typeof import("expo-notifications");
 let loading: Promise<NotificationsModule | null> | undefined;
 function notifications() {
@@ -45,12 +47,16 @@ export async function enableNotifications() {
   if (current.granted) return true;
   return (await Notifications.requestPermissionsAsync()).granted;
 }
-export async function cancelRestNotification() {
+/**
+ * Cancels the rest's alert: the one recorded now or, when a backup import
+ * has replaced that record, the one read before it (`scheduled`).
+ */
+export async function cancelRestNotification(scheduled?: string) {
   const r = repository();
-  const previous = r.setting("restNotification");
+  const previous = scheduled ?? r.setting("restNotification");
   if (previous) {
     await (await notifications())?.cancelScheduledNotificationAsync(previous);
-    r.setSetting("restNotification", "");
+    if (!scheduled) r.setSetting("restNotification", "");
   }
 }
 export async function notifyAt(title: string, body: string, at: number) {

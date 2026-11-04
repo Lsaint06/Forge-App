@@ -2,6 +2,7 @@ import React from "react";
 import { render, fireEvent, waitFor } from "@testing-library/react-native";
 import { ProfileForm } from "../../src/components/ProfileForm";
 import { defaults, type Profile } from "../../src/domain/types";
+import { REST_ALERT_INVITE } from "../../src/domain/rest-alerts";
 import { useRepo } from "../../src/state";
 jest.mock("expo-notifications", () => ({
   cancelAllScheduledNotificationsAsync: async () => {},
@@ -17,13 +18,16 @@ test("saving the profile preserves a just-enabled notification preference", asyn
     height: 180,
     weight: 80,
   };
+  const settings = new Map<string, string>();
   jest.mocked(useRepo).mockReturnValue({
     profile: () => profile,
     saveProfile: (patch: Partial<Profile>) => {
       profile = { ...profile, ...patch };
       return profile;
     },
-  } as ReturnType<typeof useRepo>);
+    setting: (key: string) => settings.get(key),
+    setSetting: (key: string, value: string) => settings.set(key, value),
+  } as unknown as ReturnType<typeof useRepo>);
   const onDone = jest.fn();
   const view = await render(<ProfileForm onDone={onDone} />);
   await fireEvent.press(view.getByText("Enable local notifications"));
@@ -31,6 +35,9 @@ test("saving the profile preserves a just-enabled notification preference", asyn
   await fireEvent.press(view.getByText("Save settings"));
   await waitFor(() => expect(onDone).toHaveBeenCalled());
   expect(profile.notifications).toBe(true);
+  // A choice made here is remembered, so the logger doesn't invite the
+  // lifter to turn on rest alerts again (Phase 8.3C-3).
+  expect(settings.get(REST_ALERT_INVITE)).toBe("settings");
 });
 
 function mockProfile(patch: Partial<Profile> = {}) {

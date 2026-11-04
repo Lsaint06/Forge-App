@@ -35,6 +35,7 @@ import {
 } from "../domain/profile";
 
 import { enableNotifications, cancelAllNotifications } from "../notifications";
+import { REST_ALERT_INVITE } from "../domain/rest-alerts";
 import { Stepper } from "./Stepper";
 import { readFormNumber } from "../domain/numbers";
 import { TARGET_HELP } from "../domain/targets";
@@ -121,26 +122,39 @@ const fieldDefs = sections.flatMap((s) => s.fields);
 export type ProfileField = keyof Profile | "journey";
 
 /**
+ * Asks for permission (the phone shows its prompt only the first time) and
+ * turns reminders on when it is granted. Resolves to whether they are on.
+ */
+export async function turnOnNotifications(r: ReturnType<typeof useRepo>) {
+  try {
+    const granted = await enableNotifications();
+    mutate(() => r.saveProfile({ notifications: granted }));
+    if (!granted)
+      Alert.alert(
+        "Notifications not enabled",
+        "Workouts and in-app timers still work. You can change permissions in phone settings.",
+      );
+    return granted;
+  } catch (e) {
+    Alert.alert("Notification setup failed", String(e));
+    return false;
+  }
+}
+
+/**
  * Turns local notifications on (asking for permission) or off (cancelling
- * scheduled reminders). Shared by the settings form and the You tab.
+ * scheduled reminders). Shared by the settings form and the You tab. Either
+ * way it is the lifter's own choice, so the logger stops inviting them to
+ * turn on rest alerts.
  */
 export function toggleNotifications(r: ReturnType<typeof useRepo>) {
+  r.setSetting(REST_ALERT_INVITE, "settings");
   if (r.profile().notifications) {
     mutate(() => r.saveProfile({ notifications: false }));
     void cancelAllNotifications().catch((e) =>
       Alert.alert("Reminder cleanup failed", String(e)),
     );
-  } else
-    void enableNotifications()
-      .then((granted) => {
-        mutate(() => r.saveProfile({ notifications: granted }));
-        if (!granted)
-          Alert.alert(
-            "Notifications not enabled",
-            "Workouts and in-app timers still work. You can change permissions in phone settings.",
-          );
-      })
-      .catch((e) => Alert.alert("Notification setup failed", String(e)));
+  } else void turnOnNotifications(r);
 }
 
 const displayWeight = (kg: number, units: Profile["units"]) =>

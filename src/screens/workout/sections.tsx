@@ -393,3 +393,61 @@ export function RestRing({
     </View>
   );
 }
+
+/**
+ * The invitation to turn on rest alerts (Phase 8.3C-3): a quiet card above
+ * the rest timer, never a dialog. Enable asks the phone for permission only
+ * when tapped; the caller remembers Not now.
+ */
+export function RestAlertCard({
+  busy,
+  onEnable,
+  onDismiss,
+}: {
+  busy: boolean;
+  onEnable: () => void;
+  onDismiss: () => void;
+}) {
+  const c = useColors();
+  return (
+    <ForgeCard padding={12} gap={10} testID="rest-alert-invite">
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{ paddingTop: 2 }}
+        >
+          <Ionicons name="notifications-outline" size={18} color={c.emberHot} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <FText variant="cardTitle" header>
+            {"Know when you're ready."}
+          </FText>
+          <FText variant="label" tone="secondary">
+            Get a notification when your rest ends, even when your phone is
+            locked.
+          </FText>
+        </View>
+      </View>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        <View style={{ flexGrow: 2, flexBasis: 170 }}>
+          <OutlineButton
+            title="Enable notifications"
+            tone="ember"
+            compact
+            disabled={busy}
+            onPress={onEnable}
+          />
+        </View>
+        <View style={{ flexGrow: 1, flexBasis: 100 }}>
+          <OutlineButton
+            title="Not now"
+            compact
+            disabled={busy}
+            onPress={onDismiss}
+          />
+        </View>
+      </View>
+    </ForgeCard>
+  );
+}

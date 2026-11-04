@@ -56,6 +56,7 @@ function cloud() {
   const listFaults: Fault[] = [];
   const rejectIds = new Set<string>();
   const calls = { writes: 0, lists: 0 };
+  let listGate: Promise<void> | undefined;
   const store = (
     id: string,
     kind: string,
@@ -83,6 +84,7 @@ function cloud() {
   const transport: CloudTransport = {
     async list() {
       calls.lists++;
+      if (listGate) await listGate;
       const fault = listFaults.shift();
       if (fault && fault !== "ok") fail(fault);
       return [...rows.values()]
@@ -138,6 +140,15 @@ function cloud() {
     /** Another device's change, saved straight to the cloud. */
     put: (id: string, kind: string, payload: unknown, deleted = false) =>
       store(id, kind, payload, deleted),
+    /** Holds downloads (uploads still go through) until the returned call. */
+    holdDownloads: () => {
+      let open = () => {};
+      listGate = new Promise<void>((done) => (open = done));
+      return () => {
+        listGate = undefined;
+        open();
+      };
+    },
   };
 }
 
@@ -833,4 +844,64 @@ test("M4: Use cloud version replaces the record and settles the conflict in one 
   assert.equal(seen(r, j.id), 2);
   const next = await synchronize(r, s.transport, me);
   assert.deepEqual([next.uploaded, next.downloaded, next.conflicts], [0, 0, 0]);
+});
+
+// Phase 8.3C-3 (T-2): logging while Synchronize now is still downloading,
+// verified at runtime in the Phase 8.3C-2 audit.
+
+test("a set logged while a sync is downloading is kept and uploads with the next sync", async () => {
+  const s = cloud();
+  const r = phone();
+  const w = r.startWorkout("Push");
+  const row = r.addExercise(w.id, BENCH);
+  r.addSet(row.id, { weight: 80, reps: 8, completed: true });
+  await synchronize(r, s.transport, me);
+  r.addSet(row.id, { weight: 80, reps: 8, completed: true });
+  const release = s.holdDownloads();
+  const syncing = synchronize(r, s.transport, me);
+  await wait(20);
+  // The upload went through; the download is still waiting.
+  assert.equal(setCount(s.rows.get(w.id)), 2);
+  r.addSet(row.id, { weight: 82.5, reps: 6, completed: true });
+  release();
+  const result = await syncing;
+  assert.equal(result.conflicts, 0);
+  // What the download brought (the phone's own upload) replaced nothing.
+  assert.equal(r.sets(row.id).length, 3);
+  assert.equal(r.outbox().filter((o) => o.id === w.id).length, 1);
+  await synchronize(r, s.transport, me);
+  assert.equal(setCount(s.rows.get(w.id)), 3);
+  assert.equal(r.sets(row.id).length, 3);
+  assert.equal(r.outbox().length, 0);
+});
+
+test("another device's change to the workout being logged mid-download is a conflict, never an overwrite", async () => {
+  const s = cloud();
+  const r = phone();
+  const w = r.startWorkout("Push");
+  const row = r.addExercise(w.id, BENCH);
+  r.addSet(row.id, { weight: 80, reps: 8, completed: true });
+  await synchronize(r, s.transport, me);
+  const theirs = structuredClone(s.rows.get(w.id)!.payload) as {
+    workout: { notes: string };
+  };
+  theirs.workout.notes = "Edited on the iPad";
+  s.put(w.id, "workout", theirs);
+  const release = s.holdDownloads();
+  const syncing = synchronize(r, s.transport, me);
+  await wait(20);
+  r.addSet(row.id, { weight: 82.5, reps: 6, completed: true });
+  release();
+  const result = await syncing;
+  assert.equal(result.conflicts, 1);
+  // The phone keeps both sets and its own notes; nothing was replaced.
+  assert.equal(r.sets(row.id).length, 2);
+  assert.equal(r.workout(w.id)!.notes, "");
+  assert.equal(r.outbox().filter((o) => o.id === w.id).length, 1);
+  // The cloud keeps the other device's copy until the lifter chooses.
+  assert.equal(setCount(s.rows.get(w.id)), 1);
+  assert.equal(
+    (s.rows.get(w.id)!.payload as { workout: { notes: string } }).workout.notes,
+    "Edited on the iPad",
+  );
 });

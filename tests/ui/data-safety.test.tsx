@@ -1,17 +1,19 @@
 import React from "react";
 import { Alert, Text, Linking } from "react-native";
-import { render, fireEvent } from "@testing-library/react-native";
+import { render, fireEvent, waitFor } from "@testing-library/react-native";
 import { router } from "expo-router";
 import WorkoutScreen from "../../src/screens/Workout";
 import Templates from "../../app/templates";
 import JournalScreen from "../../src/screens/Journal";
 import Account from "../../app/account";
 import { RecoveryScreen, ErrorBoundary } from "../../src/components/Recovery";
-import { useRepo } from "../../src/state";
+import { useRepo, confirm } from "../../src/state";
+import { cancelRestNotification } from "../../src/notifications";
 import {
   shareBackup,
   saveBackupToFolder,
   canSaveToFolder,
+  pickBackup,
 } from "../../src/platform/backup";
 import { rescue } from "../../src/platform/rescue";
 import { recordBackup } from "../../src/data/backup";
@@ -333,6 +335,167 @@ test("Account & privacy reports shared copies as unconfirmed and folder saves as
     expect(saveBackupToFolder).toHaveBeenCalledWith(r);
     await view.rerender(<Account />);
     expect(view.getAllByText("Last backup today").length).toBeGreaterThan(0);
+  } finally {
+    db.close();
+  }
+});
+
+// ---- Replacing or deleting everything mid-workout (Phase 8.3C-3, W-5) -------
+
+test("Import backup and Delete all local data name the workout in progress first", async () => {
+  const { r, db } = pathRepository();
+  try {
+    workout(r);
+    jest.mocked(useRepo).mockReturnValue(r);
+    jest.mocked(pickBackup).mockResolvedValueOnce("{}");
+    const view = await render(<Account />);
+    await fireEvent.press(view.getByText("Import backup"));
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    const [title, message, , options] = jest.mocked(confirm).mock.calls[0]!;
+    expect(title).toBe("Replace local data from backup?");
+    expect(message).toMatch(
+      /^Your workout in progress, Upper \(1 set done\), is replaced too\. Every workout, template, preference and journal entry on this phone is replaced/,
+    );
+    expect(options).toEqual({ action: "Replace data" });
+    await fireEvent.press(view.getByText("Delete all local data"));
+    const [title2, message2, , options2] = jest.mocked(confirm).mock.calls[1]!;
+    expect(title2).toBe("Delete all local data?");
+    expect(message2).toMatch(
+      /^Your workout in progress, Upper \(1 set done\), is deleted too\. Every workout, template, preference and journal entry on this phone is deleted/,
+    );
+    expect(options2).toEqual({ action: "Delete everything" });
+    // Asking changes nothing: the workout stays until a choice is confirmed.
+    expect(r.active()).toBeDefined();
+  } finally {
+    db.close();
+  }
+});
+
+test("with no workout in progress, those confirmations read as before", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const { w } = workout(r);
+    r.finishWorkout(w.id);
+    jest.mocked(useRepo).mockReturnValue(r);
+    jest.mocked(pickBackup).mockResolvedValueOnce("{}");
+    const view = await render(<Account />);
+    await fireEvent.press(view.getByText("Import backup"));
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(jest.mocked(confirm).mock.calls[0]![1]).toMatch(
+      /^Every workout, template, preference and journal entry on this phone is replaced/,
+    );
+    await fireEvent.press(view.getByText("Delete all local data"));
+    expect(jest.mocked(confirm).mock.calls[1]![1]).toMatch(
+      /^Every workout, template, preference and journal entry on this phone is deleted/,
+    );
+  } finally {
+    db.close();
+  }
+});
+
+// ---- A rest running during a backup import (Phase 8.3C-3) -------------------
+
+/** A backup made on another phone: one finished leg session. */
+function legsBackup() {
+  const source = pathRepository();
+  try {
+    const w = source.r.startWorkout("Legs");
+    const row = source.r.addExercise(w.id, "back-squat");
+    source.r.addSet(row.id, { weight: 100, reps: 5, completed: true });
+    source.r.finishWorkout(w.id);
+    return { id: w.id, backup: source.r.exportBackup() };
+  } finally {
+    source.db.close();
+  }
+}
+
+/** This phone: the workout in progress, resting, with its alert scheduled. */
+function resting(r: Repo) {
+  const { w } = workout(r);
+  const deadline = String(Date.now() + 60_000);
+  r.setSetting("restDeadline", deadline);
+  r.setSetting("restNotification", "rest-alert");
+  jest.mocked(useRepo).mockReturnValue(r);
+  return { w, deadline };
+}
+
+test("a backup that goes in ends the rest it replaced and cancels that rest's alert", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const legs = legsBackup();
+    const { w } = resting(r);
+    jest.mocked(pickBackup).mockResolvedValueOnce(JSON.stringify(legs.backup));
+    const view = await render(<Account />);
+    await fireEvent.press(view.getByText("Import backup"));
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    // Asking cancels nothing.
+    expect(cancelRestNotification).not.toHaveBeenCalled();
+    jest.mocked(confirm).mock.calls[0]![2]();
+    // The backup is in...
+    expect(r.workout(w.id)).toBeUndefined();
+    expect(r.workout(legs.id)?.status).toBe("completed");
+    // ...with no rest left over: no countdown, and the old alert cancelled.
+    expect(Number(r.setting("restDeadline") ?? 0)).toBe(0);
+    expect(r.setting("restNotification")).toBeUndefined();
+    expect(cancelRestNotification).toHaveBeenCalledTimes(1);
+    expect(cancelRestNotification).toHaveBeenCalledWith("rest-alert");
+  } finally {
+    db.close();
+  }
+});
+
+test("cancelling an import, at the file picker or the confirmation, leaves the rest and its alert running", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const legs = legsBackup();
+    const { w, deadline } = resting(r);
+    const view = await render(<Account />);
+    // The file picker closed without a file.
+    jest.mocked(pickBackup).mockResolvedValueOnce(null);
+    await fireEvent.press(view.getByText("Import backup"));
+    await waitFor(() => expect(pickBackup).toHaveBeenCalledTimes(1));
+    expect(confirm).not.toHaveBeenCalled();
+    // A file, then Cancel on the confirmation: its action never runs.
+    jest.mocked(pickBackup).mockResolvedValueOnce(JSON.stringify(legs.backup));
+    await fireEvent.press(view.getByText("Import backup"));
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(cancelRestNotification).not.toHaveBeenCalled();
+    expect(r.workout(w.id)).toBeDefined();
+    expect(r.workout(legs.id)).toBeUndefined();
+    expect(r.setting("restDeadline")).toBe(deadline);
+    expect(r.setting("restNotification")).toBe("rest-alert");
+  } finally {
+    db.close();
+  }
+});
+
+test("a refused file or a failed import changes nothing: the rest and its alert carry on", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const legs = legsBackup();
+    const { w, deadline } = resting(r);
+    const view = await render(<Account />);
+    // Not a FORGE backup: refused before anything is touched.
+    jest.mocked(pickBackup).mockResolvedValueOnce("{}");
+    await fireEvent.press(view.getByText("Import backup"));
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(() => jest.mocked(confirm).mock.calls[0]![2]()).toThrow(
+      "This file isn't a valid FORGE backup. Nothing was changed.",
+    );
+    // Valid in form, but it fails while being applied: rolled back whole.
+    const broken = structuredClone(legs.backup);
+    broken.workoutExercises[0]!.exerciseId = "missing-exercise";
+    jest.mocked(pickBackup).mockResolvedValueOnce(JSON.stringify(broken));
+    await fireEvent.press(view.getByText("Import backup"));
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(2));
+    expect(() => jest.mocked(confirm).mock.calls[1]![2]()).toThrow(
+      /not found/i,
+    );
+    expect(cancelRestNotification).not.toHaveBeenCalled();
+    expect(r.workout(w.id)?.status).toBe("active");
+    expect(r.workout(legs.id)).toBeUndefined();
+    expect(r.setting("restDeadline")).toBe(deadline);
+    expect(r.setting("restNotification")).toBe("rest-alert");
   } finally {
     db.close();
   }

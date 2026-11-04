@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  activeWorkoutWarning,
   conflictTitle,
   conflictView,
   lastSyncNote,
@@ -506,4 +507,20 @@ test("the last complete sync is said plainly; an unfinished last sync is said to
     lastSyncNote({ at, outcome: "partial" }, now)!,
   ])
     assert.doesNotMatch(text, /backed up|is safe|protected/i);
+});
+
+test("replacing or deleting everything names the workout in progress first (Phase 8.3C-3)", () => {
+  assert.equal(activeWorkoutWarning(undefined, "deleted"), "");
+  assert.equal(
+    activeWorkoutWarning({ name: "Push", done: 3 }, "replaced"),
+    "Your workout in progress, Push (3 sets done), is replaced too.",
+  );
+  assert.equal(
+    activeWorkoutWarning({ name: "Upper A", done: 1 }, "deleted"),
+    "Your workout in progress, Upper A (1 set done), is deleted too.",
+  );
+  assert.equal(
+    activeWorkoutWarning({ name: "Freestyle", done: 0 }, "deleted"),
+    "Your workout in progress, Freestyle (no sets done yet), is deleted too.",
+  );
 });

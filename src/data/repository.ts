@@ -785,6 +785,10 @@ export class Repository {
   }
   private createWorkout(name: string, templateId: string | null) {
     const now = Date.now();
+    // A new workout never starts mid-rest: a countdown left by a workout
+    // that ended some other way is not carried over (Phase 8.3C-3).
+    if (Number(this.setting("restDeadline") ?? 0) > 0)
+      this.setSetting("restDeadline", "0");
     const w: Workout = {
       id: id(),
       name,

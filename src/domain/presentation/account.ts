@@ -117,6 +117,22 @@ export function deleteLocalDataText(unsynced: number, linked: boolean) {
     .join(" ");
 }
 
+/**
+ * The sentence that opens a whole-phone replacement or deletion while a
+ * workout is in progress (Phase 8.3C-3), so the lifter knows the session
+ * goes too. Empty when nothing is in progress.
+ */
+export function activeWorkoutWarning(
+  active: { name: string; done: number } | undefined,
+  effect: "replaced" | "deleted",
+) {
+  if (!active) return "";
+  const done = active.done
+    ? `${active.done} ${active.done === 1 ? "set" : "sets"} done`
+    : "no sets done yet";
+  return `Your workout in progress, ${active.name} (${done}), is ${effect} too.`;
+}
+
 // Phase 7.8E, Stage 2: deleting the account, in plain words. What a phone
 // knows comes from its deletion marker and record (src/auth/account-deletion).
 
