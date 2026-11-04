@@ -1,5 +1,7 @@
 # Phase 9 — Windows handoff (Opus 2)
 
+**Update (2026-11-04):** the founder approved Phase 9.1, the independent local foundation (RevenueCat + Forge Supabase server-verified entitlements; no offline or workout window). It is implemented in the worktree `C:\Users\LStAm\source\repos\Forge-App.worktrees\forge-phase9-new` on this branch, **uncommitted, awaiting the founder's review**: see [`docs/SUBSCRIPTIONS.md`](../SUBSCRIPTIONS.md). Still nothing is wired into the app, no dependency was added, nothing remote was touched, and the entitlement SQL is a draft (`supabase/drafts/`) never applied anywhere.
+
 **Status (2026-11-03):** Phase 9.0 (audit and architecture) is complete. **Phase 9.1 implementation is NOT approved.** Nothing in Phase 9 has been implemented: no application code, dependency, database migration, Supabase project, App Store Connect, RevenueCat or Expo setting has been created or changed.
 
 **This document and the audit are the complete record.** The Copilot conversation history, session files and research notes from the Mac do **not** travel through Git. A new session on Windows must start from this file, [`AGENTS.md`](../../AGENTS.md) and the audit, and must confirm anything else with the founder.
@@ -25,7 +27,7 @@
 | Stage | Status |
 | --- | --- |
 | 9.0 Audit and architecture | **Complete** — `docs/audits/PHASE_9_0_SUBSCRIPTION_AUDIT.md` |
-| 9.1 Subscription foundation | **Not approved. Not started.** Waiting for founder approval and decisions (section 6) |
+| 9.1 Subscription foundation | **Approved 2026-11-04; implemented, uncommitted, awaiting founder review** — `docs/SUBSCRIPTIONS.md`. F3, F4, F5, F7, F10 remain open; F4 and F5 apply as "none" meanwhile |
 | 9.2 – 9.5 | Not started; the order and scope are proposals (section 5) |
 
 Forge today has no paywall, purchase library, entitlement storage or subscription flag. The only premium touchpoints are the "free plan" placeholder `src/domain/membership.ts` and `MembershipCard` (audit section 6.7).
