@@ -163,7 +163,7 @@ Conflict records preserve local and cloud snapshots. Choose Keep local or Use cl
 
 Local databases and JSON exports are not encrypted by FORGE. Use the device lock and keep shared backups private. Do not use this first release for irreplaceable data without regular backups.
 
-**Where your data lives.** Without a configured cloud backend, training history exists only in the app's SQLite database on the phone. Uninstalling the app, clearing its storage, or losing the phone deletes it; export a backup to Files, iCloud Drive, Google Drive or email regularly. While testing in **Expo Go**, that database belongs to Expo Go itself (on Android, `/data/data/host.exp.exponent/files/SQLite/forge.db`): deleting or clearing Expo Go deletes your log, and a later standalone FORGE build will not see it. Export a backup first and import it into the new app.
+**Where your data lives.** Without a configured cloud backend, training history exists only in the app's SQLite database on the phone. Uninstalling the app, clearing its storage, or losing the phone deletes it; export a backup to Files, iCloud Drive, Google Drive or email regularly. While testing in **Expo Go**, that database belongs to Expo Go itself (on Android, `/data/data/host.exp.exponent/files/SQLite/forge.db`): deleting or clearing Expo Go deletes your log, and a later standalone FORGE build will not see it. Export a backup first and import it into the new app. To check a backup file on a computer without changing it, run `npm run backup:check -- <file>`: it validates the file with Forge's own import in a throwaway in-memory database and prints counts and a fingerprint, no names or notes.
 
 ## Validation and delivery
 

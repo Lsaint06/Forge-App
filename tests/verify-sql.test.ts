@@ -192,3 +192,129 @@ test("the checks file only reads: running it changes nothing", async () => {
     await db.close();
   }
 });
+
+// Phase 8.3B: supabase/verify/schema_summary.sql, the same readings as one
+// statement with PASS or FAIL per row (the SQL editor shows only the last
+// statement's result). Run in a read-only transaction, as an extra guard.
+const SUMMARY = "supabase/verify/schema_summary.sql";
+type SummaryRow = {
+  n: number;
+  check_name: string;
+  expected: string;
+  actual: string | null;
+  result: "PASS" | "FAIL";
+};
+async function summary(db: PGlite) {
+  return db.transaction(async (tx) => {
+    await tx.exec("SET TRANSACTION READ ONLY");
+    return (await tx.query<SummaryRow>(readFileSync(SUMMARY, "utf8"))).rows;
+  });
+}
+
+test("the summary query passes only the hardened schema, and names what differs", async () => {
+  const cases: [string, string[], Defaults, string, number[]][] = [
+    [
+      "hardened, 2026 defaults (FORGE DEV)",
+      [BASELINE, HARDENING],
+      "2026",
+      "",
+      [],
+    ],
+    ["hardened, earlier defaults", [BASELINE, HARDENING], "earlier", "", []],
+    // The baseline: its policy, search paths and (with the earlier
+    // defaults) its table privileges.
+    ["baseline, 2026 defaults", [BASELINE], "2026", "", [10, 13, 14]],
+    ["baseline, earlier defaults", [BASELINE], "earlier", "", [10, 11, 13, 14]],
+    // The wrong project, or nothing applied yet.
+    [
+      "nothing applied",
+      [],
+      "2026",
+      "",
+      Array.from({ length: 16 }, (_, i) => i + 2),
+    ],
+    // Later drift: a direct-write privilege and an extra callable function.
+    [
+      "hardened, then drift",
+      [BASELINE, HARDENING],
+      "2026",
+      `GRANT INSERT ON public.forge_records TO authenticated;
+       CREATE FUNCTION public.stray() RETURNS int LANGUAGE sql AS 'SELECT 1';`,
+      [11, 12],
+    ],
+    // Anonymous callers given the table, even read-only.
+    [
+      "hardened, then anon may read",
+      [BASELINE, HARDENING],
+      "2026",
+      "GRANT SELECT ON public.forge_records TO anon;",
+      [11],
+    ],
+    // The read policy simplified back to owner-only, letting anonymous
+    // sign-ins read their own rows again.
+    [
+      "hardened, then the anonymous guard dropped",
+      [BASELINE, HARDENING],
+      "2026",
+      `ALTER POLICY "Read owned records" ON public.forge_records
+         USING (user_id = (SELECT auth.uid()));`,
+      [10],
+    ],
+  ];
+  for (const [name, files, defaults, drift, failing] of cases) {
+    const db = await project(files, defaults);
+    try {
+      if (drift) await db.exec(drift);
+      const rows = await summary(db);
+      assert.equal(rows.length, 19, name);
+      assert.deepEqual(
+        rows.filter((r) => r.n > 0 && r.result === "FAIL").map((r) => r.n),
+        failing,
+        name,
+      );
+      const head = rows[0]!;
+      assert.equal(head.check_name, "SUMMARY", name);
+      assert.equal(
+        head.actual,
+        `${18 - failing.length} PASS, ${failing.length} FAIL`,
+        name,
+      );
+      assert.equal(head.result, failing.length ? "FAIL" : "PASS", name);
+    } finally {
+      await db.close();
+    }
+  }
+});
+
+test("the summary query only reads: read-only transaction, nothing changed, no write statement", async () => {
+  const db = await project([BASELINE, HARDENING], "2026");
+  try {
+    const snapshot = async () =>
+      (
+        await db.query<{ n: string }>(
+          `SELECT md5(string_agg(x, '|' ORDER BY x)) AS n FROM (
+             SELECT relname || coalesce(relacl::text, '') || relrowsecurity::text AS x FROM pg_class
+               WHERE relnamespace IN ('public'::regnamespace, 'auth'::regnamespace)
+             UNION ALL SELECT proname || coalesce(proconfig::text, '') || coalesce(proacl::text, '') FROM pg_proc
+               WHERE pronamespace IN ('public'::regnamespace, 'auth'::regnamespace)
+             UNION ALL SELECT polname || pg_get_expr(polqual, polrelid) FROM pg_policy) s`,
+        )
+      ).rows[0]!.n;
+    const before = await snapshot();
+    await summary(db);
+    assert.equal(await snapshot(), before);
+    // Outside its comments and quoted text, only reading words.
+    const code = readFileSync(SUMMARY, "utf8")
+      .split("\n")
+      .map((line) => line.replace(/--.*$/, ""))
+      .join("\n")
+      .replace(/'(?:[^']|'')*'/g, "''");
+    assert.doesNotMatch(
+      code,
+      /\b(insert|update|delete|merge|drop|alter|create|grant|revoke|truncate|set_config|copy|call|do|lock|vacuum|comment|refresh|reset|set)\b/i,
+    );
+    assert.equal(code.split(";").filter((s) => s.trim()).length, 1);
+  } finally {
+    await db.close();
+  }
+});

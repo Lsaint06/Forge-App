@@ -2,6 +2,14 @@
 
 The goal: install Forge on the iPhone as its own app, **FORGE Dev**, instead of running it inside Expo Go. FORGE Dev connects only to the development Supabase project (`docs/DEVELOPMENT_ENVIRONMENT.md`), never to production, and keeps its data apart from Expo Go and from the future production app.
 
+**First install on the iPhone:** follow the short checklist in [FORGE_DEV_IPHONE_CHECKLIST.md](FORGE_DEV_IPHONE_CHECKLIST.md), with expected outputs and stop conditions. The rest of this page is the reference.
+
+**Since Phase 8.1 (Nov 3–4, 2026):**
+
+- **FORGE DEV is set up:** the schema and the Stage 3 hardening applied, sign-in settings verified live. A Release build therefore connects to it.
+- **Its JavaScript was checked from Windows:** built for FORGE Dev, it holds FORGE DEV's address and none of production's address, project ref or key.
+- **The iPhone still isn't registered** with the team; the first install does that.
+
 ## Where things stand (Phase 8.1, Nov 3, 2026)
 **This Mac:**
 - MacBook Air, Apple M4, 16 GB, macOS 27.2.
@@ -68,16 +76,16 @@ FORGE Preview (`APP_VARIANT=preview`) also exists, for EAS builds later.
 - **Release is the build to take to the gym.** Its JavaScript is in the app, so it opens with no Mac nearby.
 - **Accounts still need a network.** Sign-in and sync need the internet and the development project. Training on the phone works offline, as in Expo Go.
 
-## Before the development project exists
-Forge needs an account, and FORGE Dev refuses production by design. So until the development Supabase project exists, FORGE Dev stops at **"Accounts aren't available"** after the intro.
+## Without the development project (`--no-cloud`)
+Forge needs an account, and FORGE Dev refuses production by design. Built with `--no-cloud`, FORGE Dev has no account service, so it stops at **"Accounts aren't available"** after the intro.
 
-**What you can check today** (`npm run dev:ios -- --release --no-cloud`):
+**What such a build can check** (`npm run dev:ios -- --release --no-cloud`):
 - the install, the home-screen name and icon;
 - the native launch screen and the REFORGE intro, the fonts, light and dark mode;
 - the "Accounts aren't available" screen;
 - opening again after a force quit, away from the Mac.
 
-**What needs the development project** and a disposable account: everything behind sign-in. That means the tabs, logging a workout, nutrition and barcode scanning, the rest timer, and sync. Setting up the project takes about 15 minutes in Supabase's dashboard, free (`docs/DEVELOPMENT_ENVIRONMENT.md`).
+**What needs the development project** and a disposable account: everything behind sign-in. That means the tabs, logging a workout, nutrition and barcode scanning, the rest timer, and sync. FORGE DEV has been set up since Nov 3, 2026 (`docs/DEVELOPMENT_ENVIRONMENT.md`), so a build without `--no-cloud` connects to it.
 
 ## Your training stays safe
 - **Expo Go keeps your training.**
@@ -99,10 +107,9 @@ Forge needs an account, and FORGE Dev refuses production by design. So until the
 **Once, on the iPhone** (done): connect it with a cable, tap **Trust**, then Settings → Privacy & Security → **Developer Mode** → On → Restart → **Turn On**.
 
 **Build, install and open:** connect the iPhone with a cable and keep it unlocked, then in the project folder run one of:
-- **Today, without the development project:** `npm run dev:ios -- --release --no-cloud`. It opens without the Mac; accounts are unavailable.
-- **With the development project:**
-  - `npm run dev:ios -- --release`, to open without the Mac;
-  - or `npm run dev:ios`, then `npm run start:dev`, for live reloading.
+- **The usual build:** `npm run dev:ios -- --release`. It opens without the Mac and connects to FORGE DEV.
+- **For live reloading:** `npm run dev:ios`, then `npm run start:dev`.
+- **Without accounts:** `npm run dev:ios -- --release --no-cloud`. It opens without the Mac; accounts are unavailable.
 - **Without the iPhone:** add `--build-only` to build, sign and check without installing. This needs Apple to know the iPhone already, which the first install arranges.
 
 The first build takes roughly 10–20 minutes; later builds are faster.

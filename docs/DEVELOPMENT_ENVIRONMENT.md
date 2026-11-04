@@ -1,6 +1,14 @@
 # Development and production environments (Phase 8)
 
-Forge is moving from one Supabase project to two: a **development** project for disposable accounts, experiments and destructive tests, and the existing **production** project for real accounts and training. This guide is the setup and verification procedure. Nothing here has been applied to any Supabase project yet: the steps marked **Founder** need your dashboard access.
+Forge is moving from one Supabase project to two: a **development** project for disposable accounts, experiments and destructive tests, and the existing **production** project for real accounts and training. This guide is the setup and verification procedure. The steps marked **Founder** need your dashboard access.
+
+**Where things stand (Nov 4, 2026):**
+
+- **The development project is set up.** **FORGE DEV** (`gmyo…`) exists with the Forge schema and the Stage 3 hardening (Nov 3), and its sign-in settings were verified live, read-only, with `dev:check` (Nov 4).
+- **Production is unchanged:** no SQL, setting or deployment.
+- **Not run yet:**
+  - the live end-to-end check `dev:verify-stage3`, which creates and deletes throwaway accounts and needs approval;
+  - the SQL checks in the dashboard (`schema_summary.sql`).
 
 ## The two environments
 
@@ -10,7 +18,7 @@ Forge is moving from one Supabase project to two: a **development** project for 
 | Accounts and data | Disposable test accounts and workouts only | Real Forge accounts and training history |
 | Allowed | Account deletion tests, recovery tests, experimental migrations, PKCE and email-code trials, device testing | Nothing experimental or destructive |
 | Apps that may use it | FORGE Dev (the development build), FORGE Preview | FORGE (the production app), FORGE Preview |
-| Settings file on the Mac | `.env.forge-dev` (from `.env.forge-dev.example`) | `.env`, as today |
+| Settings file (each development computer: the Mac, Windows) | `.env.forge-dev` (from `.env.forge-dev.example`) | `.env`, as today |
 | EAS environment | `development` (and `preview`) | `production` |
 
 **Today nothing changes.** Expo Go (`npm start`) still reads `.env` and still connects to the production project exactly as before; the separation only applies to Forge's own builds.
@@ -67,6 +75,16 @@ The rule is simple: the development project's values live only in `.env.forge-de
 - The founder created **FORGE DEV**.
 - Phase 8.2 wrote its URL, ref and publishable key to `.env.forge-dev`, which is git-ignored and readable only by the founder's Mac user.
 - `npm run dev:check` confirmed it's a different project from production's.
+- On Windows, the founder recreated `.env.forge-dev` from the example; `dev:check` confirms it is FORGE DEV (`gmyo…`).
+
+**Creating `.env.forge-dev` on Windows.** It never travels through Git.
+1. In PowerShell, in the project folder: `Copy-Item .env.forge-dev.example .env.forge-dev`.
+2. Open it in an editor (VS Code) and fill in the values below. Never paste them into a terminal command: PowerShell keeps a history file.
+3. **Don't create or edit it with `>`, `Out-File` or `Set-Content` in Windows PowerShell 5.1.** They save UTF-16, which the tools can't read, so every value would be reported missing.
+4. **Optional:** limit who can read it.
+   - `icacls .env.forge-dev /inheritance:d`, then `icacls .env.forge-dev /remove:g "<group>"` for any group other than you, SYSTEM and Administrators.
+   - The publishable key is public by design, but there's no reason to share the file.
+5. Check: `git status --short --ignored .env.forge-dev` shows `!! .env.forge-dev` (ignored), and `npm.cmd run dev:check` names the project `gmyo…`.
 
 The steps, for reference:
 1. **New project.** Supabase dashboard → **New project**:
@@ -84,6 +102,13 @@ The steps, for reference:
    - `EXPO_PUBLIC_FORGE_ENV=development`.
 
 ## Database: apply the schema, in this order (Founder)
+**Done on FORGE DEV (Nov 3, 2026).** In the SQL editor:
+
+1. The founder ran the pre-flight query (project permissions confirmed, Postgres 17).
+2. Then the baseline migration, then the hardening; each answered "Success. No rows returned."
+
+Production is untouched. Still to do, read-only: `supabase/verify/schema_summary.sql` (step 3 below).
+
 **Before running anything, confirm the target.**
 - The dashboard's project name reads **FORGE DEV**.
 - The address bar shows `/project/<ref>/`.
@@ -102,11 +127,12 @@ The steps, for reference:
 2. New query: paste `supabase/migrations/202611020001_forge_security_hardening.sql`, then **Run**.
    - It replaces the two functions, tightens the read policy, and narrows the table's privileges.
    - It is safe to run again. Development only; production needs E7 approval.
-3. New query: paste `supabase/verify/schema_checks.sql`, then **Run**.
-   - Every result should match its **HARDENED** note. On this project, query 3 reads the same for both schemas; queries 1 and 4 tell them apart.
-   - These read-only checks are tested against both schemas, with Supabase's earlier and 2026 defaults.
+3. **Check the result, read-only.**
+   - **One paste (recommended):** a new query with all of `supabase/verify/schema_summary.sql`, then **Run** once. The first row should read **"18 PASS, 0 FAIL"**; any other row names what differs.
+   - **The detailed readings:** `supabase/verify/schema_checks.sql`, **one query at a time**. The SQL editor shows only the last statement's result, so pasting the whole file shows just the Postgres version. Every result should match its **HARDENED** note. On this project, query 3 reads the same for both schemas; queries 1 and 4 tell them apart.
+   - Both are tested against both schemas, with Supabase's earlier and 2026 defaults.
 
-**If a step reports an error,** stop and run `supabase/verify/schema_checks.sql` to see what exists before trying again. FORGE DEV holds no data, so a broken first attempt can be cleared and redone, but only with a short development-only script reviewed for that purpose. None is kept in the repository, so it can never be pasted into production by mistake.
+**If a step reports an error,** stop and run `supabase/verify/schema_summary.sql` to see what exists before trying again. FORGE DEV holds no data, so a broken first attempt can be cleared and redone, but only with a short development-only script reviewed for that purpose. None is kept in the repository, so it can never be pasted into production by mistake.
 
 **Supabase CLI (optional).**
 1. Install it with `brew install supabase/tap/supabase`, then run `supabase login`.
@@ -116,6 +142,16 @@ The steps, for reference:
 5. **Never link the production project from this repository** until production deployment is approved (E7).
 
 ## Authentication settings, development project (Founder)
+**Verified live, read-only, with `dev:check` (Nov 4, 2026):**
+
+- email sign-in on, confirmation off, sign-ups allowed;
+- exactly the three `forge-dev:///` addresses below allowed;
+- production's scheme and every broad pattern refused;
+- the tunnel entry absent;
+- refused addresses going to Supabase's default Site URL (`localhost`), which is fine for development.
+
+**Set by the founder, not readable from outside:** 300-second sign-ins, no hooks, no CAPTCHA. **Not set up:** Google (optional).
+
 - **Email** (Authentication → Sign In / Providers → Email):
   - **Enabled**, with **Confirm email off**: disposable accounts can sign in at once, and `dev:verify-stage3` needs this.
   - To test the confirmation-link flow later, turn it on with custom SMTP. Supabase's built-in sender only reaches your team's addresses, at 2 emails an hour.
@@ -138,13 +174,25 @@ The steps, for reference:
 - **Apple:** later (see `docs/NATIVE_BUILDS.md`). The development project's Apple provider will need `com.lsaint06.forge.dev` among its Client IDs. FORGE Dev already carries the Sign in with Apple capability; its button appears only once this project enables Apple.
 
 ## Connect and check (Founder, then Forge)
-1. `npm run dev:check` runs read-only checks of the development project from `.env.forge-dev`. It creates and changes nothing, refuses any project Expo's own settings files point at, and prints no key or address. Expected:
+1. `npm run dev:check` runs read-only checks of the development project from `.env.forge-dev`. It creates and changes nothing, refuses any project Expo's own settings files point at, and prints no key or project address. Expected, as on FORGE DEV on Nov 4, 2026, ending with **"All checks passed."**:
    - **✓** Auth answers, settings are readable, email sign-in is enabled and sign-ups are allowed.
-   - **✓** Google is enabled, once you have set it up.
+   - **•** "Google sign-in not set up (optional…)", or **✓** once you have set it up. Google isn't needed in development, so its absence never fails the check.
    - **✓** "Forge schema applied; anonymous users can't read it".
-   - **•** A reminder to confirm the hardening with `schema_checks.sql`. On a new project an anonymous probe can't show it: the baseline refuses anonymous users too.
+   - **•** A reminder to confirm the hardening with `schema_summary.sql`. On a new project an anonymous probe can't show it: the baseline refuses anonymous users too.
+   - **•** Where refused return addresses go: the Site URL.
    - **✓** Each `forge-dev:///…` address is allowed.
-   - **✓** The production app's `forge:///welcome`, an arbitrary Expo tunnel and the `@` trick are refused.
+   - **✓** Refused:
+     - the production app's `forge:///welcome`;
+     - another account's Expo tunnel;
+     - the `@` trick;
+     - one address for each broad pattern (`forge-dev:///**`, `forge-dev://**`, `exp://**`);
+     - any website.
+   - **•** Whether the optional Expo Go tunnel entry is present.
+   - **How it reads the allow list without Google (Phase 8.3B):**
+     - it opens email-link verifications with random tokens that match nothing; Supabase sends each one to the requested address only if it's allowed, and to the Site URL otherwise;
+     - nothing is confirmed, created or sent; the requests appear in the project's Auth logs as expired links;
+     - two control requests come first; if Supabase answers any other way, nothing is reported as passed or failed;
+     - Supabase limits verifications per address, so after several runs within 5 minutes it reports "rate-limiting" instead.
 2. `npm run start:dev`, then open FORGE Dev (see `docs/NATIVE_BUILDS.md`). Sign in with a disposable account.
 
 ## Disposable accounts
@@ -156,7 +204,7 @@ The steps, for reference:
 - **Delete them** in the app (Account & privacy → Delete Forge account) or in Authentication → Users → **Delete user**.
 
 ## Stage 3 on the development project: verification procedure
-**1. Schema.** Apply both migrations, then run `supabase/verify/schema_checks.sql`. Expected: the HARDENED notes (function settings, execute rights, exact privileges, the policy, `auth.sessions` readable by the function owner).
+**1. Schema.** Both migrations are applied on FORGE DEV (Nov 3, 2026). Run `supabase/verify/schema_summary.sql` (one paste; expected "18 PASS, 0 FAIL"), or `supabase/verify/schema_checks.sql` one query at a time. Expected: the HARDENED notes (function settings, execute rights, exact privileges, the policy, `auth.sessions` readable by the function owner).
 
 **2. Automated.** Run `npm run dev:verify-stage3 -- --confirm <development ref> --email you@yourdomain`.
 - **Safeguards:**
@@ -216,7 +264,7 @@ Later phases will add their own tables, such as Phase 9's subscriptions. Each ph
   - **Personal tables:** key them by `user_id uuid references auth.users(id) on delete cascade`, so `forge_delete_account` removes them with the account.
   - **Records that must outlive the account** (for example, purchase records needed for accounting): those need an explicit, approved decision first.
 - **Leave Forge's sync contract alone:** don't change `forge_records`, `forge_write` or `forge_delete_account`.
-- **Update the checks:** query 6 of `schema_checks.sql` lists every public function. Add any new function there, with its own expected settings and grants.
+- **Update the checks:** query 6 of `schema_checks.sql` and row 12 of `schema_summary.sql` list every public function. Add any new function to both, with its own expected settings and grants.
 - **Apply on FORGE DEV first,** verify, and only then ask for production approval.
 
 ## Rules for production

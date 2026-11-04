@@ -1,6 +1,8 @@
 -- Read-only checks of Forge's Supabase schema (Phase 7.8E Stage 3, Phase 8).
--- Paste into the SQL editor of the project being checked. Nothing here
--- changes anything. Each query notes what to expect:
+-- Paste into the SQL editor of the project being checked, ONE QUERY AT A
+-- TIME: the editor shows only the last statement's result. For every check
+-- in one result, with PASS or FAIL, use schema_summary.sql instead. Nothing
+-- here changes anything. Each query notes what to expect:
 --   BASELINE: 202610140001_forge.sql only (today's production project);
 --   HARDENED: plus 202611020001_forge_security_hardening.sql (development).
 -- Projects created since Supabase's 2026 change grant the API roles nothing

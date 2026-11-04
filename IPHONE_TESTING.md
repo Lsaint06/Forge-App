@@ -2,14 +2,14 @@
 
 ## What is available now
 
-The repository contains an Expo SDK 57 application. Dependency installation, automated checks and native JavaScript exports can be run in a development environment. **A GitHub repository alone is not a live Expo Go app.** No public development-server address, signed iOS build, TestFlight release or physical-device test is claimed by this delivery.
+The repository contains an Expo SDK 58 application. Dependency installation, automated checks and native JavaScript exports can be run in a development environment. **A GitHub repository alone is not a live Expo Go app.** No public development-server address, signed iOS build, TestFlight release or physical-device test is claimed by this delivery.
 
 The Codex cloud machine can run Metro for internal checks. Its loopback endpoint cannot be opened by your iPhone, and this onboarding interface does not automatically expose a phone-accessible server. Do not try scanning a localhost URL from the phone.
 
 ## Expo Go: initial testing without a Mac
 
-1. Install **Expo Go** from the iPhone App Store. Confirm it supports SDK 57. iOS generally offers the current Expo Go release; if your installed release and this SDK differ, use a compatible development build or upgrade the project deliberately. Do not mix React Native/native package versions by hand.
-2. On a reachable development host, install Node.js **24**, Git and the repository. Windows 11 works. Before the feature branch is merged, checkout `feat/forge-app`.
+1. Install **Expo Go** from the iPhone App Store. Confirm it supports SDK 58. iOS generally offers the current Expo Go release; if your installed release and this SDK differ, use a compatible development build or upgrade the project deliberately. Do not mix React Native/native package versions by hand.
+2. On a reachable development host, install Node.js **24**, Git and the repository. Windows 11 works. Before the feature branch is merged, check out `feat/forge-paths-foundation`.
 3. In `Forge-App`, run:
 
    ```sh
@@ -20,22 +20,25 @@ The Codex cloud machine can run Metro for internal checks. Its loopback endpoint
 4. Put the host and phone on the same Wi-Fi network. Allow Node/Metro through Windows Firewall on **private networks**. Avoid guest-network client isolation. Scan the terminal QR code with the iPhone Camera and open it in Expo Go.
 5. Keep the host, terminal and development server running while testing. A phone cannot load a development bundle from a sleeping or disconnected host.
 
-No Supabase configuration is needed. Skip optional onboarding fields to start as a guest. Your first launch has no fabricated workouts or performance numbers.
+Forge requires an account (Phase 7.7B): Expo Go connects to the Supabase project in `.env` (README → Supabase configuration). Your first launch has no fabricated workouts or performance numbers.
 
 ## When local-network access is unavailable
 
-On a host that permits outbound tunnel access:
+On a host that permits outbound tunnel access, sign in to Expo once (`npx expo login`), then:
 
 ```sh
-npm install --save-dev @expo/ngrok
-npx expo start --go --tunnel
+npm start -- --tunnel
 ```
+
+Expo SDK 58 uses Expo's own tunnel (`*.on.expo.app`); no tunnel package needs installing.
 
 Use the **new tunnel QR code**, not a LAN/localhost QR. Expo may prompt to install its supported tunnel helper. Internet access must permit Expo/tunnel services, and both host and phone must stay online for bundle loading. Tunnel provisioning may fail on restricted networks; inspect its actual error rather than assuming a URL exists.
 
 Tunnel reachability has **not** been verified in the Codex cloud environment. A tunnel URL must be actually created and tested before it can be presented as a phone-accessible app. When you have only the iPhone and no running reachable host, installing this repository does not solve hosting: use an already running permitted remote host, or prepare a signed build with EAS.
 
 ## Guest-mode device checklist
+
+Guest mode was retired in Phase 7.7B: sign in first, then use these feature checks. For Forge's own app on the iPhone (FORGE Dev), start with [docs/FORGE_DEV_IPHONE_CHECKLIST.md](docs/FORGE_DEV_IPHONE_CHECKLIST.md).
 
 - Skip optional onboarding, open each of Home, Train, Explore, Progress and Profile.
 - Start an empty workout; search for Barbell Bench Press; add two sets.
