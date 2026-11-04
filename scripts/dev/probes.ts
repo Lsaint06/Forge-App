@@ -1,20 +1,24 @@
 // Reading what a Supabase project answers, for Forge's development tooling
 // (Phase 8). Pure: no network here, so each reading is unit-tested.
 
-/** Which Forge schema a project has, from what anon may do with the table. */
-export type SchemaState = "hardened" | "baseline" | "missing" | "unknown";
-
 /**
- * Anonymous `select` on forge_records: the hardening (Stage 3) revokes every
- * table privilege from anon, so it is refused (42501); the baseline lets anon
- * read and row-level security returns nothing; a project without the
- * migration has no such table.
+ * What an anonymous `select` on forge_records shows about a project.
+ * - "closed": refused (42501). The Stage 3 hardening revokes every table
+ *   privilege from anon; but a project created since Supabase's 2026 change
+ *   grants anon nothing by default, so the baseline is refused there too.
+ *   Only supabase/verify/schema_checks.sql (queries 1 and 4) proves the
+ *   hardening.
+ * - "open": anon may query it (row-level security returns nothing): the
+ *   baseline on a project with Supabase's earlier default grants.
+ * - "missing": no such table yet.
  */
+export type SchemaState = "closed" | "open" | "missing" | "unknown";
+
 export function schemaState(
   error: { code?: string } | null | undefined,
 ): SchemaState {
-  if (!error) return "baseline";
-  if (error.code === "42501") return "hardened";
+  if (!error) return "open";
+  if (error.code === "42501") return "closed";
   if (error.code === "PGRST205" || error.code === "42P01") return "missing";
   return "unknown";
 }

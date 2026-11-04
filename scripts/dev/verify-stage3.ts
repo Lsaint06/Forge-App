@@ -94,9 +94,12 @@ async function main() {
     );
   const anon = freshClient(url, key);
   const probe = await anon.from("forge_records").select("id").limit(1);
-  if (schemaState(probe.error) !== "hardened")
+  // Anonymous users must be refused. Whether that's the Stage 3 hardening
+  // (and not just a newer project's default) is what the checks below prove,
+  // as supabase/verify/schema_checks.sql shows directly.
+  if (schemaState(probe.error) !== "closed")
     throw new Error(
-      "The development project doesn't have the Stage 3 hardening applied",
+      "The development project doesn't have the Forge schema with the Stage 3 hardening applied",
     );
 
   console.log(

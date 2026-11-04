@@ -63,6 +63,12 @@ So a development build can't silently reach production: with today's `.env` (not
 The rule is simple: the development project's values live only in `.env.forge-dev` and in the EAS `development` environment.
 
 ## Creating the development project (Founder)
+**Done (Nov 3, 2026):**
+- The founder created **FORGE DEV**.
+- Phase 8.2 wrote its URL, ref and publishable key to `.env.forge-dev`, which is git-ignored and readable only by the founder's Mac user.
+- `npm run dev:check` confirmed it's a different project from production's.
+
+The steps, for reference:
 1. **New project.** Supabase dashboard → **New project**:
    - **Name:** `forge-dev`.
    - **Organization and region:** the same as production.
@@ -78,10 +84,29 @@ The rule is simple: the development project's values live only in `.env.forge-de
    - `EXPO_PUBLIC_FORGE_ENV=development`.
 
 ## Database: apply the schema, in this order (Founder)
+**Before running anything, confirm the target.**
+- The dashboard's project name reads **FORGE DEV**.
+- The address bar shows `/project/<ref>/`.
+- Project Settings → General → **Reference ID** equals `EXPO_PUBLIC_SUPABASE_PROJECT_REF` in `.env.forge-dev`.
+- If any of these show production, stop.
+
+**New projects grant nothing by default.**
+- Since Supabase's 2026 change, a new project (FORGE DEV is one) no longer grants the API roles (`anon`, `authenticated`) access to new tables and functions. Production was created before that change, with the earlier default grants.
+- Both Forge files already grant exactly what the app needs: reading `forge_records`, and running `forge_write` and `forge_delete_account`, for signed-in users only. They work under either default; `tests/server-hardening.test.ts` and `tests/verify-sql.test.ts` check both.
+- Supabase asks once, when a project is created: the "Automatically expose new tables" checkbox, unticked by default since mid-2026. Either way, both files end with the same privileges, and `schema_checks.sql` query 3 confirms them.
+
 **SQL editor (recommended, as production was set up).** In the development project's **SQL editor**:
 1. New query: paste `supabase/migrations/202610140001_forge.sql`, then **Run**.
-2. New query: paste `supabase/migrations/202611020001_forge_security_hardening.sql`, then **Run**. Development only; production needs E7 approval.
-3. New query: paste `supabase/verify/schema_checks.sql`, then **Run**. Every result should match its **HARDENED** note. These read-only checks are tested against both schemas.
+   - It creates the `forge_records` table, its index, row-level security, its one read policy, and the two functions with their grants. No data, no triggers, no storage, no extensions.
+   - It can run only once: running it again stops at "relation already exists".
+2. New query: paste `supabase/migrations/202611020001_forge_security_hardening.sql`, then **Run**.
+   - It replaces the two functions, tightens the read policy, and narrows the table's privileges.
+   - It is safe to run again. Development only; production needs E7 approval.
+3. New query: paste `supabase/verify/schema_checks.sql`, then **Run**.
+   - Every result should match its **HARDENED** note. On this project, query 3 reads the same for both schemas; queries 1 and 4 tell them apart.
+   - These read-only checks are tested against both schemas, with Supabase's earlier and 2026 defaults.
+
+**If a step reports an error,** stop and run `supabase/verify/schema_checks.sql` to see what exists before trying again. FORGE DEV holds no data, so a broken first attempt can be cleared and redone, but only with a short development-only script reviewed for that purpose. None is kept in the repository, so it can never be pasted into production by mistake.
 
 **Supabase CLI (optional).**
 1. Install it with `brew install supabase/tap/supabase`, then run `supabase login`.
@@ -116,7 +141,8 @@ The rule is simple: the development project's values live only in `.env.forge-de
 1. `npm run dev:check` runs read-only checks of the development project from `.env.forge-dev`. It creates and changes nothing, refuses any project Expo's own settings files point at, and prints no key or address. Expected:
    - **✓** Auth answers, settings are readable, email sign-in is enabled and sign-ups are allowed.
    - **✓** Google is enabled, once you have set it up.
-   - **✓** "Forge schema with the Stage 3 hardening (anon can't read)".
+   - **✓** "Forge schema applied; anonymous users can't read it".
+   - **•** A reminder to confirm the hardening with `schema_checks.sql`. On a new project an anonymous probe can't show it: the baseline refuses anonymous users too.
    - **✓** Each `forge-dev:///…` address is allowed.
    - **✓** The production app's `forge:///welcome`, an arbitrary Expo tunnel and the `@` trick are refused.
 2. `npm run start:dev`, then open FORGE Dev (see `docs/NATIVE_BUILDS.md`). Sign in with a disposable account.
@@ -173,6 +199,25 @@ The rule is simple: the development project's values live only in `.env.forge-de
 | Custom SMTP | **Not configured** | A sending domain with SPF, DKIM and DMARC, and a provider. Configure it in Authentication → SMTP Settings; its password lives only in Supabase. Raise the rate limits. Test in development first. Required before real athletes |
 | Deletion confirmation | **Password and Google** in the app (5-minute window) | Server freshness (Stage 3) verified in development, then approved for production |
 | Apple sign-in and token revocation | **Blocked** on the Apple Developer Program | Sign in with Apple on both App IDs; Supabase's Apple provider; the revocation Edge Function (7.8E report, section 13); the private email relay; a deletion path for Apple-only accounts |
+
+## Adding to the schema later (Phase 9 and beyond)
+Later phases will add their own tables, such as Phase 9's subscriptions. Each phase owns its own design; these are only the database conventions that keep FORGE DEV and production consistent:
+- **One new migration** in `supabase/migrations`, named with a later 12-digit version than `202611020001`. Never edit an applied migration.
+- **Explicit grants:** each table or function granted to exactly the roles that need it.
+  - New projects grant nothing by default.
+  - Since Oct 30, 2026, production doesn't either for new tables; its existing tables keep the grants they had.
+  - Revoke what the app shouldn't have.
+  - Grant `anon` nothing.
+- **Row-level security** on every table, with policies keyed to `auth.uid()`.
+- **Writes only a server process should make** (for example, records an external service reports):
+  - no `insert`, `update` or `delete` for `authenticated`;
+  - only a service-side path, never a key in the app.
+- **Account deletion:**
+  - **Personal tables:** key them by `user_id uuid references auth.users(id) on delete cascade`, so `forge_delete_account` removes them with the account.
+  - **Records that must outlive the account** (for example, purchase records needed for accounting): those need an explicit, approved decision first.
+- **Leave Forge's sync contract alone:** don't change `forge_records`, `forge_write` or `forge_delete_account`.
+- **Update the checks:** query 6 of `schema_checks.sql` lists every public function. Add any new function there, with its own expected settings and grants.
+- **Apply on FORGE DEV first,** verify, and only then ask for production approval.
 
 ## Rules for production
 - **SQL:** no SQL, migration or rollback runs against production without explicit approval (E7).

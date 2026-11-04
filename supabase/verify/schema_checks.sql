@@ -3,7 +3,11 @@
 -- changes anything. Each query notes what to expect:
 --   BASELINE: 202610140001_forge.sql only (today's production project);
 --   HARDENED: plus 202611020001_forge_security_hardening.sql (development).
--- Verified against both schemas in tests/verify-sql.test.ts.
+-- Projects created since Supabase's 2026 change grant the API roles nothing
+-- by default (FORGE DEV is one): there query 3 reads the same for both, and
+-- queries 1 and 4 tell them apart.
+-- Verified against both schemas, with Supabase's earlier and 2026 defaults,
+-- in tests/verify-sql.test.ts.
 
 -- 1. Forge's functions: security definer, and their fixed search path.
 select proname, prosecdef, proconfig
@@ -32,9 +36,11 @@ from pg_class c, aclexplode(c.relacl) a
 where c.oid = 'public.forge_records'::regclass
   and (a.grantee = 0 or a.grantee::regrole::text in ('anon', 'authenticated'))
 order by 1, 2;
--- BASELINE: anon and authenticated each: REFERENCES, SELECT, TRIGGER,
---           TRUNCATE (and MAINTAIN on Postgres 17).
--- HARDENED: one row: authenticated | SELECT.
+-- BASELINE, with Supabase's earlier default grants (production): anon and
+--           authenticated each: REFERENCES, SELECT, TRIGGER, TRUNCATE (and
+--           MAINTAIN on Postgres 17).
+-- BASELINE on a project created since the 2026 change, and HARDENED
+--           everywhere: one row: authenticated | SELECT.
 
 -- 4. Row-level security, and its only policy.
 select c.relrowsecurity as rls_on,

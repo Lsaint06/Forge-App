@@ -34,7 +34,14 @@ const migrations = [
 ];
 const ROLLBACK = "supabase/rollback/202611020001_forge_security_hardening.sql";
 
-async function supabase(apply = migrations) {
+/**
+ * Supabase's default grants for new objects in public: "earlier" for projects
+ * created before its 2026 change (production), "2026" for projects created
+ * since, which grant the API roles nothing by default (FORGE DEV, Phase 8.2).
+ */
+type Defaults = "earlier" | "2026";
+
+async function supabase(apply = migrations, defaults: Defaults = "earlier") {
   const db = new PGlite();
   await db.exec(`
     CREATE ROLE anon NOLOGIN;
@@ -66,11 +73,15 @@ async function supabase(apply = migrations) {
       )::jsonb
     $$;
     GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
-    -- Supabase's default privileges for new objects in public.
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
   `);
+  await db.exec(
+    defaults === "earlier"
+      ? `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+         ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
+         ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;`
+      : // Nothing granted; functions not even to PUBLIC (the stricter case).
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;`,
+  );
   for (const file of apply) await db.exec(readFileSync(file, "utf8"));
   await db.exec(`
     INSERT INTO auth.users(id) VALUES ('${A}'), ('${B}');
@@ -193,6 +204,58 @@ const refusedAsStale = (p: Promise<unknown>) =>
     assert.equal(e.hint, "reauthentication_needed");
     return true;
   });
+
+test("with Supabase's 2026 defaults (FORGE DEV), the app's reads, writes and deletion work, and nothing more", async () => {
+  for (const apply of [migrations.slice(0, 1), migrations]) {
+    const hardened = apply.length === migrations.length;
+    const db = await supabase(apply, "2026");
+    try {
+      // Writes go through forge_write; each account reads only its own.
+      assert.equal((await write(db, as(A), "a1"))[0]!.result.revision, 1);
+      await write(db, as(B), "b1");
+      assert.deepEqual(
+        await request(db, as(A), "SELECT id FROM public.forge_records"),
+        [{ id: "a1" }],
+      );
+      // Anonymous requests and direct writes are refused. The baseline
+      // refuses anonymous reads here too, so an anonymous probe can't show
+      // the hardening on such a project (schema_checks.sql can).
+      await assert.rejects(
+        request(db, anon, "SELECT id FROM public.forge_records"),
+        /permission denied/i,
+      );
+      await assert.rejects(write(db, anon, "x"), /permission denied/i);
+      await assert.rejects(
+        request(
+          db,
+          as(A),
+          `INSERT INTO public.forge_records(user_id, id, kind, payload) VALUES ('${A}', 'direct', 'journal', '{}')`,
+        ),
+        /permission denied/i,
+      );
+      assert.deepEqual(await apiAcl(db), [
+        { grantee: "authenticated", privilege: "SELECT" },
+      ]);
+      // The hardened deletion still wants a recent sign-in.
+      if (hardened)
+        await refusedAsStale(
+          deleteAccount(
+            db,
+            as(A, {
+              amr: [{ method: "password", timestamp: now() - 11 * MIN }],
+            }),
+          ),
+        );
+      // A recent sign-in deletes the account and its records, and only them.
+      await deleteAccount(db, as(A));
+      assert.equal(await count(db, "auth.users", A), 0);
+      assert.equal(await count(db, "public.forge_records", A), 0);
+      await intact(db, B);
+    } finally {
+      await db.close();
+    }
+  }
+});
 
 test("a recent sign-in deletes the account with its records, identities and sessions, and nothing else", async () => {
   const db = await supabase();

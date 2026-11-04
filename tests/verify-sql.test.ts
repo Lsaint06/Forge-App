@@ -6,13 +6,18 @@ import { PGlite } from "@electric-sql/pglite";
 // Phase 8: supabase/verify/schema_checks.sql, the read-only checks the
 // founder runs in each project's SQL editor, tells the baseline schema
 // (today's production) from the hardened one (the development project), as
-// its comments say. PGlite is set up the way Supabase sets up a project.
+// its comments say. PGlite is set up the way Supabase sets up a project:
+// with its earlier default grants (production), or with its 2026 defaults,
+// where tables and functions aren't granted to the API roles (FORGE DEV,
+// Phase 8.2).
 
 const BASELINE = "supabase/migrations/202610140001_forge.sql";
 const HARDENING =
   "supabase/migrations/202611020001_forge_security_hardening.sql";
 
-async function project(files: string[]) {
+type Defaults = "earlier" | "2026";
+
+async function project(files: string[], defaults: Defaults = "earlier") {
   const db = new PGlite();
   await db.exec(`
     CREATE ROLE anon NOLOGIN;
@@ -32,9 +37,15 @@ async function project(files: string[]) {
       SELECT nullif(current_setting('request.jwt.claims', true), '')::jsonb
     $$;
     GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
   `);
+  await db.exec(
+    defaults === "earlier"
+      ? `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+         ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;`
+      : // Nothing granted by default; functions not even to PUBLIC (the
+        // stricter reading of "not exposed automatically").
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;`,
+  );
   for (const file of files) await db.exec(readFileSync(file, "utf8"));
   return db;
 }
@@ -67,8 +78,16 @@ const text = (v: unknown) =>
   Array.isArray(v) ? `{${v.join(",")}}` : String(v);
 
 test("the checks file tells the baseline from the hardened schema, as documented", async () => {
-  for (const hardened of [false, true]) {
-    const db = await project(hardened ? [BASELINE, HARDENING] : [BASELINE]);
+  for (const [hardened, defaults] of [
+    [false, "earlier"],
+    [true, "earlier"],
+    [false, "2026"],
+    [true, "2026"],
+  ] as const) {
+    const db = await project(
+      hardened ? [BASELINE, HARDENING] : [BASELINE],
+      defaults,
+    );
     try {
       const [fns, exec, acl, policy, owner, sessionColumns, exposed, version] =
         await runChecks(db);
@@ -103,9 +122,11 @@ test("the checks file tells the baseline from the hardened schema, as documented
           ["forge_write", "authenticated", true],
         ],
       );
-      // 3. Exact privileges.
+      // 3. Exact privileges. With the 2026 defaults the baseline reads the
+      // same as the hardened schema: queries 1 and 4 tell them apart.
       const rows = acl!.map((r) => `${r.grantee} ${r.privilege_type}`);
-      if (hardened) assert.deepEqual(rows, ["authenticated SELECT"]);
+      if (hardened || defaults === "2026")
+        assert.deepEqual(rows, ["authenticated SELECT"]);
       else
         for (const role of ["anon", "authenticated"])
           for (const privilege of [

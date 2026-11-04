@@ -180,8 +180,10 @@ test("FORGE Dev's Metro gets only the development project, its variant, and no .
 });
 
 test("probes: the schema from anon's answer; a return address from Auth's redirect", () => {
-  assert.equal(schemaState(null), "baseline");
-  assert.equal(schemaState({ code: "42501" }), "hardened");
+  // Refused tells only that anon can't read: on a project created since
+  // Supabase's 2026 change, the baseline is refused too.
+  assert.equal(schemaState(null), "open");
+  assert.equal(schemaState({ code: "42501" }), "closed");
   assert.equal(schemaState({ code: "PGRST205" }), "missing");
   assert.equal(schemaState({ code: "42P01" }), "missing");
   assert.equal(schemaState({ code: "PGRST301" }), "unknown");

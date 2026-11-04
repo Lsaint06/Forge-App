@@ -80,16 +80,20 @@ async function main() {
   const { error } = await anon.from("forge_records").select("id").limit(1);
   const schema = schemaState(error);
   note(
-    schema === "hardened",
+    schema === "closed",
     {
-      hardened: "Forge schema with the Stage 3 hardening (anon can't read)",
-      baseline:
-        "Forge baseline schema only: apply 202611020001_forge_security_hardening.sql",
+      closed: "Forge schema applied; anonymous users can't read it",
+      open: "Forge baseline schema: anonymous users can still query it (apply 202611020001_forge_security_hardening.sql)",
       missing:
         "No Forge schema: apply 202610140001_forge.sql, then the hardening",
       unknown: `Forge schema state unknown (${error?.code ?? "no code"})`,
     }[schema],
   );
+  if (schema === "closed")
+    note(
+      undefined,
+      "Stage 3 hardening: confirm with supabase/verify/schema_checks.sql (queries 1 and 4). Projects created since Supabase's 2026 change refuse anonymous users with or without it",
+    );
 
   if (google) {
     const accepted = async (to: string) =>
