@@ -9,6 +9,10 @@ The intro shows embers igniting, the FORGE letters forging in molten orange, the
 - Uses charcoal `#101216` in light and dark modes. The image is a transparent placeholder, `assets/splash/launch-mark.png`, so Android 12+ shows no generic launcher icon.
 - This deliberately matches Stage 01, which starts in near-darkness. Showing a logo here would make the wordmark appear, vanish, and then re-forge.
 - `app/_layout.tsx` calls `preventAutoHideAsync()` at module load and `hideAsync()` after the root first renders. The intro's first frame is the same charcoal, so the handoff has no visible seam. Native splash failures are ignored and never block startup.
+- **The native root view is charcoal too** (`"backgroundColor": "#101216"` in `app.json`, applied by `expo-system-ui`).
+  - React Native mounts the intro a moment after `hideAsync()`. Until then the root view behind it shows.
+  - Without its own color, that root view used the system background: white in light mode, black in dark mode.
+  - Measured on Nov 3, 2026 in a native build: about 3–4 frames of white flash in light mode and one black frame in dark mode. With the charcoal root, none (see "Verification performed").
 
 **Layer B — in-app intro** (`src/components/splash/`)
 
@@ -156,6 +160,18 @@ The native launch screen and real production cold-start behavior require a devel
 - **Bundling:** the iOS and Android export includes all 10 effect images.
 - **On device:** an Oct 31, 2026 screen recording (iPhone, Expo Go over the tunnel) showed the late letters that led to the drawn-image load gate. On Nov 1, 2026 the fix was confirmed working on the iPhone in Expo Go.
 - **Native configuration:** `expo prebuild` in a throwaway copy generated Android splash resources with `#101216` in light and dark modes and the transparent splash icon. iOS project generation is unavailable on Windows, so the iOS launch storyboard was not inspected.
+- **Native build on the Mac (Nov 3, 2026, Xcode 27.2, iPhone 17 Simulator, iOS 27.2), FORGE Dev Release:**
+  - **The launch storyboard and asset catalog** compile `#101216` for both appearances.
+  - **The launch, filmed and checked frame by frame:** the charcoal launch screen, then the REFORGE intro (embers, molten wordmark), then the next screen.
+  - **The hand-off before the native root view was charcoal:**
+    - light mode flashed near-white `(201, 201, 203)` for about 3–4 frames;
+    - dark mode dipped to black for one frame.
+  - **After `expo-system-ui` with `backgroundColor: #101216`:** six launches (three light, three dark, one right after a fresh install) had no white and no black frame. The brightest moment after the launch screen was the intro's own molten glow.
+  - **The app log:** no crash, no JavaScript error, no keychain error.
+  - **Generated native projects, before and after:**
+    - iOS adds only `RCTRootViewBackgroundColor` (`#101216`) to `Info.plist`.
+    - Android adds only the `#101216` window background and the `userInterfaceStyle` setting (`automatic`), which clears Android's "Install expo-system-ui" warning.
+  - **The iPhone itself** was still disconnected; see `docs/NATIVE_BUILDS.md`.
 
 ## Wordmark artwork
 

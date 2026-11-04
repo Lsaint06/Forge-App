@@ -170,7 +170,7 @@ The `development-simulator` profile builds the same app for the iOS Simulator.
 
 **With FORGE Dev, before the development project** (`npm run dev:ios -- --release --no-cloud`):
 1. **Install.** FORGE Dev appears beside Expo Go under its own name, with the white placeholder icon (until C-00b).
-2. **Launch.** A charcoal native launch screen, then the REFORGE intro, in light and dark mode. Watch the hand-off in light mode: see "Launch hand-off flash" below.
+2. **Launch.** A charcoal native launch screen, then the REFORGE intro, in light and dark mode, with no white or black flash between them.
 3. **No account service.** "Accounts aren't available"; training already on the phone is mentioned as kept.
 4. **Independent of the Mac.** Force-quit FORGE Dev, then open it away from the Mac's Wi-Fi: it opens the same way.
 5. **Expo Go unchanged.** Your training is still in Expo Go.
@@ -191,14 +191,10 @@ The `development-simulator` profile builds the same app for the iOS Simulator.
 
 ## Known limits and decisions for later
 - **App icon:** a white placeholder until the C-00b decision.
-- **Launch hand-off flash (found Nov 3, 2026; fix awaiting approval).**
-  - **What:** in a native build, between the launch screen and the REFORGE intro, the screen briefly shows React Native's own root view. That's white in light mode, for roughly 50–100 ms (3–4 frames), and black in dark mode, for about one frame. It was measured frame by frame in the iPhone 17 Simulator.
-  - **Why:** the app hides the native splash as soon as React commits (`app/_layout.tsx`), but the native views mount a moment later. The root view underneath has no color of its own, so iOS shows the system background.
-  - **Proposed fix:**
-    - install `expo-system-ui` (`npx expo install expo-system-ui`);
-    - set `"backgroundColor": "#101216"` in `app.json`, so the gap shows the same charcoal as the launch screen and the intro.
-    - This also clears the Android `userInterfaceStyle` warning below.
-    - It changes the production configuration, so it waits for approval.
+- **Launch hand-off flash: fixed (Nov 3, 2026, approved).**
+  - **What it was:** between the launch screen and the REFORGE intro, the screen briefly showed React Native's root view: white in light mode for about 3–4 frames, black in dark mode for one frame.
+  - **Fix:** `expo-system-ui` (58.0.7) and `"backgroundColor": "#101216"` in `app.json` make that root view charcoal.
+  - **Result:** six filmed Simulator launches, light and dark, showed no white or black frame (`docs/SPLASH.md`). Still to see on the iPhone itself.
 - **Shared dev-client scheme.** FORGE Dev and FORGE both register `exp+forge-fitness`: `expo-dev-client` derives it from the shared slug, and Expo's CLI builds dev-client links from it.
   - With two apps installed, a dev-client QR code may open the other one. Open FORGE Dev first and pick the server.
   - Release builds contain no development launcher, so this is a convenience issue, not a security one.
@@ -206,7 +202,7 @@ The `development-simulator` profile builds the same app for the iOS Simulator.
 - **Free Apple IDs:** a free Apple ID's Personal Team can't sign Sign in with Apple, so FORGE Dev can't be built with one as it stands. A temporary free-Apple-ID mode (its own `.personal` bundle ID, without Sign in with Apple) existed in `6b58039`; it was removed once the paid team was available.
 - **Xcode's Run button** builds without FORGE Dev's settings (its Release JavaScript would read `.env`), so that app refuses to connect. Use `npm run dev:ios`.
 - **iOS 27 notices.** On iOS 27 (the Simulator), UIKit logs that the status-bar APIs React Native calls are no-ops. The iPhone runs iOS 26.6.2, where they work. Revisit with a React Native update before iOS 27 devices matter.
-- **Android:** `userInterfaceStyle: automatic` needs `expo-system-ui` on Android (pre-existing; reported by prebuild). The iPhone doesn't need it.
+- **Android:** `userInterfaceStyle: automatic` now applies on Android too, since `expo-system-ui` is installed; prebuild no longer warns.
 - **Updates:** `expo-doctor` (Nov 2, 2026) passes every check except 15 patch updates, including `expo` 58.0.22 (58.0.17 installed) and `react-native` 0.88.1 (0.88.0 installed).
   - Their changelogs list no iOS build fix that Forge needs. The installed set is consistent: its precompiled iOS binaries are all built against React Native 0.88.0.
   - Updating changes Expo Go's and Windows' installs too, so it is a separate, approved step (`npx expo install --fix`). Not applied here.
