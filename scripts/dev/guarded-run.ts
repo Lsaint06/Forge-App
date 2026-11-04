@@ -8,12 +8,14 @@
 // recorded here rather than read from exit codes.
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { closeSync, openSync, readFileSync, writeFileSync } from "node:fs";
 
 export type Step = {
   command: string;
   args: string[];
   env?: NodeJS.ProcessEnv;
+  /** A file for the step's output instead of the terminal (Xcode's long log). */
+  output?: string;
 };
 
 export type GuardedResult = {
@@ -44,16 +46,24 @@ export async function runGuarded(
   try {
     let status = 0;
     for (const step of steps) {
-      status = await new Promise<number>((resolve) => {
-        const child = spawn(step.command, step.args, {
-          stdio: "inherit",
-          env: step.env,
+      const log =
+        step.output === undefined ? undefined : openSync(step.output, "w");
+      try {
+        status = await new Promise<number>((resolve) => {
+          const child = spawn(step.command, step.args, {
+            stdio: log === undefined ? "inherit" : ["ignore", log, log],
+            env: step.env,
+          });
+          running = child;
+          child.once("error", () => resolve(1));
+          child.once("exit", (code, signal) =>
+            resolve(code ?? (signal ? 1 : 0)),
+          );
         });
-        running = child;
-        child.once("error", () => resolve(1));
-        child.once("exit", (code, signal) => resolve(code ?? (signal ? 1 : 0)));
-      });
-      running = undefined;
+      } finally {
+        running = undefined;
+        if (log !== undefined) closeSync(log);
+      }
       if (cancelled || status !== 0) break;
     }
     const restored: string[] = [];

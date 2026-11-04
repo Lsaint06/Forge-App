@@ -21,8 +21,6 @@ export type AppVariant = "development" | "preview" | "production";
 export const APP_IDS: Readonly<Record<string, AppVariant>> = {
   "com.lsaint06.forge": "production",
   "com.lsaint06.forge.dev": "development",
-  // FORGE Dev signed by a free Apple ID's Personal Team (iOS; Phase 8.1).
-  "com.lsaint06.forge.dev.personal": "development",
   "com.lsaint06.forge.preview": "preview",
 };
 

@@ -172,42 +172,6 @@ test("each app needs JavaScript built for it: its own link scheme", () => {
     }
 });
 
-// Phase 8.1: FORGE Dev signed with a free Apple ID has its own bundle ID.
-const PERSONAL_APP = { ...DEV_APP, appId: "com.lsaint06.forge.dev.personal" };
-
-test("FORGE Dev from a free Apple ID follows FORGE Dev's rules exactly", () => {
-  for (const env of [
-    todayEnv,
-    {},
-    prodEnv,
-    devEnv,
-    { name: "development", url: at(DEV) },
-    { name: "development", projectRef: DEV, url: at(PROD) },
-  ])
-    for (const scheme of [undefined, "", "forge", "forge-dev", "exp"])
-      assert.deepEqual(
-        checkEnvironment({ ...env, ...PERSONAL_APP, scheme }),
-        checkEnvironment({ ...env, ...DEV_APP, scheme }),
-        `${JSON.stringify(env)} ${scheme}`,
-      );
-  assert.deepEqual(checkEnvironment({ ...devEnv, ...PERSONAL_APP }), {
-    ok: true,
-    environment: "development",
-  });
-  assert.equal(checkEnvironment({ ...prodEnv, ...PERSONAL_APP }).ok, false);
-  // Only that exact ID: look-alikes aren't Forge's.
-  for (const appId of [
-    "com.lsaint06.forge.dev.personal2",
-    "com.lsaint06.forge.dev.Personal",
-    "com.lsaint06.forge.personal",
-  ])
-    assert.equal(
-      checkEnvironment({ ...devEnv, ...PERSONAL_APP, appId }).ok,
-      false,
-      appId,
-    );
-});
-
 test("the production app uses only production; a preview names either", () => {
   for (const env of [todayEnv, devEnv, { ...prodEnv, name: "Production" }])
     assert.equal(checkEnvironment({ ...env, ...PROD_APP }).ok, false);

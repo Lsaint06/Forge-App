@@ -23,7 +23,7 @@ npm ci
 npm start
 ```
 
-Install the matching Expo Go version on your phone and follow [IPHONE_TESTING.md](IPHONE_TESTING.md). No Mac or Xcode is needed for the initial Expo Go workflow. FORGE Dev, Forge's own development build (Phase 8), is prepared: `npm run dev:ios` builds and installs it on an iPhone connected to a Mac with Xcode, with a free Apple ID (Phase 8.1), and `npm run start:dev` starts Metro for it against the development Supabase project only, while `npm start` stays Expo Go. See [docs/NATIVE_BUILDS.md](docs/NATIVE_BUILDS.md) and [docs/DEVELOPMENT_ENVIRONMENT.md](docs/DEVELOPMENT_ENVIRONMENT.md). The GitHub repository is source code, not a running application or a public development server.
+Install the matching Expo Go version on your phone and follow [IPHONE_TESTING.md](IPHONE_TESTING.md). No Mac or Xcode is needed for the initial Expo Go workflow. FORGE Dev, Forge's own development build (Phase 8), is prepared: `npm run dev:ios` builds it with Xcode, signed by the paid Apple Developer team, and installs it on the iPhone connected to the Mac (Phase 8.1), and `npm run start:dev` starts Metro for it against the development Supabase project only, while `npm start` stays Expo Go. See [docs/NATIVE_BUILDS.md](docs/NATIVE_BUILDS.md) and [docs/DEVELOPMENT_ENVIRONMENT.md](docs/DEVELOPMENT_ENVIRONMENT.md). The GitHub repository is source code, not a running application or a public development server.
 
 ```sh
 npm run typecheck
