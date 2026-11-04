@@ -6,6 +6,8 @@
 
 **The short version, for use at the Mac:** [FORGE_DEV_IPHONE_CHECKLIST.md](../FORGE_DEV_IPHONE_CHECKLIST.md) (Phase 8.3B).
 
+**Results on the iPhone:** [PHASE_8_3C_DEVICE_RESULTS.md](PHASE_8_3C_DEVICE_RESULTS.md) (Phase 8.3C).
+
 **This document is three things:**
 
 - the Mac-to-iPhone setup guide (§3);
@@ -20,8 +22,8 @@ The approvals it needs are in §9.
 | --- | --- |
 | Apple Developer Program | Paid team (Individual). Its Apple Development certificate is in the Mac's login keychain, valid until Nov 3, 2027; Apple's WWDR G3 intermediate is installed ([NATIVE_BUILDS.md](../NATIVE_BUILDS.md)) |
 | Mac | MacBook Air M4, macOS 27.2, Xcode 27.2 (Expo SDK 58 needs 26.4 or later), CocoaPods 1.17.0. `xcode-select` points to the Command Line Tools; `npm run dev:ios` uses Xcode directly |
-| iPhone | iPhone 17, iOS 26.6.2, paired with the Mac, Developer Mode on. **Not yet registered with the team:** the first `npm run dev:ios` with it connected registers it |
-| FORGE Dev | Builds and passes its checks on the Mac (Simulator; unsigned iPhone build). **Never installed on the iPhone** |
+| iPhone | iPhone 17, iOS 26.6.2, paired with the Mac, Developer Mode on. Registered with the team by the first FORGE Dev install (Nov 4) |
+| FORGE Dev | Builds and passes its checks on the Mac. **Installed on the iPhone Nov 4** (standalone Release build); results in [PHASE_8_3C_DEVICE_RESULTS.md](PHASE_8_3C_DEVICE_RESULTS.md) |
 | FORGE DEV (`gmyo…`) | <ul><li>**Applied:** the schema and the security hardening (Nov 3).</li><li>**Verified live, read-only (Nov 4):** email sign-in on; confirmation off; sign-ups allowed; anonymous, phone and SAML sign-ins off; exactly the three `forge-dev:///` return addresses; the records table closed to anonymous callers.</li><li>**Set by the founder, not readable from outside:** 300-second sign-ins, no hooks, no CAPTCHA.</li><li>**Not set up:** Google (deferred).</li></ul> |
 | Windows | Verifies everything that runs off the phone: logic 799 of 801 (2 Mac-only tests skipped), UI 783 of 783, TypeScript, ESLint, Prettier, `dev:check`; the GitHub check passes on `5f07c9b` |
 
@@ -293,7 +295,7 @@ No redesign; only what the failure needs.
 
 **Verified (Nov 4, live, read-only):** see §1, FORGE DEV row.
 
-**Done in Phase 8.3B** (Nov 4, uncommitted, for review):
+**Done in Phase 8.3B** (Nov 4; committed in `f6e863f`):
 
 - **`dev:check` reads the return-address allow list without Google.**
   - **How:** email-link verifications with random tokens, which create nothing. It checks the three `forge-dev:///` addresses, production's scheme, the `@` trick, one address per broad pattern and any website.
@@ -320,14 +322,14 @@ Founder decisions, Nov 4, 2026:
 | # | Approval | Covers | Status |
 | --- | --- | --- | --- |
 | **A0** | Run the Mac session: steps 1–5 (install FORGE Dev on the iPhone; registers it with the team) | Everything on the phone | **Approved**, guided once the founder is at the Mac and the prerequisites are confirmed; never started remotely |
-| **A1** | Create throwaway FORGE DEV accounts **A** and **B** in FORGE Dev: plus-addresses on a domain you own; confirmation is off, so no email is sent | Every signed-in test (nearly all of §5) | Pending |
+| **A1** | Create throwaway FORGE DEV accounts **A** and **B** in FORGE Dev: plus-addresses on a domain you own; confirmation is off, so no email is sent | Every signed-in test (nearly all of §5) | **Limited; done (Nov 4).** The founder created one disposable FORGE DEV email account on the iPhone and signed in with it. Covers that account only: creating any other account (B included) or deleting any account still needs approval |
 | **A2** | Account deletion tests on FORGE DEV (throwaway accounts only) | S8 | Pending |
 | **A3** | The password-reset email test: a team address, or wait for custom SMTP (Phase 8.5) | S9 | Pending |
 | **A4** | Run `dev:verify-stage3` from Windows: two throwaway accounts, created and deleted; needs the email address for the plus-addresses | V1 | Pending |
 | **A5** | Build test tooling (code, not app changes): the Windows second device; the synthetic-history generator; optionally `dev:ios --simulator` | S4, S5, Y1, Y2, P1 | Pending |
 | **A6** | Fix defects found, each with a regression test, reported before committing | §7 | Pending |
 | **A7** | Check the founder's Expo Go backup file on Windows with the read-only checker (§4) | Data safety | **Approved**, for a file the founder explicitly provides; the original is never modified |
-| **A8** | Commits: this document, the deferred 7.6A inventory and, later, the 8.2 close-out | Documentation | **Approved to prepare.** No commit or push yet |
+| **A8** | Commits: this document, the deferred 7.6A inventory and, later, the 8.2 close-out | Documentation | **Done:** committed with approval and pushed (`16a4da7`, `f6e863f`, Nov 4) |
 
 ## 10. Statements
 
@@ -336,4 +338,4 @@ Founder decisions, Nov 4, 2026:
   - the FORGE DEV-target check (a Windows export of FORGE Dev's JavaScript, deleted after scanning);
   - the live probes.
   The backup checker and the one-query schema check moved into the repository in 8.3B.
-- **Not done:** no device was used, no account created, and no data, setting or infrastructure changed. Engineer #2's worktree and Phase 9 files were not touched.
+- **Not done in 8.3A–8.3B:** no device was used, no account created, and no data, setting or infrastructure changed. Engineer #2's worktree and Phase 9 files were not touched. Device results from Phase 8.3C on, including the founder's disposable account (A1), are in [PHASE_8_3C_DEVICE_RESULTS.md](PHASE_8_3C_DEVICE_RESULTS.md).
