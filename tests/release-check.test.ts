@@ -14,6 +14,8 @@ import path from "node:path";
 import { APP_ENVIRONMENTS } from "../src/cloud/environment";
 import {
   BUILDER_HOOK,
+  PRODUCTION_LOCKED,
+  PRODUCTION_PROFILE,
   PROFILES,
   appConfigFor,
   builderCheck,
@@ -34,6 +36,9 @@ import { PROJECT_FINGERPRINTS, fingerprint } from "../scripts/release/projects";
 // Phase 8.4B: every build keeps its own app identity and its own Supabase
 // project. FORGE Preview builds only with FORGE DEV, production builds stay
 // locked until the founder approves, and every check fails closed.
+// Phase 8.4C-0: eas.json has no production profile until Phase 8.4F, so EAS
+// CLI stops before any build number, credential or upload; the exact profile
+// to restore is PRODUCTION_PROFILE.
 
 const eas = JSON.parse(readFileSync("eas.json", "utf8"));
 const expo = JSON.parse(readFileSync("app.json", "utf8")).expo;
@@ -58,6 +63,14 @@ const build = (
   APP_VARIANT: PROFILES[profile].variant,
   ...extra,
 });
+/** A production build's environment, as EAS would set it (Phase 8.4F on). */
+const productionBuild = (extra: Record<string, string | undefined> = {}) => ({
+  EAS_BUILD_PROFILE: "production",
+  APP_VARIANT: "production",
+  ...extra,
+});
+/** Forge's profiles once production is restored (Phase 8.4F). */
+const RESTORED = { ...PROFILES, production: PRODUCTION_PROFILE.rule };
 /** A service-role JWT's shape (never a real key). */
 const serviceRole = [
   "eyJhbGciOiJIUzI1NiJ9",
@@ -80,14 +93,14 @@ const refuses = (problems: readonly string[], said: RegExp) => {
 
 // ---- eas.json ----
 
-test("eas.json builds exactly Forge's five profiles, each as intended", () => {
+test("eas.json builds exactly Forge's four profiles, each as intended", () => {
   assert.deepEqual(easJsonProblems(eas), []);
   assert.deepEqual(Object.keys(eas.build).sort(), Object.keys(PROFILES).sort());
-  // Only FORGE Preview and FORGE go to the stores, numbered by EAS.
+  // Only FORGE Preview goes to the stores until 8.4F, numbered by EAS.
   const store = (Object.keys(PROFILES) as ProfileName[]).filter(
     (name) => PROFILES[name].distribution === "store",
   );
-  assert.deepEqual(store.sort(), ["preview", "production"]);
+  assert.deepEqual(store, ["preview"]);
   assert.equal(eas.cli.appVersionSource, "remote");
   for (const name of store) assert.equal(eas.build[name].autoIncrement, true);
 });
@@ -125,8 +138,8 @@ test("any eas.json change that would cross apps, environments or signing is refu
       /preview must build APP_VARIANT=preview/,
     ],
     [
-      (e) => (e.build.production.env.APP_VARIANT = "preview"),
-      /production must build APP_VARIANT=production/,
+      (e) => (e.build["development-release"].env.APP_VARIANT = "production"),
+      /development-release must build APP_VARIANT=development/,
     ],
     [
       (e) => (e.build.preview.ios = { env: { APP_VARIANT: "production" } }),
@@ -151,8 +164,9 @@ test("any eas.json change that would cross apps, environments or signing is refu
       /preview may set only APP_VARIANT in env/,
     ],
     [
-      (e) => (e.build.production.env.SUPABASE_SERVICE_ROLE_KEY = "x"),
-      /production may set only APP_VARIANT in env/,
+      (e) =>
+        (e.build["development-release"].env.SUPABASE_SERVICE_ROLE_KEY = "x"),
+      /development-release may set only APP_VARIANT in env/,
     ],
     // Store builds, numbered by EAS; development clients only for FORGE Dev.
     [
@@ -160,8 +174,8 @@ test("any eas.json change that would cross apps, environments or signing is refu
       /preview must be store distribution/,
     ],
     [
-      (e) => delete e.build.production.autoIncrement,
-      /production must number every build/,
+      (e) => delete e.build.preview.autoIncrement,
+      /preview must number every build/,
     ],
     [
       (e) => (e.build.preview.developmentClient = true),
@@ -172,16 +186,17 @@ test("any eas.json change that would cross apps, environments or signing is refu
       /development must be a development client/,
     ],
     [
-      (e) => (e.build.production.android.buildType = "apk"),
-      /production \(android\) must build an App Bundle/,
+      (e) => (e.build.preview.android.buildType = "apk"),
+      /preview \(android\) must build an App Bundle/,
     ],
     [
       (e) => (e.build.preview.android.gradleCommand = ":app:assembleDebug"),
       /preview \(android\) must build an App Bundle/,
     ],
     [
-      (e) => (e.build.production.ios = { buildConfiguration: "Debug" }),
-      /production \(ios\) must build for devices/,
+      (e) =>
+        (e.build["development-release"].ios = { buildConfiguration: "Debug" }),
+      /development-release \(ios\) must build for devices/,
     ],
     [
       (e) => (e.build.preview.ios = { simulator: true }),
@@ -190,8 +205,8 @@ test("any eas.json change that would cross apps, environments or signing is refu
     [(e) => (e.build.preview.node = "22.11.0"), /preview must pin Node 24/],
     // Signing stays with EAS; custom builds would skip this check.
     [
-      (e) => (e.build.production.credentialsSource = "local"),
-      /production must sign with EAS-managed credentials/,
+      (e) => (e.build.preview.credentialsSource = "local"),
+      /preview must sign with EAS-managed credentials/,
     ],
     [
       (e) => (e.build.preview.config = "preview.yml"),
@@ -201,6 +216,10 @@ test("any eas.json change that would cross apps, environments or signing is refu
     [
       (e) => (e.build.staging = structuredClone(e.build.preview)),
       /staging isn't one of Forge's profiles/,
+    ],
+    [
+      (e) => (e.build.production = structuredClone(PRODUCTION_PROFILE.eas)),
+      /the production profile must stay out until the founder approves production release/,
     ],
     [
       (e) => delete e.build["development-release"],
@@ -223,6 +242,100 @@ test("any eas.json change that would cross apps, environments or signing is refu
   }
   assert.deepEqual(easJsonProblems(null), ["eas.json isn't a JSON object"]);
   assert.deepEqual(easJsonProblems(eas), [], "the repository's eas.json");
+});
+
+test("production can't enter an EAS build until 8.4F: eas.json has no profile for it", () => {
+  // EAS CLI resolves `--profile production`, and `eas build` with no profile
+  // (its default is production), from eas.json first: with no such profile
+  // it stops there, before any build number, credential or upload.
+  assert.equal("production" in eas.build, false);
+  assert.equal(resolveProfile(eas.build, "production"), undefined);
+  // No profile builds FORGE, and none uses the production environment.
+  for (const rule of Object.values(PROFILES)) {
+    assert.notEqual(rule.variant, "production");
+    assert.notEqual(rule.environment, "production");
+  }
+  assert.equal(JSON.stringify(eas.build).includes("production"), false);
+  // Putting one back is refused, whatever its shape.
+  for (const production of [
+    structuredClone(PRODUCTION_PROFILE.eas),
+    { extends: "preview", env: { APP_VARIANT: "production" } },
+    {},
+  ]) {
+    const changed = structuredClone(eas);
+    changed.build.production = production;
+    refuses(easJsonProblems(changed), /the production profile must stay out/);
+  }
+  // The builder refuses production outright, values and pins or not.
+  for (const env of [values("production", PROD), {}])
+    for (const pins of [undefined, PINS])
+      refuses(
+        builderCheck(productionBuild(env), [], pins).problems,
+        /EAS_BUILD_PROFILE: production builds are locked until the founder approves production release/,
+      );
+  assert.match(
+    PRODUCTION_LOCKED,
+    /^production builds are locked: eas.json has no production profile/,
+  );
+});
+
+test("the 8.4F restore: the documented profile passes once approved, and only then", () => {
+  // eas.json with build.production put back exactly as RELEASE.md §6 says.
+  const restored = structuredClone(eas);
+  restored.build.production = structuredClone(PRODUCTION_PROFILE.eas);
+  // Valid as FORGE's store profile once PROFILES takes production back...
+  assert.deepEqual(easJsonProblems(restored, RESTORED), []);
+  // ...refused until then.
+  refuses(easJsonProblems(restored), /the production profile must stay out/);
+  // A restored profile is still locked on the builder until production is
+  // pinned (projects.ts)...
+  refuses(
+    builderCheck(
+      productionBuild(values("production", PROD)),
+      [],
+      undefined,
+      RESTORED,
+    ).problems,
+    /production builds are locked: no production project is pinned/,
+  );
+  // ...and once pinned (here a test pin), builds only with production's own
+  // project, named production.
+  assert.deepEqual(
+    builderCheck(
+      productionBuild(values("production", PROD)),
+      [],
+      PINS,
+      RESTORED,
+    ).problems,
+    [],
+  );
+  refuses(
+    builderCheck(productionBuild(values("production", DEV)), [], PINS, RESTORED)
+      .problems,
+    /isn't the pinned production project/,
+  );
+  refuses(
+    builderCheck(
+      productionBuild(values("development", DEV)),
+      [],
+      PINS,
+      RESTORED,
+    ).problems,
+    /The production app can only use the production environment/,
+  );
+  // The restore changes nothing else: every other profile stays as it is.
+  const { production: _production, ...others } = RESTORED;
+  assert.deepEqual(others, PROFILES);
+  // And it stays current: preview's store settings (Node pin, numbering,
+  // App Bundle), with production's environment and app instead.
+  assert.deepEqual(
+    {
+      ...structuredClone(PRODUCTION_PROFILE.eas),
+      environment: "preview",
+      env: { APP_VARIANT: "preview" },
+    },
+    eas.build.preview,
+  );
 });
 
 // ---- Each app's config ----
@@ -360,8 +473,6 @@ test("each build passes with its own app's values and pinned project", () => {
   for (const [profile, environment, ref] of [
     ["development-release", "development", DEV],
     ["preview", "development", DEV],
-    // Production passes only once its project is pinned (here, a test pin).
-    ["production", "production", PROD],
   ] as const) {
     const result = builderCheck(
       build(profile, values(environment, ref)),
@@ -411,15 +522,9 @@ test("FORGE Preview never builds with production: by name, project or address", 
         .problems,
       /The development app can only use the development environment/,
     );
-  // Production never builds with FORGE DEV's project.
-  refuses(
-    builderCheck(build("production", values("production", DEV)), [], PINS)
-      .problems,
-    /isn't the pinned production project/,
-  );
 });
 
-test("production builds stay locked until the founder pins production", () => {
+test("production builds stay locked: no profile until 8.4F, and no pin", () => {
   assert.equal(PROJECT_FINGERPRINTS.production, null);
   assert.match(PROJECT_FINGERPRINTS.development ?? "", /^[0-9a-f]{64}$/);
   assert.match(projectLock("production") ?? "", /production builds are locked/);
@@ -427,11 +532,8 @@ test("production builds stay locked until the founder pins production", () => {
   assert.equal(projectLock("development"), undefined);
   // FORGE Preview uses FORGE DEV's pin: it has no project of its own.
   assert.equal(APP_ENVIRONMENTS.preview, "development");
-  for (const env of [values("production", PROD), {}])
-    refuses(
-      builderCheck(build("production", env), []).problems,
-      /production builds are locked/,
-    );
+  // FORGE itself is still one of Forge's apps, using production only.
+  assert.equal(APP_ENVIRONMENTS.production, "production");
   // A test project is never the pinned FORGE DEV project.
   refuses(
     builderCheck(build("preview", values("development", DEV)), []).problems,
@@ -643,7 +745,12 @@ test("release:check: the preview profile passes; production stops on its lock", 
   assert.match(preview.out, /FORGE Preview \(com\.lsaint06\.forge\.preview\)/);
   const production = run(["--profile", "production", "--allow-dirty"]);
   assert.equal(production.status, 1, production.out);
-  assert.match(production.out, /✗ production builds are locked/);
+  assert.match(
+    production.out,
+    /✗ production builds are locked: eas.json has no production profile/,
+  );
+  // Locked whether or not the tree is clean.
+  assert.equal(run(["--profile", "production"]).status, 1);
   const usage = run(["--profile", "staging"]);
   assert.equal(usage.status, 1);
   assert.match(usage.out, /Usage: npm run release:check/);

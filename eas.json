@@ -46,18 +46,6 @@
       "env": {
         "APP_VARIANT": "preview"
       }
-    },
-    "production": {
-      "distribution": "store",
-      "autoIncrement": true,
-      "environment": "production",
-      "node": "24.22.0",
-      "android": {
-        "buildType": "app-bundle"
-      },
-      "env": {
-        "APP_VARIANT": "production"
-      }
     }
   }
 }

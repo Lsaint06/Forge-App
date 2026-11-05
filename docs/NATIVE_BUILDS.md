@@ -210,7 +210,10 @@ Builds in Expo's cloud instead of on this Mac. It needs the paid team too, and *
   - FORGE Dev is unchanged; FORGE and FORGE Preview no longer answer those links (tested in Expo's own pipeline, `tests/app-variants.test.ts`).
 - **Free Apple IDs:** a free Apple ID's Personal Team can't sign Sign in with Apple, so FORGE Dev can't be built with one as it stands. A temporary free-Apple-ID mode (its own `.personal` bundle ID, without Sign in with Apple) existed in `6b58039`; it was removed once the paid team was available.
 - **Xcode's Run button** builds without FORGE Dev's settings (its Release JavaScript would read `.env`), so that app refuses to connect. Use `npm run dev:ios`.
-- **iOS 27 notices.** On iOS 27 (the Simulator), UIKit logs that the status-bar APIs React Native calls are no-ops. The iPhone runs iOS 26.6.2, where they work. Revisit with a React Native update before iOS 27 devices matter.
+- **iOS 27 notices.** On iOS 27 (the Simulator), UIKit logs that the status-bar APIs React Native calls are no-ops. The iPhone runs iOS 26.6.2, where they work.
+  - Cause: the iOS 27 SDK turns those calls into no-ops.
+  - Fix, identified in Phase 8.4C-0: `react-native` 0.88.1 and `expo` 58.0.23, with `UIViewControllerBasedStatusBarAppearance: true`.
+  - Needed before testers on iOS 27 ([RELEASE.md](RELEASE.md) §11, V5).
 - **Android:** `userInterfaceStyle: automatic` now applies on Android too, since `expo-system-ui` is installed; prebuild no longer warns.
 - **Updates:** `expo-doctor` (Nov 2, 2026) passes every check except 15 patch updates, including `expo` 58.0.22 (58.0.17 installed) and `react-native` 0.88.1 (0.88.0 installed).
   - Their changelogs list no iOS build fix that Forge needs. The installed set is consistent: its precompiled iOS binaries are all built against React Native 0.88.0.

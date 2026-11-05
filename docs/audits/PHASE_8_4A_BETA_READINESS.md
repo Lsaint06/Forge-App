@@ -184,10 +184,11 @@ Details: [RELEASE.md](../RELEASE.md) §10.
 |---|---|---|
 | **8.4A** | Read-only readiness audit and architecture | Done (this record) |
 | **8.4B** | Build profiles, identities, environment locks, release checks, Android backup and permission policy, documentation. Repository only | Done (Nov 4, 2026). Final review added the verified EAS upload and build-number behaviour and the open items (RELEASE.md §2, §3, §11) |
+| **8.4C-0** | Pre-build safety gate: the `production` profile removed from `eas.json` until 8.4F, with its exact restore documented and tested; the Expo Doctor dependency assessment. Repository only | Done in the repository; awaiting review |
 | **8.4C** | iOS beta infrastructure: link EAS, Apple records, credentials, the first `preview` build, TestFlight internal testing | Needs approvals (STORE_SETUP.md §1–§3) |
 | **8.4D** | Android beta infrastructure: Play account and records, upload key, the first AAB, internal testing, the FORGE Dev APK on an Android phone | Needs approvals (STORE_SETUP.md §4–§5) |
 | **8.4E** | Beta validation and controlled distribution: the gates above on both platforms, release-candidate checks, internal then external testers | After 8.4C and 8.4D |
-| **8.4F** | Production readiness: G-PROD on the production backend, legal and store forms, then the production pin and the first `production` builds | Founder approval |
+| **8.4F** | Production readiness: G-PROD on the production backend, legal and store forms, then restoring the `production` profile and pinning production in one reviewed commit (RELEASE.md §6), and the first `production` builds | Founder approval |
 | **8.4G** | Store submission: App Review and Play production (after the closed test, for a personal account) | Founder approval |
 
 **Approval boundaries throughout:**
@@ -208,6 +209,8 @@ Details: [RELEASE.md](../RELEASE.md) §10.
 7. **No silent fallback** to the wrong backend.
 8. **A conservative Android backup policy,** excluding credentials and sensitive data. Selective exclusion proved practical (§5).
 
+**Made (Phase 8.4C-0 brief):** the `production` profile stays out of `eas.json` until production release is approved (8.4F), so EAS CLI can't touch FORGE's build numbers or credentials (RELEASE.md §6).
+
 **Open:**
 
 | Topic | Decision needed | Needed by |
@@ -226,4 +229,3 @@ Details: [RELEASE.md](../RELEASE.md) §10.
 | Android permissions | Block `SYSTEM_ALERT_WINDOW`; review the merged list after the first AAB | 8.4D |
 | Monetization alignment | Android billing at launch; which identity carries sandbox purchases; where RevenueCat keys live | Phase 9, before 8.4E |
 | Dependency patches | The Expo SDK 58 updates `expo-doctor` reports (15 patch, including `expo` 58.0.23 and `react-native` 0.88.1, and `react-native-safe-area-context` 5.11.1) before the first store builds, or not (RELEASE.md §11, V5) | 8.4C |
-| Production profile | Keep `production` in `eas.json` with the documented operating rules, or remove it until 8.4F so EAS CLI can't touch production's build counter or credentials (RELEASE.md §6) | Before linking (8.4C) |
