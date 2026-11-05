@@ -468,7 +468,7 @@ Doing it before the first Android device build means Android is validated once, 
   - iOS and Android exports;
   - the release check;
   - Expo's own pipeline, where the Info.plist key is the only native difference.
-- **Still to verify on devices, not by these checks:**
+- **Still to verify on devices, not by these checks** (step by step in [FORGE_DEV_SDK58_CHECKLIST.md](FORGE_DEV_SDK58_CHECKLIST.md)):
   - **The FORGE Dev rebuild on the Mac (Release) and the founder's iPhone:**
     - the status bar in both Forge themes, with the phone in light and in dark mode;
     - the intro;

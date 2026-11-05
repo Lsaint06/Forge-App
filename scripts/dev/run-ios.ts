@@ -9,10 +9,13 @@
 // - --team: the Team ID, if this Mac doesn't have exactly one development
 //   certificate yet (Xcode then creates it during the build).
 // - --device: the iPhone's name, if more than one is connected.
+// - --simulator: an iOS Simulator on this Mac instead of the iPhone, by name
+//   or UDID (Release only), for an iOS version the iPhone doesn't run
+//   (Phase 8.4C-1). Still signed by your team, with the same checks.
 // - --build-only: builds, signs and checks FORGE Dev without an iPhone, and
 //   installs nothing (Apple must already know the iPhone: one earlier
 //   install with it connected registers it).
-// - --check: only checks this Mac and the iPhone.
+// - --check: only checks this Mac and the iPhone (or the Simulator).
 // It never reads Expo's own .env files, checks the built app before
 // installing it (FORGE Dev's ID and link scheme, your team, no production
 // values), and puts app.json and package.json back if a step changed them.
@@ -47,6 +50,7 @@ import {
   buildFailureHints,
   builtAppProblems,
   chooseIphone,
+  chooseSimulator,
   chooseTeam,
   describeTeam,
   developerDir,
@@ -55,10 +59,12 @@ import {
   parseDevices,
   parseIdentities,
   parseIosArgs,
+  parseSimulators,
   productionMarkers,
   signingTeams,
   xcodebuildArgs,
   type BuiltApp,
+  type Simulator,
 } from "./ios-build";
 
 const root = process.cwd();
@@ -151,6 +157,22 @@ function pairedDevices() {
   }
 }
 
+function simulators() {
+  try {
+    return parseSimulators(
+      JSON.parse(
+        probe(
+          "xcrun",
+          ["simctl", "list", "devices", "available", "--json"],
+          toolEnv,
+        ) ?? "{}",
+      ),
+    );
+  } catch {
+    return [];
+  }
+}
+
 const certificates = keychainCertificates();
 const valid = parseIdentities(
   probe("security", ["find-identity", "-v", "-p", "codesigning"]) ?? "",
@@ -163,21 +185,31 @@ const team = chooseTeam(
   options.team,
   signingTeams(untrusted, certificates),
 );
-const iphone = options.buildOnly
-  ? ("not needed" as const)
-  : xcode
-    ? chooseIphone(pairedDevices(), options.device)
-    : { ok: false as const, problem: "Needs Xcode first" };
+const simulator =
+  options.simulator === undefined
+    ? undefined
+    : xcode
+      ? chooseSimulator(simulators(), options.simulator)
+      : { ok: false as const, problem: "Needs Xcode first" };
+const iphone =
+  options.buildOnly || simulator
+    ? ("not needed" as const)
+    : xcode
+      ? chooseIphone(pairedDevices(), options.device)
+      : { ok: false as const, problem: "Needs Xcode first" };
 const readiness = iosReadiness({
   platform: process.platform,
   xcode,
   cocoapods: probe("pod", ["--version"], toolEnv)?.split("\n").pop(),
   team,
   iphone,
+  simulator,
 });
 const ready = readiness.every((r) => r.ok);
 if (options.check || !ready) {
-  console.log("FORGE Dev on the iPhone: this Mac");
+  console.log(
+    `FORGE Dev on ${simulator ? "the Simulator" : "the iPhone"}: this Mac`,
+  );
   for (const r of readiness)
     console.log(
       `${r.ok ? "✓" : "✗"} ${r.item}${r.ok || !r.fix ? "" : `\n    → ${r.fix}`}`,
@@ -188,7 +220,12 @@ if (developer?.setEnv)
     `Using ${developer.dir.replace(/\/Contents\/Developer$/, "")} directly: xcode-select points to the Command Line Tools. To make Xcode the default (optional): sudo xcode-select -s ${developer.dir}`,
   );
 if (options.check) process.exit(ready ? 0 : 1);
-if (!ready || !team.ok || (iphone !== "not needed" && !iphone.ok))
+if (
+  !ready ||
+  !team.ok ||
+  (iphone !== "not needed" && !iphone.ok) ||
+  (simulator && !simulator.ok)
+)
   fail("Not building: fix the items above, then run this again.");
 
 // ---- What goes into the build ----
@@ -226,9 +263,10 @@ else {
 }
 
 const device = iphone === "not needed" ? undefined : iphone.device;
+const sim = simulator?.ok ? simulator.simulator : undefined;
 const signer = team.team;
 console.log(
-  `FORGE Dev (${FORGE_DEV_ID}) → ${device ? device.name : "any iPhone (build only)"}, signed by ${describeTeam(signer)}\n${javascript} (Expo's own .env files not read)`,
+  `FORGE Dev (${FORGE_DEV_ID}) → ${sim ? `the ${sim.name} Simulator (iOS ${sim.os})` : device ? device.name : "any iPhone (build only)"}, signed by ${describeTeam(signer)}\n${javascript} (Expo's own .env files not read)`,
 );
 
 // ---- Build, check, install, open ----
@@ -325,6 +363,58 @@ function inspect(app: string): BuiltApp {
   };
 }
 
+/** --simulator: starts the Simulator if needed, then installs and opens FORGE Dev. */
+async function openOnSimulator(app: string, sim: Simulator) {
+  // -b starts it if it's shut down; this waits until it has started.
+  if (
+    !(await run({
+      command: "xcrun",
+      args: ["simctl", "bootstatus", sim.udid, "-b"],
+      env,
+    }))
+  )
+    fail(`The ${sim.name} Simulator didn't start (see above).`);
+  // Shows its window, with this Xcode's own Simulator app.
+  spawnSync(
+    "open",
+    [
+      "-a",
+      developer
+        ? path.join(developer.dir, "Applications", "Simulator.app")
+        : "Simulator",
+    ],
+    { env: toolEnv },
+  );
+  if (
+    !(await run({
+      command: "xcrun",
+      args: ["simctl", "install", sim.udid, app],
+      env,
+    }))
+  )
+    fail(`Installing on the ${sim.name} Simulator failed (see above).`);
+  console.log(`✓ Installed on the ${sim.name} Simulator (iOS ${sim.os})`);
+  const opened = await run({
+    command: "xcrun",
+    args: [
+      "simctl",
+      "launch",
+      "--terminate-running-process",
+      sim.udid,
+      FORGE_DEV_ID,
+    ],
+    env,
+  });
+  console.log(
+    opened
+      ? `✓ Opened FORGE Dev on the ${sim.name} Simulator`
+      : "FORGE Dev is installed but didn't open: open it from the Simulator's home screen.",
+  );
+  console.log(
+    "\nIts JavaScript is built in. Light and dark mode: Simulator → Features → Toggle Appearance. Run the same command again after code changes.",
+  );
+}
+
 async function main() {
   const cli = createRequire(path.join(root, "package.json")).resolve(
     "expo/bin/cli",
@@ -344,6 +434,7 @@ async function main() {
     scheme: workspaces[0]!.replace(/\.xcworkspace$/, ""),
     release: options.release,
     udid: device?.udid,
+    simulator: sim?.udid,
     team: signer.id,
   });
   const log = path.join(root, "ios", "xcodebuild.log");
@@ -402,11 +493,19 @@ async function main() {
     release: options.release,
     production: productionMarkers(readEnvFiles(root, EXPO_ENV_FILES, read)),
     device: device?.udid,
+    simulator: !!sim,
   });
   if (problems.length)
     fail(
-      `${device ? "Not installing" : "Not ready to install"} this build:\n- ${problems.join("\n- ")}`,
+      `${device || sim ? "Not installing" : "Not ready to install"} this build:\n- ${problems.join("\n- ")}`,
     );
+  if (sim) {
+    console.log(
+      "✓ Checked: FORGE Dev's ID and link scheme, no production values, JavaScript built in",
+    );
+    await openOnSimulator(app, sim);
+    return;
+  }
   console.log(
     `✓ Checked: FORGE Dev's ID and link scheme, signed by team ${signer.id}, no production values${options.release ? ", JavaScript built in" : ""}`,
   );

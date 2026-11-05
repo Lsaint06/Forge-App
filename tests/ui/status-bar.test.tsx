@@ -29,6 +29,12 @@ jest.mock("../../src/state", () => ({
   useApp: (selector: (s: { profile: unknown }) => unknown) =>
     selector({ profile: mockProfile }),
 }));
+/** The phone's light or dark mode, which Forge's System appearance follows. */
+const mockPhone = { scheme: "light" };
+jest.mock("react-native/Libraries/Utilities/useColorScheme", () => ({
+  __esModule: true,
+  default: () => mockPhone.scheme,
+}));
 const mockStack: { statusBarStyle?: string }[] = [];
 const mockScreens: { name: string; options?: { presentation?: string } }[] = [];
 jest.mock("expo-router", () => {
@@ -67,6 +73,7 @@ import { IntroOnScreen } from "../../src/components/status-bar";
 beforeEach(() => {
   mockApp.environment = "standalone";
   mockProfile = undefined;
+  mockPhone.scheme = "light";
   mockStack.length = 0;
   mockScreens.length = 0;
 });
@@ -97,6 +104,19 @@ test("Forge's own iOS builds: every screen states Forge's style", async () => {
   // A development build reports bare: the same.
   mockApp.environment = "bare";
   expect(await stackStyle()).toBe("dark");
+});
+
+test("Forge's Appearance decides, not the phone's; System follows the phone", async () => {
+  for (const scheme of ["light", "dark"]) {
+    mockPhone.scheme = scheme;
+    mockProfile = { theme: "dark" };
+    expect(await stackStyle()).toBe("light");
+    mockProfile = { theme: "light" };
+    expect(await stackStyle()).toBe("dark");
+    // System: Forge's colours follow the phone, and so do the icons.
+    mockProfile = { theme: "system" };
+    expect(await stackStyle()).toBe(scheme === "light" ? "dark" : "light");
+  }
 });
 
 test("Expo Go: the stack states nothing (its Info.plist keeps the setting off)", async () => {
