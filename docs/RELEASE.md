@@ -212,6 +212,16 @@ npm run release:check -- --fingerprint .env.forge-dev      # a project's pin, wi
 - `eas.json`: exactly Forge's four profiles, each as in §2, and no `production` profile until 8.4F.
 - Every app's identity: its own IDs and link scheme, a `MAJOR.MINOR.PATCH` version, and no local build numbers.
 - The native policy for every app: no shared-storage permissions, sign-in kept out of Android backups, and development-client links on FORGE Dev only (§9).
+- **The store policy for every app (Phase 8.4 M4):**
+  - export compliance answered (`ITSAppUsesNonExemptEncryption: false`), so TestFlight doesn't hold each build for it;
+  - iPhone only;
+  - the iOS 27 status bar setting;
+  - iOS privacy reasons gathered from every library (§7);
+  - no microphone for the barcode scanner;
+  - Android's classic back events ([ANDROID.md](ANDROID.md) §2);
+  - no `USE_EXACT_ALARM`, which Google Play reserves for alarm-clock and calendar apps;
+  - no sqlite-vec, which isn't 16 KB-aligned.
+- **A note (•), not a failure,** for store profiles while no app icon is configured: builds carry the template's white placeholder until FORGE's icon is decided (C-00b).
 - Whether the profile's project is pinned.
 - That `.env.forge-dev`, if present, is the pinned FORGE DEV project.
 - That `eas-build-post-install` starts with the builder check.
@@ -226,8 +236,9 @@ npm run release:check -- --fingerprint .env.forge-dev      # a project's pin, wi
 
 **Tests:**
 
-- `tests/release-check.test.ts`: profiles, mutations, crossover cases, the upload safeguards, the CLI itself and the builder check in a clean folder;
-- `tests/app-variants.test.ts`: identities, and Expo's own native pipeline (permissions, backup rules, link schemes);
+- `tests/release-check.test.ts`: profiles, mutations, crossover cases, the store policy, the upload safeguards, the CLI itself and the builder check in a clean folder;
+- `tests/app-variants.test.ts`: identities, and Expo's own native pipeline (permissions, backup rules, link schemes, Android's back and keyboard modes, privacy aggregation);
+- `tests/ios-privacy.test.ts` and `tests/android-readiness.test.ts`: what the libraries declare (§7, [ANDROID.md](ANDROID.md));
 - `tests/environment.test.ts`: the runtime rule.
 
 ## 6. The production lock
@@ -301,6 +312,23 @@ The production app's runtime rule (production only) applies from its first build
 5. **External testing later.** It needs Beta App Review, a privacy policy URL and test information.
 
 **On the device, before any tester:** follow [audit](audits/PHASE_8_4A_BETA_READINESS.md) §7. The checks: sign-in through `forge-preview:` links, offline logging, sync, rest alerts while locked, and that the build reaches FORGE DEV only.
+
+**The privacy manifest (Phase 8.4 M4).** Apple wants a reason for each "required reason" API an app calls. Forge's calls all come from React Native's and Expo's libraries, which declare them in their own manifests:
+
+| API | Reasons |
+| --- | --- |
+| File timestamps | C617.1, 0A2A.1, 3B52.1 |
+| UserDefaults | CA92.1 |
+| System boot time | 35F9.1 |
+| Disk space | E174.1, 85F4.1 |
+
+- **How it gets into the app.** SDK 58's Podfile merges those declarations into the app's `PrivacyInfo.xcprivacy` when the pods install. No library tracks or collects data.
+- **What the repository pins:**
+  - the declarations (`tests/ios-privacy.test.ts`);
+  - the merge stays on (the release check and `tests/app-variants.test.ts`).
+- **To confirm on the Mac** after `npm run dev:ios -- --release`: `plutil -p ios/*/PrivacyInfo.xcprivacy` lists the four APIs.
+- **The proof:** the first TestFlight upload brings no ITMS-91053 email from Apple.
+- **Not covered by this:** the App Store privacy answers, about the data Forge itself collects and syncs, are the founder's (STORE_SETUP.md §3).
 
 ## 8. Android beta: Google Play internal testing (Phase 8.4D, after approval)
 

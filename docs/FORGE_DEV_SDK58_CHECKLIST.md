@@ -46,6 +46,8 @@ npm run dev:ios -- --release
 
 FORGE Dev keeps its data: it's the same app, updated in place.
 
+**Then, still at the Mac:** `plutil -p ios/*/PrivacyInfo.xcprivacy` lists four APIs: file timestamps, UserDefaults, system boot time and disk space ([RELEASE.md](RELEASE.md) §7). Send the output if it lists fewer.
+
 ## Part 3: the status bar (iPhone, 10 minutes)
 
 - **Forge's Appearance:** You → Preferences → Appearance (Dark, Light or System).

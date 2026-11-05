@@ -67,11 +67,13 @@ The founder's paid **Individual** team exists. Decide first whether FORGE ships 
    - an SKU of your choice.
 3. **Signing.** The first `eas build --profile preview --platform ios` offers to create an Apple distribution certificate and an App Store provisioning profile. **Approve explicitly.**
    - EAS keeps them. Download a backup only if you choose to hold one; never commit it.
-4. **Export compliance.** `ITSAppUsesNonExemptEncryption` is `false` in `app.json`: Forge uses only standard HTTPS. Confirm that this stays true.
-5. **TestFlight internal testing** (§6) can start once a build is processed.
-6. **Before external testing:**
+4. **Export compliance.** `ITSAppUsesNonExemptEncryption` is `false` in `app.json`: Forge uses only standard HTTPS. The release check refuses any build without it ([RELEASE.md](RELEASE.md) §5).
+5. **Privacy manifest.** Nothing to fill in by hand. React Native's and Expo's libraries declare the APIs that need a reason, and the build gathers them into the app ([RELEASE.md](RELEASE.md) §7). If Apple emails ITMS-91053 after an upload, send the email.
+6. **TestFlight internal testing** (§6) can start once a build is processed.
+7. **Before external testing:**
    - test information;
    - a privacy policy URL;
+   - the App Privacy answers in App Store Connect: what Forge collects and syncs;
    - Beta App Review.
 
 ## 4. Google Play (8.4D)

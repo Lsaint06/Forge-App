@@ -135,6 +135,7 @@ type Introspected = {
         };
         gradleProperties?: { type: string; key?: string; value?: string }[];
       };
+      ios?: { podfileProperties?: Record<string, string> };
     };
   };
 };
@@ -208,6 +209,21 @@ test("in Expo's own pipeline (Phase 8.4C-1): every app lets its screens set the 
     assert.equal(
       plist?.ITSAppUsesNonExemptEncryption,
       false,
+      `${variant || "production"}`,
+    );
+  }
+});
+
+test("in Expo's own pipeline (Phase 8.4 M4): iOS privacy reasons are gathered when the pods install", () => {
+  // React Native merges every library's privacy manifest into the app's
+  // unless this Podfile property is "false" (tests/ios-privacy.test.ts).
+  for (const variant of ["", "development", "preview"]) {
+    const properties =
+      introspectAll(variant)._internal?.modResults?.ios?.podfileProperties;
+    assert.ok(properties, `${variant || "production"}: no Podfile properties`);
+    assert.notEqual(
+      properties["apple.privacyManifestAggregationEnabled"],
+      "false",
       `${variant || "production"}`,
     );
   }
