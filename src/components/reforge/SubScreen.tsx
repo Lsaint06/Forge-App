@@ -1,7 +1,6 @@
 import React from "react";
 import {
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -108,7 +107,9 @@ export function ForgeSubScreen({
       <ForgeTopGlow />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        // Both platforms: Android draws edge to edge, so its window no
+        // longer resizes for the keyboard (Phase 8.4 M3).
+        behavior="padding"
       >
         <ScrollView
           keyboardShouldPersistTaps="handled"

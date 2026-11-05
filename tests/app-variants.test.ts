@@ -127,11 +127,13 @@ type Introspected = {
             application?: {
               $: Record<string, string>;
               activity?: {
+                $?: Record<string, string>;
                 "intent-filter"?: { data?: { $: Record<string, string> }[] }[];
               }[];
             }[];
           };
         };
+        gradleProperties?: { type: string; key?: string; value?: string }[];
       };
     };
   };
@@ -273,6 +275,56 @@ test("in Expo's own pipeline (Phase 8.4B): no shared storage, sign-in out of bac
         `${variant} exp+forge-fitness`,
       );
     }
+  }
+});
+
+test("in Expo's own pipeline (Phase 8.4 M3): Android 16's back button, keyboard and permissions, as decided", () => {
+  for (const variant of ["", "development", "preview"]) {
+    const android = introspectAll(variant)._internal?.modResults?.android;
+    const manifest = android?.manifest?.manifest;
+    if (!manifest) throw new Error(`${variant}: no Android manifest`);
+    const app = manifest.application?.[0];
+    // Classic back events: the workout logger handles the back button itself
+    // (BackHandler). For apps targeting Android 16, predictive back replaces
+    // those events unless this stays "false" (docs/ANDROID.md).
+    assert.equal(
+      app?.$["android:enableOnBackInvokedCallback"],
+      "false",
+      variant,
+    );
+    const main =
+      app?.activity?.find((a) => a.$?.["android:name"] === ".MainActivity")
+        ?.$ ?? {};
+    assert.equal(main["android:windowSoftInputMode"], "adjustResize", variant);
+    // Android 16 ignores this on screens 600 dp and wider (docs/ANDROID.md).
+    assert.equal(main["android:screenOrientation"], "portrait", variant);
+    // The app's own permissions, exactly: no exact alarms (the rest alert's
+    // timing is a decision, docs/ANDROID.md) and no microphone (the scanner
+    // records nothing). SYSTEM_ALERT_WINDOW is the template's (RELEASE.md §9).
+    assert.deepEqual(
+      (manifest["uses-permission"] ?? [])
+        .filter((p) => p.$["tools:node"] !== "remove")
+        .map((p) => p.$["android:name"])
+        .sort(),
+      [
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.VIBRATE",
+      ],
+      variant,
+    );
+    // 16 KB pages: expo-sqlite's sqlite-vec extension, aligned to 4 KB, stays
+    // out of the build. Nothing overrides React Native's Android SDK levels
+    // (tests/android-readiness.test.ts).
+    const properties = (android?.gradleProperties ?? []).map((p) => p.key);
+    for (const key of [
+      "expo.sqlite.withSQLiteVecExtension",
+      "android.targetSdkVersion",
+      "android.compileSdkVersion",
+      "android.minSdkVersion",
+    ])
+      assert.ok(!properties.includes(key), `${variant} ${key}`);
   }
 });
 

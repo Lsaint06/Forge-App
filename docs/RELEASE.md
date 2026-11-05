@@ -336,6 +336,13 @@ The production app's runtime rule (production only) applies from its first build
 - **Notification permission.** `POST_NOTIFICATIONS` is a runtime permission on Android 13 and later.
 - **Backups.** A backup and restore keeps preferences only (§9); after a restore to a new phone, no stale rest alert should fire.
 
+**The full Android picture** (Phase 8.4 M3) is in [ANDROID.md](ANDROID.md):
+- the build as SDK 58 makes it, with R8 on in release builds;
+- Android 16's changes, including the keyboard fix;
+- the founder's decisions on rest alerts and large screens;
+- the tooling this PC needs;
+- the device checks A1–A12.
+
 ## 9. Android backup and permission policy
 
 ### Backups: conservative, by explicit include list
@@ -429,7 +436,7 @@ Mixing the two sets risks native mismatches. The update is therefore all 16 pack
 | **Recommended, deferrable** | `react-native-safe-area-context` 5.11.1 | Android: respects window insets a parent adjusts. Forge's Android layouts haven't been validated yet, so updating before that validation means validating once. iOS: a fix for native sheets after rotation, which Forge (portrait, full-screen logger) doesn't use. The Phase 8.3C header fix must be re-verified on the iPhone either way |
 | **Recommended, deferrable** | `expo-router` 58.0.30 | Navigation and deep-link fixes (Back and dismissal after a deep link, `<Link>` addresses with parentheses) relevant to email links. One labelled breaking change, implicit group anchors, shouldn't affect Forge: its only group is `(tabs)`, with no route of the same name, and no `unstable_settings`. Re-test sign-in and password-reset links |
 | **Recommended, deferrable** | `expo-file-system` 58.0.13 | Android: `Paths.availableDiskSpace` stops counting space reserved for the system. The branded food catalogue's space check uses it |
-| **Unnecessary for 8.4C** | `expo-camera` 58.0.14 | Its fixes are for Android release builds with R8 minification, which Forge doesn't enable (SDK 58's default is off), plus the iOS rebuild above |
+| **Unnecessary for 8.4C** | `expo-camera` 58.0.14 | Its fixes are for Android release builds with R8 minification, plus the iOS rebuild above. **Corrected in M3:** this row said Forge doesn't enable R8. In fact SDK 58's template turns it on for release builds ([ANDROID.md](ANDROID.md) §1), so these fixes apply to Forge. The update (below) includes them |
 | **Unnecessary for 8.4C** | `react-native-screens` 4.30.1 | iOS native tabs on foldable iPhones, search tabs, zoom transitions: none used by Forge |
 | **Unnecessary for 8.4C** | `expo-notifications` 58.1.8 | Only an Android Expo Go import fix; nothing about scheduling, channels or permissions |
 | **Unnecessary for 8.4C** | `expo-sqlite` 58.0.15 | iOS internals and a smaller Android library; its data-integrity fixes are already in 58.0.13 |
