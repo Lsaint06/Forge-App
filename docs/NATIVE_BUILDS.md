@@ -46,11 +46,11 @@ The goal: install Forge on the iPhone as its own app, **FORGE Dev**, instead of 
 | Built by | `npm run dev:ios` (Xcode, this Mac), or EAS | EAS, later |
 | Bundle ID | `com.lsaint06.forge.dev` | `com.lsaint06.forge` |
 | Home-screen name | FORGE Dev | FORGE |
-| Link schemes | `forge-dev`, `com.lsaint06.forge.dev`, `exp+forge-fitness` | `forge`, `com.lsaint06.forge`, `exp+forge-fitness` |
+| Link schemes | `forge-dev`, `com.lsaint06.forge.dev`, `exp+forge-fitness` | `forge`, `com.lsaint06.forge` (no development-client link since Phase 8.4B) |
 | Entitlements | Sign in with Apple | Sign in with Apple |
 | Supabase | The development project only | Production only |
 
-FORGE Preview (`APP_VARIANT=preview`) also exists, for EAS builds later.
+FORGE Preview (`APP_VARIANT=preview`, FORGE DEV only) is the app for TestFlight and Google Play internal testing. Its build profiles, checks and procedures are in [RELEASE.md](RELEASE.md).
 
 - **Shared by every build:**
   - iOS 16.4 or later, with the Hermes engine.
@@ -62,7 +62,7 @@ FORGE Preview (`APP_VARIANT=preview`) also exists, for EAS builds later.
   - The real FORGE icon needs the approved master: a 1024×1024 PNG with no transparency.
   - Once it is approved, adding it is one line in `app.json` (`"icon"`) and a rebuild; every build then shows it.
 - **No push entitlement.** Remote push is off (`enableRemoteNotifications: false` in `app.json`), because Forge only schedules local notifications (the rest timer and planned reminders).
-- **`eas.json`** validates against EAS's published schema.
+- **`eas.json`** validates against EAS's published schema (re-checked in Phase 8.4B), and `npm run release:check` checks its profiles ([RELEASE.md](RELEASE.md)).
 
 ## Debug, Release or TestFlight: does FORGE Dev need the Mac?
 | | Debug: `npm run dev:ios` | Release: `npm run dev:ios -- --release` | TestFlight (later) |
@@ -145,14 +145,16 @@ The first build takes roughly 10–20 minutes; later builds are faster.
 - FORGE Dev then refuses to connect ("Accounts aren't available"): that's the safe failure, but not a usable build.
 
 ## EAS development build (alternative)
-Builds in Expo's cloud instead of on this Mac. It needs the paid team too.
+Builds in Expo's cloud instead of on this Mac. It needs the paid team too, and **linking the project needs the founder's approval** ([STORE_SETUP.md](STORE_SETUP.md) §1).
 1. **Install EAS and sign in.** Install the EAS CLI (`npm install -g eas-cli`) and run `eas login` with your Expo account.
 2. **Link the project.** `eas init` adds `owner` and `extra.eas.projectId` to the app config; review and commit that change.
 3. **Register the iPhone.** Run `eas device:create`, then open the link it gives on the iPhone to install the registration profile.
 4. **Build.** Run `eas build --profile development --platform ios`. EAS uses the same App ID, `com.lsaint06.forge.dev`, and makes an ad hoc profile that includes your iPhone.
 5. **Install** FORGE Dev from the build's link or QR code, then start Metro with `npm run start:dev`.
 
-The `development-simulator` profile builds the same app for the iOS Simulator.
+- **`development-simulator`** builds the same app for the iOS Simulator.
+- **`development-release`** builds FORGE Dev with its JavaScript built in: an ad hoc IPA for registered iPhones, or an APK for Android phones.
+- **Every EAS build checks itself first** on the builder (`npm run release:check -- --builder`, [RELEASE.md](RELEASE.md) §4).
 
 ## Sign-in and links in FORGE Dev
 - **Return addresses:** `forge-dev:///welcome` (Google), `forge-dev:///sign-in` (email confirmation) and `forge-dev:///account` (password reset). They are allowed in the development project only.
@@ -202,10 +204,10 @@ The `development-simulator` profile builds the same app for the iOS Simulator.
   - **What it was:** between the launch screen and the REFORGE intro, the screen briefly showed React Native's root view: white in light mode for about 3–4 frames, black in dark mode for one frame.
   - **Fix:** `expo-system-ui` (58.0.7) and `"backgroundColor": "#101216"` in `app.json` make that root view charcoal.
   - **Result:** six filmed Simulator launches, light and dark, showed no white or black frame (`docs/SPLASH.md`). Still to see on the iPhone itself.
-- **Shared dev-client scheme.** FORGE Dev and FORGE both register `exp+forge-fitness`: `expo-dev-client` derives it from the shared slug, and Expo's CLI builds dev-client links from it.
-  - With two apps installed, a dev-client QR code may open the other one. Open FORGE Dev first and pick the server.
-  - Release builds contain no development launcher, so this is a convenience issue, not a security one.
-  - Revisit before FORGE ships beside FORGE Dev.
+- **Development-client scheme: FORGE Dev only (Phase 8.4B).** `expo-dev-client` registers `exp+forge-fitness`, derived from the shared slug, and Expo's CLI builds dev-client links from it.
+  - Until 8.4B every app registered it, so a dev-client QR code could open the wrong one.
+  - Now `app.json` turns it off (`addGeneratedScheme: false`) and `app.config.ts` turns it back on for FORGE Dev alone.
+  - FORGE Dev is unchanged; FORGE and FORGE Preview no longer answer those links (tested in Expo's own pipeline, `tests/app-variants.test.ts`).
 - **Free Apple IDs:** a free Apple ID's Personal Team can't sign Sign in with Apple, so FORGE Dev can't be built with one as it stands. A temporary free-Apple-ID mode (its own `.personal` bundle ID, without Sign in with Apple) existed in `6b58039`; it was removed once the paid team was available.
 - **Xcode's Run button** builds without FORGE Dev's settings (its Release JavaScript would read `.env`), so that app refuses to connect. Use `npm run dev:ios`.
 - **iOS 27 notices.** On iOS 27 (the Simulator), UIKit logs that the status-bar APIs React Native calls are no-ops. The iPhone runs iOS 26.6.2, where they work. Revisit with a React Native update before iOS 27 devices matter.
@@ -213,7 +215,10 @@ The `development-simulator` profile builds the same app for the iOS Simulator.
 - **Updates:** `expo-doctor` (Nov 2, 2026) passes every check except 15 patch updates, including `expo` 58.0.22 (58.0.17 installed) and `react-native` 0.88.1 (0.88.0 installed).
   - Their changelogs list no iOS build fix that Forge needs. The installed set is consistent: its precompiled iOS binaries are all built against React Native 0.88.0.
   - Updating changes Expo Go's and Windows' installs too, so it is a separate, approved step (`npx expo install --fix`). Not applied here.
-- **Build numbers:** before the first production build, set `cli.appVersionSource` in `eas.json` (EAS recommends `remote`).
-- **EAS environment variables:** precedence between `eas.json` `env` and an EAS environment isn't documented, so each variable is set in one place only. `APP_VARIANT` lives in `eas.json`; the `EXPO_PUBLIC_` values live in the EAS environments (expo.dev → project → Environment variables):
-  - **`preview`:** the development project's four values;
-  - **`production`:** production's four values, with `EXPO_PUBLIC_FORGE_ENV=production` and its ref.
+  - Current status (Nov 4, 2026: 16 packages, including `expo` 58.0.23) and its effect on EAS builds: open item V5 in [RELEASE.md](RELEASE.md) §11.
+- **Build numbers:** EAS manages them (`cli.appVersionSource: remote`, Phase 8.4B). Store builds increment automatically ([RELEASE.md](RELEASE.md) §3).
+- **EAS environment variables.** `eas.json` sets only `APP_VARIANT`; the `EXPO_PUBLIC_` values live in the EAS environments (expo.dev → project → Environment variables):
+  - **`development` and `preview`:** the development project's four values;
+  - **`production`:** production's four values, with `EXPO_PUBLIC_FORGE_ENV=production` and its ref, only once production builds are approved (they are locked until then).
+
+  Every EAS build checks the values it actually got before compiling ([RELEASE.md](RELEASE.md) §4).

@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkEnvironment } from "../src/cloud/environment";
+import {
+  APP_ENVIRONMENTS,
+  APP_SCHEMES,
+  checkEnvironment,
+} from "../src/cloud/environment";
 
 // Phase 7.8E, Stage 5 (E6): each build may use only its own Supabase
 // project, once development and production are separate. Prepared: no
@@ -172,16 +176,51 @@ test("each app needs JavaScript built for it: its own link scheme", () => {
     }
 });
 
-test("the production app uses only production; a preview names either", () => {
+test("the production app uses only production", () => {
   for (const env of [todayEnv, devEnv, { ...prodEnv, name: "Production" }])
     assert.equal(checkEnvironment({ ...env, ...PROD_APP }).ok, false);
   assert.deepEqual(checkEnvironment({ ...prodEnv, ...PROD_APP }), {
     ok: true,
     environment: "production",
   });
-  assert.equal(checkEnvironment({ ...todayEnv, ...PREVIEW_APP }).ok, false);
-  for (const env of [devEnv, prodEnv])
-    assert.equal(checkEnvironment({ ...env, ...PREVIEW_APP }).ok, true);
+});
+
+test("FORGE Preview uses only FORGE DEV, never production (Phase 8.4B)", () => {
+  for (const env of [
+    todayEnv,
+    {},
+    prodEnv,
+    // Named development, but production's address.
+    { name: "development", projectRef: DEV, url: at(PROD) },
+    { ...devEnv, name: "Development" },
+  ]) {
+    const check = checkEnvironment({ ...env, ...PREVIEW_APP });
+    assert.equal(check.ok, false, JSON.stringify(env));
+  }
+  // Which project is FORGE DEV's is pinned at build time instead (the
+  // release check's project fingerprints, tests/release-check.test.ts).
+  const refused = checkEnvironment({ ...prodEnv, ...PREVIEW_APP });
+  assert.deepEqual(refused, {
+    ok: false,
+    problem:
+      "The preview app can only use the development environment (EXPO_PUBLIC_FORGE_ENV)",
+  });
+  assert.deepEqual(checkEnvironment({ ...devEnv, ...PREVIEW_APP }), {
+    ok: true,
+    environment: "development",
+  });
+});
+
+test("every app has exactly one environment, and only Forge's apps have one", () => {
+  assert.deepEqual(APP_ENVIRONMENTS, {
+    production: "production",
+    development: "development",
+    preview: "development",
+  });
+  assert.deepEqual(
+    Object.keys(APP_ENVIRONMENTS).sort(),
+    Object.keys(APP_SCHEMES).sort(),
+  );
 });
 
 test("an app that isn't one of Forge's builds never connects; problems carry no values", () => {

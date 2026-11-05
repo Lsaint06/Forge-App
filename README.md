@@ -113,7 +113,7 @@ These values are compiled into the mobile bundle. **Never use a service-role key
 
 **Separate development and production projects (Phase 7.8E, Phase 8):** `EXPO_PUBLIC_FORGE_ENV` (`development` or `production`) and `EXPO_PUBLIC_SUPABASE_PROJECT_REF` pin a build to one project, at `https://<ref>.supabase.co`.
 - **Expo Go is unchanged:** with both left empty, it connects as before.
-- **Forge's own builds must name their environment, and only their own:** FORGE Dev only `development`, the production app only `production`.
+- **Forge's own builds must name their environment, and only their own:** FORGE Dev and FORGE Preview only `development`, the production app only `production`. Build profiles and release checks: `docs/RELEASE.md`.
 - **Anything missing or mismatched** (another address, an unknown name, a name without a ref, JavaScript built for another app) shows "Accounts aren't available" and keeps the phone's training.
 - **The development project's values** live in `.env.forge-dev` (copied from `.env.forge-dev.example`, never committed). Only `npm run start:dev`, `npm run dev:check`, `npm run dev:verify-stage3` and `npm run dev:ios -- --release` read it.
 - **Custom domains:** one would need the check in `src/cloud/environment.ts` changed deliberately.

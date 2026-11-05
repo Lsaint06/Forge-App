@@ -4,10 +4,13 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
 // APP_VARIANT=development is FORGE Dev and APP_VARIANT=preview FORGE Preview,
 // each with its own bundle ID, package and link scheme: they install beside
 // the production app, and a sign-in or email link only ever opens the app
-// that asked for it. Every variant keeps the same icon, splash and plugins.
+// that asked for it. Every variant keeps the same icon, splash, plugins and
+// permissions; only FORGE Dev adds the development client's own link
+// (exp+<slug>), which `expo start` QR codes open. Store builds leave it out.
 // Unset or "production": app.json exactly (Expo Go today).
 // At runtime each app may use only its own Supabase environment; the IDs and
 // schemes here are mirrored by src/cloud/environment.ts (and tested to match).
+// Build profiles and release checks: docs/RELEASE.md.
 
 const VARIANTS = {
   development: {
@@ -21,6 +24,14 @@ const VARIANTS = {
     scheme: "forge-preview",
   },
 } as const;
+
+/** app.json's plugins, with the development client's link switched on. */
+const withDevClientLink = (plugins: ExpoConfig["plugins"] = []) =>
+  plugins.map((plugin) =>
+    Array.isArray(plugin) && plugin[0] === "expo-dev-client"
+      ? ["expo-dev-client", { ...plugin[1], addGeneratedScheme: true }]
+      : plugin,
+  );
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const variant = process.env.APP_VARIANT?.trim() || "production";
@@ -36,5 +47,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     scheme: app.scheme,
     ios: { ...config.ios, bundleIdentifier: app.id },
     android: { ...config.android, package: app.id },
+    ...(variant === "development"
+      ? { plugins: withDevClientLink(config.plugins) }
+      : {}),
   } as ExpoConfig;
 };

@@ -1,21 +1,29 @@
 // Which Supabase project a build may use (Phase 7.8E, Stage 5, E6; Phase 8).
 // Expo Go (today's workflow) keeps today's behavior: with neither variable
 // below set, nothing changes. Forge's own native builds always name their
-// environment, and each app may use only its own:
+// environment, and each app may use exactly one (APP_ENVIRONMENTS):
 // - FORGE Dev (the development build): only `development`;
-// - FORGE (the production app): only `production`;
-// - FORGE Preview: either, named explicitly.
+// - FORGE Preview (internal beta builds, Phase 8.4B): only `development`;
+// - FORGE (the production app): only `production`.
 // A named environment must also pin its project's ref, and the address must
 // be that project's own. Anything missing or mismatched refuses to connect
 // (the "misconfigured" entry: no sign-in, training on the phone kept), so a
 // build can never silently sign athletes in to another project. Setup:
-// docs/DEVELOPMENT_ENVIRONMENT.md.
+// docs/DEVELOPMENT_ENVIRONMENT.md; store builds: docs/RELEASE.md.
 
 export const FORGE_ENVIRONMENTS = ["development", "production"] as const;
 export type ForgeEnvironment = (typeof FORGE_ENVIRONMENTS)[number];
 
 /** Forge's own apps (app.config.ts). */
 export type AppVariant = "development" | "preview" | "production";
+
+/** The one environment each app may use. */
+export const APP_ENVIRONMENTS: Readonly<Record<AppVariant, ForgeEnvironment>> =
+  {
+    production: "production",
+    development: "development",
+    preview: "development",
+  };
 
 /** Each app by its native application ID (iOS bundle ID, Android package). */
 export const APP_IDS: Readonly<Record<string, AppVariant>> = {
@@ -85,13 +93,13 @@ export function checkEnvironment(env: BuildEnvironment): EnvironmentCheck {
         ok: false,
         problem: `This build's JavaScript isn't ${variant}'s: start Metro with APP_VARIANT=${variant}`,
       };
-    const own = variant === "preview" ? undefined : variant;
+    const own = APP_ENVIRONMENTS[variant];
     if (name === undefined)
       return {
         ok: false,
-        problem: `This build must name its environment (EXPO_PUBLIC_FORGE_ENV${own ? `=${own}` : ""})`,
+        problem: `This build must name its environment (EXPO_PUBLIC_FORGE_ENV=${own})`,
       };
-    if (own && name !== own)
+    if (name !== own)
       return {
         ok: false,
         problem: `The ${variant} app can only use the ${own} environment (EXPO_PUBLIC_FORGE_ENV)`,

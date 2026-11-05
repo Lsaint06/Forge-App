@@ -17,9 +17,9 @@ Forge is moving from one Supabase project to two: a **development** project for 
 | Supabase project | A new project (`forge-dev`), created by you | The existing project, unchanged |
 | Accounts and data | Disposable test accounts and workouts only | Real Forge accounts and training history |
 | Allowed | Account deletion tests, recovery tests, experimental migrations, PKCE and email-code trials, device testing | Nothing experimental or destructive |
-| Apps that may use it | FORGE Dev (the development build), FORGE Preview | FORGE (the production app), FORGE Preview |
+| Apps that may use it | FORGE Dev (the development build), FORGE Preview (beta builds, Phase 8.4B) | FORGE (the production app) only |
 | Settings file (each development computer: the Mac, Windows) | `.env.forge-dev` (from `.env.forge-dev.example`) | `.env`, as today |
-| EAS environment | `development` (and `preview`) | `production` |
+| EAS environment | `development` and `preview`, the same four values ([RELEASE.md](RELEASE.md) §4) | `production`, empty until production builds are approved |
 
 **Today nothing changes.** Expo Go (`npm start`) still reads `.env` and still connects to the production project exactly as before; the separation only applies to Forge's own builds.
 
@@ -30,10 +30,12 @@ Forge is moving from one Supabase project to two: a **development** project for 
 |---|---|---|---|---|
 | FORGE | unset or `production` | `com.lsaint06.forge` | `forge` | only `production` |
 | FORGE Dev | `development` | `com.lsaint06.forge.dev` | `forge-dev` | only `development` |
-| FORGE Preview | `preview` | `com.lsaint06.forge.preview` | `forge-preview` | either, named explicitly |
+| FORGE Preview | `preview` | `com.lsaint06.forge.preview` | `forge-preview` | only `development` (Phase 8.4B) |
 
 - **Side by side.** Each app installs beside the others, and sign-in and email links (`<scheme>:///welcome`, `/sign-in`, `/account`) can only ever open the app that asked for them.
-- **Same look.** Name, IDs and scheme are all that differ: icon, splash, plugins and permissions are identical (tested in `tests/app-variants.test.ts`).
+- **Same look.**
+  - Name, IDs and scheme are what differ: icon, splash, plugins and permissions are identical (tested in `tests/app-variants.test.ts`).
+  - The one exception (Phase 8.4B): only FORGE Dev answers `exp+forge-fitness` development-client links, which `expo start` QR codes use. FORGE and FORGE Preview don't register them.
 - **On the iPhone.** `npm run dev:ios` (Phase 8.1) builds FORGE Dev with Xcode, signed by the paid Apple Developer team, and installs it on the connected iPhone (`docs/NATIVE_BUILDS.md`).
 - **Unset means production.** With `APP_VARIANT` unset, the config is `app.json` exactly, which is what Expo Go uses today.
 
@@ -43,7 +45,7 @@ When a client is created, Forge checks which app is running and what it was give
 - **Forge's own builds**, recognized by their native application ID:
   - the app ID must be one of the three above;
   - the JavaScript must carry that app's own link scheme;
-  - the build must name its environment, and only its own (FORGE Dev: `development`; FORGE: `production`);
+  - the build must name its environment, and only its own (FORGE Dev and FORGE Preview: `development`; FORGE: `production`);
   - the environment must pin its project's ref, and the Supabase address must be exactly `https://<ref>.supabase.co`.
 - **Anything missing or mismatched** refuses to connect. The app shows "Accounts aren't available", signs nobody in and keeps the training on the phone, and Metro's log says why (`[FORGE] Accounts aren't available: …`). The reason names variables, never values.
 
@@ -65,10 +67,10 @@ So a development build can't silently reach production: with today's `.env` (not
 - **`.env.forge-dev` is git-ignored.** Only the example file is tracked.
 
 ### What the checks can't catch
-- **A deliberate mislabel:** putting the production project's values into `.env.forge-dev` while `.env` points elsewhere.
-- **EAS settings:** the variables you set in EAS environments.
+- **A deliberate mislabel:** putting the production project's values into `.env.forge-dev` while `.env` points elsewhere. `npm run release:check` does compare `.env.forge-dev` with FORGE DEV's pin (Phase 8.4B), but `start:dev` and `dev:ios` don't run it.
+- **EAS settings, partly.** Since Phase 8.4B every EAS build checks its own values on the builder, before compiling: its environment, the pinned project, no secret key ([RELEASE.md](RELEASE.md) §4). A value changed later affects only later builds.
 
-The rule is simple: the development project's values live only in `.env.forge-dev` and in the EAS `development` environment.
+The rule is simple: the development project's values live only in `.env.forge-dev` and in the EAS `development` and `preview` environments.
 
 ## Creating the development project (Founder)
 **Done (Nov 3, 2026):**
@@ -270,5 +272,5 @@ Later phases will add their own tables, such as Phase 9's subscriptions. Each ph
 ## Rules for production
 - **SQL:** no SQL, migration or rollback runs against production without explicit approval (E7).
 - **Tests:** no deletion, recovery or experimental test runs against production or real accounts.
-- **Settings:** production values never go into `.env.forge-dev` or the EAS `development` environment.
+- **Settings:** production values never go into `.env.forge-dev` or the EAS `development` or `preview` environments.
 - **CLI:** the Supabase CLI in this repository stays linked to the development project, or to none.

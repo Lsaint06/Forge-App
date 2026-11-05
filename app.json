@@ -15,7 +15,11 @@
       }
     },
     "android": {
-      "package": "com.lsaint06.forge"
+      "package": "com.lsaint06.forge",
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -28,7 +32,12 @@
           "recordAudioAndroid": false
         }
       ],
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ],
       [
         "expo-notifications",
         {
@@ -49,7 +58,13 @@
         }
       ],
       "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "expo-dev-client",
+        {
+          "addGeneratedScheme": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false
