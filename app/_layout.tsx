@@ -41,7 +41,8 @@ import {
   welcomeDeletionText,
 } from "../src/domain/presentation/account";
 import { cancelAllNotifications } from "../src/notifications";
-import { Loading, dark, useColors } from "../src/components/ui";
+import { Loading, useColors } from "../src/components/ui";
+import { IntroOnScreen, useStatusBarStyle } from "../src/components/status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { ForgeSplash } from "../src/components/splash/ForgeSplash";
 import { ErrorBoundary } from "../src/components/Recovery";
@@ -69,7 +70,7 @@ loadBrandFonts();
 // re-render for ordinary data changes.
 const Routes = React.memo(AppStack);
 function Navigation() {
-  const c = useColors();
+  const statusBarStyle = useStatusBarStyle();
   const [{ client, misconfigured }] = useState(authClient);
   const auth = useAuthSession(client);
   const r = useRepo();
@@ -228,7 +229,7 @@ function Navigation() {
         link: auth.link,
       }}
     >
-      <StatusBar style={c.background === dark.background ? "light" : "dark"} />
+      <StatusBar style={statusBarStyle} />
       <Routes entry={entry.kind} />
     </EntryContext.Provider>
   );
@@ -291,7 +292,9 @@ function Ready() {
   }, []);
   if (error) throw error;
   return (
-    <>
+    // The app mounts beneath the intro; until it leaves, the status bar
+    // stays light over its charcoal whatever Forge's theme.
+    <IntroOnScreen.Provider value={intro}>
       {ready ? <Navigation /> : <Loading />}
       {intro && (
         <ForgeSplash
@@ -302,7 +305,7 @@ function Ready() {
           }}
         />
       )}
-    </>
+    </IntroOnScreen.Provider>
   );
 }
 export default function Root() {

@@ -1,6 +1,7 @@
 import React, { createContext, useContext } from "react";
 import { Redirect, Stack } from "expo-router";
 import { useColors } from "../components/ui";
+import { useNativeStackStatusBarStyle } from "../components/status-bar";
 import { entryRoute, type Entry } from "./entry";
 
 // The root routes, each group reachable only in its entry state (Phase
@@ -26,6 +27,9 @@ export function TabsGuard({ children }: { children: React.ReactNode }) {
 
 export function AppStack({ entry }: { entry: Entry["kind"] }) {
   const c = useColors();
+  // Forge's own iOS builds: each screen states the status bar style itself
+  // (src/domain/presentation/status-bar.ts).
+  const statusBarStyle = useNativeStackStatusBarStyle();
   const to = entryRoute(entry);
   const ready = entry === "ready";
   const setup = entry === "setup";
@@ -37,6 +41,7 @@ export function AppStack({ entry }: { entry: Entry["kind"] }) {
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: c.background },
+          statusBarStyle,
         }}
       >
         <Stack.Protected guard={ready || continuing} redirectTo={to}>

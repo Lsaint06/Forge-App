@@ -213,12 +213,16 @@ Builds in Expo's cloud instead of on this Mac. It needs the paid team too, and *
 - **iOS 27 notices.** On iOS 27 (the Simulator), UIKit logs that the status-bar APIs React Native calls are no-ops. The iPhone runs iOS 26.6.2, where they work.
   - Cause: the iOS 27 SDK turns those calls into no-ops.
   - Fix, identified in Phase 8.4C-0: `react-native` 0.88.1 and `expo` 58.0.23, with `UIViewControllerBasedStatusBarAppearance: true`.
-  - Needed before testers on iOS 27 ([RELEASE.md](RELEASE.md) §11, V5).
+  - Applied in Phase 8.4C-1 (`feat/sdk58-alignment`): those packages, that setting, and every screen of the navigation stack stating Forge's style (`src/domain/presentation/status-bar.ts`; design in [RELEASE.md](RELEASE.md) §11, V5).
+  - Still to verify, needed before testers on iOS 27:
+    - on a **Release** build: the Simulator on iOS 27, and FORGE Dev on the iPhone;
+    - not on a Debug build: Debug builds use `expo-dev-launcher`'s root view controller, which doesn't relay `StatusBar` before the screens mount.
 - **Android:** `userInterfaceStyle: automatic` now applies on Android too, since `expo-system-ui` is installed; prebuild no longer warns.
 - **Updates:** `expo-doctor` (Nov 2, 2026) passes every check except 15 patch updates, including `expo` 58.0.22 (58.0.17 installed) and `react-native` 0.88.1 (0.88.0 installed).
   - Their changelogs list no iOS build fix that Forge needs. The installed set is consistent: its precompiled iOS binaries are all built against React Native 0.88.0.
   - Updating changes Expo Go's and Windows' installs too, so it is a separate, approved step (`npx expo install --fix`). Not applied here.
   - Current status (Nov 4, 2026: 16 packages, including `expo` 58.0.23) and its effect on EAS builds: open item V5 in [RELEASE.md](RELEASE.md) §11.
+  - Applied in Phase 8.4C-1 (Nov 5, 2026, `feat/sdk58-alignment`): all 16 at SDK 58's pins; `expo-doctor` passes 20 of 20. FORGE Dev must be rebuilt on the Mac to pick them up.
 - **Build numbers:** EAS manages them (`cli.appVersionSource: remote`, Phase 8.4B). Store builds increment automatically ([RELEASE.md](RELEASE.md) §3).
 - **EAS environment variables.** `eas.json` sets only `APP_VARIANT`; the `EXPO_PUBLIC_` values live in the EAS environments (expo.dev → project → Environment variables):
   - **`development` and `preview`:** the development project's four values;

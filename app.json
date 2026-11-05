@@ -11,7 +11,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.lsaint06.forge",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIViewControllerBasedStatusBarAppearance": true
       }
     },
     "android": {

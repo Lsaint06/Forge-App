@@ -112,7 +112,11 @@ type Introspected = {
   ios: {
     bundleIdentifier: string;
     entitlements?: Record<string, unknown>;
-    infoPlist?: { CFBundleURLTypes?: { CFBundleURLSchemes?: string[] }[] };
+    infoPlist?: {
+      CFBundleURLTypes?: { CFBundleURLSchemes?: string[] }[];
+      ITSAppUsesNonExemptEncryption?: boolean;
+      UIViewControllerBasedStatusBarAppearance?: boolean;
+    };
   };
   _internal?: {
     modResults?: {
@@ -188,6 +192,24 @@ const STORAGE = [
   "android.permission.READ_EXTERNAL_STORAGE",
   "android.permission.WRITE_EXTERNAL_STORAGE",
 ];
+
+test("in Expo's own pipeline (Phase 8.4C-1): every app lets its screens set the status bar", () => {
+  // The iOS 27 SDK ignores the app-wide status bar calls, so each Forge app
+  // has iOS ask its view controllers (src/domain/presentation/status-bar.ts).
+  for (const variant of ["", "development", "preview"]) {
+    const plist = introspect(variant).infoPlist;
+    assert.equal(
+      plist?.UIViewControllerBasedStatusBarAppearance,
+      true,
+      `${variant || "production"}`,
+    );
+    assert.equal(
+      plist?.ITSAppUsesNonExemptEncryption,
+      false,
+      `${variant || "production"}`,
+    );
+  }
+});
 
 test("in Expo's own pipeline (Phase 8.4B): no shared storage, sign-in out of backups, dev-client links on FORGE Dev only", () => {
   for (const [variant, scheme] of [

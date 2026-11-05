@@ -44,9 +44,16 @@ jest.mock("expo-splash-screen", () => ({
 }));
 jest.mock("expo-router", () => {
   const { View } = jest.requireActual("react-native");
-  const Stack = ({ children }: { children: React.ReactNode }) => (
-    <View testID="app-navigation">{children}</View>
-  );
+  const Stack = ({
+    children,
+    screenOptions,
+  }: {
+    children: React.ReactNode;
+    screenOptions?: { statusBarStyle?: string };
+  }) => {
+    mockStackStatusBar.push(screenOptions?.statusBarStyle);
+    return <View testID="app-navigation">{children}</View>;
+  };
   Stack.Screen = function Screen() {
     return null;
   };
@@ -59,15 +66,27 @@ jest.mock("expo-router", () => {
   };
   return { Stack };
 });
+/** The native stack's statusBarStyle option, at each render. */
+const mockStackStatusBar: (string | undefined)[] = [];
+/** The style each StatusBar was given, at each render. */
+const mockStatusBar: (string | undefined)[] = [];
+jest.mock("expo-status-bar", () => ({
+  StatusBar: ({ style }: { style?: string }) => {
+    mockStatusBar.push(style);
+    return null;
+  },
+}));
 const mockInitialize = jest.fn(async () => {});
 jest.mock("../../src/data/native", () => ({
   initializeRepository: () => mockInitialize(),
 }));
+/** The athlete's profile: the default (dark) theme unless a test sets one. */
+let mockProfile: { theme: string } | undefined;
 jest.mock("../../src/state", () => ({
   useRepo: jest.fn(),
   useApp: Object.assign(
-    (selector: (s: { profile: undefined }) => unknown) =>
-      selector({ profile: undefined }),
+    (selector: (s: { profile: unknown }) => unknown) =>
+      selector({ profile: mockProfile }),
     { getState: () => ({ touch: jest.fn() }) },
   ),
 }));
@@ -87,6 +106,9 @@ const spies: jest.SpyInstance[] = [];
 let appStateHandler: ((state: string) => void) | undefined;
 beforeEach(() => {
   jest.useFakeTimers();
+  mockProfile = undefined;
+  mockStackStatusBar.length = 0;
+  mockStatusBar.length = 0;
   mockInitialize.mockImplementation(async () => {});
   const native = jest.requireMock("expo-splash-screen");
   native.preventAutoHideAsync.mockImplementation(async () => true);
@@ -256,6 +278,46 @@ test("cold start plays once; resume and remount do not replay", async () => {
   await waitFor(() => expect(again.getByTestId("app-navigation")).toBeTruthy());
   expect(again.queryByLabelText(LABEL)).toBeNull();
   await again.unmount();
+});
+
+test("the status bar stays light over the intro, then follows Forge's theme (Phase 8.4C-1)", async () => {
+  replayIntro();
+  // The light theme: its own screens want dark icons, the intro light ones.
+  mockProfile = { theme: "light" };
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Root = require("../../app/_layout").default;
+  const view = await render(<Root />);
+  await loadAll(view);
+  await advance(0);
+  // The app is mounted beneath the intro: its screens and every StatusBar
+  // keep light icons over the charcoal intro.
+  expect(view.getByLabelText(LABEL)).toBeTruthy();
+  expect(
+    view.getByTestId("app-navigation", { includeHiddenElements: true }),
+  ).toBeTruthy();
+  expect(new Set(mockStackStatusBar)).toEqual(new Set(["light"]));
+  expect(new Set(mockStatusBar)).toEqual(new Set(["light"]));
+  // The test setup reports reduced motion, so the intro exits quickly.
+  await advance(300);
+  expect(view.queryByLabelText(LABEL)).toBeNull();
+  // The intro has left: the light theme's dark icons, on both paths.
+  expect(mockStackStatusBar.at(-1)).toBe("dark");
+  expect(mockStatusBar.at(-1)).toBe("dark");
+  await view.unmount();
+});
+
+test("the default dark theme keeps light icons throughout", async () => {
+  replayIntro();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Root = require("../../app/_layout").default;
+  const view = await render(<Root />);
+  await loadAll(view);
+  await advance(300);
+  expect(view.queryByLabelText(LABEL)).toBeNull();
+  expect(mockStackStatusBar.length).toBeGreaterThan(0);
+  expect(new Set(mockStackStatusBar)).toEqual(new Set(["light"]));
+  expect(new Set(mockStatusBar)).toEqual(new Set(["light"]));
+  await view.unmount();
 });
 
 test("a failing native splash module never blocks startup", async () => {

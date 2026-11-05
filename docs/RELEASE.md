@@ -403,7 +403,7 @@ Checked in EAS's source or locally in Phase 8.4B; still to confirm on real build
 | V2 | **Separate build counters** (§3) | `eas build:version:get --profile preview` before and after the first `preview` builds: only FORGE Preview's counter moves, iOS from 1 and Android from 2; production has none | 8.4C, 8.4D |
 | V3 | **The builder check's place** (§4) | The build log shows "Release check on EAS Build", every line ✓, before the JavaScript bundle and Gradle or Xcode. A deliberately wrong value stops a build there | 8.4C, 8.4D |
 | V4 | **The EAS build image's Xcode** (§7) | `auto` (no `image` in `eas.json`) selects the `sdk-58` images: Xcode 27.1 RC on iOS, JDK 17 and NDK 27.1 on Android (EAS docs, Oct 8, 2026). Confirm in the first build logs | 8.4C, 8.4D |
-| V5 | **Expo Doctor's dependency check** | Assessed in Phase 8.4C-0 (below); the update itself awaits approval | Before the first iOS beta build |
+| V5 | **Expo Doctor's dependency check** | Assessed in Phase 8.4C-0; updated in Phase 8.4C-1 on `feat/sdk58-alignment` (below): Expo Doctor passes 20 of 20. Still to do: the FORGE Dev rebuild, the iPhone and iOS 27 Simulator checks, then merging after approval | Before the first iOS beta build |
 | V6 | **The merged Android permissions** (§9) | Play Console's App bundle explorer on the first App Bundle | 8.4D |
 | V7 | **A client-side production lock** (§6) | Done in Phase 8.4C-0: `eas.json` has no `production` profile until 8.4F; tested in `tests/release-check.test.ts` | Done |
 
@@ -445,3 +445,35 @@ Mixing the two sets risks native mismatches. The update is therefore all 16 pack
 - an iOS 27 Simulator check.
 
 Doing it before the first Android device build means Android is validated once, on the final set.
+
+**V5, the update (Phase 8.4C-1, Nov 5, 2026; branch `feat/sdk58-alignment`, not merged).**
+
+- **The packages.** All 16 are at SDK 58's pins (`npx expo install --check`: up to date). `npx expo-doctor` passes 20 of 20. The lockfile changes only Expo and React Native packages, with one copy of each.
+- **`expo-sharing`'s config plugin: not added.** `npx expo install --fix` offers to add it. It sets up *receiving* shares (an iOS share extension, Android share intents), both off by default. Forge only shares files out, which needs no plugin. Expo's own pipeline produces the same native settings as before for all three apps.
+- **The status bar.** Three parts, all required:
+  1. `app.json`: `ios.infoPlist.UIViewControllerBasedStatusBarAppearance: true`, in every app. iOS then asks the app's view controllers for the style.
+  2. `react-native` 0.88.1 and `expo` 58.0.23: their root view controller answers with the style `StatusBar` last set. It applies before the screens mount: the launch, loading and recovery screens.
+  3. The screens: `react-native-screens` passes iOS's question to the top screen of the navigation stack. Without a stated style, that screen follows the phone's light or dark appearance, not Forge's theme. So `src/auth/AppStack.tsx` states Forge's style on every screen, the full-screen workout logger included. Tab screens inherit the style from their parent screen.
+
+  The style comes from `src/domain/presentation/status-bar.ts`:
+  - light icons on the dark theme, dark icons on the light theme;
+  - light whenever the intro is on screen.
+
+  The screens state it only in Forge's own iOS builds:
+  - Expo Go keeps the setting off in its own Info.plist, and react-native-screens reports a stated style there as an error;
+  - Android keeps `StatusBar`, as before.
+- **Checks passed:**
+  - typecheck, lint and formatting;
+  - the logic and UI suites, with new tests for the rule, the screens' style on iOS, Expo Go and Android, and the intro;
+  - iOS and Android exports;
+  - the release check;
+  - Expo's own pipeline, where the Info.plist key is the only native difference.
+- **Still to verify on devices, not by these checks:**
+  - **The FORGE Dev rebuild on the Mac (Release) and the founder's iPhone:**
+    - the status bar in both Forge themes, with the phone in light and in dark mode;
+    - the intro;
+    - the logger's header (the Phase 8.3C fix);
+    - the workout, sync and backup flows.
+  - **An iOS 27 Simulator check, on a Release build.** Debug development builds use `expo-dev-launcher`'s root view controller, which doesn't relay `StatusBar`.
+  - **Expo Go,** whose status bar should be unchanged.
+  - **Android,** in 8.4D.
