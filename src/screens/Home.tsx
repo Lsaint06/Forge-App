@@ -25,6 +25,7 @@ import {
 import { evaluate, type Goal } from "../domain/goals";
 import { goalSources } from "../data/goal-sources";
 import { nextSession, startNextSession, type NextSession } from "../data/today";
+import { ForgePathArrival } from "./onboarding/Arrival";
 import { forge } from "../theme";
 import {
   bodyweight,
@@ -214,6 +215,7 @@ export default function Home() {
             : undefined
         }
       />
+      <ForgePathArrival />
       <RecoveryStrip checkin={recovery} />
       <SessionHero
         hero={hero(next, today)}

@@ -1,1 +1,1 @@
-export { default } from "../src/screens/entry/Welcome";
+export { default } from "../src/screens/onboarding/WelcomeRoute";
