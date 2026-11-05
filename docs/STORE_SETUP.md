@@ -73,7 +73,7 @@ The founder's paid **Individual** team exists. Decide first whether FORGE ships 
 7. **Before external testing:**
    - test information;
    - a privacy policy URL;
-   - the App Privacy answers in App Store Connect: what Forge collects and syncs;
+   - the App Privacy answers in App Store Connect: what Forge collects and syncs (draft in the [M5 review](audits/PHASE_8_4_M5_PRODUCTION_PRIVACY.md) §2);
    - Beta App Review.
 
 ## 4. Google Play (8.4D)
@@ -90,6 +90,7 @@ The founder's paid **Individual** team exists. Decide first whether FORGE ships 
    - the account-deletion web URL (one doesn't exist yet);
    - the privacy policy URL.
 4. **Permissions.** Answer the Data safety form from the **merged** permission list of the first App Bundle (Play Console → App bundle explorer). Libraries add some at build time ([RELEASE.md](RELEASE.md) §9).
+5. **Drafts** for Data safety, the Health apps declaration and the web deletion page: the [M5 review](audits/PHASE_8_4_M5_PRODUCTION_PRIVACY.md) §2–§4.
 
 ## 5. Android signing and the first upload (8.4D)
 
