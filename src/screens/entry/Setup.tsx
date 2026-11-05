@@ -1,15 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
 import {
   CtaButton,
   FText,
   ForgeCard,
   OutlineButton,
 } from "../../components/reforge";
-import { Label, Screen, useColors } from "../../components/ui";
-import { ProfileForm } from "../../components/ProfileForm";
+import { useColors } from "../../components/ui";
+import { SetupOnboarding } from "../onboarding/Flow";
 import { confirm, useApp, useRepo } from "../../state";
 import { authErrorText, useEntry } from "../../auth/session";
 import { hasLocalData } from "../../data/ownership";
@@ -27,7 +26,8 @@ type Check = "checking" | "records" | "none" | "failed";
 // with nothing of its own yet is offered their saved training first (P1):
 // a read-only check, then, only if they choose it, the existing manual
 // synchronization, once. On an empty phone that only downloads. Everyone
-// else sets up as before. Who is being set up is always shown, with a way
+// else sets up: About you, Your training and their Forge Path (Phase 9.2,
+// src/screens/onboarding). Who is being set up is always shown, with a way
 // out for the wrong account (P4).
 export default function Setup() {
   const { entry, client, signOut: endSession } = useEntry();
@@ -283,15 +283,10 @@ export default function Setup() {
     );
 
   return (
-    <Screen title="Made by your effort." eyebrow="WELCOME TO FORGE">
-      <Label muted>
-        A private training log. A clearer view of your progress. Set up your
-        profile to start training.
-      </Label>
-      {userId && account}
-      <EntryMessage text={error} tone="error" />
-      <ProfileForm onboarding onDone={() => router.replace("/(tabs)")} />
-    </Screen>
+    <SetupOnboarding
+      account={userId ? { who, busy: !!busy, onNotYou: notYou } : undefined}
+      error={error}
+    />
   );
 }
 

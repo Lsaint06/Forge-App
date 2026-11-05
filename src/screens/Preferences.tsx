@@ -234,6 +234,13 @@ export default function Preferences() {
             divider
             onPress={() => router.push("/design-system")}
           />
+          <ForgeListRow
+            icon="play-circle-outline"
+            title="Preview onboarding (development only)"
+            description="Nothing is saved"
+            divider
+            onPress={() => router.push("/onboarding-preview")}
+          />
         </Group>
       )}
 

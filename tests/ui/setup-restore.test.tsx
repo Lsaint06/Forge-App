@@ -44,9 +44,32 @@ jest.mock("../../src/cloud/client", () => ({
   transport: jest.fn(() => "the-account-transport"),
   cloudClient: () => null,
 }));
-jest.mock("../../src/components/ProfileForm", () => {
-  const { Text: T } = jest.requireActual("react-native");
-  return { ProfileForm: () => <T>profile-form</T> };
+jest.mock("../../src/screens/onboarding/Flow", () => {
+  const { Text: T, Pressable: P } = jest.requireActual("react-native");
+  return {
+    // Setup's own steps (Phase 9.2), told who is being set up: their account
+    // chip offers Setup's own way out (tests/ui/onboarding-flow.test.tsx).
+    SetupOnboarding: ({
+      account,
+      error,
+    }: {
+      account?: { who: string; onNotYou: () => void };
+      error?: string;
+    }) => (
+      <>
+        <T>setup-steps</T>
+        {account && <T>{`Setting up Forge for ${account.who}`}</T>}
+        {account && (
+          <P
+            accessibilityRole="button"
+            accessibilityLabel="Not you? Sign out"
+            onPress={account.onNotYou}
+          />
+        )}
+        {error && <T>{error}</T>}
+      </>
+    ),
+  };
 });
 
 const me = { id: "user-a", email: "a@example.com" };
@@ -112,7 +135,7 @@ test("a returning athlete on an empty phone is offered their saved training", as
       "a@example.com has training saved in Forge's cloud. Restore it to this phone to pick up where you left off.",
     ),
   ).toBeTruthy();
-  expect(view.queryByText("profile-form")).toBeNull();
+  expect(view.queryByText("setup-steps")).toBeNull();
   // Nothing has synchronized yet: only an explicit choice does that.
   expect(sync).not.toHaveBeenCalled();
 });
@@ -245,7 +268,7 @@ test("records from a newer Forge are named, and setup can continue (Phase 7.8B)"
 test("a new athlete goes straight to setup", async () => {
   check.mockResolvedValueOnce(false);
   const view = await setup();
-  expect(view.getByText("profile-form")).toBeTruthy();
+  expect(view.getByText("setup-steps")).toBeTruthy();
   expect(view.getByText("Setting up Forge for a@example.com")).toBeTruthy();
   expect(sync).not.toHaveBeenCalled();
 });
@@ -254,7 +277,7 @@ test("once anything is entered, setup continues without a restore check", async 
   f.r.saveProfile({ name: "Typed in setup" });
   const view = await setup();
   expect(check).not.toHaveBeenCalled();
-  expect(view.getByText("profile-form")).toBeTruthy();
+  expect(view.getByText("setup-steps")).toBeTruthy();
 });
 
 test("offline: it says it can't check, then tries again or sets up now", async () => {
@@ -281,7 +304,7 @@ test("offline: it says it can't check, then tries again or sets up now", async (
     { action: "Set up this phone", destructive: false },
   );
   await act(async () => jest.mocked(confirm).mock.calls[0]![2]());
-  expect(view.getByText("profile-form")).toBeTruthy();
+  expect(view.getByText("setup-steps")).toBeTruthy();
   expect(sync).not.toHaveBeenCalled();
 });
 
@@ -298,7 +321,7 @@ test("setting up without restoring is a confirmed choice", async () => {
     { action: "Set up this phone", destructive: false },
   );
   await act(async () => jest.mocked(confirm).mock.calls[0]![2]());
-  expect(view.getByText("profile-form")).toBeTruthy();
+  expect(view.getByText("setup-steps")).toBeTruthy();
   expect(sync).not.toHaveBeenCalled();
 });
 

@@ -1,6 +1,6 @@
 # Forge membership (subscriptions)
 
-**Status (2026-11-04): Phase 9.1, the subscription foundation, is implemented in the Phase 9 worktree, uncommitted, awaiting the founder's review.** Nothing is wired into the app: no gate, no paywall, no purchase SDK, no network call, nothing changes on screen. The entitlement SQL is a draft that has never been applied to any project. History and decisions: [`docs/audits/PHASE_9_0_SUBSCRIPTION_AUDIT.md`](audits/PHASE_9_0_SUBSCRIPTION_AUDIT.md) and [`docs/execution/PHASE_9_WINDOWS_HANDOFF.md`](execution/PHASE_9_WINDOWS_HANDOFF.md).
+**Status (2026-11-04): Phase 9.1, the subscription foundation, is committed (`e9d3e59`).** Nothing is wired into the app: no gate, no paywall, no purchase SDK, no network call, nothing changes on screen. The entitlement SQL is a draft that has never been applied to any project. Phase 9.2's onboarding and Forge Path reveal ([`docs/ONBOARDING.md`](ONBOARDING.md)) don't use it either; the paywall will follow the reveal (`afterReveal`) in Phase 9.3. History and decisions: [`docs/audits/PHASE_9_0_SUBSCRIPTION_AUDIT.md`](audits/PHASE_9_0_SUBSCRIPTION_AUDIT.md) and [`docs/execution/PHASE_9_WINDOWS_HANDOFF.md`](execution/PHASE_9_WINDOWS_HANDOFF.md).
 
 ## The approved product
 
