@@ -184,7 +184,8 @@ Details: [RELEASE.md](../RELEASE.md) §10.
 |---|---|---|
 | **8.4A** | Read-only readiness audit and architecture | Done (this record) |
 | **8.4B** | Build profiles, identities, environment locks, release checks, Android backup and permission policy, documentation. Repository only | Done (Nov 4, 2026). Final review added the verified EAS upload and build-number behaviour and the open items (RELEASE.md §2, §3, §11) |
-| **8.4C-0** | Pre-build safety gate: the `production` profile removed from `eas.json` until 8.4F, with its exact restore documented and tested; the Expo Doctor dependency assessment. Repository only | Done in the repository; awaiting review |
+| **8.4C-0** | Pre-build safety gate: the `production` profile removed from `eas.json` until 8.4F, with its exact restore documented and tested; the Expo Doctor dependency assessment. Repository only | Done (`f7734fe`, Nov 5, 2026) |
+| **8.4C-1 and milestones M1–M6** | SDK 58 alignment and the iOS 27 status bar; iOS Simulator tooling; Android readiness (keyboard fix, guards); store policy checks and the iOS privacy manifest; production and privacy review. Repository only | On `feat/sdk58-alignment` and `feat/phase8-readiness`, not merged; awaiting review and device checks ([completion audit](PHASE_8_4_READINESS_COMPLETION.md)) |
 | **8.4C** | iOS beta infrastructure: link EAS, Apple records, credentials, the first `preview` build, TestFlight internal testing | Needs approvals (STORE_SETUP.md §1–§3) |
 | **8.4D** | Android beta infrastructure: Play account and records, upload key, the first AAB, internal testing, the FORGE Dev APK on an Android phone | Needs approvals (STORE_SETUP.md §4–§5) |
 | **8.4E** | Beta validation and controlled distribution: the gates above on both platforms, release-candidate checks, internal then external testers | After 8.4C and 8.4D |

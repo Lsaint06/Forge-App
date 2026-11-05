@@ -328,6 +328,7 @@ The production app's runtime rule (production only) applies from its first build
   - the merge stays on (the release check and `tests/app-variants.test.ts`).
 - **To confirm on the Mac** after `npm run dev:ios -- --release`: `plutil -p ios/*/PrivacyInfo.xcprivacy` lists the four APIs.
 - **The proof:** the first TestFlight upload brings no ITMS-91053 email from Apple.
+- **Development-client keys:** expo-dev-client adds a local-network purpose string ("Expo Dev Launcher uses the local network…") and the `_expo._tcp` Bonjour service to every app's settings. Its build step strips both from Release builds. Check the first `preview` IPA: `unzip -p <file>.ipa 'Payload/*.app/Info.plist' | plutil -p - | grep -iE 'bonjour|localnetwork'` prints nothing.
 - **Not covered by this:** the App Store privacy answers, about the data Forge itself collects and syncs, are the founder's (STORE_SETUP.md §3).
 
 ## 8. Android beta: Google Play internal testing (Phase 8.4D, after approval)
