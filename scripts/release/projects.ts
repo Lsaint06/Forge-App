@@ -8,9 +8,10 @@
 // the founder approves production release readiness and the production
 // project's fingerprint is added here in a reviewed commit
 // (`npm run release:check -- --fingerprint <env file>` prints it without
-// printing the ref). The lock stops builds; EAS CLI's own steps before the
-// upload (its build-number counter, its credential prompts) still need the
-// operator to pass --profile. See docs/RELEASE.md §3 and §6.
+// printing the ref). It's the second of two locks: since Phase 8.4C-0
+// eas.json has no production profile at all, so EAS CLI stops before any
+// build number, credential or upload. Both are lifted together at 8.4F:
+// docs/RELEASE.md §6.
 
 import { createHash } from "node:crypto";
 import type { ForgeEnvironment } from "../../src/cloud/environment";

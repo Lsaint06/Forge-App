@@ -1,9 +1,11 @@
 // Forge's EAS build profiles (Phase 8.4B) and the checks that keep every
 // build on its own app identity and its own Supabase project: eas.json, the
 // app config each variant resolves to (identity and native policy), and an
-// EAS builder's environment. Pure functions over parsed files; check.ts
-// reads them. Problems name profiles, files and variables, never a value.
-// See docs/RELEASE.md.
+// EAS builder's environment. FORGE (production) has no profile until the
+// founder approves production release (Phase 8.4C-0 until 8.4F); its exact
+// profile waits in PRODUCTION_PROFILE. Pure functions over parsed files;
+// check.ts reads them. Problems name profiles, files and variables, never a
+// value. See docs/RELEASE.md.
 
 import type { ConfigContext, ExpoConfig } from "expo/config";
 import appConfig from "../../app.config";
@@ -66,7 +68,31 @@ export const PROFILES = {
     androidBuildType: "app-bundle",
     simulator: false,
   },
-  production: {
+} as const satisfies Record<string, Profile>;
+
+export type ProfileName = keyof typeof PROFILES;
+
+export const isProfile = (name: string | undefined): name is ProfileName =>
+  name !== undefined && Object.prototype.hasOwnProperty.call(PROFILES, name);
+
+const UNTIL_PRODUCTION_RELEASE =
+  "until the founder approves production release (Phase 8.4F, docs/RELEASE.md §6)";
+
+/** Why FORGE (production) can't be built yet. */
+export const PRODUCTION_LOCKED = `production builds are locked: eas.json has no production profile ${UNTIL_PRODUCTION_RELEASE}`;
+
+/**
+ * FORGE's production profile, kept out of eas.json since Phase 8.4C-0 until
+ * the founder approves production release (Phase 8.4F). With no production
+ * profile, EAS CLI stops `eas build --profile production`, and `eas build`
+ * with no profile (EAS's default is production), as soon as it reads
+ * eas.json: before it evaluates the app config, sets a build number, touches
+ * credentials or uploads anything. Restoring it is one reviewed commit
+ * (docs/RELEASE.md §6): `eas` back into eas.json as build.production, `rule`
+ * back into PROFILES, and production's pin in projects.ts.
+ */
+export const PRODUCTION_PROFILE = {
+  rule: {
     variant: "production",
     environment: "production",
     distribution: "store",
@@ -74,12 +100,23 @@ export const PROFILES = {
     androidBuildType: "app-bundle",
     simulator: false,
   },
-} as const satisfies Record<string, Profile>;
+  eas: {
+    distribution: "store",
+    autoIncrement: true,
+    environment: "production",
+    node: "24.22.0",
+    android: { buildType: "app-bundle" },
+    env: { APP_VARIANT: "production" },
+  },
+} as const satisfies { rule: Profile; eas: Json };
 
-export type ProfileName = keyof typeof PROFILES;
+/** A profile set: Forge's, or (tests, the 8.4F restore) one with production. */
+type Profiles = Readonly<Record<string, Profile>>;
 
-export const isProfile = (name: string | undefined): name is ProfileName =>
-  name !== undefined && Object.prototype.hasOwnProperty.call(PROFILES, name);
+const ruleIn = (profiles: Profiles, name: string): Profile | undefined =>
+  Object.prototype.hasOwnProperty.call(profiles, name)
+    ? profiles[name]
+    : undefined;
 
 /** Each app's native ID: its iOS bundle ID and Android package. */
 export const APP_ID = Object.fromEntries(
@@ -149,8 +186,7 @@ function forPlatform(profile: Json, platform: Platform): Json {
   return merge(shared, objectAt(profile, platform));
 }
 
-function profileProblems(name: ProfileName, profile: Json): string[] {
-  const rule: Profile = PROFILES[name];
+function profileProblems(name: string, rule: Profile, profile: Json): string[] {
   const problems: string[] = [];
   const views = PLATFORMS.map((platform) => ({
     platform,
@@ -232,8 +268,15 @@ function profileProblems(name: ProfileName, profile: Json): string[] {
   return problems;
 }
 
-/** Whether eas.json builds exactly Forge's profiles, each as intended. */
-export function easJsonProblems(eas: unknown): string[] {
+/**
+ * Whether eas.json builds exactly Forge's profiles, each as intended, and
+ * nothing for production until Phase 8.4F. `profiles` is Forge's set; tests
+ * pass the set the 8.4F restore will have.
+ */
+export function easJsonProblems(
+  eas: unknown,
+  profiles: Profiles = PROFILES,
+): string[] {
   if (!isObject(eas)) return ["eas.json isn't a JSON object"];
   const problems: string[] = [];
   const cli = objectAt(eas, "cli");
@@ -251,11 +294,13 @@ export function easJsonProblems(eas: unknown): string[] {
     );
   const build = objectAt(eas, "build");
   for (const name of Object.keys(build))
-    if (!isProfile(name))
+    if (!ruleIn(profiles, name))
       problems.push(
-        `eas.json: ${name} isn't one of Forge's profiles (scripts/release/profiles.ts)`,
+        name === "production"
+          ? `eas.json: the production profile must stay out ${UNTIL_PRODUCTION_RELEASE}`
+          : `eas.json: ${name} isn't one of Forge's profiles (scripts/release/profiles.ts)`,
       );
-  for (const name of Object.keys(PROFILES) as ProfileName[]) {
+  for (const [name, rule] of Object.entries(profiles)) {
     if (!isObject(build[name])) {
       problems.push(`eas.json: no ${name} profile`);
       continue;
@@ -265,7 +310,7 @@ export function easJsonProblems(eas: unknown): string[] {
       problems.push(
         `eas.json: ${name} extends a profile that doesn't exist (or itself)`,
       );
-    else problems.push(...profileProblems(name, profile));
+    else problems.push(...profileProblems(name, rule, profile));
   }
   return problems;
 }
@@ -443,7 +488,8 @@ export function uploadProblems(
 }
 
 export type BuilderCheck = {
-  profile?: ProfileName;
+  profile?: string;
+  rule?: Profile;
   problems: string[];
   notes: string[];
 };
@@ -452,8 +498,9 @@ export type BuilderCheck = {
  * An EAS build's own check, before anything is compiled or signed: a known
  * profile building its own app; no settings file uploaded; and, wherever
  * JavaScript is built in, complete public values naming this app's own
- * environment and the pinned project, with only a publishable key. Unpinned
- * environments (production, until approved) refuse every build.
+ * environment and the pinned project, with only a publishable key. No
+ * production profile exists until Phase 8.4F, and unpinned environments
+ * (production, until approved) refuse every build as well.
  */
 export function builderCheck(
   env: Readonly<Record<string, string | undefined>>,
@@ -461,18 +508,21 @@ export function builderCheck(
   fingerprints: Readonly<
     Record<ForgeEnvironment, string | null>
   > = PROJECT_FINGERPRINTS,
+  profiles: Profiles = PROFILES,
 ): BuilderCheck {
   const name = env.EAS_BUILD_PROFILE?.trim();
-  if (!isProfile(name))
+  const rule = name ? ruleIn(profiles, name) : undefined;
+  if (!name || !rule)
     return {
       problems: [
-        name
-          ? `EAS_BUILD_PROFILE: ${name} isn't one of Forge's profiles (eas.json)`
-          : "EAS_BUILD_PROFILE isn't set: --builder runs on EAS Build",
+        !name
+          ? "EAS_BUILD_PROFILE isn't set: --builder runs on EAS Build"
+          : name === "production"
+            ? `EAS_BUILD_PROFILE: production builds are locked ${UNTIL_PRODUCTION_RELEASE}`
+            : `EAS_BUILD_PROFILE: ${name} isn't one of Forge's profiles (eas.json)`,
       ],
       notes: [],
     };
-  const rule: Profile = PROFILES[name];
   const problems: string[] = [];
   const notes: string[] = [];
   if ((env.APP_VARIANT?.trim() || "production") !== rule.variant)
@@ -523,5 +573,5 @@ export function builderCheck(
       problems.push(
         `${key} is a Supabase secret key: an app only ever gets the publishable key`,
       );
-  return { profile: name, problems, notes };
+  return { profile: name, rule, problems, notes };
 }

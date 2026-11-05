@@ -8,7 +8,9 @@ The steps outside this repository that FORGE's beta and store builds need: Expo 
 - **Engineers prepare and verify; the founder approves each step, and performs those that need the founder's own accounts.**
 - **Never paste a key, password, keystore or service-account file into chat, an issue or the repository.** `.gitignore` covers signing files, and `release:check` refuses them if committed.
 - **Credential files never go inside the repository folder,** ignored or not. Keep downloaded keystores, `.p8` keys and service-account JSON in a password manager or a folder outside it ([RELEASE.md](RELEASE.md) §2).
-- **Every `eas build` names its profile.** Without `--profile`, EAS builds `production`, and before the locked build is refused, it moves production's build counter and offers to create production credentials ([RELEASE.md](RELEASE.md) §3).
+- **Every `eas build` names its profile:** `preview`, or a `development*` profile.
+  - Without `--profile`, EAS looks for `production`. Until 8.4F there's none, so it stops before anything; after 8.4F it would build production.
+  - Never use `npx testflight`: it is built around the `production` profile ([RELEASE.md](RELEASE.md) §3).
 
 | Step | Where | Creates | Phase | Approval |
 |---|---|---|---|---|
@@ -114,5 +116,5 @@ The founder's paid **Individual** team exists. Decide first whether FORGE ships 
    - Site URL and redirect list (no tunnel addresses);
    - Apple revocation and Apple-only deletion;
    - privacy policy and support contact.
-2. **Pin production** ([RELEASE.md](RELEASE.md) §6). Then fill in the `production` EAS environment.
+2. **Restore the production profile and pin production** in one reviewed commit ([RELEASE.md](RELEASE.md) §6). Then fill in the `production` EAS environment.
 3. **Production records:** App ID and App Store Connect record for `com.lsaint06.forge`; Play record for `com.lsaint06.forge`; store listings and screenshots; the real app icon (C-00b).

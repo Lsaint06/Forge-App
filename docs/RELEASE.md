@@ -6,14 +6,14 @@ How FORGE's beta and store builds are made for **iOS and Android together**: whi
 
 - Nothing external exists yet: no EAS project is linked, there are no store records, no signing credentials, and nothing has been uploaded.
 - The manual account and store steps are in [STORE_SETUP.md](STORE_SETUP.md). Every one of them needs the founder's approval first.
-- **Production builds are locked** until the founder approves production release readiness (§6).
+- **Production builds are locked** until the founder approves production release readiness. Since Phase 8.4C-0, `eas.json` has no `production` profile at all (§6).
 - The readiness audit behind this design is [PHASE_8_4A_BETA_READINESS.md](audits/PHASE_8_4A_BETA_READINESS.md).
 
 ## 1. Three apps, three identities
 
 | App | `APP_VARIANT` | iOS bundle ID and Android package | Link scheme | Supabase project | Distributed through | Profiles |
 |---|---|---|---|---|---|---|
-| **FORGE** | `production` (or unset) | `com.lsaint06.forge` | `forge` | Production only | App Store, Google Play | `production` (locked) |
+| **FORGE** | `production` (or unset) | `com.lsaint06.forge` | `forge` | Production only | App Store, Google Play | None until 8.4F (§6) |
 | **FORGE Preview** | `preview` | `com.lsaint06.forge.preview` | `forge-preview` | FORGE DEV only | TestFlight, Google Play internal testing | `preview` |
 | **FORGE Dev** | `development` | `com.lsaint06.forge.dev` | `forge-dev` | FORGE DEV only | `npm run dev:ios` on the Mac; EAS internal builds | `development`, `development-simulator`, `development-release` |
 
@@ -36,7 +36,8 @@ How FORGE's beta and store builds are made for **iOS and Android together**: whi
 | `development-simulator` | FORGE Dev | `development` | Internal | From Metro | Debug APK | iOS Simulator app | EAS counter, not incremented |
 | `development-release` | FORGE Dev | `development` | Internal | Built in | Release APK (installed directly) | Ad hoc IPA for registered devices | EAS counter, not incremented |
 | `preview` | FORGE Preview | `preview` | Store | Built in | App Bundle (AAB) | App Store-signed IPA for TestFlight | `autoIncrement` |
-| `production` | FORGE | `production` | Store | Built in | App Bundle (AAB) | App Store-signed IPA | `autoIncrement` (locked) |
+
+**No `production` profile until 8.4F.** FORGE's store profile is kept out of `eas.json` (Phase 8.4C-0) and restored only after production release approval (§6). FORGE itself is unchanged: its identity and its runtime rule (production only) are as in §1.
 
 **Shared by every profile:**
 
@@ -97,7 +98,7 @@ EAS stores build numbers per EAS project, platform and **application identifier*
 | Counter | Moved by | Never moved by |
 |---|---|---|
 | `com.lsaint06.forge.preview`, iOS and Android | Each `preview` build, incremented before upload | FORGE's or FORGE Dev's builds |
-| `com.lsaint06.forge`, iOS and Android | `production` builds only, locked (§6), and EAS's default profile (below) | FORGE Preview's builds |
+| `com.lsaint06.forge`, iOS and Android | Nothing until 8.4F: no profile builds FORGE (§6) | FORGE Preview's builds |
 | `com.lsaint06.forge.dev`, iOS and Android | Created at 1 by the first EAS `development*` build, then read but not incremented | FORGE Preview's or FORGE's builds |
 
 **How FORGE Preview's numbers increase:**
@@ -110,17 +111,24 @@ EAS stores build numbers per EAS project, platform and **application identifier*
 - **Separate store records.** FORGE Preview is its own App Store Connect app and its own Play app. Its TestFlight and internal-testing builds never appear in FORGE's store history, whatever their numbers.
 - **One shared store version.** `app.json`'s `version` belongs to all three apps. Raising it for a beta also raises the version FORGE's first production build will carry. Each store record still keeps its own history.
 
-### What could move production's counter by mistake
+### Keeping production's counter untouched
 
-- **`eas build` without `--profile` runs `production`,** EAS's default. The production lock stops that build on the builder (§6), but before uploading, EAS CLI has already:
-  - created or incremented `com.lsaint06.forge`'s counter;
-  - offered to create production signing credentials. On Android the keystore question defaults to **Yes**, and with `--non-interactive` EAS creates a missing keystore without asking (EAS CLI's source).
-
-  **Always pass `--profile`.** Never pass `--non-interactive` for a profile whose credentials don't exist yet. Decline any credential prompt for `com.lsaint06.forge` (no `.preview` or `.dev`).
-- **`eas build:version:set`** changes the counter of the profile it's given, `production` when none is given. Use it only with `--profile preview`, and only with approval. `eas build:version:get` and `eas build:version:sync` only read counters.
-- **If it happens anyway:**
+- **`eas build` without `--profile` uses `production`,** EAS's default. Since Phase 8.4C-0 there is no such profile:
+  - EAS CLI stops when it reads `eas.json` ("Missing build profile in eas.json: production");
+  - so does `eas build --profile production`;
+  - **in EAS CLI's source** (`runBuildAndSubmitAsync`), that comes right after the clean-tree check: before it evaluates the app config or its EAS variables, sets any build number, offers credentials or uploads anything.
+- **Why it mattered, and will again after 8.4F.** With a production profile, EAS CLI does all of this before the build reaches the builder check:
+  - creates or increments `com.lsaint06.forge`'s counter;
+  - offers to create production signing credentials. On Android the keystore question defaults to **Yes**, and with `--non-interactive` EAS creates a missing keystore without asking.
+- **Rules, now and after 8.4F:**
+  - **Always pass `--profile`:** `preview`, or a `development*` profile.
+  - **Never pass `--non-interactive`** for a profile whose credentials don't exist yet.
+  - **Decline any credential prompt** for `com.lsaint06.forge` (no `.preview` or `.dev`).
+  - **Don't use `npx testflight`.** Expo built it around the `production` profile, with its own Apple sign-in, credential and App Store Connect API-key steps; Forge's route to TestFlight is §7.
+- **`eas build:version:set`** changes the counter of the profile it's given, `production` when none is given, which now fails the same way. Use it only with `--profile preview`, and only with approval. `eas build:version:get` and `eas build:version:sync` only read counters.
+- **If production's counter or credentials are ever touched by mistake** (after 8.4F):
   - nothing has reached a store;
-  - production's counter has a harmless gap, and `eas build:version:set --profile production` can reset it before the first real production build (approval);
+  - the counter's gap is harmless, and `eas build:version:set --profile production` can reset it before the first real production build (approval);
   - credentials created by mistake can be removed with `eas credentials` (approval).
 - **To confirm on the first builds (8.4C, 8.4D):** `eas build:version:get --profile preview` before and after a `preview` build shows only FORGE Preview's counter moving.
 
@@ -201,14 +209,16 @@ npm run release:check -- --fingerprint .env.forge-dev      # a project's pin, wi
 
 **`--profile <name>`, on this computer:**
 
-- `eas.json`: exactly Forge's five profiles, each as in §2.
+- `eas.json`: exactly Forge's four profiles, each as in §2, and no `production` profile until 8.4F.
 - Every app's identity: its own IDs and link scheme, a `MAJOR.MINOR.PATCH` version, and no local build numbers.
 - The native policy for every app: no shared-storage permissions, sign-in kept out of Android backups, and development-client links on FORGE Dev only (§9).
-- Whether the profile's project is pinned: production is locked.
+- Whether the profile's project is pinned.
 - That `.env.forge-dev`, if present, is the pinned FORGE DEV project.
 - That `eas-build-post-install` starts with the builder check.
 - Git: no settings files or signing credentials committed, and nothing uncommitted.
 - The upload: EAS will send the last commit, not this folder. No `EAS_NO_VCS` in the shell, no `.easignore` (§2).
+
+**`--profile production`** prints only that production builds are locked (§6) and exits with code 1.
 
 **`--builder`:** run automatically on EAS (§4). Run by hand, it refuses: `EAS_BUILD_PROFILE` isn't set.
 
@@ -222,18 +232,53 @@ npm run release:check -- --fingerprint .env.forge-dev      # a project's pin, wi
 
 ## 6. The production lock
 
-`PROJECT_FINGERPRINTS.production` is `null`, so every `production` build stops, both locally and on the builder.
+**Two independent locks until production release is approved:**
 
-**What the lock doesn't stop:** EAS CLI's own steps before the upload. It still moves production's build counter and offers to create production signing credentials (§3), so those depend on the operator always passing `--profile`. A harder lock is possible: remove the `production` profile from `eas.json` until 8.4F. EAS CLI then refuses `--profile production`, and `eas build` without a profile, before doing anything. That changes the approved five-profile design, so it's a founder decision before EAS is linked (8.4C).
+| Lock | Since | What it stops |
+|---|---|---|
+| **No `production` profile in `eas.json`** | Phase 8.4C-0 | EAS CLI itself. `eas build --profile production`, and `eas build` without a profile, stop when EAS reads `eas.json`: before any app config with EAS variables, build number, credential or upload (§3). The local check refuses a production profile added back, and the builder refuses `EAS_BUILD_PROFILE=production` |
+| **No production pin** (`PROJECT_FINGERPRINTS.production` is `null`) | Phase 8.4B | Any production build that still reached the builder: it stops before anything is bundled, compiled or signed |
 
-**To unlock, in this order, each step approved by the founder:**
+**What stays as it is:**
 
-1. **Production readiness.** The production-backend items in the [audit](audits/PHASE_8_4A_BETA_READINESS.md) §7 (gate G-PROD) are done.
-2. **Pin.** Run `npm run release:check -- --fingerprint <production settings file>`, then put the printed SHA-256 in `scripts/release/projects.ts`.
-3. **Test.** Change the test that expects `null` (`tests/release-check.test.ts`, "production builds stay locked…").
-4. **Review and commit.** Then set production's four values in the EAS `production` environment.
+- FORGE's identity (`com.lsaint06.forge`, `forge`, `app.json`);
+- its runtime rule: production only, `src/cloud/environment.ts`;
+- Expo Go and `npm start`;
+- the production backend.
 
-The production app's runtime rule (production only) applies from its first build.
+Nothing about the production app itself was removed, only its EAS build profile.
+
+### Restoring the profile (Phase 8.4F, after the founder's approval)
+
+**One reviewed commit, in this order:**
+
+1. **Production readiness.** The production-backend items in the [audit](audits/PHASE_8_4A_BETA_READINESS.md) §7 (gate G-PROD) are done, and the founder approves production release.
+2. **The profile.** Add `build.production` back to `eas.json`, after `preview`, exactly as `PRODUCTION_PROFILE.eas` in `scripts/release/profiles.ts`. It's the profile removed in Phase 8.4C-0:
+
+   ```json
+   "production": {
+     "distribution": "store",
+     "autoIncrement": true,
+     "environment": "production",
+     "node": "24.22.0",
+     "android": {
+       "buildType": "app-bundle"
+     },
+     "env": {
+       "APP_VARIANT": "production"
+     }
+   }
+   ```
+
+   A test keeps `PRODUCTION_PROFILE.eas` in step with `preview`'s settings (Node pin, numbering, App Bundle), so it's current whenever it's restored.
+3. **The check.** In `scripts/release/profiles.ts`, add `production: PRODUCTION_PROFILE.rule` to `PROFILES`, so the local and builder checks expect it.
+4. **The pin.** Run `npm run release:check -- --fingerprint <production settings file>`, then put the printed SHA-256 in `scripts/release/projects.ts` as `production`. The ref itself never appears.
+5. **The tests** in `tests/release-check.test.ts`: the absence tests become presence tests, and "the 8.4F restore" test already shows the result must pass. Run every check.
+6. **Review and commit.** Then, as separate approvals, set production's four values in the EAS `production` environment and create FORGE's store records ([STORE_SETUP.md](STORE_SETUP.md) §7).
+
+`tests/release-check.test.ts` ("the 8.4F restore") already checks that this exact profile, with `PRODUCTION_PROFILE.rule` added back, passes the `eas.json` check. On the builder, it still refuses until production is pinned, and then accepts only production's own project.
+
+The production app's runtime rule (production only) applies from its first build. From then on, `eas build` without `--profile` builds production again, so the rules in §3 apply.
 
 ## 7. iOS beta: TestFlight (Phase 8.4C, after approval)
 
@@ -357,18 +402,46 @@ Checked in EAS's source or locally in Phase 8.4B; still to confirm on real build
 | V1 | **What EAS uploads** (§2) | `eas build:inspect --platform android --stage archive --output <folder outside the repository>`: no `.env*`, credential files, `assets/catalog/`, `ios/` or `android/` | 8.4C, after linking, before the first build |
 | V2 | **Separate build counters** (§3) | `eas build:version:get --profile preview` before and after the first `preview` builds: only FORGE Preview's counter moves, iOS from 1 and Android from 2; production has none | 8.4C, 8.4D |
 | V3 | **The builder check's place** (§4) | The build log shows "Release check on EAS Build", every line ✓, before the JavaScript bundle and Gradle or Xcode. A deliberately wrong value stops a build there | 8.4C, 8.4D |
-| V4 | **The EAS build image's Xcode** (§7) | Xcode 26 or later in the iOS build log, as Apple requires | 8.4C |
-| V5 | **Expo Doctor's dependency check** | Still open, see below | Before the first store build |
+| V4 | **The EAS build image's Xcode** (§7) | `auto` (no `image` in `eas.json`) selects the `sdk-58` images: Xcode 27.1 RC on iOS, JDK 17 and NDK 27.1 on Android (EAS docs, Oct 8, 2026). Confirm in the first build logs | 8.4C, 8.4D |
+| V5 | **Expo Doctor's dependency check** | Assessed in Phase 8.4C-0 (below); the update itself awaits approval | Before the first iOS beta build |
 | V6 | **The merged Android permissions** (§9) | Play Console's App bundle explorer on the first App Bundle | 8.4D |
-| V7 | **A client-side production lock** (§6) | Founder decision: keep the documented rules, or remove the `production` profile until 8.4F | Before linking (8.4C) |
+| V7 | **A client-side production lock** (§6) | Done in Phase 8.4C-0: `eas.json` has no `production` profile until 8.4F; tested in `tests/release-check.test.ts` | Done |
 
-**V5, Expo Doctor (open, Nov 4, 2026).** `npx expo-doctor` passes 19 of 20 checks. The failing one, "packages match versions required by the installed Expo SDK", lists:
+**V5, Expo Doctor (assessed in Phase 8.4C-0, Nov 5, 2026; nothing installed).** `npx expo-doctor` passes 19 of 20 checks. The failing one, "packages match versions required by the installed Expo SDK", lists 16 packages:
 
 - 15 patch updates, including `expo` 58.0.23 (58.0.17 installed) and `react-native` 0.88.1 (0.88.0 installed);
 - one minor update, `react-native-safe-area-context` 5.11.1 (5.10.1 installed; dependencies kept unchanged at the founder's instruction since Phase 8.3C).
 
-Phase 8.4B changed no dependency.
+**The source.** Every expected version is exactly Expo SDK 58's own pin (`bundledNativeModules.json`), and npm's latest for each package. Each package's changelog was read, and the findings were checked against Forge's code.
 
 **What it means for builds:** EAS runs `expo-doctor` on every build. A failure is recorded as a warning and doesn't stop the build (EAS's build-tools source), so each build log will show this warning until the packages are updated.
 
-**Updating them** (`npx expo install --fix`) changes Expo Go's and the Mac's installs too. It is a separate, approved dependency change: decide before the first store build, then rerun every check.
+**One set, not à la carte.** The installed packages are consistent: their precompiled iOS binaries are built against React Native 0.88.0. From `expo` 58.0.21 on, Expo moves to React Native 0.88.1:
+
+- it rebuilds those binaries against it (`expo-camera` 58.0.14, `expo-file-system` 58.0.13, `expo-font` 58.0.11);
+- `jest-expo` 58.0.13 follows it.
+
+Mixing the two sets risks native mismatches. The update is therefore all 16 packages together (`npx expo install --fix`), or none.
+
+| Class | Packages | Why |
+|---|---|---|
+| **Required before the first iOS beta build** | `react-native` 0.88.1 and `expo` 58.0.23, with the set | **The iOS 27 status bar.** Forge's builds use the iOS 27 SDK (Xcode 27.2 on the Mac, Xcode 27.1 on EAS). That SDK makes the status-bar calls Forge relies on do nothing ([expo/expo#52723](https://github.com/expo/expo/issues/52723)). On iOS 27, a default (dark-theme) athlete whose iPhone is in light mode gets dark clock and battery icons on Forge's charcoal screens; the splash is affected too. The fix needs both packages **and** `ios.infoPlist.UIViewControllerBasedStatusBarAppearance: true` in `app.json` (prebuild writes `false` today). The founder's iPhone (iOS 26.6.2) is unaffected; testers on iOS 27 would be |
+| **Recommended, deferrable** | `react-native-safe-area-context` 5.11.1 | Android: respects window insets a parent adjusts. Forge's Android layouts haven't been validated yet, so updating before that validation means validating once. iOS: a fix for native sheets after rotation, which Forge (portrait, full-screen logger) doesn't use. The Phase 8.3C header fix must be re-verified on the iPhone either way |
+| **Recommended, deferrable** | `expo-router` 58.0.30 | Navigation and deep-link fixes (Back and dismissal after a deep link, `<Link>` addresses with parentheses) relevant to email links. One labelled breaking change, implicit group anchors, shouldn't affect Forge: its only group is `(tabs)`, with no route of the same name, and no `unstable_settings`. Re-test sign-in and password-reset links |
+| **Recommended, deferrable** | `expo-file-system` 58.0.13 | Android: `Paths.availableDiskSpace` stops counting space reserved for the system. The branded food catalogue's space check uses it |
+| **Unnecessary for 8.4C** | `expo-camera` 58.0.14 | Its fixes are for Android release builds with R8 minification, which Forge doesn't enable (SDK 58's default is off), plus the iOS rebuild above |
+| **Unnecessary for 8.4C** | `react-native-screens` 4.30.1 | iOS native tabs on foldable iPhones, search tabs, zoom transitions: none used by Forge |
+| **Unnecessary for 8.4C** | `expo-notifications` 58.1.8 | Only an Android Expo Go import fix; nothing about scheduling, channels or permissions |
+| **Unnecessary for 8.4C** | `expo-sqlite` 58.0.15 | iOS internals and a smaller Android library; its data-integrity fixes are already in 58.0.13 |
+| **Unnecessary for 8.4C** | `expo-font` 58.0.11, `jest-expo` 58.0.14 | Web font loading, the iOS rebuild above, and Jest only (Forge's suites pass without them) |
+| **Unnecessary for 8.4C** | `expo-constants`, `expo-linking`, `expo-sharing`, `expo-splash-screen`, `@expo/metro-runtime` | Dependency bumps only |
+
+**Updating them** (`npx expo install --fix`) is a separate, approved dependency change. It also changes Expo Go's and the Mac's installs. It needs:
+
+- the `app.json` status-bar setting above;
+- every check;
+- a FORGE Dev rebuild on the Mac;
+- the founder's iPhone re-verification, with the logger header and status bar in both themes;
+- an iOS 27 Simulator check.
+
+Doing it before the first Android device build means Android is validated once, on the final set.

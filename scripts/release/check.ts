@@ -1,10 +1,11 @@
 // npm run release:check -- --profile <name> [--allow-dirty]
-//   Before an EAS build, on this computer: eas.json's profiles; every app's
-//   identity and native policy; whether the profile's project is pinned
-//   (production builds stay locked until approved); .env.forge-dev against
-//   its pin; the EAS build hook; git (no settings files or signing
-//   credentials committed, nothing uncommitted); and that EAS will upload
-//   the last commit rather than this folder (no EAS_NO_VCS, no .easignore).
+//   Before an EAS build, on this computer: eas.json's profiles (none for
+//   production until Phase 8.4F); every app's identity and native policy;
+//   whether the profile's project is pinned; .env.forge-dev against its pin;
+//   the EAS build hook; git (no settings files or signing credentials
+//   committed, nothing uncommitted); and that EAS will upload the last commit
+//   rather than this folder (no EAS_NO_VCS, no .easignore). `--profile
+//   production` only reports that production builds are locked.
 // npm run release:check -- --builder
 //   On EAS Build, first in eas-build-post-install: the build's profile, app
 //   and public values, and no .env file however it arrived. A failure stops
@@ -21,6 +22,7 @@ import { APP_ENVIRONMENTS, type AppVariant } from "../../src/cloud/environment";
 import { DEV_ENV_FILE, maskRef, parseEnvFile } from "../dev/env-files";
 import {
   APP_ID,
+  PRODUCTION_LOCKED,
   PROFILES,
   appConfigFor,
   builderCheck,
@@ -86,7 +88,7 @@ function local(profile: ProfileName, allowDirty: boolean) {
   const lines: Line[] = [];
   group(
     lines,
-    "eas.json: Forge's five profiles; EAS numbers every build; every build is a commit",
+    "eas.json: Forge's four profiles, none for production until 8.4F; EAS numbers every build; every build is a commit",
     easJsonProblems(readJson("eas.json")),
   );
   group(
@@ -162,8 +164,8 @@ function builder() {
     `Release check on EAS Build: ${result.profile ?? "unknown profile"} (${process.env.EAS_BUILD_PLATFORM ?? "unknown platform"})`,
   );
   const lines: Line[] = [];
-  if (result.profile) {
-    const variant = PROFILES[result.profile].variant;
+  if (result.rule) {
+    const variant = result.rule.variant;
     const config = appConfigFor(variant, expoOf(readJson("app.json")), root);
     group(
       lines,
@@ -175,7 +177,7 @@ function builder() {
     );
     group(
       lines,
-      "eas.json: Forge's five profiles",
+      "eas.json: Forge's four profiles, none for production until 8.4F",
       easJsonProblems(readJson("eas.json")),
     );
   }
@@ -213,6 +215,10 @@ function main(args: readonly string[]) {
   const profile = at >= 0 ? args[at + 1] : undefined;
   const rest = args.filter((_, i) => i !== at && i !== at + 1);
   const allowDirty = rest.length === 1 && rest[0] === "--allow-dirty";
+  if (profile === "production" && (!rest.length || allowDirty)) {
+    console.log(`Release check: production → FORGE (${APP_ID.production})`);
+    return print([[false, PRODUCTION_LOCKED]]);
+  }
   if (!isProfile(profile) || (rest.length && !allowDirty))
     throw new Error(USAGE);
   local(profile, allowDirty);
