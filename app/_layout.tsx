@@ -46,6 +46,7 @@ import { IntroOnScreen, useStatusBarStyle } from "../src/components/status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { ForgeSplash } from "../src/components/splash/ForgeSplash";
 import { ErrorBoundary } from "../src/components/Recovery";
+import { markStarted } from "../src/diagnostics";
 import { loadBrandFonts } from "../src/fonts";
 import {
   finishIntro,
@@ -265,6 +266,8 @@ function Ready() {
           // Never blocks starting FORGE; markers are retried next launch.
         }
         useApp.getState().touch();
+        // Failures from here on are a screen's, not starting's (diagnostics).
+        markStarted();
         setReady(true);
       })
       .catch((e) => {

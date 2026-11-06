@@ -7,20 +7,27 @@ import { Txt, Button, useColors } from "./ui";
 import { rescue } from "../platform/rescue";
 import type { RescueResult } from "../data/rescue";
 import { supportEmail, supportMailto } from "../support";
+import { currentBuildLine, startedRunning } from "../diagnostics";
+import { diagnosticLines, failureCode } from "../domain/diagnostics";
 import { theme } from "../theme";
 
 // Shown when Forge cannot start or a screen fails. It never deletes anything:
-// the lifter can try again, or first save a copy of their data.
+// the lifter can try again, or first save a copy of their data. The build
+// and a failure code (Phase 8.5) let a report be matched to its build
+// without anything about the athlete.
 
 export function RecoveryScreen({
   message,
+  code,
   onRetry,
 }: {
   message: string;
+  code?: string;
   onRetry: () => void;
 }) {
   const c = useColors();
   const email = supportEmail();
+  const facts = diagnosticLines(currentBuildLine(), code);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<RescueResult>();
   async function saveCopy() {
@@ -53,7 +60,7 @@ export function RecoveryScreen({
         </View>
         <View
           accessible
-          accessibilityLabel={`Error details: ${message}`}
+          accessibilityLabel={`Error details: ${message}. ${facts.join(". ")}`}
           style={{
             backgroundColor: c.surface,
             borderRadius: theme.radii.card,
@@ -66,6 +73,9 @@ export function RecoveryScreen({
           </Txt>
           <Txt variant="caption" tone="secondary">
             {message}
+          </Txt>
+          <Txt variant="caption" tone="secondary">
+            {facts.join(" · ")}
           </Txt>
         </View>
         <View style={{ gap: theme.spacing.group }}>
@@ -101,7 +111,9 @@ export function RecoveryScreen({
             icon="mail-outline"
             variant="text"
             onPress={() =>
-              void Linking.openURL(supportMailto(email, message)).catch(() =>
+              void Linking.openURL(
+                supportMailto(email, [message, ...facts].join("\n")),
+              ).catch(() =>
                 Alert.alert("Couldn't open email", `Write to ${email}.`),
               )
             }
@@ -114,12 +126,13 @@ export function RecoveryScreen({
 
 export class ErrorBoundary extends Component<
   { children: React.ReactNode },
-  { error: string }
+  { error: string; code: string }
 > {
-  state = { error: "" };
+  state = { error: "", code: "" };
   static getDerivedStateFromError(e: unknown) {
     return {
       error: (e instanceof Error ? e.message : String(e)) || "Unknown error",
+      code: failureCode(e, startedRunning() ? "screen" : "start"),
     };
   }
   render() {
@@ -127,9 +140,10 @@ export class ErrorBoundary extends Component<
       return (
         <RecoveryScreen
           message={this.state.error}
+          code={this.state.code}
           // Clearing the error remounts the app, which opens the database
           // again from the start.
-          onRetry={() => this.setState({ error: "" })}
+          onRetry={() => this.setState({ error: "", code: "" })}
         />
       );
     return this.props.children;

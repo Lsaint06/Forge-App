@@ -7,6 +7,7 @@ import Templates from "../../app/templates";
 import JournalScreen from "../../src/screens/Journal";
 import Account from "../../app/account";
 import { RecoveryScreen, ErrorBoundary } from "../../src/components/Recovery";
+import { currentBuildLine, markStarted } from "../../src/diagnostics";
 import { useRepo, confirm } from "../../src/state";
 import { cancelRestNotification } from "../../src/notifications";
 import {
@@ -627,12 +628,17 @@ test("the recovery screen saves a copy of the data and reports the result", asyn
   const view = await render(
     <RecoveryScreen
       message="database disk image is malformed"
+      code="S-DB-1A2B3C"
       onRetry={retry}
     />,
   );
   expect(view.getByText("FORGE couldn't open")).toBeTruthy();
   expect(view.getByText(/has not been deleted/)).toBeTruthy();
   expect(view.getByText("database disk image is malformed")).toBeTruthy();
+  // The build and the failure's code, for a report (Phase 8.5).
+  expect(
+    view.getByText(`${currentBuildLine()} · Code S-DB-1A2B3C`),
+  ).toBeTruthy();
   await fireEvent.press(view.getByLabelText("Save a copy of my data"));
   expect(rescue).toHaveBeenCalledTimes(1);
   // A share is never claimed as a confirmed save.
@@ -680,7 +686,11 @@ test("no support contact is shown until a real address is configured", async () 
 
     process.env.EXPO_PUBLIC_SUPPORT_EMAIL = "help@forge.test";
     const view = await render(
-      <RecoveryScreen message="disk unavailable" onRetry={jest.fn()} />,
+      <RecoveryScreen
+        message="disk unavailable"
+        code="R-DB-4D5E6F"
+        onRetry={jest.fn()}
+      />,
     );
     expect(
       view.getByText(/Contact FORGE support at help@forge\.test/),
@@ -688,7 +698,9 @@ test("no support contact is shown until a real address is configured", async () 
     await fireEvent.press(view.getByLabelText("Email support"));
     const url = open.mock.calls[0]![0];
     expect(url).toMatch(/^mailto:help@forge\.test\?subject=/);
-    expect(decodeURIComponent(url)).toContain("disk unavailable");
+    expect(decodeURIComponent(url)).toContain(
+      `disk unavailable\n${currentBuildLine()}\nCode R-DB-4D5E6F`,
+    );
   } finally {
     if (saved === undefined) delete process.env.EXPO_PUBLIC_SUPPORT_EMAIL;
     else process.env.EXPO_PUBLIC_SUPPORT_EMAIL = saved;
@@ -703,16 +715,24 @@ test("the error boundary shows recovery and Try again remounts the app", async (
     if (fail) throw new Error("disk unavailable");
     return <Text>Today</Text>;
   }
+  const tree = () => (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
   try {
-    const view = await render(
-      <ErrorBoundary>
-        <App />
-      </ErrorBoundary>,
-    );
+    const view = await render(tree());
     expect(view.getByText("disk unavailable")).toBeTruthy();
+    // FORGE hadn't started: a start failure, of the database.
+    expect(view.getByText(/· Code S-DB-[0-9A-F]{6}$/)).toBeTruthy();
     fail = false;
     await fireEvent.press(view.getByLabelText("Try again"));
     expect(view.getByText("Today")).toBeTruthy();
+    // Once running, the same failure is a screen's.
+    markStarted();
+    fail = true;
+    await view.rerender(tree());
+    expect(view.getByText(/· Code R-DB-[0-9A-F]{6}$/)).toBeTruthy();
   } finally {
     spy.mockRestore();
   }
