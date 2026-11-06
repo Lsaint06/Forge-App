@@ -645,6 +645,12 @@ test("the recovery screen saves a copy of the data and reports the result", asyn
   expect(
     await view.findByText(/handed to the share sheet\. Forge can't confirm/),
   ).toBeTruthy();
+  // Import lives in Account & privacy since 7.5D (Phase 8.5).
+  expect(
+    view.getByText(
+      /import it later from You → Account & privacy → Import backup\.$/,
+    ),
+  ).toBeTruthy();
   expect(view.queryByText(/Backup file ready/)).toBeNull();
   await fireEvent.press(view.getByLabelText("Try again"));
   expect(retry).toHaveBeenCalledTimes(1);

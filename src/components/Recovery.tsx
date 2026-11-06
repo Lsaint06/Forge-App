@@ -94,7 +94,7 @@ export function RecoveryScreen({
             tone={result.kind === "failed" ? "error" : "secondary"}
           >
             {result.kind === "backup"
-              ? "A backup file was handed to the share sheet. Forge can't confirm where it was saved: check it reached Files, Google Drive, iCloud Drive or your email. You can import it later from You → Import backup."
+              ? "A backup file was handed to the share sheet. Forge can't confirm where it was saved: check it reached Files, Google Drive, iCloud Drive or your email. You can import it later from You → Account & privacy → Import backup."
               : result.kind === "database"
                 ? "Your records couldn't be read as a backup, so a copy of the database file was handed to the share sheet instead. Check it was saved, and include it if you ask for help."
                 : `Couldn't create a copy: ${result.message}`}
