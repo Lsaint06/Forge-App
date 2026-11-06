@@ -27,6 +27,11 @@ export type IosBuildOptions = {
   team?: string;
   /** The iPhone, by name or UDID, when more than one is connected. */
   device?: string;
+  /**
+   * An iOS Simulator on this Mac, by name or UDID, instead of the iPhone
+   * (Release only): for checks on an iOS version the iPhone doesn't run.
+   */
+  simulator?: string;
 };
 
 const FLAGS = {
@@ -35,7 +40,11 @@ const FLAGS = {
   "--check": "check",
   "--build-only": "buildOnly",
 } as const;
-const VALUES = { "--team": "team", "--device": "device" } as const;
+const VALUES = {
+  "--team": "team",
+  "--device": "device",
+  "--simulator": "simulator",
+} as const;
 const has = <T extends object>(
   table: T,
   key: string,
@@ -67,7 +76,7 @@ export function parseIosArgs(
     }
     return {
       ok: false,
-      problem: `${name} isn't an option: use --release, --no-cloud, --team <Team ID>, --device <iPhone name>, --build-only or --check`,
+      problem: `${name} isn't an option: use --release, --no-cloud, --team <Team ID>, --device <iPhone name>, --simulator <Simulator name>, --build-only or --check`,
     };
   }
   if (options.team !== undefined) {
@@ -90,6 +99,28 @@ export function parseIosArgs(
       problem:
         "--no-cloud is for --release builds: a Debug build's JavaScript comes from npm run start:dev",
     };
+  if (options.simulator !== undefined) {
+    // Debug builds open in the development launcher, whose own screen
+    // decides parts of the status bar: only Release shows FORGE Dev as a
+    // tester would see it.
+    if (!options.release)
+      return {
+        ok: false,
+        problem:
+          "--simulator is for --release builds: the JavaScript built in, as on a tester's iPhone",
+      };
+    if (options.device !== undefined)
+      return {
+        ok: false,
+        problem: "--simulator installs on no iPhone: leave out --device",
+      };
+    if (options.buildOnly)
+      return {
+        ok: false,
+        problem:
+          "--simulator installs on the Simulator: leave out --build-only",
+      };
+  }
   return { ok: true, options };
 }
 
@@ -289,6 +320,81 @@ export function chooseIphone(devices: Iphone[], wanted?: string): IphoneChoice {
   return { ok: true, device };
 }
 
+// ---- An iOS Simulator (--simulator) ----
+
+export type Simulator = {
+  name: string;
+  udid: string;
+  /** Its iOS version, from the runtime: "27.2". */
+  os: string;
+  booted: boolean;
+};
+
+/** The iPhone Simulators in `xcrun simctl list devices available --json`. */
+export function parseSimulators(json: unknown): Simulator[] {
+  const runtimes = record(record(json).devices);
+  return Object.entries(runtimes).flatMap(([runtime, list]): Simulator[] => {
+    // com.apple.CoreSimulator.SimRuntime.iOS-27-2: iOS only, not watchOS,
+    // tvOS or visionOS.
+    const version = /\.SimRuntime\.iOS-(\d+(?:-\d+)*)$/.exec(runtime)?.[1];
+    if (!version || !Array.isArray(list)) return [];
+    return list.flatMap((entry): Simulator[] => {
+      const d = record(entry);
+      const name = text(d.name);
+      const udid = text(d.udid);
+      const type = text(d.deviceTypeIdentifier) ?? "";
+      if (!name || !udid || d.isAvailable === false) return [];
+      // Forge is an iPhone app (no iPad support).
+      if (!/\.SimDeviceType\.iPhone-/.test(type)) return [];
+      return [
+        {
+          name,
+          udid,
+          os: version.replace(/-/g, "."),
+          booted: d.state === "Booted",
+        },
+      ];
+    });
+  });
+}
+
+const newer = (a: string, b: string) => {
+  const x = a.split(".").map(Number);
+  const y = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++)
+    if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+  return false;
+};
+
+export type SimulatorChoice =
+  { ok: true; simulator: Simulator } | { ok: false; problem: string };
+
+/**
+ * The Simulator named with --simulator, by UDID or name; of several with
+ * that name (one per iOS version), the newest iOS.
+ */
+export function chooseSimulator(
+  simulators: Simulator[],
+  wanted: string,
+): SimulatorChoice {
+  const w = wanted.trim().toLowerCase();
+  const matches = simulators.filter(
+    (s) => s.udid.toLowerCase() === w || s.name.toLowerCase() === w,
+  );
+  const best = matches.reduce<Simulator | undefined>(
+    (a, s) => (!a || newer(s.os, a.os) ? s : a),
+    undefined,
+  );
+  if (best) return { ok: true, simulator: best };
+  const names = [...new Set(simulators.map((s) => s.name))];
+  return {
+    ok: false,
+    problem: names.length
+      ? `No iPhone Simulator is called "${wanted}" (this Mac has ${names.map((n) => `"${n}"`).join(", ")})`
+      : "This Mac has no iPhone Simulator: in Xcode, Settings → Components adds an iOS runtime, and Window → Devices and Simulators adds an iPhone",
+  };
+}
+
 // ---- Readiness ----
 
 export type ReadinessItem = { item: string; ok: boolean; fix?: string };
@@ -299,8 +405,10 @@ export function iosReadiness(p: {
   xcode?: string;
   cocoapods?: string;
   team: TeamChoice;
-  /** "not needed" for --build-only. */
+  /** "not needed" for --build-only and --simulator. */
   iphone: IphoneChoice | "not needed";
+  /** The Simulator, for --simulator. */
+  simulator?: SimulatorChoice;
 }): ReadinessItem[] {
   if (p.platform !== "darwin")
     return [
@@ -337,18 +445,25 @@ export function iosReadiness(p: {
           ok: true,
         }
       : { item: "Signing team", ok: false, fix: p.team.problem },
-    iphone === "not needed"
-      ? { item: "iPhone: not needed (--build-only)", ok: true }
-      : device
+    p.simulator
+      ? p.simulator.ok
         ? {
-            item: `iPhone: ${device.name} (${[device.model, device.os && `iOS ${device.os}`].filter(Boolean).join(", ")}), Developer Mode on`,
+            item: `Simulator: ${p.simulator.simulator.name} (iOS ${p.simulator.simulator.os})`,
             ok: true,
           }
-        : {
-            item: "iPhone",
-            ok: false,
-            fix: iphone.ok ? undefined : iphone.problem,
-          },
+        : { item: "Simulator", ok: false, fix: p.simulator.problem }
+      : iphone === "not needed"
+        ? { item: "iPhone: not needed (--build-only)", ok: true }
+        : device
+          ? {
+              item: `iPhone: ${device.name} (${[device.model, device.os && `iOS ${device.os}`].filter(Boolean).join(", ")}), Developer Mode on`,
+              ok: true,
+            }
+          : {
+              item: "iPhone",
+              ok: false,
+              fix: iphone.ok ? undefined : iphone.problem,
+            },
   ];
 }
 
@@ -380,13 +495,17 @@ export const PREBUILD = ["prebuild", "--platform", "ios", "--clean"];
 
 /**
  * xcodebuild's options for FORGE Dev on one physical iPhone, or, without a
- * UDID (--build-only), for any iPhone: still signed for real devices.
+ * UDID (--build-only), for any iPhone: still signed for real devices. With
+ * `simulator` (--simulator), for that Simulator, still signed by the team:
+ * Sign in with Apple needs it there too, as in Expo's own `run:ios`.
  */
 export function xcodebuildArgs(o: {
   workspace: string;
   scheme: string;
   release: boolean;
   udid?: string;
+  /** The Simulator's UDID, for --simulator. */
+  simulator?: string;
   team: string;
 }): string[] {
   return [
@@ -396,9 +515,14 @@ export function xcodebuildArgs(o: {
     o.scheme,
     "-configuration",
     o.release ? "Release" : "Debug",
-    // The iPhone itself, by its UDID, or any iPhone: never a simulator.
+    // The iPhone itself, by its UDID, or any iPhone; a Simulator only when
+    // --simulator names one.
     "-destination",
-    o.udid ? `id=${o.udid}` : "generic/platform=iOS",
+    o.simulator
+      ? `platform=iOS Simulator,id=${o.simulator}`
+      : o.udid
+        ? `id=${o.udid}`
+        : "generic/platform=iOS",
     // Xcode's automatic signing for this team: it creates the App ID, the
     // certificate and the profile, and registers the iPhone, as needed.
     "-allowProvisioningUpdates",
@@ -475,6 +599,8 @@ export function builtAppProblems(
     production: string[];
     /** The iPhone it's for (its UDID); none for --build-only. */
     device?: string;
+    /** A Simulator build (--simulator). */
+    simulator?: boolean;
   },
 ): string[] {
   const problems: string[] = [];
@@ -489,27 +615,31 @@ export function builtAppProblems(
     problems.push(
       `It answers the production app's ${APP_SCHEMES.production}: links`,
     );
-  if (app.team !== expected.team)
-    problems.push(`It's signed by another team (${app.team ?? "none"})`);
-  if (app.entitlements["application-identifier"] !== `${expected.team}.${id}`)
-    problems.push("Its signature doesn't match its bundle ID and team");
-  if (!("com.apple.developer.applesignin" in app.entitlements))
-    problems.push("It's missing the Sign in with Apple capability");
   if ("aps-environment" in app.entitlements)
     problems.push("It has the push capability, which Forge doesn't use");
-  if (!app.profile) problems.push("It has no provisioning profile");
-  else {
-    if (app.profile.team !== expected.team)
-      problems.push(
-        `Its provisioning profile is another team's (${app.profile.team ?? "none"})`,
-      );
-    if (
-      expected.device &&
-      !app.profile.devices.some(
-        (udid) => udid.toLowerCase() === expected.device!.toLowerCase(),
+  // How a device build is signed: a Simulator build runs only on this Mac,
+  // with no team signature or provisioning profile to check.
+  if (!expected.simulator) {
+    if (app.team !== expected.team)
+      problems.push(`It's signed by another team (${app.team ?? "none"})`);
+    if (app.entitlements["application-identifier"] !== `${expected.team}.${id}`)
+      problems.push("Its signature doesn't match its bundle ID and team");
+    if (!("com.apple.developer.applesignin" in app.entitlements))
+      problems.push("It's missing the Sign in with Apple capability");
+    if (!app.profile) problems.push("It has no provisioning profile");
+    else {
+      if (app.profile.team !== expected.team)
+        problems.push(
+          `Its provisioning profile is another team's (${app.profile.team ?? "none"})`,
+        );
+      if (
+        expected.device &&
+        !app.profile.devices.some(
+          (udid) => udid.toLowerCase() === expected.device!.toLowerCase(),
+        )
       )
-    )
-      problems.push("Its provisioning profile doesn't include this iPhone");
+        problems.push("Its provisioning profile doesn't include this iPhone");
+    }
   }
   if (expected.release && !app.javascript)
     problems.push("Its JavaScript isn't built in, so it would need this Mac");

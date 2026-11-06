@@ -34,6 +34,7 @@ import {
   isSettingsFile,
   nativePolicyProblems,
   projectLock,
+  storePolicyProblems,
   trackedFileProblems,
   uploadProblems,
   type ProfileName,
@@ -103,6 +104,23 @@ function local(profile: ProfileName, allowDirty: boolean) {
       nativePolicyProblems(config, variant),
     ),
   );
+  group(
+    lines,
+    "Store policy: export compliance answered; iPhone only; the iOS 27 status bar; iOS privacy reasons gathered; no microphone; Android's classic back; no alarm-app permission; 16 KB pages",
+    configs.flatMap(([variant, config]) =>
+      storePolicyProblems(config, variant),
+    ),
+  );
+  if (
+    rule.distribution === "store" &&
+    !own.icon &&
+    !own.ios?.icon &&
+    !own.android?.adaptiveIcon
+  )
+    lines.push([
+      undefined,
+      "App icon: none configured, so builds carry the template's white placeholder. External testers and the store listings need FORGE's icon (decision C-00b)",
+    ]);
   const lock = projectLock(rule.variant);
   group(
     lines,
@@ -169,10 +187,11 @@ function builder() {
     const config = appConfigFor(variant, expoOf(readJson("app.json")), root);
     group(
       lines,
-      `App: ${config.name} (${APP_ID[variant]}), its own link scheme and native policy`,
+      `App: ${config.name} (${APP_ID[variant]}), its own link scheme, native and store policy`,
       [
         ...identityProblems(config, variant),
         ...nativePolicyProblems(config, variant),
+        ...storePolicyProblems(config, variant),
       ],
     );
     group(

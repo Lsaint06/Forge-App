@@ -402,6 +402,76 @@ export function nativePolicyProblems(
   return problems;
 }
 
+/** Google Play allows these only for alarm-clock and calendar apps. */
+export const ALARM_APP_PERMISSIONS = ["android.permission.USE_EXACT_ALARM"];
+
+/**
+ * What App Store review and Google Play need from every app's config
+ * (Phase 8.4 M4, docs/STORE_SETUP.md): export compliance answered; iPhone
+ * only; the iOS 27 status bar; iOS privacy reasons gathered from every
+ * library; no microphone; Android's classic back events; no permission
+ * reserved for alarm apps; no library that breaks 16 KB pages.
+ */
+export function storePolicyProblems(
+  config: ExpoConfig,
+  variant: AppVariant,
+): string[] {
+  const label = `app config (${variant})`;
+  const problems: string[] = [];
+  const plist: Json = isObject(config.ios?.infoPlist)
+    ? config.ios.infoPlist
+    : {};
+  if (plist.ITSAppUsesNonExemptEncryption !== false)
+    problems.push(
+      `${label}: export compliance must be answered (ios.infoPlist.ITSAppUsesNonExemptEncryption: false; Forge uses standard HTTPS only)`,
+    );
+  if (plist.UIViewControllerBasedStatusBarAppearance !== true)
+    problems.push(
+      `${label}: the iOS 27 status bar needs ios.infoPlist.UIViewControllerBasedStatusBarAppearance: true`,
+    );
+  if (config.ios?.supportsTablet !== false)
+    problems.push(
+      `${label}: FORGE is an iPhone app (ios.supportsTablet: false); an iPad app needs iPad layouts and screenshots`,
+    );
+  const build = pluginOptions(config, "expo-build-properties");
+  if (
+    isObject(build?.ios) &&
+    build.ios.privacyManifestAggregationEnabled === false
+  )
+    problems.push(
+      `${label}: iOS privacy reasons must be gathered from every library (expo-build-properties ios.privacyManifestAggregationEnabled)`,
+    );
+  const camera = pluginOptions(config, "expo-camera");
+  const android = config.android?.permissions ?? [];
+  if (
+    camera?.microphonePermission !== false ||
+    camera?.recordAudioAndroid !== false ||
+    android.includes("android.permission.RECORD_AUDIO")
+  )
+    problems.push(
+      `${label}: the barcode scanner records no sound (expo-camera microphonePermission: false, recordAudioAndroid: false)`,
+    );
+  if (config.android?.predictiveBackGestureEnabled === true)
+    problems.push(
+      `${label}: Android keeps classic back events until predictive back is validated (docs/ANDROID.md)`,
+    );
+  for (const permission of ALARM_APP_PERMISSIONS)
+    if (android.includes(permission))
+      problems.push(
+        `${label}: Google Play allows ${permission} only for alarm-clock and calendar apps`,
+      );
+  const sqlite = pluginOptions(config, "expo-sqlite");
+  if (
+    sqlite?.withSQLiteVecExtension === true ||
+    (isObject(sqlite?.android) &&
+      sqlite.android.withSQLiteVecExtension === true)
+  )
+    problems.push(
+      `${label}: expo-sqlite's sqlite-vec extension isn't 16 KB-aligned on Android, which Google Play requires`,
+    );
+  return problems;
+}
+
 /** Why a variant's builds can't be made yet: its project isn't pinned. */
 export function projectLock(
   variant: AppVariant,

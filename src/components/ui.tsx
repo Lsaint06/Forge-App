@@ -273,7 +273,9 @@ export function Screen({
     >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        // Both platforms: Android draws edge to edge, so its window no
+        // longer resizes for the keyboard (Phase 8.4 M3).
+        behavior="padding"
       >
         {header}
         {scroll ? (
@@ -1236,7 +1238,9 @@ export function Sheet({
       onShow={focusTitle}
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        // Both platforms: on Android the sheet's window is edge to edge too,
+        // so it no longer resizes for the keyboard (Phase 8.4 M3).
+        behavior="padding"
         style={{ flex: 1, justifyContent: "flex-end" }}
       >
         <Pressable

@@ -27,6 +27,7 @@ import {
   nativePolicyProblems,
   projectLock,
   resolveProfile,
+  storePolicyProblems,
   trackedFileProblems,
   uploadProblems,
   type ProfileName,
@@ -345,7 +346,75 @@ test("every app keeps its own identity, no shared storage, sign-in out of backup
     const config = appConfigFor(variant, expo, process.cwd());
     assert.deepEqual(identityProblems(config, variant), [], variant);
     assert.deepEqual(nativePolicyProblems(config, variant), [], variant);
+    assert.deepEqual(storePolicyProblems(config, variant), [], variant);
   }
+});
+
+test("store policy mistakes are refused (Phase 8.4 M4)", () => {
+  const refused = (change: (e: typeof expo) => void, said: RegExp) => {
+    const e = structuredClone(expo);
+    change(e);
+    for (const variant of ["production", "development", "preview"] as const)
+      refuses(
+        storePolicyProblems(appConfigFor(variant, e, process.cwd()), variant),
+        said,
+      );
+  };
+  const plugin = (e: typeof expo, name: string, entry: unknown) => {
+    const i = e.plugins.findIndex(
+      (p: unknown) => p === name || (Array.isArray(p) && p[0] === name),
+    );
+    if (i < 0) e.plugins.push(entry);
+    else e.plugins[i] = entry;
+  };
+  // Without the answer, every TestFlight build waits for it by hand.
+  refused(
+    (e) => delete e.ios.infoPlist.ITSAppUsesNonExemptEncryption,
+    /export compliance must be answered/,
+  );
+  refused(
+    (e) => (e.ios.infoPlist.UIViewControllerBasedStatusBarAppearance = false),
+    /iOS 27 status bar/,
+  );
+  refused((e) => (e.ios.supportsTablet = true), /an iPhone app/);
+  refused(
+    (e) =>
+      plugin(e, "expo-build-properties", [
+        "expo-build-properties",
+        { ios: { privacyManifestAggregationEnabled: false } },
+      ]),
+    /privacy reasons must be gathered/,
+  );
+  refused(
+    (e) =>
+      plugin(e, "expo-camera", [
+        "expo-camera",
+        { cameraPermission: "Scan food barcodes." },
+      ]),
+    /records no sound/,
+  );
+  refused(
+    (e) =>
+      (e.android.permissions ??= []).push("android.permission.RECORD_AUDIO"),
+    /records no sound/,
+  );
+  refused(
+    (e) => (e.android.predictiveBackGestureEnabled = true),
+    /classic back events/,
+  );
+  refused(
+    (e) =>
+      (e.android.permissions ??= []).push("android.permission.USE_EXACT_ALARM"),
+    /only for alarm-clock and calendar apps/,
+  );
+  for (const options of [
+    { withSQLiteVecExtension: true },
+    { android: { withSQLiteVecExtension: true } },
+  ])
+    refused(
+      (e) => plugin(e, "expo-sqlite", ["expo-sqlite", options]),
+      /sqlite-vec extension isn't 16 KB-aligned/,
+    );
 });
 
 test("app config mistakes are refused", () => {
@@ -743,6 +812,11 @@ test("release:check: the preview profile passes; production stops on its lock", 
   const preview = run(["--profile", "preview", "--allow-dirty"]);
   assert.equal(preview.status, 0, preview.out);
   assert.match(preview.out, /FORGE Preview \(com\.lsaint06\.forge\.preview\)/);
+  assert.match(preview.out, /✓ Store policy: export compliance answered/);
+  // A note, not a failure, until FORGE has its icon (C-00b).
+  if (expo.icon === undefined)
+    assert.match(preview.out, /• App icon: none configured/);
+  else assert.doesNotMatch(preview.out, /App icon: none configured/);
   const production = run(["--profile", "production", "--allow-dirty"]);
   assert.equal(production.status, 1, production.out);
   assert.match(

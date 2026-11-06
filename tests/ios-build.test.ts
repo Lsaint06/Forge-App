@@ -10,6 +10,7 @@ import {
   buildFailureHints,
   builtAppProblems,
   chooseIphone,
+  chooseSimulator,
   chooseTeam,
   developerDir,
   iosBuildEnv,
@@ -17,6 +18,7 @@ import {
   parseDevices,
   parseIdentities,
   parseIosArgs,
+  parseSimulators,
   productionMarkers,
   signingTeams,
   teamFromSubject,
@@ -28,9 +30,10 @@ import {
 } from "../scripts/dev/ios-build";
 
 // Phase 8.1: `npm run dev:ios` builds FORGE Dev with Xcode, signed by the
-// founder's Apple Developer Program team, for one physical iPhone. It never
-// reads Expo's own .env files, and refuses to install a build that isn't
-// FORGE Dev as intended or that holds a production value. No Xcode here.
+// founder's Apple Developer Program team, for one physical iPhone, or, with
+// --simulator (Phase 8.4C-1), for one iOS Simulator. It never reads Expo's
+// own .env files, and refuses to install a build that isn't FORGE Dev as
+// intended or that holds a production value. No Xcode here.
 
 const DEV = "devprojectrefaaaaaaa";
 const PROD = "prodprojectrefbbbbbb";
@@ -79,6 +82,17 @@ test("options: flags, --team and --device values, nothing else", () => {
   // Build and sign without the iPhone.
   const buildOnly = parseIosArgs(["--release", "--no-cloud", "--build-only"]);
   assert.equal(buildOnly.ok && buildOnly.options.buildOnly, true);
+  // A Simulator instead of the iPhone (Phase 8.4C-1): Release only.
+  assert.deepEqual(parseIosArgs(["--release", "--simulator=iPhone 17"]), {
+    ok: true,
+    options: {
+      release: true,
+      noCloud: false,
+      check: false,
+      buildOnly: false,
+      simulator: "iPhone 17",
+    },
+  });
   for (const [args, said] of [
     [["--team"], /--team needs a value/],
     [["--team", "--release"], /--team needs a value/],
@@ -88,12 +102,23 @@ test("options: flags, --team and --device values, nothing else", () => {
     // Expo's own options don't apply: this command runs Xcode itself.
     [["--configuration", "Release"], /--configuration isn't an option/],
     [["--paid-team"], /--paid-team isn't an option/],
-    [["--simulator"], /--simulator isn't an option/],
     // A Debug build's JavaScript comes from start:dev: --no-cloud can't apply.
     [["--no-cloud"], /--no-cloud is for --release builds/],
     [
       ["--build-only", "--device", "Gym iPhone"],
       /--build-only installs on no iPhone/,
+    ],
+    [["--simulator"], /--simulator needs a value/],
+    [["--release", "--simulator", "--check"], /--simulator needs a value/],
+    // Debug builds open in the development launcher: Release only.
+    [["--simulator", "iPhone 17"], /--simulator is for --release builds/],
+    [
+      ["--release", "--simulator", "iPhone 17", "--device", "Gym iPhone"],
+      /--simulator installs on no iPhone/,
+    ],
+    [
+      ["--release", "--simulator", "iPhone 17", "--build-only"],
+      /--simulator installs on the Simulator/,
     ],
   ] as const) {
     const parsed = parseIosArgs([...args]);
@@ -322,6 +347,86 @@ test("the iPhone: unplugged, several, by name, Developer Mode off", () => {
   assert.equal(unpaired.ok, false);
 });
 
+// The shape `xcrun simctl list devices available --json` prints (Xcode 27).
+const simctl = {
+  devices: {
+    "com.apple.CoreSimulator.SimRuntime.iOS-26-4": [
+      {
+        name: "iPhone 17",
+        udid: "SIM-26",
+        state: "Shutdown",
+        isAvailable: true,
+        deviceTypeIdentifier: "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+      },
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-27-2": [
+      {
+        name: "iPhone 17",
+        udid: "SIM-27",
+        state: "Booted",
+        isAvailable: true,
+        deviceTypeIdentifier: "com.apple.CoreSimulator.SimDeviceType.iPhone-17",
+      },
+      {
+        name: "iPad Pro 13-inch (M5)",
+        udid: "IPAD",
+        state: "Shutdown",
+        isAvailable: true,
+        deviceTypeIdentifier:
+          "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB",
+      },
+      {
+        name: "iPhone Air",
+        udid: "UNAVAILABLE",
+        state: "Shutdown",
+        isAvailable: false,
+        deviceTypeIdentifier:
+          "com.apple.CoreSimulator.SimDeviceType.iPhone-Air",
+      },
+    ],
+    "com.apple.CoreSimulator.SimRuntime.watchOS-26-0": [
+      {
+        name: "Apple Watch Series 11 (46mm)",
+        udid: "WATCH",
+        state: "Shutdown",
+        isAvailable: true,
+        deviceTypeIdentifier:
+          "com.apple.CoreSimulator.SimDeviceType.Apple-Watch-Series-11-46mm",
+      },
+    ],
+  },
+};
+
+test("the Simulator (--simulator): an available iPhone Simulator, by name (newest iOS) or UDID", () => {
+  const all = parseSimulators(simctl);
+  // iPhones on an iOS runtime only: no iPad, watch or unavailable one.
+  assert.deepEqual(all, [
+    { name: "iPhone 17", udid: "SIM-26", os: "26.4", booted: false },
+    { name: "iPhone 17", udid: "SIM-27", os: "27.2", booted: true },
+  ]);
+  for (const nothing of [{}, { devices: [] }, "not json", null])
+    assert.deepEqual(parseSimulators(nothing), []);
+  // One name per iOS version: the newest, the one to check iOS 27 on.
+  assert.deepEqual(chooseSimulator(all, "iphone 17"), {
+    ok: true,
+    simulator: all[1],
+  });
+  assert.deepEqual(chooseSimulator(all, "sim-26"), {
+    ok: true,
+    simulator: all[0],
+  });
+  const unknown = chooseSimulator(all, "iPhone 16");
+  assert.equal(unknown.ok, false);
+  if (!unknown.ok)
+    assert.match(
+      unknown.problem,
+      /No iPhone Simulator is called "iPhone 16" \(this Mac has "iPhone 17"\)/,
+    );
+  const none = chooseSimulator([], "iPhone 17");
+  assert.equal(none.ok, false);
+  if (!none.ok) assert.match(none.problem, /Settings → Components/);
+});
+
 test("readiness: Xcode 26.4 or later, CocoaPods, a signing team and the iPhone", () => {
   const device = parseDevices(devicectl(phone({})))[0]!;
   const ready = {
@@ -372,6 +477,27 @@ test("readiness: Xcode 26.4 or later, CocoaPods, a signing team and the iPhone",
   const buildOnly = iosReadiness({ ...ready, iphone: "not needed" });
   assert.ok(buildOnly.every((r) => r.ok));
   assert.equal(buildOnly[3]!.item, "iPhone: not needed (--build-only)");
+  // --simulator: the Simulator instead of the iPhone; the team still signs.
+  const onSimulator = iosReadiness({
+    ...ready,
+    iphone: "not needed",
+    simulator: chooseSimulator(parseSimulators(simctl), "iPhone 17"),
+  });
+  assert.ok(onSimulator.every((r) => r.ok));
+  assert.deepEqual(
+    onSimulator.slice(2).map((r) => r.item),
+    [
+      `Signing team: Forge Developer (${TEAM})`,
+      "Simulator: iPhone 17 (iOS 27.2)",
+    ],
+  );
+  const noSimulator = iosReadiness({
+    ...ready,
+    iphone: "not needed",
+    simulator: chooseSimulator([], "iPhone 17"),
+  })[3]!;
+  assert.equal(noSimulator.ok, false);
+  assert.match(noSimulator.fix!, /no iPhone Simulator/);
   const windows = iosReadiness({ ...ready, platform: "win32" });
   assert.deepEqual(
     windows.map((r) => r.ok),
@@ -455,6 +581,24 @@ test("Xcode's options: the iPhone by UDID, automatic signing for the team, Relea
   );
   assert.ok(!anyIphone.join(" ").match(/simulator/i));
   assert.ok(anyIphone.includes("-allowProvisioningUpdates"));
+  // --simulator: that Simulator by UDID, still signed by the team (Sign in
+  // with Apple needs it there too).
+  const onSimulator = xcodebuildArgs({
+    ...o,
+    udid: undefined,
+    simulator: "SIM-27",
+    release: true,
+  });
+  assert.equal(
+    onSimulator[onSimulator.indexOf("-destination") + 1],
+    "platform=iOS Simulator,id=SIM-27",
+  );
+  assert.equal(
+    onSimulator[onSimulator.indexOf("-configuration") + 1],
+    "Release",
+  );
+  assert.ok(onSimulator.includes(`DEVELOPMENT_TEAM=${TEAM}`));
+  assert.ok(onSimulator.includes("-allowProvisioningUpdates"));
 });
 
 test("the built app's path comes from Xcode's build settings", () => {
@@ -613,6 +757,41 @@ test("before installing: any other app, team, capability or a production value i
   );
 });
 
+test("before installing on the Simulator: FORGE Dev with no device signing, and still no production value", () => {
+  // A Simulator app runs only on this Mac: no team signature, no profile.
+  const simulatorApp = goodApp({
+    team: undefined,
+    entitlements: {},
+    profile: undefined,
+  });
+  const onSimulator = { ...expected, simulator: true };
+  assert.deepEqual(builtAppProblems(simulatorApp, onSimulator), []);
+  // Every other check stays.
+  const cases: [Partial<BuiltApp>, RegExp][] = [
+    [{ bundleId: "com.lsaint06.forge" }, /bundle ID isn't FORGE Dev's/],
+    [{ urlSchemes: ["forge-dev", "forge"] }, /production app's forge: links/],
+    [{ javascript: undefined }, /JavaScript isn't built in/],
+    [
+      { javascript: Buffer.from(`url https://${PROD}.supabase.co`) },
+      /JavaScript holds a value from Expo's own .env files/,
+    ],
+    [
+      { appConfig: Buffer.from('{"extra":"sb_publishable_prodkeyvalue"}') },
+      /app configuration holds a value/,
+    ],
+    [{ entitlements: { "aps-environment": "development" } }, /push capability/],
+  ];
+  for (const [app, said] of cases) {
+    const problems = builtAppProblems({ ...simulatorApp, ...app }, onSimulator);
+    assert.ok(
+      problems.some((p) => said.test(p)),
+      `${said}: ${problems.join(" | ")}`,
+    );
+  }
+  // An iPhone build is never judged by the Simulator's rules.
+  assert.ok(builtAppProblems(simulatorApp, expected).length >= 3);
+});
+
 test("a failed build explains the usual signing problems in plain words", () => {
   assert.deepEqual(buildFailureHints("** BUILD SUCCEEDED **"), []);
   for (const [log, said] of [
@@ -642,6 +821,7 @@ test("the command refuses a bad option before touching anything", () => {
     [["--configuration", "Release"], /--configuration isn't an option/],
     [["--no-cloud"], /--no-cloud is for --release builds/],
     [["--team", "nope"], /10-character Team ID/],
+    [["--simulator", "iPhone 17"], /--simulator is for --release builds/],
   ] as const) {
     const result = spawnSync(process.execPath, [tsx, runner, ...args], {
       encoding: "utf8",

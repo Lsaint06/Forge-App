@@ -111,6 +111,7 @@ Forge needs an account, and FORGE Dev refuses production by design. Built with `
 - **For live reloading:** `npm run dev:ios`, then `npm run start:dev`.
 - **Without accounts:** `npm run dev:ios -- --release --no-cloud`. It opens without the Mac; accounts are unavailable.
 - **Without the iPhone:** add `--build-only` to build, sign and check without installing. This needs Apple to know the iPhone already, which the first install arranges.
+- **On an iOS Simulator:** `npm run dev:ios -- --release --simulator "iPhone 17"`, for an iOS version the iPhone doesn't run ([below](#on-an-ios-simulator---simulator-phase-84c-1)).
 
 The first build takes roughly 10–20 minutes; later builds are faster.
 
@@ -123,7 +124,7 @@ The first build takes roughly 10–20 minutes; later builds are faster.
    - Xcode 26.4 or later;
    - CocoaPods;
    - one signing team, read from your certificate, or named with `--team <Team ID>`;
-   - the connected iPhone, by its UDID (never a simulator), with Developer Mode on.
+   - the connected iPhone, by its UDID, with Developer Mode on; a Simulator only with `--simulator` (below).
 2. **Refuses the files Expo would bundle:** `.env.local`, `.env.development` and `.env.development.local`, as `start:dev` does.
 3. **For `--release`, reads only `.env.forge-dev`,** checked as `start:dev` checks it.
 4. **Regenerates the git-ignored `ios/` folder** for exactly this build (`expo prebuild --clean`) and installs the pods.
@@ -143,6 +144,30 @@ The first build takes roughly 10–20 minutes; later builds are faster.
 - Xcode's own build steps run without FORGE Dev's settings: no `APP_VARIANT`, and with Expo's `.env` read.
 - A Release build from Xcode would therefore carry the production app's configuration and production's settings.
 - FORGE Dev then refuses to connect ("Accounts aren't available"): that's the safe failure, but not a usable build.
+
+### On an iOS Simulator (`--simulator`, Phase 8.4C-1)
+For checks on an iOS version the iPhone doesn't run, such as iOS 27's status bar:
+
+```sh
+npm run dev:ios -- --release --simulator "iPhone 17"
+```
+
+- **Once:** in Xcode, Settings → Components → the iOS 27 runtime. Then Window → Devices and Simulators → an iPhone Simulator on it, if Xcode didn't add one.
+- **The same build as for the iPhone,** from `.env.forge-dev` (FORGE DEV) and never `.env`, with three differences:
+  - **Release only.** Debug builds open in Expo's development launcher, which decides parts of the status bar itself.
+  - **Still signed by your team:** Sign in with Apple needs it on a Simulator too, as in Expo's own `run:ios`. No iPhone and no provisioning profile are involved.
+  - **The checks before installing:**
+    - FORGE Dev's ID and links, and no push;
+    - the JavaScript built in;
+    - no address or key from Expo's own `.env` files.
+
+    A Simulator app has no team signature or provisioning profile to check.
+- **It starts the Simulator** if needed, installs FORGE Dev there and opens it.
+  - **By name:** of several Simulators with that name, the newest iOS.
+  - **By UDID:** exactly that one (`xcrun simctl list devices available`).
+- **Light and dark mode:** Simulator → Features → Toggle Appearance.
+- **Before signing in,** the default dark theme can be checked (launch, intro, Welcome, sign-in). Everything after that, including the light theme, needs a FORGE DEV test account (approval A1), as on the iPhone.
+- **Not yet run on a Mac.** Written and tested on Windows (Nov 5, 2026), so its first run is its validation. It installs nothing unless every check passes; if it stops, send the Terminal output.
 
 ## EAS development build (alternative)
 Builds in Expo's cloud instead of on this Mac. It needs the paid team too, and **linking the project needs the founder's approval** ([STORE_SETUP.md](STORE_SETUP.md) §1).
@@ -213,12 +238,16 @@ Builds in Expo's cloud instead of on this Mac. It needs the paid team too, and *
 - **iOS 27 notices.** On iOS 27 (the Simulator), UIKit logs that the status-bar APIs React Native calls are no-ops. The iPhone runs iOS 26.6.2, where they work.
   - Cause: the iOS 27 SDK turns those calls into no-ops.
   - Fix, identified in Phase 8.4C-0: `react-native` 0.88.1 and `expo` 58.0.23, with `UIViewControllerBasedStatusBarAppearance: true`.
-  - Needed before testers on iOS 27 ([RELEASE.md](RELEASE.md) §11, V5).
+  - Applied in Phase 8.4C-1 (`feat/sdk58-alignment`): those packages, that setting, and every screen of the navigation stack stating Forge's style (`src/domain/presentation/status-bar.ts`; design in [RELEASE.md](RELEASE.md) §11, V5).
+  - Still to verify, needed before testers on iOS 27:
+    - on a **Release** build: the Simulator on iOS 27, and FORGE Dev on the iPhone;
+    - not on a Debug build: Debug builds use `expo-dev-launcher`'s root view controller, which doesn't relay `StatusBar` before the screens mount.
 - **Android:** `userInterfaceStyle: automatic` now applies on Android too, since `expo-system-ui` is installed; prebuild no longer warns.
 - **Updates:** `expo-doctor` (Nov 2, 2026) passes every check except 15 patch updates, including `expo` 58.0.22 (58.0.17 installed) and `react-native` 0.88.1 (0.88.0 installed).
   - Their changelogs list no iOS build fix that Forge needs. The installed set is consistent: its precompiled iOS binaries are all built against React Native 0.88.0.
   - Updating changes Expo Go's and Windows' installs too, so it is a separate, approved step (`npx expo install --fix`). Not applied here.
   - Current status (Nov 4, 2026: 16 packages, including `expo` 58.0.23) and its effect on EAS builds: open item V5 in [RELEASE.md](RELEASE.md) §11.
+  - Applied in Phase 8.4C-1 (Nov 5, 2026, `feat/sdk58-alignment`): all 16 at SDK 58's pins; `expo-doctor` passes 20 of 20. FORGE Dev must be rebuilt on the Mac to pick them up.
 - **Build numbers:** EAS manages them (`cli.appVersionSource: remote`, Phase 8.4B). Store builds increment automatically ([RELEASE.md](RELEASE.md) §3).
 - **EAS environment variables.** `eas.json` sets only `APP_VARIANT`; the `EXPO_PUBLIC_` values live in the EAS environments (expo.dev → project → Environment variables):
   - **`development` and `preview`:** the development project's four values;

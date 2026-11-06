@@ -212,6 +212,16 @@ npm run release:check -- --fingerprint .env.forge-dev      # a project's pin, wi
 - `eas.json`: exactly Forge's four profiles, each as in §2, and no `production` profile until 8.4F.
 - Every app's identity: its own IDs and link scheme, a `MAJOR.MINOR.PATCH` version, and no local build numbers.
 - The native policy for every app: no shared-storage permissions, sign-in kept out of Android backups, and development-client links on FORGE Dev only (§9).
+- **The store policy for every app (Phase 8.4 M4):**
+  - export compliance answered (`ITSAppUsesNonExemptEncryption: false`), so TestFlight doesn't hold each build for it;
+  - iPhone only;
+  - the iOS 27 status bar setting;
+  - iOS privacy reasons gathered from every library (§7);
+  - no microphone for the barcode scanner;
+  - Android's classic back events ([ANDROID.md](ANDROID.md) §2);
+  - no `USE_EXACT_ALARM`, which Google Play reserves for alarm-clock and calendar apps;
+  - no sqlite-vec, which isn't 16 KB-aligned.
+- **A note (•), not a failure,** for store profiles while no app icon is configured: builds carry the template's white placeholder until FORGE's icon is decided (C-00b).
 - Whether the profile's project is pinned.
 - That `.env.forge-dev`, if present, is the pinned FORGE DEV project.
 - That `eas-build-post-install` starts with the builder check.
@@ -226,8 +236,9 @@ npm run release:check -- --fingerprint .env.forge-dev      # a project's pin, wi
 
 **Tests:**
 
-- `tests/release-check.test.ts`: profiles, mutations, crossover cases, the upload safeguards, the CLI itself and the builder check in a clean folder;
-- `tests/app-variants.test.ts`: identities, and Expo's own native pipeline (permissions, backup rules, link schemes);
+- `tests/release-check.test.ts`: profiles, mutations, crossover cases, the store policy, the upload safeguards, the CLI itself and the builder check in a clean folder;
+- `tests/app-variants.test.ts`: identities, and Expo's own native pipeline (permissions, backup rules, link schemes, Android's back and keyboard modes, privacy aggregation);
+- `tests/ios-privacy.test.ts` and `tests/android-readiness.test.ts`: what the libraries declare (§7, [ANDROID.md](ANDROID.md));
 - `tests/environment.test.ts`: the runtime rule.
 
 ## 6. The production lock
@@ -302,6 +313,24 @@ The production app's runtime rule (production only) applies from its first build
 
 **On the device, before any tester:** follow [audit](audits/PHASE_8_4A_BETA_READINESS.md) §7. The checks: sign-in through `forge-preview:` links, offline logging, sync, rest alerts while locked, and that the build reaches FORGE DEV only.
 
+**The privacy manifest (Phase 8.4 M4).** Apple wants a reason for each "required reason" API an app calls. Forge's calls all come from React Native's and Expo's libraries, which declare them in their own manifests:
+
+| API | Reasons |
+| --- | --- |
+| File timestamps | C617.1, 0A2A.1, 3B52.1 |
+| UserDefaults | CA92.1 |
+| System boot time | 35F9.1 |
+| Disk space | E174.1, 85F4.1 |
+
+- **How it gets into the app.** SDK 58's Podfile merges those declarations into the app's `PrivacyInfo.xcprivacy` when the pods install. No library tracks or collects data.
+- **What the repository pins:**
+  - the declarations (`tests/ios-privacy.test.ts`);
+  - the merge stays on (the release check and `tests/app-variants.test.ts`).
+- **To confirm on the Mac** after `npm run dev:ios -- --release`: `plutil -p ios/*/PrivacyInfo.xcprivacy` lists the four APIs.
+- **The proof:** the first TestFlight upload brings no ITMS-91053 email from Apple.
+- **Development-client keys:** expo-dev-client adds a local-network purpose string ("Expo Dev Launcher uses the local network…") and the `_expo._tcp` Bonjour service to every app's settings. Its build step strips both from Release builds. Check the first `preview` IPA: `unzip -p <file>.ipa 'Payload/*.app/Info.plist' | plutil -p - | grep -iE 'bonjour|localnetwork'` prints nothing.
+- **Not covered by this:** the App Store privacy answers, about the data Forge itself collects and syncs, are the founder's (STORE_SETUP.md §3).
+
 ## 8. Android beta: Google Play internal testing (Phase 8.4D, after approval)
 
 **This Windows PC can drive everything through EAS's cloud builds.** It has no JDK, Android SDK or Android Studio, and needs none for EAS. Local Android builds would need JDK 17 or later and the Android SDK (compile SDK 37, NDK 27.1); they are optional.
@@ -335,6 +364,13 @@ The production app's runtime rule (production only) applies from its first build
 - **Rest alerts.** They use inexact alarms (`setAndAllowWhileIdle`, no exact-alarm permission), so Doze may delay them.
 - **Notification permission.** `POST_NOTIFICATIONS` is a runtime permission on Android 13 and later.
 - **Backups.** A backup and restore keeps preferences only (§9); after a restore to a new phone, no stale rest alert should fire.
+
+**The full Android picture** (Phase 8.4 M3) is in [ANDROID.md](ANDROID.md):
+- the build as SDK 58 makes it, with R8 on in release builds;
+- Android 16's changes, including the keyboard fix;
+- the founder's decisions on rest alerts and large screens;
+- the tooling this PC needs;
+- the device checks A1–A12.
 
 ## 9. Android backup and permission policy
 
@@ -403,7 +439,7 @@ Checked in EAS's source or locally in Phase 8.4B; still to confirm on real build
 | V2 | **Separate build counters** (§3) | `eas build:version:get --profile preview` before and after the first `preview` builds: only FORGE Preview's counter moves, iOS from 1 and Android from 2; production has none | 8.4C, 8.4D |
 | V3 | **The builder check's place** (§4) | The build log shows "Release check on EAS Build", every line ✓, before the JavaScript bundle and Gradle or Xcode. A deliberately wrong value stops a build there | 8.4C, 8.4D |
 | V4 | **The EAS build image's Xcode** (§7) | `auto` (no `image` in `eas.json`) selects the `sdk-58` images: Xcode 27.1 RC on iOS, JDK 17 and NDK 27.1 on Android (EAS docs, Oct 8, 2026). Confirm in the first build logs | 8.4C, 8.4D |
-| V5 | **Expo Doctor's dependency check** | Assessed in Phase 8.4C-0 (below); the update itself awaits approval | Before the first iOS beta build |
+| V5 | **Expo Doctor's dependency check** | Assessed in Phase 8.4C-0; updated in Phase 8.4C-1 on `feat/sdk58-alignment` (below): Expo Doctor passes 20 of 20. Still to do: the FORGE Dev rebuild, the iPhone and iOS 27 Simulator checks, then merging after approval | Before the first iOS beta build |
 | V6 | **The merged Android permissions** (§9) | Play Console's App bundle explorer on the first App Bundle | 8.4D |
 | V7 | **A client-side production lock** (§6) | Done in Phase 8.4C-0: `eas.json` has no `production` profile until 8.4F; tested in `tests/release-check.test.ts` | Done |
 
@@ -429,7 +465,7 @@ Mixing the two sets risks native mismatches. The update is therefore all 16 pack
 | **Recommended, deferrable** | `react-native-safe-area-context` 5.11.1 | Android: respects window insets a parent adjusts. Forge's Android layouts haven't been validated yet, so updating before that validation means validating once. iOS: a fix for native sheets after rotation, which Forge (portrait, full-screen logger) doesn't use. The Phase 8.3C header fix must be re-verified on the iPhone either way |
 | **Recommended, deferrable** | `expo-router` 58.0.30 | Navigation and deep-link fixes (Back and dismissal after a deep link, `<Link>` addresses with parentheses) relevant to email links. One labelled breaking change, implicit group anchors, shouldn't affect Forge: its only group is `(tabs)`, with no route of the same name, and no `unstable_settings`. Re-test sign-in and password-reset links |
 | **Recommended, deferrable** | `expo-file-system` 58.0.13 | Android: `Paths.availableDiskSpace` stops counting space reserved for the system. The branded food catalogue's space check uses it |
-| **Unnecessary for 8.4C** | `expo-camera` 58.0.14 | Its fixes are for Android release builds with R8 minification, which Forge doesn't enable (SDK 58's default is off), plus the iOS rebuild above |
+| **Unnecessary for 8.4C** | `expo-camera` 58.0.14 | Its fixes are for Android release builds with R8 minification, plus the iOS rebuild above. **Corrected in M3:** this row said Forge doesn't enable R8. In fact SDK 58's template turns it on for release builds ([ANDROID.md](ANDROID.md) §1), so these fixes apply to Forge. The update (below) includes them |
 | **Unnecessary for 8.4C** | `react-native-screens` 4.30.1 | iOS native tabs on foldable iPhones, search tabs, zoom transitions: none used by Forge |
 | **Unnecessary for 8.4C** | `expo-notifications` 58.1.8 | Only an Android Expo Go import fix; nothing about scheduling, channels or permissions |
 | **Unnecessary for 8.4C** | `expo-sqlite` 58.0.15 | iOS internals and a smaller Android library; its data-integrity fixes are already in 58.0.13 |
@@ -445,3 +481,35 @@ Mixing the two sets risks native mismatches. The update is therefore all 16 pack
 - an iOS 27 Simulator check.
 
 Doing it before the first Android device build means Android is validated once, on the final set.
+
+**V5, the update (Phase 8.4C-1, Nov 5, 2026; branch `feat/sdk58-alignment`, not merged).**
+
+- **The packages.** All 16 are at SDK 58's pins (`npx expo install --check`: up to date). `npx expo-doctor` passes 20 of 20. The lockfile changes only Expo and React Native packages, with one copy of each.
+- **`expo-sharing`'s config plugin: not added.** `npx expo install --fix` offers to add it. It sets up *receiving* shares (an iOS share extension, Android share intents), both off by default. Forge only shares files out, which needs no plugin. Expo's own pipeline produces the same native settings as before for all three apps.
+- **The status bar.** Three parts, all required:
+  1. `app.json`: `ios.infoPlist.UIViewControllerBasedStatusBarAppearance: true`, in every app. iOS then asks the app's view controllers for the style.
+  2. `react-native` 0.88.1 and `expo` 58.0.23: their root view controller answers with the style `StatusBar` last set. It applies before the screens mount: the launch, loading and recovery screens.
+  3. The screens: `react-native-screens` passes iOS's question to the top screen of the navigation stack. Without a stated style, that screen follows the phone's light or dark appearance, not Forge's theme. So `src/auth/AppStack.tsx` states Forge's style on every screen, the full-screen workout logger included. Tab screens inherit the style from their parent screen.
+
+  The style comes from `src/domain/presentation/status-bar.ts`:
+  - light icons on the dark theme, dark icons on the light theme;
+  - light whenever the intro is on screen.
+
+  The screens state it only in Forge's own iOS builds:
+  - Expo Go keeps the setting off in its own Info.plist, and react-native-screens reports a stated style there as an error;
+  - Android keeps `StatusBar`, as before.
+- **Checks passed:**
+  - typecheck, lint and formatting;
+  - the logic and UI suites, with new tests for the rule, the screens' style on iOS, Expo Go and Android, and the intro;
+  - iOS and Android exports;
+  - the release check;
+  - Expo's own pipeline, where the Info.plist key is the only native difference.
+- **Still to verify on devices, not by these checks** (step by step in [FORGE_DEV_SDK58_CHECKLIST.md](FORGE_DEV_SDK58_CHECKLIST.md)):
+  - **The FORGE Dev rebuild on the Mac (Release) and the founder's iPhone:**
+    - the status bar in both Forge themes, with the phone in light and in dark mode;
+    - the intro;
+    - the logger's header (the Phase 8.3C fix);
+    - the workout, sync and backup flows.
+  - **An iOS 27 Simulator check, on a Release build.** Debug development builds use `expo-dev-launcher`'s root view controller, which doesn't relay `StatusBar`.
+  - **Expo Go,** whose status bar should be unchanged.
+  - **Android,** in 8.4D.
