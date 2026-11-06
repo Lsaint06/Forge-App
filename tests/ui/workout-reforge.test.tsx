@@ -8,8 +8,9 @@ import { pathRepository } from "../path-fixture";
 import { programLibrary } from "../../src/programs";
 import { enrollProgram, startProgramSession } from "../../src/data/programs";
 import { phaseLabel } from "../../src/screens/home/model";
-import { theme } from "../../src/theme";
+import { forge, theme } from "../../src/theme";
 import { defaults, type WorkoutSet } from "../../src/domain/types";
+import { GRID_GAP } from "../../src/components/set-grid-layout";
 
 // Phase 7.2A: the active workout after the approved Train reference. The
 // logger's behaviour is covered by workout-logger, workout-wp2, redesign,
@@ -267,6 +268,16 @@ test("logger controls keep 44 pt targets; Finish Workout stays prominent", async
       size(`Options for ${r.exercise(row.exerciseId)!.name}`),
     ).toBeGreaterThanOrEqual(44);
     expect(size("Finish workout")).toBe(54);
+    // The set number opens Set Details: its 32 pt column and slop make a
+    // 44 pt target without reaching past the card's padding or into the
+    // next column (Phase 8.5).
+    const details = view.getByLabelText("Set 1 details");
+    const slop = details.props.hitSlop as { left: number; right: number };
+    expect(
+      Number(flat(details).width) + slop.left + slop.right,
+    ).toBeGreaterThanOrEqual(44);
+    expect(slop.left).toBeLessThanOrEqual(forge.spacing.cardPadding);
+    expect(slop.right).toBeLessThanOrEqual(GRID_GAP);
     await fireEvent.press(view.getByLabelText("Complete set 1"));
     await view.rerender(<WorkoutScreen />);
     expect(size("+30 sec")).toBeGreaterThanOrEqual(44);

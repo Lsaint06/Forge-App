@@ -469,7 +469,9 @@ function SetNumber({
       accessibilityLabel={`Set ${n} details`}
       accessibilityHint="Set type, side, RPE, RIR, rest, tempo, notes or remove"
       accessibilityValue={described ? { text: described } : undefined}
-      hitSlop={{ left: 6, right: GRID_GAP }}
+      // 32 + 8 + 4: a 44 pt target that stays within the card's padding and
+      // the gap before the next column.
+      hitSlop={{ left: 8, right: GRID_GAP }}
       onPress={onPress}
       style={({ pressed }) => [
         box,
