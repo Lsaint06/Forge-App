@@ -18,7 +18,7 @@ Results use three levels:
 
 | Need | Before (read-only check) | Used |
 | --- | --- | --- |
-| Android SDK | None | In `%LOCALAPPDATA%\Android\Sdk`: command-line tools 23.0 (checksum verified), platform-tools, emulator 37.2.13, `platforms;android-37.0`, build-tools 37.0.0, NDK 27.1.12297006, CMake 3.30.5 and `system-images;android-36;google_apis_playstore;x86_64` |
+| Android SDK | None in the standard places (no `ANDROID_HOME`, no `%LOCALAPPDATA%\Android\Sdk`). An older SDK from Phase 7, in `%LOCALAPPDATA%\forge-android\sdk` (an emulator, no build tools), wasn't used | In `%LOCALAPPDATA%\Android\Sdk`: command-line tools 23.0 (checksum verified), platform-tools, emulator 37.2.13, `platforms;android-37.0`, build-tools 37.0.0, NDK 27.1.12297006, CMake 3.30.5 and `system-images;android-36;google_apis_playstore;x86_64` |
 | Java | A JDK 21 cached by Gradle | The same JDK 21 (Eclipse Adoptium), set only inside the build script |
 | Gradle | 9.2.1 cached | 9.4.1, downloaded by the project's wrapper |
 | Acceleration | Unknown without administrator rights | `emulator -accel-check`: WHPX installed and usable |
@@ -167,6 +167,7 @@ EAS (ANDROID.md §6) stays the route for FORGE Preview and the App Bundle. This 
    - the bundle scan;
    - the signer.
 8. **Install** over the previous build with `adb install -r`, which keeps the data.
+   - With more than one emulator running, name it: `adb -s emulator-5554 …`.
    - Never uninstall or clear the app's data without the founder's approval: that deletes the test account's training on the emulator.
 
 ## 8. Decisions and approvals
