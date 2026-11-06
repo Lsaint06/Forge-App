@@ -1,0 +1,213 @@
+import React from "react";
+import { render, fireEvent, act } from "@testing-library/react-native";
+import { router } from "expo-router";
+import LegacyPath from "../../src/screens/LegacyPath";
+import PathsRoute from "../../app/paths";
+import { useRepo, confirm } from "../../src/state";
+import { pathRepository } from "../path-fixture";
+import { legacyUserRepository } from "../legacy-fixture";
+import {
+  currentPath,
+  pathPrograms,
+  pathSessions,
+  pathSummary,
+} from "../../src/data/paths";
+import { pathFocus } from "../../src/data/today";
+import { addDays } from "../../src/domain/paths/model";
+import { localDate } from "../../src/domain/types";
+import { dayLabel } from "../../src/domain/training-display";
+
+jest.mock("../../src/notifications", () => ({
+  restNotification: jest.fn(async () => {}),
+}));
+jest.mock("expo-router", () => ({
+  router: { push: jest.fn(), replace: jest.fn(), canGoBack: () => false },
+  useLocalSearchParams: () => ({}),
+}));
+jest.mock("../../src/state", () => ({
+  useRepo: jest.fn(),
+  mutate: (fn: () => unknown) => fn(),
+  confirm: jest.fn(),
+  useApp: (selector: (s: { profile: undefined }) => unknown) =>
+    selector({ profile: undefined }),
+}));
+
+// Generator vocabulary must never reach the compatibility screens.
+const generatorWords =
+  /builder|rebuild|generat|planner|Edit plan|Browse Paths|eight-week plan/i;
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
+test("an existing user can continue their generated Path from the compatibility screen", async () => {
+  const { r, db } = legacyUserRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const before = pathSummary(r, currentPath(r)!).completed;
+    const view = await render(<LegacyPath />);
+    expect(view.getByText("GET STRONG")).toBeTruthy();
+    expect(view.getByText(`${before} / 32 workouts completed`)).toBeTruthy();
+    expect(view.getByText("Ready for a Forge program?")).toBeTruthy();
+    expect(view.getByText("YOUR TRAINING CALENDAR")).toBeTruthy();
+    expect(view.queryAllByText(generatorWords)).toHaveLength(0);
+    expect(view.queryAllByLabelText(generatorWords)).toHaveLength(0);
+    await fireEvent.press(view.getByLabelText("Start workout"));
+    expect(router.push).toHaveBeenLastCalledWith("/workout");
+    const active = r.active()!;
+    const session = pathSessions(r, currentPath(r)!).find(
+      (s) => s.data.workoutId === active.id,
+    )!;
+    expect(active.templateId).toBe(session.data.templateId);
+    await fireEvent.press(view.getByLabelText("Browse Forge programs"));
+    expect(router.push).toHaveBeenLastCalledWith("/forge-paths");
+  } finally {
+    db.close();
+  }
+});
+
+test("calendar navigation, skipping and pausing work without the generator", async () => {
+  const { r, db } = legacyUserRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<LegacyPath />);
+    const week = Number(
+      view.getByText(/^Calendar week \d+$/).props.children.at(-1),
+    );
+    await fireEvent.press(view.getByLabelText("Next week →"));
+    expect(view.getByText(`Calendar week ${week + 1}`)).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("← Previous week"));
+    expect(view.getByText(`Calendar week ${week}`)).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Workout options"));
+    expect(view.queryByLabelText("Edit this workout")).toBeNull();
+    const skip = view.getByLabelText(/^Skip /);
+    await fireEvent.press(skip);
+    await act(async () => jest.mocked(confirm).mock.calls.at(-1)![2]());
+    expect(pathSummary(r, currentPath(r)!).skipped).toBe(2);
+    await fireEvent.press(view.getByLabelText("Manage Path"));
+    await fireEvent.press(view.getByLabelText("Pause Path"));
+    await act(async () => jest.mocked(confirm).mock.calls.at(-1)![2]());
+    expect(currentPath(r)!.data.status).toBe("paused");
+  } finally {
+    db.close();
+  }
+});
+
+test("the Path screen opens on the same session Today offers, with readable dates and a back control", async () => {
+  const { r, db } = legacyUserRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const focus = pathFocus(pathSummary(r, currentPath(r)!).sessions)!;
+    const view = await render(<LegacyPath />);
+    expect(view.getByRole("header", { name: focus.data.name })).toBeTruthy();
+    // No raw ISO dates in the calendar heading.
+    expect(view.queryByText(/\d{4}-\d{2}-\d{2}/)).toBeNull();
+    expect(view.queryByText("Back to Forge Paths")).toBeNull();
+    await fireEvent.press(view.getByLabelText("Back"));
+    expect(router.replace).toHaveBeenLastCalledWith("/forge-paths");
+  } finally {
+    db.close();
+  }
+});
+
+test("earlier Paths open read-only for review", async () => {
+  const { r, db } = legacyUserRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const archived = pathPrograms(r).find((p) => p.data.status === "archived")!;
+    const view = await render(<LegacyPath />);
+    await fireEvent.press(
+      view.getByLabelText(
+        `Review ${archived.data.name} · ${archived.data.started}`,
+      ),
+    );
+    expect(view.getByText("Archived · read only")).toBeTruthy();
+    expect(view.queryByLabelText("Start workout")).toBeNull();
+    expect(view.queryByLabelText("Workout options")).toBeNull();
+    expect(view.queryByText("Ready for a Forge program?")).toBeNull();
+  } finally {
+    db.close();
+  }
+});
+
+test("without a saved Path the screen points to Forge programs", async () => {
+  const { r, db } = pathRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(<LegacyPath />);
+    expect(view.getByText("No current Path")).toBeTruthy();
+    await fireEvent.press(view.getByLabelText("Choose a Forge program"));
+    expect(router.replace).toHaveBeenLastCalledWith("/forge-paths");
+    expect(view.queryAllByText(generatorWords)).toHaveLength(0);
+  } finally {
+    db.close();
+  }
+});
+
+test("the /paths route only continues existing Paths and never offers a plan builder", async () => {
+  const empty = pathRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(empty.r);
+    const none = await render(<PathsRoute />);
+    expect(none.getByText("No current Path")).toBeTruthy();
+    expect(none.queryByText("A clear next step.")).toBeNull();
+    expect(none.queryAllByText(generatorWords)).toHaveLength(0);
+    expect(none.queryAllByLabelText(/^Choose [A-Z ]+$/)).toHaveLength(0);
+  } finally {
+    empty.db.close();
+  }
+  const { r, db } = legacyUserRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const existing = await render(<PathsRoute />);
+    expect(existing.getByText("GET STRONG")).toBeTruthy();
+    expect(existing.getByLabelText("Start workout")).toBeTruthy();
+    expect(existing.queryAllByText(generatorWords)).toHaveLength(0);
+    expect(existing.queryAllByLabelText(generatorWords)).toHaveLength(0);
+  } finally {
+    db.close();
+  }
+});
+
+test("a legacy session is rescheduled from a calendar, under the same rule", async () => {
+  const { r, db } = legacyUserRepository();
+  try {
+    jest.mocked(useRepo).mockReturnValue(r);
+    const path = currentPath(r)!;
+    const focus = pathFocus(pathSummary(r, path).sessions)!;
+    const view = await render(<LegacyPath />);
+    await fireEvent.press(view.getByLabelText("Workout options"));
+    await fireEvent.press(view.getByLabelText(`Move ${focus.data.name}`));
+    expect(
+      view.getByRole("header", { name: "Reschedule session" }),
+    ).toBeTruthy();
+    expect(view.queryByLabelText(/YYYY-MM-DD/)).toBeNull();
+    // Past days can't be chosen.
+    const yesterday = addDays(localDate(), -1);
+    if (view.queryByLabelText(dayLabel(yesterday)))
+      expect(
+        view.getByLabelText(dayLabel(yesterday)).props.accessibilityState
+          .disabled,
+      ).toBe(true);
+    const taken = new Set(
+      pathSessions(r, path)
+        .filter((s) => !["completed", "skipped"].includes(s.state))
+        .map((s) => s.record.date),
+    );
+    // Two days after the last pending session respects the recovery-day rule.
+    const target = addDays([...taken, localDate()].sort().at(-1)!, 2);
+    while (!view.queryByLabelText(dayLabel(target)))
+      await fireEvent.press(view.getByLabelText("Next month"));
+    await fireEvent.press(view.getByLabelText(dayLabel(target)));
+    await fireEvent.press(view.getByLabelText(`Move for ${dayLabel(target)}`));
+    const moved = pathSessions(r, currentPath(r)!).find(
+      (s) => s.record.id === focus.record.id,
+    )!;
+    expect(moved.record.date).toBe(target);
+    expect(
+      view.queryByRole("header", { name: "Reschedule session" }),
+    ).toBeNull();
+  } finally {
+    db.close();
+  }
+});

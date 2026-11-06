@@ -1,0 +1,1114 @@
+{
+  "version": 1,
+  "exportedAt": 1792712778160,
+  "profile": {
+    "name": "Athlete",
+    "onboarded": true,
+    "units": "kg",
+    "theme": "dark",
+    "experience": "",
+    "goal": "",
+    "height": 0,
+    "weight": 0,
+    "frequency": 3,
+    "equipment": "Barbell, dumbbells, bodyweight",
+    "duration": 45,
+    "muscles": "Full body",
+    "bodyFat": 0,
+    "notifications": false,
+    "rest": 90,
+    "increment": 2.5,
+    "repMin": 8,
+    "repMax": 12,
+    "calories": 2000,
+    "protein": 150,
+    "carbs": 200,
+    "fat": 65
+  },
+  "workouts": [],
+  "workoutExercises": [],
+  "sets": [],
+  "templates": [
+    {
+      "id": "02ea03e2-e3f4-4a32-a4b8-6b46c76a772b",
+      "name": "BUILD MUSCLE · Legs · posterior focus",
+      "notes": "FORGE PATHS · Foundation. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "barbell-hip-thrust",
+          "sets": 3,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 180
+        },
+        {
+          "exerciseId": "single-leg-dumbbell-romanian-deadlift",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "bulgarian-split-squat",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "lying-leg-curl",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "leg-extension",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "seated-calf-raise",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        }
+      ],
+      "updatedAt": 1792712778155
+    },
+    {
+      "id": "928d331b-729e-4798-9561-01f79edca988",
+      "name": "BUILD MUSCLE · Legs · posterior focus",
+      "notes": "FORGE PATHS · Evolution. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "barbell-hip-thrust",
+          "sets": 3,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 180
+        },
+        {
+          "exerciseId": "single-leg-dumbbell-romanian-deadlift",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "bulgarian-split-squat",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "lying-leg-curl",
+          "sets": 4,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "leg-extension",
+          "sets": 4,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "seated-calf-raise",
+          "sets": 4,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        }
+      ],
+      "updatedAt": 1792712778155
+    },
+    {
+      "id": "4c207793-8297-4a56-b602-5af3ee6554bd",
+      "name": "BUILD MUSCLE · Legs · quad focus",
+      "notes": "FORGE PATHS · Foundation. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "back-squat",
+          "sets": 3,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 180
+        },
+        {
+          "exerciseId": "romanian-deadlift",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "leg-extension",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "seated-leg-curl",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "standing-calf-raise",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "cable-crunch",
+          "sets": 2,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 60
+        }
+      ],
+      "updatedAt": 1792712778155
+    },
+    {
+      "id": "c166be3e-ad83-4a8d-b1d6-dd31e4b8724c",
+      "name": "BUILD MUSCLE · Legs · quad focus",
+      "notes": "FORGE PATHS · Evolution. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "back-squat",
+          "sets": 3,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 180
+        },
+        {
+          "exerciseId": "romanian-deadlift",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "leg-extension",
+          "sets": 4,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "seated-leg-curl",
+          "sets": 4,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "standing-calf-raise",
+          "sets": 4,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "cable-crunch",
+          "sets": 2,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 60
+        }
+      ],
+      "updatedAt": 1792712778155
+    },
+    {
+      "id": "320fa848-8c9b-49be-a0bc-d945bece89ce",
+      "name": "BUILD MUSCLE · Upper body · back & shoulders",
+      "notes": "FORGE PATHS · Foundation. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "pull-up",
+          "sets": 3,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 180
+        },
+        {
+          "exerciseId": "incline-dumbbell-bench-press",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "chest-supported-dumbbell-row",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "cable-lateral-raise",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "bent-over-reverse-fly",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "incline-dumbbell-curl",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "triceps-rope-pushdown",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        }
+      ],
+      "updatedAt": 1792712778155
+    },
+    {
+      "id": "aec7857b-7c2f-410d-a8f3-ddea1cb08077",
+      "name": "BUILD MUSCLE · Upper body · back & shoulders",
+      "notes": "FORGE PATHS · Evolution. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "pull-up",
+          "sets": 3,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 180
+        },
+        {
+          "exerciseId": "incline-dumbbell-bench-press",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "chest-supported-dumbbell-row",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 10,
+          "weight": 0,
+          "rest": 150
+        },
+        {
+          "exerciseId": "cable-lateral-raise",
+          "sets": 4,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "bent-over-reverse-fly",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "incline-dumbbell-curl",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "triceps-rope-pushdown",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        }
+      ],
+      "updatedAt": 1792712778155
+    },
+    {
+      "id": "f1a4b1fd-eec7-42b1-ab84-c5ca5341c39c",
+      "name": "BUILD MUSCLE · Upper body · chest & back",
+      "notes": "FORGE PATHS · Foundation. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "barbell-bench-press",
+          "sets": 3,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 180
+        },
+        {
+          "exerciseId": "seated-cable-row",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 120
+        },
+        {
+          "exerciseId": "lat-pulldown",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 120
+        },
+        {
+          "exerciseId": "pec-deck-fly",
+          "sets": 4,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dumbbell-lateral-raise",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "overhead-cable-triceps-extension",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dumbbell-curl",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        }
+      ],
+      "updatedAt": 1792712778154
+    },
+    {
+      "id": "151b0aec-2e39-45fe-a2f9-78b49e2ee1a0",
+      "name": "BUILD MUSCLE · Upper body · chest & back",
+      "notes": "FORGE PATHS · Evolution. Choose comfortable working loads. Recorded sessions remain unchanged by later template edits.",
+      "exercises": [
+        {
+          "exerciseId": "barbell-bench-press",
+          "sets": 3,
+          "reps": 6,
+          "repMax": 8,
+          "weight": 0,
+          "rest": 180
+        },
+        {
+          "exerciseId": "seated-cable-row",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 120
+        },
+        {
+          "exerciseId": "lat-pulldown",
+          "sets": 3,
+          "reps": 8,
+          "repMax": 12,
+          "weight": 0,
+          "rest": 120
+        },
+        {
+          "exerciseId": "pec-deck-fly",
+          "sets": 4,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dumbbell-lateral-raise",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "overhead-cable-triceps-extension",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        },
+        {
+          "exerciseId": "dumbbell-curl",
+          "sets": 3,
+          "reps": 10,
+          "repMax": 15,
+          "weight": 0,
+          "rest": 90
+        }
+      ],
+      "updatedAt": 1792712778155
+    }
+  ],
+  "journals": [
+    {
+      "id": "77b02d6e-646f-432f-8ad4-d9413787e8f9",
+      "kind": "schedule",
+      "date": "2026-12-11",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "928d331b-729e-4798-9561-01f79edca988",
+        "name": "Legs · posterior focus",
+        "week": 8,
+        "dayIndex": 3,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778160,
+      "updatedAt": 1792712778160
+    },
+    {
+      "id": "38ca95a2-f094-40b5-9e75-afc9f16a5731",
+      "kind": "schedule",
+      "date": "2026-12-10",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "aec7857b-7c2f-410d-a8f3-ddea1cb08077",
+        "name": "Upper body · back & shoulders",
+        "week": 8,
+        "dayIndex": 2,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778160,
+      "updatedAt": 1792712778160
+    },
+    {
+      "id": "d53481e7-80e3-4519-8ded-f2a04ca8ebc0",
+      "kind": "schedule",
+      "date": "2026-12-08",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "c166be3e-ad83-4a8d-b1d6-dd31e4b8724c",
+        "name": "Legs · quad focus",
+        "week": 8,
+        "dayIndex": 1,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778160,
+      "updatedAt": 1792712778160
+    },
+    {
+      "id": "875ef498-cdf2-4f1b-b6c9-ee5257955461",
+      "kind": "schedule",
+      "date": "2026-12-07",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "151b0aec-2e39-45fe-a2f9-78b49e2ee1a0",
+        "name": "Upper body · chest & back",
+        "week": 8,
+        "dayIndex": 0,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778160,
+      "updatedAt": 1792712778160
+    },
+    {
+      "id": "c7f8f3e7-58f2-46c0-b15e-13efa2c33bba",
+      "kind": "schedule",
+      "date": "2026-12-04",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "928d331b-729e-4798-9561-01f79edca988",
+        "name": "Legs · posterior focus",
+        "week": 7,
+        "dayIndex": 3,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778160,
+      "updatedAt": 1792712778160
+    },
+    {
+      "id": "65f7eb1c-6b7e-4a10-945e-0487ad51d928",
+      "kind": "schedule",
+      "date": "2026-12-03",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "aec7857b-7c2f-410d-a8f3-ddea1cb08077",
+        "name": "Upper body · back & shoulders",
+        "week": 7,
+        "dayIndex": 2,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778160,
+      "updatedAt": 1792712778160
+    },
+    {
+      "id": "7c665768-f24b-4b85-8b72-f9f595e58de6",
+      "kind": "schedule",
+      "date": "2026-12-01",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "c166be3e-ad83-4a8d-b1d6-dd31e4b8724c",
+        "name": "Legs · quad focus",
+        "week": 7,
+        "dayIndex": 1,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778160,
+      "updatedAt": 1792712778160
+    },
+    {
+      "id": "75b1e335-b04a-49b4-b081-38481063fbf4",
+      "kind": "schedule",
+      "date": "2026-11-30",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "151b0aec-2e39-45fe-a2f9-78b49e2ee1a0",
+        "name": "Upper body · chest & back",
+        "week": 7,
+        "dayIndex": 0,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778160,
+      "updatedAt": 1792712778160
+    },
+    {
+      "id": "3829792e-08c8-4589-8003-c0d8b2c9a608",
+      "kind": "schedule",
+      "date": "2026-11-27",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "928d331b-729e-4798-9561-01f79edca988",
+        "name": "Legs · posterior focus",
+        "week": 6,
+        "dayIndex": 3,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778160,
+      "updatedAt": 1792712778160
+    },
+    {
+      "id": "9878a75a-0915-42b3-8879-11fd7c1c50ff",
+      "kind": "schedule",
+      "date": "2026-11-26",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "aec7857b-7c2f-410d-a8f3-ddea1cb08077",
+        "name": "Upper body · back & shoulders",
+        "week": 6,
+        "dayIndex": 2,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778160,
+      "updatedAt": 1792712778160
+    },
+    {
+      "id": "74572066-85ba-4919-9153-6c7568e429c1",
+      "kind": "schedule",
+      "date": "2026-11-24",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "c166be3e-ad83-4a8d-b1d6-dd31e4b8724c",
+        "name": "Legs · quad focus",
+        "week": 6,
+        "dayIndex": 1,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778160,
+      "updatedAt": 1792712778160
+    },
+    {
+      "id": "da884ede-04a3-4595-8a4e-99fc2c88fbf6",
+      "kind": "schedule",
+      "date": "2026-11-23",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "151b0aec-2e39-45fe-a2f9-78b49e2ee1a0",
+        "name": "Upper body · chest & back",
+        "week": 6,
+        "dayIndex": 0,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "50a221a0-689c-4ed3-8690-2486b05e1d2f",
+      "kind": "schedule",
+      "date": "2026-11-20",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "928d331b-729e-4798-9561-01f79edca988",
+        "name": "Legs · posterior focus",
+        "week": 5,
+        "dayIndex": 3,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "6ca5158c-e01e-4c74-8d13-d095d5aecb67",
+      "kind": "schedule",
+      "date": "2026-11-19",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "aec7857b-7c2f-410d-a8f3-ddea1cb08077",
+        "name": "Upper body · back & shoulders",
+        "week": 5,
+        "dayIndex": 2,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "b3cb2ad3-a321-40c1-b6e0-18be669784a2",
+      "kind": "schedule",
+      "date": "2026-11-17",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "c166be3e-ad83-4a8d-b1d6-dd31e4b8724c",
+        "name": "Legs · quad focus",
+        "week": 5,
+        "dayIndex": 1,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "f71fb8fe-82b5-401b-9675-9fb041e753b7",
+      "kind": "schedule",
+      "date": "2026-11-16",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "151b0aec-2e39-45fe-a2f9-78b49e2ee1a0",
+        "name": "Upper body · chest & back",
+        "week": 5,
+        "dayIndex": 0,
+        "phase": "evolution",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "73af66ff-114b-4537-a514-053c2e6d92a2",
+      "kind": "schedule",
+      "date": "2026-11-13",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "02ea03e2-e3f4-4a32-a4b8-6b46c76a772b",
+        "name": "Legs · posterior focus",
+        "week": 4,
+        "dayIndex": 3,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "efd4fa65-1582-43ba-8c15-3b4d3827c3b3",
+      "kind": "schedule",
+      "date": "2026-11-12",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "320fa848-8c9b-49be-a0bc-d945bece89ce",
+        "name": "Upper body · back & shoulders",
+        "week": 4,
+        "dayIndex": 2,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "dc2f31f4-836f-4d3c-b9f0-5e7e3a100f21",
+      "kind": "schedule",
+      "date": "2026-11-10",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "4c207793-8297-4a56-b602-5af3ee6554bd",
+        "name": "Legs · quad focus",
+        "week": 4,
+        "dayIndex": 1,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "7f421e08-d469-4b3a-937c-9488d080fda2",
+      "kind": "schedule",
+      "date": "2026-11-09",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "f1a4b1fd-eec7-42b1-ab84-c5ca5341c39c",
+        "name": "Upper body · chest & back",
+        "week": 4,
+        "dayIndex": 0,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "1a7e0e65-ef37-4d61-9ae5-d1254e4f697e",
+      "kind": "schedule",
+      "date": "2026-11-06",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "02ea03e2-e3f4-4a32-a4b8-6b46c76a772b",
+        "name": "Legs · posterior focus",
+        "week": 3,
+        "dayIndex": 3,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "1079f957-d284-4009-81b5-5cfbf22bca2a",
+      "kind": "schedule",
+      "date": "2026-11-05",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "320fa848-8c9b-49be-a0bc-d945bece89ce",
+        "name": "Upper body · back & shoulders",
+        "week": 3,
+        "dayIndex": 2,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "cf2f9a14-f65c-4537-a6c4-cfe5c8efc316",
+      "kind": "schedule",
+      "date": "2026-11-03",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "4c207793-8297-4a56-b602-5af3ee6554bd",
+        "name": "Legs · quad focus",
+        "week": 3,
+        "dayIndex": 1,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "421f1f90-ded9-44ff-a924-0d7e881cad8e",
+      "kind": "schedule",
+      "date": "2026-11-02",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "f1a4b1fd-eec7-42b1-ab84-c5ca5341c39c",
+        "name": "Upper body · chest & back",
+        "week": 3,
+        "dayIndex": 0,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "a44eb46f-1ab7-4419-891b-2b41f4206dcb",
+      "kind": "schedule",
+      "date": "2026-10-30",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "02ea03e2-e3f4-4a32-a4b8-6b46c76a772b",
+        "name": "Legs · posterior focus",
+        "week": 2,
+        "dayIndex": 3,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "4242615c-1691-4b41-95de-ed1bed7647a4",
+      "kind": "schedule",
+      "date": "2026-10-29",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "320fa848-8c9b-49be-a0bc-d945bece89ce",
+        "name": "Upper body · back & shoulders",
+        "week": 2,
+        "dayIndex": 2,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "e4ccc098-0514-445b-a65b-d2236493af9f",
+      "kind": "schedule",
+      "date": "2026-10-27",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "4c207793-8297-4a56-b602-5af3ee6554bd",
+        "name": "Legs · quad focus",
+        "week": 2,
+        "dayIndex": 1,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "fed266a8-b1fd-402f-b545-ff7d8ad574e5",
+      "kind": "schedule",
+      "date": "2026-10-26",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "f1a4b1fd-eec7-42b1-ab84-c5ca5341c39c",
+        "name": "Upper body · chest & back",
+        "week": 2,
+        "dayIndex": 0,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "365d4e8a-08e8-4c9d-94d0-deff2f5569fc",
+      "kind": "schedule",
+      "date": "2026-10-23",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "02ea03e2-e3f4-4a32-a4b8-6b46c76a772b",
+        "name": "Legs · posterior focus",
+        "week": 1,
+        "dayIndex": 3,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "7905b918-6984-442d-84f3-810898f1e768",
+      "kind": "schedule",
+      "date": "2026-10-22",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "320fa848-8c9b-49be-a0bc-d945bece89ce",
+        "name": "Upper body · back & shoulders",
+        "week": 1,
+        "dayIndex": 2,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "fbe13abb-7f4b-462c-8230-4edf2728888d",
+      "kind": "schedule",
+      "date": "2026-10-20",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "4c207793-8297-4a56-b602-5af3ee6554bd",
+        "name": "Legs · quad focus",
+        "week": 1,
+        "dayIndex": 1,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778159,
+      "updatedAt": 1792712778159
+    },
+    {
+      "id": "ccb1a87d-7cda-4a34-9937-19370d3e804b",
+      "kind": "schedule",
+      "date": "2026-10-19",
+      "data": {
+        "forgePath": 1,
+        "programId": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+        "templateId": "f1a4b1fd-eec7-42b1-ab84-c5ca5341c39c",
+        "name": "Upper body · chest & back",
+        "week": 1,
+        "dayIndex": 0,
+        "phase": "foundation",
+        "workoutId": "",
+        "skipped": false
+      },
+      "createdAt": 1792712778158,
+      "updatedAt": 1792712778158
+    },
+    {
+      "id": "503d0ab8-2d89-480c-86cc-94479c2a729f",
+      "kind": "program",
+      "date": "2026-10-19",
+      "data": {
+        "forgePath": 1,
+        "engineVersion": 9,
+        "pathKey": "build-muscle",
+        "name": "BUILD MUSCLE",
+        "weeks": 8,
+        "started": "2026-10-19",
+        "status": "active",
+        "pausedOn": "",
+        "pausedDays": 0,
+        "preferences": "{\"pathKey\":\"build-muscle\",\"experience\":\"Intermediate\",\"frequency\":4,\"equipment\":[\"Dumbbell\",\"Barbell\",\"EZ bar\",\"Kettlebell\",\"Cable\",\"Chest press machine\",\"Leg press machine\",\"Leg curl machine\",\"Leg extension machine\",\"Chest fly machine\",\"Seated row machine\",\"Shoulder press machine\",\"Lateral raise machine\",\"Hack squat machine\",\"Hip thrust machine\",\"Calf raise machine\",\"Assisted pull-up machine\",\"Smith machine\",\"Resistance band\",\"Band anchor\",\"Pull-up bar\",\"Dip station\",\"Bench\",\"Preacher curl bench\",\"Squat rack\"],\"gymAccess\":true,\"excluded\":[],\"avoidPatterns\":[],\"limitations\":\"\",\"priorities\":[],\"style\":\"Balanced\",\"startDate\":\"2026-10-19\",\"weekdays\":[0,1,3,4]}",
+        "days": "[{\"key\":\"day-0\",\"name\":\"Upper body · chest & back\",\"offset\":0,\"roles\":[\"push\",\"pull\",\"pull\",\"push\",\"shoulder\",\"triceps\",\"biceps\"]},{\"key\":\"day-1\",\"name\":\"Legs · quad focus\",\"offset\":1,\"roles\":[\"squat\",\"posterior\",\"squat\",\"posterior\",\"calf\",\"core\"]},{\"key\":\"day-2\",\"name\":\"Upper body · back & shoulders\",\"offset\":3,\"roles\":[\"pull\",\"push\",\"pull\",\"shoulder\",\"rear\",\"biceps\",\"triceps\"]},{\"key\":\"day-3\",\"name\":\"Legs · posterior focus\",\"offset\":4,\"roles\":[\"posterior\",\"posterior\",\"squat\",\"posterior\",\"squat\",\"calf\"]}]",
+        "phases": "[{\"key\":\"foundation\",\"name\":\"Foundation\",\"from\":1,\"to\":4,\"templateIds\":[\"f1a4b1fd-eec7-42b1-ab84-c5ca5341c39c\",\"4c207793-8297-4a56-b602-5af3ee6554bd\",\"320fa848-8c9b-49be-a0bc-d945bece89ce\",\"02ea03e2-e3f4-4a32-a4b8-6b46c76a772b\"]},{\"key\":\"evolution\",\"name\":\"Evolution\",\"from\":5,\"to\":8,\"templateIds\":[\"151b0aec-2e39-45fe-a2f9-78b49e2ee1a0\",\"c166be3e-ad83-4a8d-b1d6-dd31e4b8724c\",\"aec7857b-7c2f-410d-a8f3-ddea1cb08077\",\"928d331b-729e-4798-9561-01f79edca988\"]}]"
+      },
+      "createdAt": 1792712778156,
+      "updatedAt": 1792712778156
+    }
+  ],
+  "customExercises": [],
+  "favorites": []
+}

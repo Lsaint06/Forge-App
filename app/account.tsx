@@ -1,0 +1,663 @@
+import React, { useEffect, useState } from "react";
+import { View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as Linking from "expo-linking";
+import { recoveryTokens } from "../src/cloud/recovery";
+import { signInMethods } from "../src/auth/methods";
+import { authErrorText, isNetworkError, useEntry } from "../src/auth/session";
+import { router } from "expo-router";
+import { useColors } from "../src/components/ui";
+import {
+  CtaButton,
+  FText,
+  ForgeCard,
+  ForgeField,
+  ForgeSubScreen,
+  OutlineButton,
+  SectionLabel,
+} from "../src/components/reforge";
+import { goBack } from "../src/navigation";
+import { useRepo, useApp, confirm } from "../src/state";
+import { cloudClient, tokenClient, transport } from "../src/cloud/client";
+import { synchronize } from "../src/cloud/sync";
+import { stopReason } from "../src/cloud/errors";
+import {
+  cloudDeletion,
+  deletedAccount,
+  noteAccountGone,
+  pendingDeletion,
+} from "../src/auth/account-deletion";
+import { BackupSheet } from "../src/components/Backup";
+import {
+  AboutForge,
+  DangerRow,
+  DataPrivacy,
+  DeleteLocalData,
+  MembershipCard,
+} from "../src/screens/you/account";
+import {
+  ACCOUNT_GONE_SYNC_TEXT,
+  accountDeletionText,
+  conflictView,
+  lastSyncNote,
+  lastSyncText,
+  pendingText,
+  syncFailureText,
+  syncSummary,
+} from "../src/domain/presentation/account";
+import { syncStatus } from "../src/cloud/sync-state";
+import { dataOwner, hasSyncHistory } from "../src/data/ownership";
+import { forge } from "../src/theme";
+
+/** Said before ending every sign-in of the account (Phase 7.8E, E3). */
+const ALL_DEVICES_CONFIRM =
+  "This ends your Forge sign-in on every phone and tablet, including this one. Training stays on each device, and changes not yet synchronized wait there until you sign in again. Use this if a device was lost or someone else might be signed in.";
+
+/** A reset link opened while signed in that couldn't be used (Phase 7.8E, L2). */
+const RESET_LINK_FAILED_HERE =
+  "That password reset link couldn't be used. It may have expired or already been used. To get a new one, sign out and choose Forgot password.";
+const RESET_LINK_OFFLINE_HERE =
+  "Forge couldn't reach its account service to finish the password reset. Check your connection, then sign out and request a new link with Forgot password.";
+const resetLinkFailure = (e: unknown) =>
+  isNetworkError(e) ? RESET_LINK_OFFLINE_HERE : RESET_LINK_FAILED_HERE;
+
+// Account & privacy (REFORGE since Phase 7.5G.3): the account, cloud sync,
+// data and privacy, membership, About and, apart from everything else, the
+// two irreversible deletions. Presentation only: the auth, sync, conflict,
+// backup and deletion handling is protected and unchanged. States shown are
+// only those the app can verify; an empty outbox is never called "backed up".
+export default function Account() {
+  const r = useRepo();
+  const client = cloudClient();
+  // Signed in, from the entry gate: right from the first frame, and while
+  // offline on the stored session (Phase 7.7C). Supabase's own lookup below
+  // only fills in when the screen is shown outside the gate.
+  const { entry, signOut: endSession } = useEntry();
+  const entryUser = entry.kind === "ready" ? entry.user : undefined;
+  const offline = entry.kind === "ready" && entry.offline;
+  const hasEntryUser = !!entryUser;
+  const [password, setPassword] = useState("");
+  const [user, setUser] = useState<{
+    id: string;
+    email?: string;
+    app_metadata?: { provider?: unknown; providers?: unknown };
+  }>();
+  const [recovery, setRecovery] = useState(false);
+  const incoming = Linking.useURL();
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+  useEffect(() => {
+    if (!client) return;
+    void client.auth.getSession().then(({ data, error }) => {
+      if (!error) setUser(data.session?.user);
+      else if (!hasEntryUser)
+        setStatus(authErrorText(error, "Forge couldn't check your sign-in."));
+    });
+    const { data } = client.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user);
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
+    });
+    return () => data.subscription.unsubscribe();
+  }, [client, hasEntryUser]);
+  useEffect(() => {
+    if (!client || !incoming) return;
+    const tokens = recoveryTokens(incoming);
+    if (!tokens) return;
+    let active = true;
+    void client.auth
+      .setSession(tokens)
+      .then(({ error }) => {
+        if (!active) return;
+        if (error) setStatus(resetLinkFailure(error));
+        else {
+          setRecovery(true);
+          setStatus("Recovery session verified. Enter a new password below.");
+        }
+      })
+      .catch((e: unknown) => {
+        if (active) setStatus(resetLinkFailure(e));
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, incoming]);
+  async function updatePassword() {
+    if (!client) return;
+    setBusy(true);
+    try {
+      if (password.length < 8) throw new Error("Use at least 8 characters");
+      const { error } = await client.auth.updateUser({ password });
+      if (error) throw error;
+      setPassword("");
+      setRecovery(false);
+      setStatus("Password updated.");
+      router.replace("/account");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Password update failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function signOutNow() {
+    if (!client) return;
+    setBusy(true);
+    try {
+      if (endSession) await endSession();
+      else {
+        const { error } = await client.auth.signOut({ scope: "local" });
+        if (error) throw error;
+        setStatus("Signed out. Your local records remain on this device.");
+      }
+    } catch (e) {
+      setStatus(authErrorText(e, "Forge couldn't sign you out. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
+  /** Ends every sign-in of the account, this phone's included (E3). */
+  async function signOutEverywhere() {
+    if (!client) return;
+    setBusy(true);
+    setStatus("");
+    try {
+      if (endSession) await endSession({ everywhere: true });
+      else {
+        const { error } = await client.auth.signOut({ scope: "global" });
+        if (error) throw error;
+        setStatus(
+          "Signed out on all devices. Your local records remain on this device.",
+        );
+      }
+    } catch (e) {
+      setStatus(
+        authErrorText(
+          e,
+          "Forge couldn't sign you out of all devices. Try again.",
+        ),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function sync() {
+    if (!client || !shown) return;
+    setBusy(true);
+    // Asked as this account only (Phase 7.8E): the answer is about it alone.
+    const account = cloudDeletion(client, shown.id, tokenClient);
+    // The account was deleted, here or on another device: this phone
+    // remembers it only on the account service's word, and keeps its
+    // training until the athlete decides.
+    const gone = async () => {
+      if (!(await account.currentUser()).missing) return;
+      noteAccountGone(r, shown.id);
+      useApp.getState().touch();
+    };
+    try {
+      // Asked first, so a deleted account is said plainly even with nothing
+      // to upload. Unanswered (offline), sync itself reports why.
+      if ((await account.currentUser()).missing) {
+        noteAccountGone(r, shown.id);
+        useApp.getState().touch();
+        setStatus(ACCOUNT_GONE_SYNC_TEXT);
+        return;
+      }
+      const result = await synchronize(
+        r,
+        transport(client, shown.id),
+        shown.id,
+      );
+      if (result.stopped === "deleted") await gone();
+      useApp.getState().touch();
+      setStatus(syncSummary(result));
+      // Technical details stay in the developer log (error text only: never
+      // a payload or credential).
+      if (result.errors.length)
+        console.warn(
+          "[FORGE] Sync details:",
+          [...new Set(result.errors)].join(" | "),
+        );
+    } catch (e) {
+      if (stopReason(e) === "deleted") await gone();
+      setStatus(syncFailureText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  const c = useColors();
+  const shown = entryUser ?? user;
+  const methods = entryUser?.methods ?? (user ? signInMethods(user) : []);
+  const pending = r.outbox().length;
+  const conflicts = r.conflicts();
+  // The last complete sync (Phase 7.8C): only ever this phone's owner's.
+  const isOwner = !!shown && dataOwner(r) === shown.id;
+  const lastSync = isOwner ? syncStatus(r, shown.id) : undefined;
+  const lastSyncDetail = lastSyncNote(lastSync);
+  // What this phone knows about deleting this account (Phase 7.8E).
+  const marker = isOwner ? pendingDeletion(r) : undefined;
+  const deleted = isOwner ? deletedAccount(r) : undefined;
+  const ownMarker = marker && marker.owner === shown?.id ? marker : undefined;
+  const accountGone =
+    deleted && deleted.owner === shown?.id ? deleted : undefined;
+  const deletionText = accountDeletionText({
+    marker: ownMarker,
+    deleted: accountGone,
+  });
+  const [backupOpen, setBackupOpen] = useState(false);
+  return (
+    <ForgeSubScreen
+      title="Account & privacy"
+      eyebrow="You"
+      onBack={() => goBack("/(tabs)/profile")}
+    >
+      <Section title="Account">
+        {!client ? (
+          <ForgeCard testID="account-guest" gap={8}>
+            <State icon="phone-portrait-outline" text="On this phone only" />
+            <FText variant="cardTitle" weight="700" header>
+              Guest mode is active
+            </FText>
+            <FText variant="label" tone="secondary">
+              Cloud accounts aren&apos;t available in this version, so your
+              training data stays on this phone. Export a backup regularly from
+              Data &amp; privacy below and keep the file somewhere safe.
+            </FText>
+          </ForgeCard>
+        ) : shown ? (
+          <>
+            {!!deletionText && (
+              <ForgeCard testID="account-deletion" gap={10}>
+                <State icon="alert-circle-outline" text="Account deletion" />
+                <FText variant="body">{deletionText}</FText>
+                {ownMarker?.state === "requested" && (
+                  <OutlineButton
+                    title="Open Delete Forge account"
+                    compact
+                    disabled={busy}
+                    onPress={() => router.push("/delete-account")}
+                  />
+                )}
+                {!ownMarker && !!accountGone && (
+                  <OutlineButton
+                    title="Export backup"
+                    compact
+                    onPress={() => setBackupOpen(true)}
+                  />
+                )}
+              </ForgeCard>
+            )}
+            <ForgeCard testID="account-signed-in" gap={10}>
+              <State
+                icon={
+                  offline ? "cloud-offline-outline" : "person-circle-outline"
+                }
+                text={offline ? "Signed in · offline" : "Signed in"}
+                tone="accent"
+              />
+              <FText variant="cardTitle" weight="700" header>
+                {shown.email ?? "Signed-in account"}
+              </FText>
+              {methods.length > 0 && (
+                <FText variant="label" tone="secondary">
+                  {`Signs in with ${methods.join(" · ")}`}
+                </FText>
+              )}
+              {offline && (
+                <FText variant="label" tone="secondary">
+                  {
+                    "You're offline. Forge reconnects to your account when you're back online; synchronizing needs a connection."
+                  }
+                </FText>
+              )}
+              {recovery && (
+                <>
+                  <ForgeField
+                    label="New password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoComplete="new-password"
+                  />
+                  <CtaButton
+                    title="Set new password"
+                    compact
+                    disabled={busy}
+                    onPress={() => void updatePassword()}
+                  />
+                </>
+              )}
+              <OutlineButton
+                title="Sign out"
+                compact
+                disabled={busy}
+                onPress={() => void signOutNow()}
+              />
+              <FText variant="label" tone="secondary">
+                Signing out affects only this phone and keeps everything on it.
+              </FText>
+              <OutlineButton
+                title="Sign out of all devices"
+                compact
+                disabled={busy}
+                onPress={() =>
+                  confirm(
+                    "Sign out of all devices?",
+                    ALL_DEVICES_CONFIRM,
+                    () => void signOutEverywhere(),
+                    { action: "Sign out everywhere", destructive: false },
+                  )
+                }
+              />
+            </ForgeCard>
+          </>
+        ) : (
+          // Unreachable inside the app (Phase 7.8E, E9): Account & privacy
+          // opens only for a signed-in athlete. Signing in, creating an
+          // account and password resets live on the entry screens.
+          <ForgeCard testID="account-signed-out" gap={8}>
+            <State icon="person-outline" text="Not signed in" />
+            <FText variant="label" tone="secondary">
+              Your training data is on this phone. Sign in to synchronize it
+              with your account; sync runs only when you choose.
+            </FText>
+          </ForgeCard>
+        )}
+        {!!status && (
+          <View
+            testID="account-status"
+            accessible
+            accessibilityLiveRegion="polite"
+            style={{
+              flexDirection: "row",
+              gap: 10,
+              padding: forge.spacing.cardPadding,
+              borderRadius: forge.radii.card,
+              borderWidth: forge.border.card,
+              borderColor: c.cardBorder,
+              backgroundColor: c.cardRaised,
+            }}
+          >
+            <Ionicons
+              name="information-circle-outline"
+              size={20}
+              color={c.text2}
+            />
+            <FText variant="body" style={{ flex: 1 }}>
+              {status}
+            </FText>
+          </View>
+        )}
+      </Section>
+
+      {client && (
+        <Section title="Cloud sync">
+          <ForgeCard testID="account-sync" padding={0} gap={0}>
+            <Fact label="On this phone" value={pendingText(pending)} />
+            {shown && (
+              <Fact
+                label="Last complete sync"
+                value={lastSyncText(lastSync, isOwner && hasSyncHistory(r))}
+                divider
+              />
+            )}
+            <Fact
+              label="Conflicts"
+              value={
+                conflicts.length
+                  ? `${conflicts.length} waiting for your choice`
+                  : "None"
+              }
+              divider
+            />
+            <View
+              style={{
+                padding: forge.spacing.cardPadding,
+                gap: 12,
+                borderTopWidth: forge.border.card,
+                borderTopColor: c.cardDivider,
+              }}
+            >
+              {shown && !!lastSyncDetail && (
+                <FText variant="label" tone="secondary">
+                  {lastSyncDetail}
+                </FText>
+              )}
+              <FText variant="label" tone="secondary">
+                {shown
+                  ? "Sync sends your local training and lifestyle data to your configured Supabase project. It runs only when requested. Export a backup before your first sync."
+                  : "Sign in to synchronize. Nothing is uploaded until you sync."}
+              </FText>
+              {shown && (
+                <CtaButton
+                  title={busy ? "Working…" : "Synchronize now"}
+                  icon="sync"
+                  compact
+                  disabled={busy}
+                  onPress={() => void sync()}
+                />
+              )}
+            </View>
+          </ForgeCard>
+          {conflicts.map((cf) => {
+            const view = conflictView(
+              cf,
+              r.outboxRow(cf.id),
+              (id) => r.knowsExercise(id),
+              undefined,
+              {
+                exerciseName: (id) => r.exercise(id)?.name,
+                profile:
+                  cf.id === "profile" ? r.profileConflictSides() : undefined,
+              },
+            );
+            return (
+              <ForgeCard key={cf.id} gap={10} testID="account-conflict">
+                <State
+                  icon="git-compare-outline"
+                  text="Sync conflict"
+                  tone="accent"
+                  header
+                />
+                <FText variant="cardTitle" weight="700">
+                  {view.title}
+                </FText>
+                <FText variant="label" tone="secondary">
+                  The cloud record changed since this device last synchronized.
+                  Your local record remains intact. Keeping local explicitly
+                  replaces the cloud version on the next sync. Export a backup
+                  first.
+                </FText>
+                <Versions phone={view.phone} cloud={view.cloud} />
+                {view.differs.length > 0 && (
+                  <FText variant="label" tone="secondary">
+                    {`Differs in: ${view.differs.join(", ")}`}
+                  </FText>
+                )}
+                {view.update && (
+                  <FText variant="label" tone="accent">
+                    {view.updateText}
+                  </FText>
+                )}
+                <OutlineButton
+                  title="Keep local version"
+                  compact
+                  disabled={view.update}
+                  onPress={() =>
+                    confirm(
+                      "Keep local version?",
+                      "This authorizes replacing the currently conflicting cloud version on your next sync.",
+                      () => r.keepLocal(cf.id),
+                      { action: "Keep local version", destructive: false },
+                    )
+                  }
+                />
+                <OutlineButton
+                  title="Use cloud version"
+                  compact
+                  disabled={view.update}
+                  onPress={() =>
+                    confirm(
+                      "Use cloud version?",
+                      "Export first. This replaces the local record with the preserved cloud version.",
+                      () => r.useCloudVersion(cf.id),
+                      { action: "Replace with cloud version" },
+                    )
+                  }
+                />
+              </ForgeCard>
+            );
+          })}
+        </Section>
+      )}
+
+      <DataPrivacy />
+
+      <Section title="Membership">
+        <MembershipCard />
+      </Section>
+
+      <AboutForge />
+
+      <Section title="Delete">
+        <ForgeCard padding={0} gap={0}>
+          <DeleteLocalData />
+          {/* A deleted account has nothing left to delete (Phase 7.8E). */}
+          {client && shown && !accountGone && (
+            <DangerRow
+              title="Delete Forge account"
+              description="Permanently deletes your account and its cloud training, then this phone's training. You can export a backup first."
+              divider
+              disabled={busy}
+              onPress={() => router.push("/delete-account")}
+            />
+          )}
+        </ForgeCard>
+      </Section>
+      <BackupSheet visible={backupOpen} onClose={() => setBackupOpen(false)} />
+    </ForgeSubScreen>
+  );
+}
+
+/** A section label over its content. */
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={{ gap: forge.spacing.tight }}>
+      <SectionLabel title={title} />
+      {children}
+    </View>
+  );
+}
+
+/** A state stated in words with a small icon (never by colour alone). */
+function State({
+  icon,
+  text,
+  tone = "secondary",
+  header = false,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  text: string;
+  tone?: "secondary" | "accent";
+  header?: boolean;
+}) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Ionicons
+        name={icon}
+        size={16}
+        color={tone === "accent" ? c.emberHot : c.text2}
+      />
+      <FText variant="overline" tone={tone} header={header}>
+        {text}
+      </FText>
+    </View>
+  );
+}
+
+/** A label and its value on one row (wraps under large text). */
+function Fact({
+  label,
+  value,
+  divider = false,
+}: {
+  label: string;
+  value: string;
+  divider?: boolean;
+}) {
+  const c = useColors();
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      style={{
+        minHeight: 48,
+        paddingHorizontal: forge.spacing.cardPadding,
+        paddingVertical: 10,
+        flexDirection: "row",
+        flexWrap: "wrap",
+        alignItems: "center",
+        justifyContent: "space-between",
+        columnGap: 12,
+        borderTopWidth: divider ? forge.border.card : 0,
+        borderTopColor: c.cardDivider,
+      }}
+    >
+      <FText variant="body" tone="secondary">
+        {label}
+      </FText>
+      <FText variant="body" weight="600">
+        {value}
+      </FText>
+    </View>
+  );
+}
+
+/**
+ * A conflict's two versions side by side, as raised tiles that stack under
+ * large text (Phase 7.8B, M4). Each tile is read as one sentence.
+ */
+function Versions({ phone, cloud }: { phone: string[]; cloud: string[] }) {
+  const c = useColors();
+  if (!phone.length && !cloud.length) return null;
+  return (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+      {(
+        [
+          ["This phone", phone],
+          ["Cloud", cloud],
+        ] as const
+      ).map(([label, lines]) => (
+        <View
+          key={label}
+          accessible
+          accessibilityLabel={`${label}: ${lines.length ? lines.join(". ") : "no details"}`}
+          style={{
+            flexGrow: 1,
+            flexBasis: 140,
+            gap: 2,
+            padding: 10,
+            borderRadius: forge.radii.tile,
+            borderWidth: forge.border.card,
+            borderColor: c.cardBorder,
+            backgroundColor: c.cardRaised,
+          }}
+        >
+          <FText variant="overline" tone="secondary">
+            {label}
+          </FText>
+          {lines.map((line, i) => (
+            <FText key={i} variant="label">
+              {line}
+            </FText>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}

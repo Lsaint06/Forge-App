@@ -1,0 +1,403 @@
+/**
+ * FORGE Design System 2.0 tokens. Offline system typography; all design values
+ * are independent of persisted data. Dark-first; light mode keeps parity.
+ *
+ * Rules: one ember (accent) fill per screen; surfaces are tonal (no borders);
+ * hairlines only separate rows; numbers use tabular figures.
+ */
+const dark = {
+  // Foundation
+  bg: "#0A0B0D",
+  surface: "#141619",
+  surfaceRaised: "#1E2125",
+  // Selected segment of a segmented control.
+  selected: "#33373E",
+  hairline: "#2A2E34",
+  // Text hierarchy
+  text: "#F4F2EE",
+  text2: "#A4A9B0",
+  text3: "#6E747C",
+  // Accent: flat ember, used for the single primary action, selection and
+  // live progress only.
+  ember: "#F46B35",
+  emberPressed: "#D95727",
+  onEmber: "#0A0B0D",
+  // Status
+  success: "#43B88C",
+  // Completed set rows: success at ~14% over surface, precomputed so its
+  // contrast can be verified.
+  successSubtle: "#1B2D29",
+  warning: "#E5AE58",
+  error: "#EE7A75",
+  scrim: "rgba(0,0,0,0.6)",
+  // REFORGE (Phase 7.1A). Additive: used only by src/components/reforge and
+  // the tab bar. Values measured from the approved references
+  // (docs/audits/PHASE_7_0_REFORGE_ARCHITECTURE.md §3.3).
+  // Near-black card defined by a hairline border rather than by tone.
+  cardBg: "#0C0D0F",
+  cardBorder: "#26282B",
+  // Tiles, chips and inputs inside a card.
+  cardRaised: "#15171A",
+  cardDivider: "#1E2023",
+  // The references' accent: brighter and yellower than `ember`.
+  emberHot: "#F47522",
+  // Primary call-to-action gradient (top → bottom), label `onEmber`.
+  emberTop: "#F77620",
+  emberBottom: "#D8511F",
+  // Active card outline (e.g. the exercise being logged).
+  emberMuted: "#B2581D",
+  // Selected fills: segment, tab glow, ring track.
+  emberTint: "#2A1408",
+  emberTintStrong: "#4E1F0A",
+  // Upward changes that are unambiguously good (volume, records).
+  positive: "#4ADE80",
+  tabBar: "#0C0E0F",
+  // Faint top-light on cards and the ember glow behind the selected tab.
+  sheen: "rgba(255,255,255,0.035)",
+  emberGlow: "rgba(244,117,34,0.2)",
+  // Hydration only (Phase 7.3C, decision H5): a restrained blue for the
+  // water bar, drop and amounts, and a faint tint behind its controls.
+  hydration: "#5AAEF5",
+  hydrationTint: "#0D1A26",
+} as const;
+
+const light = {
+  bg: "#F2F3F5",
+  surface: "#FFFFFF",
+  surfaceRaised: "#E9ECF0",
+  selected: "#FFFFFF",
+  hairline: "#D5DAE1",
+  text: "#111418",
+  text2: "#4E5864",
+  text3: "#6B7480",
+  // Same hue as dark-mode ember (17°), darkened for AA contrast on light
+  // surfaces and under white labels.
+  ember: "#C2410C",
+  emberPressed: "#A3360A",
+  onEmber: "#FFFFFF",
+  success: "#19724F",
+  successSubtle: "#E3EEEA",
+  warning: "#8A5A00",
+  error: "#A52C32",
+  scrim: "rgba(0,0,0,0.4)",
+  // REFORGE light equivalents: same roles, AA-tested, no separate aesthetic.
+  cardBg: "#FFFFFF",
+  cardBorder: "#D5DAE1",
+  cardRaised: "#F2F3F5",
+  cardDivider: "#E3E7EC",
+  emberHot: "#C2410C",
+  emberTop: "#CC4A10",
+  emberBottom: "#B23A0A",
+  emberMuted: "#D0612A",
+  emberTint: "#FDF0E8",
+  emberTintStrong: "#F8D9C6",
+  positive: "#19724F",
+  tabBar: "#FFFFFF",
+  sheen: "rgba(255,255,255,0)",
+  emberGlow: "rgba(194,65,12,0.11)",
+  hydration: "#1764B8",
+  hydrationTint: "#E9F2FC",
+} as const;
+
+export type Palette = {
+  [K in keyof typeof dark]: string;
+};
+
+// Earlier component code reads these names; they map onto the 2.0 tokens.
+export function withLegacyAliases(p: Palette) {
+  return {
+    ...p,
+    background: p.bg,
+    elevated: p.surfaceRaised,
+    muted: p.text2,
+    subtle: p.text3,
+    accent: p.ember,
+    pressed: p.emberPressed,
+    border: p.hairline,
+  };
+}
+export type Colors = ReturnType<typeof withLegacyAliases>;
+
+type TextRole = {
+  size: number;
+  lineHeight: number;
+  weight: "400" | "500" | "600" | "700" | "800";
+  tracking: number;
+  uppercase?: boolean;
+  tabular?: boolean;
+};
+
+// Six text roles and two numeric roles replace ad-hoc sizes.
+export const textRoles = {
+  display: { size: 32, lineHeight: 36, weight: "800", tracking: -0.5 },
+  title: { size: 22, lineHeight: 27, weight: "700", tracking: -0.2 },
+  headline: { size: 17, lineHeight: 22, weight: "600", tracking: 0 },
+  body: { size: 15, lineHeight: 21, weight: "400", tracking: 0 },
+  caption: { size: 13, lineHeight: 17, weight: "500", tracking: 0 },
+  overline: {
+    size: 11,
+    lineHeight: 14,
+    weight: "700",
+    tracking: 1.6,
+    uppercase: true,
+  },
+  metricXL: {
+    size: 44,
+    lineHeight: 48,
+    weight: "700",
+    tracking: -1,
+    tabular: true,
+  },
+  metric: {
+    size: 22,
+    lineHeight: 26,
+    weight: "600",
+    tracking: -0.3,
+    tabular: true,
+  },
+} as const satisfies Record<string, TextRole>;
+export type TextVariant = keyof typeof textRoles;
+
+// iPhone logical widths: SE and mini are 375 pt or narrower; standard models
+// are 390–402 pt; Plus and Pro Max models are 428 pt or wider.
+export type SizeClass = "compact" | "standard" | "large";
+export function sizeClass(width: number): SizeClass {
+  if (width < 390) return "compact";
+  if (width >= 428) return "large";
+  return "standard";
+}
+
+// Only the largest roles respond to the device so titles never clip or
+// wrap excessively on compact phones. Standard sizes match `textRoles`.
+const responsiveSizes: Partial<
+  Record<TextVariant, Record<SizeClass, { size: number; lineHeight: number }>>
+> = {
+  display: {
+    compact: { size: 28, lineHeight: 32 },
+    standard: { size: 32, lineHeight: 36 },
+    large: { size: 34, lineHeight: 40 },
+  },
+  metricXL: {
+    compact: { size: 40, lineHeight: 44 },
+    standard: { size: 44, lineHeight: 48 },
+    large: { size: 44, lineHeight: 48 },
+  },
+};
+export function textRoleFor(variant: TextVariant, width: number) {
+  const base: TextRole = textRoles[variant];
+  const responsive = responsiveSizes[variant]?.[sizeClass(width)];
+  return responsive ? { ...base, ...responsive } : base;
+}
+
+// Dynamic Type scales all text. Headings and hero numbers stop growing at
+// these multipliers so they stay on screen; body and caption text scale fully.
+export const maxFontScale: Partial<Record<TextVariant, number>> = {
+  display: 1.3,
+  metricXL: 1.2,
+  title: 1.5,
+  metric: 1.5,
+};
+
+export const theme = {
+  palettes: { dark, light },
+  // Legacy-compatible dark colors (`theme.colors.*`).
+  colors: withLegacyAliases(dark),
+  // 4-pt grid.
+  spacing: {
+    xs: 4,
+    sm: 8,
+    md: 16,
+    lg: 24,
+    xl: 32,
+    xxl: 48,
+    screen: 20,
+    section: 32,
+    group: 12,
+    row: 16,
+  },
+  radii: { control: 12, card: 16, sheet: 24, pill: 999 },
+  // Minimum interactive heights. 44 pt is Apple's minimum tap target.
+  heights: { primary: 54, control: 48, compact: 44, row: 56, rowTall: 64 },
+  textRoles,
+  // Legacy aliases for numeric sizes.
+  typography: {
+    display: textRoles.display.size,
+    title: textRoles.title.size,
+    section: 20,
+    body: textRoles.body.size,
+    supporting: textRoles.caption.size,
+    numeric: 32,
+  },
+  // Elevation is tonal; only sheets and menus float above a scrim.
+  elevation: {
+    flat: {},
+    floating: {
+      shadowColor: "#000",
+      shadowOpacity: 0.35,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 12,
+    },
+  },
+  motion: { press: 100, transition: 180, progress: 300 },
+  shadow: {
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  border: { width: 1 },
+} as const;
+
+// Earlier code passes arbitrary font sizes to Label; they snap to the scale.
+export function legacySizeRole(size: number): TextVariant {
+  if (size <= 11) return "overline";
+  if (size <= 13) return "caption";
+  if (size <= 16) return "body";
+  if (size <= 19) return "headline";
+  if (size <= 24) return "title";
+  return "display";
+}
+
+// ---- REFORGE (Phase 7.1A) ---------------------------------------------------
+// The premium layer is additive and opt-in: Design System 2.0 roles, spacing
+// and components above are unchanged, so screens not yet transformed keep
+// their appearance. See docs/redesign/REFORGE_FOUNDATION.md.
+
+/**
+ * Display face for condensed uppercase titles: Barlow Condensed (SIL Open
+ * Font License 1.1, assets/fonts/OFL.txt), bundled and loaded by
+ * src/fonts.ts. Until it has loaded, titles use the system face at the same
+ * size and weight.
+ */
+export const DISPLAY_FONT = {
+  bold: "BarlowCondensed-Bold",
+  heavy: "BarlowCondensed-ExtraBold",
+} as const;
+
+export type ForgeRole = TextRole & {
+  /** Uses the display face (once loaded) in this cut. */
+  display?: keyof typeof DISPLAY_FONT;
+};
+
+export const forgeText = {
+  // Session, workout and goal heroes ("PUSH — CHEST & BACK").
+  heroTitle: {
+    size: 30,
+    lineHeight: 31,
+    weight: "800",
+    tracking: 0.2,
+    uppercase: true,
+    display: "heavy",
+  },
+  // Short condensed labels such as a level or plan name.
+  displayLabel: {
+    size: 22,
+    lineHeight: 24,
+    weight: "700",
+    tracking: 0.3,
+    uppercase: true,
+    display: "bold",
+  },
+  // "Nutrition", "Progress".
+  screenTitle: { size: 30, lineHeight: 36, weight: "800", tracking: -0.5 },
+  greeting: { size: 26, lineHeight: 32, weight: "700", tracking: -0.3 },
+  subtitle: { size: 16, lineHeight: 21, weight: "400", tracking: 0 },
+  cardTitle: { size: 17, lineHeight: 22, weight: "600", tracking: 0 },
+  body: { size: 15, lineHeight: 20, weight: "400", tracking: 0 },
+  label: { size: 13, lineHeight: 17, weight: "500", tracking: 0 },
+  // Letter-spaced card headers ("TODAY'S NUTRITION").
+  overline: {
+    size: 11,
+    lineHeight: 14,
+    weight: "700",
+    tracking: 2.2,
+    uppercase: true,
+  },
+  // Under the wordmark ("BUILT THROUGH DISCIPLINE").
+  tagline: {
+    size: 8,
+    lineHeight: 10,
+    weight: "600",
+    tracking: 3.2,
+    uppercase: true,
+  },
+  heroMetric: {
+    size: 44,
+    lineHeight: 48,
+    weight: "800",
+    tracking: -1,
+    tabular: true,
+  },
+  cardMetric: {
+    size: 24,
+    lineHeight: 28,
+    weight: "700",
+    tracking: -0.4,
+    tabular: true,
+  },
+  statMetric: {
+    size: 20,
+    lineHeight: 24,
+    weight: "700",
+    tracking: -0.2,
+    tabular: true,
+  },
+  button: { size: 17, lineHeight: 22, weight: "700", tracking: 0.1 },
+  tabLabel: { size: 11, lineHeight: 13, weight: "600", tracking: 0.2 },
+  // Chart axis values and dates (Phase 7.4C).
+  axis: { size: 12, lineHeight: 15, weight: "500", tracking: 0, tabular: true },
+} as const satisfies Record<string, ForgeRole>;
+export type ForgeVariant = keyof typeof forgeText;
+
+const forgeResponsive: Partial<
+  Record<ForgeVariant, Record<SizeClass, { size: number; lineHeight: number }>>
+> = {
+  heroTitle: {
+    compact: { size: 26, lineHeight: 27 },
+    standard: { size: 30, lineHeight: 31 },
+    large: { size: 32, lineHeight: 33 },
+  },
+  screenTitle: {
+    compact: { size: 26, lineHeight: 32 },
+    standard: { size: 30, lineHeight: 36 },
+    large: { size: 32, lineHeight: 38 },
+  },
+  heroMetric: {
+    compact: { size: 40, lineHeight: 44 },
+    standard: { size: 44, lineHeight: 48 },
+    large: { size: 44, lineHeight: 48 },
+  },
+};
+export function forgeRoleFor(variant: ForgeVariant, width: number): ForgeRole {
+  const base: ForgeRole = forgeText[variant];
+  const responsive = forgeResponsive[variant]?.[sizeClass(width)];
+  return responsive ? { ...base, ...responsive } : base;
+}
+
+// Headings, hero numbers and decorative brand text stop growing here; body,
+// label and overline text scale fully with Dynamic Type.
+export const forgeMaxFontScale: Partial<Record<ForgeVariant, number>> = {
+  heroTitle: 1.3,
+  displayLabel: 1.3,
+  screenTitle: 1.3,
+  greeting: 1.3,
+  heroMetric: 1.2,
+  cardMetric: 1.5,
+  statMetric: 1.5,
+  tagline: 1.2,
+  tabLabel: 1.3,
+  // Axis labels grow with text size but keep the chart's plot area usable;
+  // every value is also in the selected-point readout and spoken value.
+  axis: 1.5,
+};
+
+export const forge = {
+  // The references' 16 pt margin and tight card rhythm (Phase 7.0 §3.2).
+  spacing: { margin: 16, cardGap: 12, cardPadding: 16, group: 12, tight: 8 },
+  radii: { card: 8, tile: 8, input: 8, cta: 10, tabBar: 22, pill: 999 },
+  // Never below 44 pt, even where a reference draws a smaller control.
+  heights: { cta: 54, button: 48, compact: 44, chip: 32, tab: 56 },
+  border: { card: 0.5, active: 1 },
+  motion: { press: 100, quick: 160, expand: 240, progress: 450 },
+} as const;

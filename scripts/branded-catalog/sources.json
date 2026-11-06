@@ -1,0 +1,10 @@
+{
+  "release": "2026-04-30",
+  "label": "USDA FoodData Central, Global Branded Food Products Database",
+  "url": "https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_branded_food_json_2026-04-30.zip",
+  "bytes": 204270542,
+  "sha256": "57b0f122e61cf2840f03c11e9520275d0d2018dc036e16273fcd3cd370db2256",
+  "member": "FoodData_Central_branded_food_json_2026-04-30.json",
+  "root": "BrandedFoods",
+  "attribution": "U.S. Department of Agriculture, Agricultural Research Service. FoodData Central: USDA Global Branded Food Products Database. fdc.nal.usda.gov. Public-domain data (CC0 1.0). Selected by FORGE; USDA does not endorse this app."
+}

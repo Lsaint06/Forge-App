@@ -1,0 +1,5 @@
+The iPhone-tested prototype placed too much text and secondary tooling around common training tasks and nested the exercise picker’s virtualized list inside a vertical ScrollView. This redesign adds shared athletic tokens, today-first Home, visual offline movement browsing, a grouped You destination and streamlined training plans. Workout logging uses a single exercise FlatList, a persistent session clock and thumb-accessible actions, while retaining all advanced fields through disclosure.
+
+No schema, backup, domain, persistence, dependency or optional cloud-interface changes. Original vector muscle diagrams are explicitly illustrations; real demonstration media still needs licensing/sourcing. Physical-device, VoiceOver, keyboard and live cloud acceptance remain outstanding.
+
+Validation: 44 core tests, 12 UI tests, TypeScript, lint, formatting, and iOS/Android Hermes exports pass. Local Expo manifest and development bundle return HTTP 200. Public preview and device acceptance are not claimed. See docs/redesign/STATUS.md and VALIDATION.md, including the Safari Codespaces preview workflow.

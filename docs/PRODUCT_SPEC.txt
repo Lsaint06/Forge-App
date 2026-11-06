@@ -1,0 +1,904 @@
+FORGE — EXTREME-SCOPE AUTONOMOUS APPLICATION BUILD
+
+YOUR ROLE
+
+You are the principal software engineer, mobile architect, UI/UX designer, database engineer, QA engineer, and technical lead responsible for building FORGE.
+
+You have been granted full-access execution permissions within your development environment.
+
+Your mission is to create the most complete, polished, functional fitness tracking application possible in this execution.
+
+DO NOT STOP AT PLANNING. BUILD THE APPLICATION.
+
+Repository: Lsaint06/Forge-App
+
+The repository currently contains a README.md on the main branch.
+
+You are authorized to create project files, install dependencies, run development tools, execute tests, create commits, and prepare a pull request.
+
+Never expose secrets, delete unrelated resources, modify external repositories, or perform destructive operations outside this project.
+
+1. PRODUCT VISION
+
+FORGE is a premium, intelligent fitness tracking platform combining the best concepts of Strong, Hevy, Fitbod, MyFitnessPal, and advanced strength training analytics.
+
+The app must feel like a serious fitness product, not a generic demonstration.
+
+Core principles:
+
+* Extremely polished, premium user interface.
+* Dark-first design with powerful visual hierarchy.
+* Fast and responsive interactions.
+* Real persistent data.
+* Offline-first workout tracking.
+* Reliable synchronization.
+* Scientifically grounded training analytics.
+* Intelligent progressive overload.
+* Highly customizable workout programming.
+* Excellent accessibility.
+* No fake functionality or placeholder screens.
+
+Every feature must either work or be explicitly identified as incomplete.
+
+2. TECHNOLOGY STACK
+
+Use the following architecture unless a technically superior alternative is justified.
+
+Mobile application
+
+* React Native.
+* Expo SDK compatible with the selected React Native version.
+* TypeScript with strict mode.
+* Expo Router for navigation.
+* React Native Reanimated.
+* React Native Gesture Handler.
+* Expo SQLite for local persistence.
+* Zustand for application state.
+* TanStack Query where appropriate.
+* React Hook Form and Zod for validated forms.
+* Expo Notifications.
+* Expo Haptics.
+* Expo SecureStore for sensitive local tokens.
+* A maintained React Native-compatible charting library.
+
+Backend
+
+* Supabase PostgreSQL.
+* Supabase Auth.
+* Row Level Security.
+* Database migrations.
+* Supabase Storage where required.
+* Edge Functions only where justified.
+
+The application must work in local guest mode without Supabase credentials.
+
+Cloud-dependent features must use real backend integrations when configured. Never fabricate authentication or synchronization.
+
+Testing
+
+* Jest and React Native Testing Library, or compatible maintained alternatives.
+* Integration tests for persistence and business logic.
+* End-to-end tests using Maestro where feasible.
+* TypeScript verification.
+* ESLint.
+* CI using GitHub Actions.
+
+Platforms
+
+* iOS as primary platform.
+* Android support.
+* Expo Go compatibility for core functionality wherever technically feasible.
+* Development builds for native features unavailable in Expo Go.
+
+The owner is currently using an iPhone and has access to a Windows 11 PC later.
+
+Do not require a Mac or Xcode for the initial Expo Go testing workflow.
+
+3. DESIGN SYSTEM
+
+Build an original visual identity.
+
+Brand: FORGE.
+
+Style: premium athletic performance, minimalist, powerful, precise.
+
+Colors
+
+* Background: #080A0D
+* Surface: #12161C
+* Elevated surface: #1A2028
+* Primary accent: #FF5A36
+* Secondary accent: #FF8A4C
+* Main text: #F5F7FA
+* Secondary text: #9CA6B4
+* Success: #35C98A
+* Warning: #F5B942
+* Error: #F05D65
+
+Use consistent spacing, typography, iconography, animation, and elevation.
+
+Required design details
+
+* Custom tab navigation.
+* Elegant onboarding.
+* High-quality cards.
+* Animated progress indicators.
+* Smooth screen transitions.
+* Interactive charts.
+* Bottom sheets.
+* Skeleton loading states.
+* Haptic feedback.
+* Swipe interactions where appropriate.
+* Empty states with useful actions.
+* Consistent error states.
+* Dynamic font scaling.
+* Safe-area support.
+* Accessible touch targets.
+* Light theme support.
+* Reduced-motion support.
+
+The visual experience should be cohesive and refined across the entire application.
+
+4. APPLICATION NAVIGATION
+
+Create five primary tabs.
+
+1. Home
+2. Train
+3. Explore
+4. Progress
+5. Profile
+
+A persistent active-workout entry point should be available when a session is running.
+
+All navigation destinations must function.
+
+5. ONBOARDING AND USER PROFILE
+
+Implement a complete onboarding experience.
+
+Collect:
+
+* Display name.
+* Training experience.
+* Fitness goals.
+* Height.
+* Weight.
+* Preferred measurement units.
+* Training frequency.
+* Available equipment.
+* Preferred workout duration.
+* Target muscle groups.
+* Optional body composition information.
+* Notification preferences.
+
+Allow skipping optional fields.
+
+Save onboarding progress.
+
+Allow editing every setting later.
+
+Support guest mode immediately.
+
+Support account creation and login when Supabase is configured.
+
+Include clear privacy disclosures and data deletion controls.
+
+6. HOME DASHBOARD
+
+Build a personalized dashboard displaying:
+
+* Welcome message.
+* Current training streak.
+* Weekly training frequency.
+* Weekly volume.
+* Last workout.
+* Next planned workout.
+* Recovery overview.
+* Personal record highlights.
+* Bodyweight trend.
+* Weekly goal progress.
+* Quick-start workout button.
+* Resume active workout.
+* Recent activity.
+* Training consistency.
+* Motivational milestones.
+
+All metrics must derive from actual stored user data.
+
+Never show fabricated performance statistics.
+
+7. EXERCISE DATABASE
+
+Build a substantial exercise library with at least 250 legitimate exercises.
+
+Each exercise should contain:
+
+* Stable unique identifier.
+* Name.
+* Primary muscle group.
+* Secondary muscles.
+* Equipment.
+* Movement pattern.
+* Difficulty.
+* Instructions.
+* Common mistakes.
+* Safety notes.
+* Exercise category.
+* Unilateral/bilateral classification.
+* Relevant tracking units.
+
+Support:
+
+* Full-text search.
+* Filtering.
+* Sorting.
+* Favorites.
+* Recently used exercises.
+* Custom exercises.
+* Editing custom exercises.
+* Exercise substitution.
+* Exercise history.
+* Personal records.
+* Exercise-specific analytics.
+
+Do not create meaningless duplicates to inflate the exercise count.
+
+Use valid exercise metadata and sensible classifications.
+
+Exercise images or animations may be added using appropriately licensed assets, but must not block the app’s functionality.
+
+8. WORKOUT TRACKING ENGINE
+
+This is the highest-priority feature.
+
+Implement a robust active workout system.
+
+Users must be able to:
+
+* Start an empty workout.
+* Start from a template.
+* Add exercises.
+* Remove exercises.
+* Reorder exercises.
+* Add sets.
+* Remove sets.
+* Edit sets.
+* Mark sets complete.
+* Record weight.
+* Record repetitions.
+* Record RPE.
+* Record repetitions in reserve.
+* Record rest time.
+* Record tempo.
+* Add set notes.
+* Add exercise notes.
+* Add workout notes.
+* Mark warm-up sets.
+* Mark working sets.
+* Mark drop sets.
+* Mark failure sets.
+* Track supersets.
+* Track circuits.
+* Track unilateral movements.
+* Track bodyweight exercises.
+* Track duration-based exercises.
+* Track distance-based exercises.
+* Pause and resume workouts.
+* Finish workouts.
+* Discard workouts with confirmation.
+* Edit completed workouts.
+* Duplicate previous workouts.
+* Resume interrupted workouts.
+
+Workout timer
+
+Implement a real workout timer.
+
+It must account for app backgrounding and reopening by using timestamps rather than depending solely on an in-memory interval.
+
+Rest timer
+
+Support:
+
+* Automatic rest timer.
+* Manual rest timer.
+* Custom durations.
+* Per-exercise defaults.
+* Skip.
+* Extend.
+* Haptic feedback.
+* Notifications when supported.
+
+Persistence
+
+An active workout must survive:
+
+* App navigation.
+* App backgrounding.
+* App termination.
+* App reopening.
+* Temporary loss of connectivity.
+
+Persist meaningful edits immediately.
+
+Avoid data loss and duplicate workout completion.
+
+9. WORKOUT TEMPLATES AND PROGRAMS
+
+Implement:
+
+* Custom workout templates.
+* Template duplication.
+* Template editing.
+* Template deletion.
+* Exercise ordering.
+* Target sets and repetitions.
+* Rest presets.
+* Training notes.
+* Weekly workout schedules.
+* Multiweek programs.
+* Program progression.
+* Deload weeks.
+* Program completion tracking.
+
+Provide useful starter programs, including:
+
+* Full Body 3-Day.
+* Upper/Lower 4-Day.
+* Push/Pull/Legs 6-Day.
+* Beginner Strength.
+* Hypertrophy 4-Day.
+* Powerbuilding.
+* Minimal Equipment.
+
+These must contain actual exercise prescriptions rather than empty template shells.
+
+10. PROGRESSIVE OVERLOAD ENGINE
+
+Implement deterministic progressive overload recommendations.
+
+Use:
+
+* Previous completed workouts.
+* Repetition ranges.
+* Set performance.
+* RPE or RIR.
+* Exercise history.
+* User-selected progression rules.
+
+Examples:
+
+* Increase weight after consistently reaching the upper repetition target.
+* Maintain weight when performance is below target.
+* Suggest reduced loads when repeated performance regression occurs.
+* Suggest progression using configurable weight increments.
+
+Users must be able to override recommendations.
+
+Explain why each recommendation was generated.
+
+Do not claim medical or scientific certainty from simplistic algorithms.
+
+Do not require an external AI API.
+
+11. ANALYTICS AND PROGRESS
+
+Implement real analytics calculated from completed workout data.
+
+Required metrics:
+
+* Total training volume.
+* Volume by exercise.
+* Volume by muscle group.
+* Weekly sets.
+* Monthly sets.
+* Workout frequency.
+* Training duration.
+* Exercise frequency.
+* Personal records.
+* Estimated one-repetition maximum.
+* Strength trends.
+* Training consistency.
+* Rep performance.
+* Average workout duration.
+* Training streaks.
+* Program adherence.
+
+Provide interactive charts for:
+
+* 7 days.
+* 30 days.
+* 90 days.
+* 1 year.
+* All time.
+
+Include appropriate empty states.
+
+Estimated one-repetition maximum should use a documented formula and clearly indicate that it is an estimate.
+
+Avoid double-counting sets and workout volume.
+
+Support metric and imperial units correctly.
+
+12. BODY MEASUREMENTS
+
+Support tracking:
+
+* Bodyweight.
+* Body fat percentage.
+* Chest.
+* Waist.
+* Hips.
+* Arms.
+* Thighs.
+* Calves.
+* Neck.
+* Custom measurements.
+
+Allow:
+
+* Historical entries.
+* Editing.
+* Deleting.
+* Trend charts.
+* Unit conversion.
+* Notes.
+* Optional progress photos.
+
+Progress photos must remain private and require appropriate storage permissions.
+
+13. NUTRITION TRACKING
+
+Implement a functional manual nutrition tracker.
+
+Support:
+
+* Daily calorie goals.
+* Protein goals.
+* Carbohydrate goals.
+* Fat goals.
+* Meal logging.
+* Custom food entries.
+* Saved foods.
+* Repeated meals.
+* Food quantities.
+* Serving sizes.
+* Daily nutrition totals.
+* Nutrition history.
+* Goal adjustments.
+
+Do not fabricate nutritional information.
+
+If barcode scanning or external food APIs require credentials or native builds, implement them only when practical and document the setup.
+
+Core manual nutrition tracking must function offline.
+
+14. RECOVERY AND READINESS
+
+Implement a recovery journal.
+
+Track:
+
+* Sleep duration.
+* Sleep quality.
+* Muscle soreness.
+* Energy.
+* Stress.
+* Subjective readiness.
+* Rest days.
+* Recovery notes.
+
+Generate a transparent readiness summary based on logged inputs.
+
+Do not present readiness estimates as medical diagnoses.
+
+15. GOALS AND ACHIEVEMENTS
+
+Implement user-configurable goals:
+
+* Workouts per week.
+* Strength targets.
+* Bodyweight targets.
+* Training consistency.
+* Workout duration.
+* Exercise milestones.
+* Nutrition targets.
+
+Create a functional achievement system.
+
+Examples:
+
+* First workout completed.
+* Ten workouts completed.
+* One hundred workouts completed.
+* First personal record.
+* Four-week consistency milestone.
+* Training volume milestone.
+
+Achievements must unlock from real recorded events.
+
+Do not award achievements from mock data.
+
+16. NOTIFICATIONS
+
+Support:
+
+* Workout reminders.
+* Rest timer completion.
+* Planned workout reminders.
+* Goal reminders.
+* Optional consistency reminders.
+
+Request permissions appropriately.
+
+Respect notification preferences.
+
+Provide graceful fallback behavior when permissions are denied.
+
+17. DATA ARCHITECTURE
+
+Design a normalized data model covering:
+
+* Users.
+* Profiles.
+* Exercises.
+* Custom exercises.
+* Workouts.
+* Workout exercises.
+* Workout sets.
+* Templates.
+* Template exercises.
+* Template sets.
+* Programs.
+* Program schedules.
+* Body measurements.
+* Nutrition entries.
+* Foods.
+* Recovery entries.
+* Goals.
+* Achievements.
+* Personal records.
+* Notification preferences.
+* Synchronization metadata.
+
+Include:
+
+* Stable identifiers.
+* Creation timestamps.
+* Update timestamps.
+* Referential integrity.
+* Schema migrations.
+* Appropriate indexes.
+* Validation.
+* Soft deletion where appropriate.
+
+Use explicit units for stored measurements.
+
+Separate domain logic from UI components.
+
+18. OFFLINE-FIRST BEHAVIOR
+
+Local functionality must work without an internet connection.
+
+Implement:
+
+* SQLite persistence.
+* Repository/data-access layer.
+* Versioned migrations.
+* Local writes.
+* Synchronization queue.
+* Retry handling.
+* Idempotent operations.
+* Conflict detection.
+* Safe error recovery.
+
+When cloud sync is configured, support synchronization with Supabase.
+
+Document conflict-resolution rules.
+
+Never silently overwrite user workout data.
+
+Guest mode must remain fully usable without cloud credentials.
+
+19. AUTHENTICATION AND SECURITY
+
+When Supabase is configured:
+
+* Email/password registration.
+* Login.
+* Logout.
+* Session restoration.
+* Password reset.
+* Authenticated data access.
+* Row Level Security.
+* User-owned data isolation.
+* Secure token storage.
+* Account deletion.
+
+Never commit secrets.
+
+Provide an .env.example.
+
+Do not place Supabase service-role keys in the mobile app.
+
+Do not use fake login screens.
+
+If credentials are unavailable, expose guest mode and document what is required to enable cloud features.
+
+20. SETTINGS AND DATA MANAGEMENT
+
+Implement:
+
+* Unit preferences.
+* Theme preferences.
+* Notification settings.
+* Rest timer defaults.
+* Workout preferences.
+* Profile editing.
+* Exercise preferences.
+* Export data to JSON.
+* Import compatible backup data.
+* Delete individual records.
+* Delete all local data with confirmation.
+* Privacy information.
+* App version information.
+
+Data export must include meaningful user-owned records.
+
+Data import must validate schemas and handle malformed files safely.
+
+21. ERROR HANDLING
+
+Handle:
+
+* Empty databases.
+* Invalid user input.
+* Missing permissions.
+* Network failures.
+* Authentication failures.
+* Database migration failures.
+* Duplicate submissions.
+* Interrupted writes.
+* Background app suspension.
+* Invalid backup files.
+* Missing exercises.
+* Deleted templates.
+* Timezone changes.
+* Unit conversion errors.
+* Cloud synchronization conflicts.
+
+Never silently discard user data.
+
+Provide actionable errors and recovery options.
+
+22. PERFORMANCE
+
+Optimize for real mobile devices.
+
+Requirements:
+
+* Efficient exercise list rendering.
+* Memoized expensive calculations.
+* Appropriate database indexing.
+* Avoid unnecessary rerenders.
+* Lazy-load expensive screens where practical.
+* Avoid excessive network requests.
+* Smooth workout interactions.
+* Efficient chart rendering.
+* Reasonable application startup time.
+
+Avoid adding unnecessary dependencies.
+
+23. ACCESSIBILITY
+
+Support:
+
+* Screen readers.
+* Accessible labels.
+* Dynamic font sizing.
+* Sufficient contrast.
+* Reduced motion.
+* Large touch targets.
+* Logical focus order.
+* Clear validation errors.
+
+Do not rely exclusively on color to communicate information.
+
+24. TESTING REQUIREMENTS
+
+Implement automated tests for:
+
+* Workout creation.
+* Workout completion.
+* Set editing.
+* Workout persistence.
+* Template creation.
+* Program scheduling.
+* Exercise search.
+* Progressive overload calculations.
+* Volume calculations.
+* Personal record detection.
+* Estimated one-repetition maximum.
+* Unit conversions.
+* Body measurement history.
+* Nutrition totals.
+* Recovery scoring.
+* Goal progression.
+* Achievement unlocking.
+* Import/export validation.
+* Database migrations.
+* Offline behavior.
+* Synchronization conflict handling.
+
+Include integration tests wherever practical.
+
+Tests must validate actual functionality.
+
+Do not write tests that only assert that placeholder components render.
+
+25. DEVELOPMENT WORKFLOW
+
+Follow this sequence.
+
+Phase 1 — Foundation
+
+Create the complete Expo application structure, dependencies, navigation, design system, persistence layer, and migrations.
+
+Phase 2 — Core training
+
+Implement the exercise database, active workout engine, workout history, rest timers, and templates.
+
+Phase 3 — Training intelligence
+
+Implement progressive overload, programs, analytics, and personal records.
+
+Phase 4 — Lifestyle tracking
+
+Implement body measurements, nutrition, recovery, goals, and achievements.
+
+Phase 5 — Cloud features
+
+Implement authentication, database migrations, RLS, and offline synchronization.
+
+Phase 6 — Quality
+
+Implement tests, CI, accessibility improvements, performance improvements, and documentation.
+
+Phase 7 — Delivery
+
+Run validation, document results, commit changes, and prepare a pull request.
+
+Do not stop after Phase 1 unless execution constraints prevent further progress.
+
+If you cannot complete every feature, prioritize correctness and depth over superficial breadth.
+
+Never falsely report an incomplete feature as complete.
+
+26. CODE QUALITY RULES
+
+* TypeScript strict mode.
+* No unnecessary any.
+* No placeholder buttons.
+* No fake API calls.
+* No mock analytics in production.
+* No fabricated workout history.
+* No fake authentication.
+* No silent database failures.
+* No hardcoded user records.
+* No secrets committed.
+* No massive unmaintainable components.
+* No unnecessary global state.
+* No unvalidated imports.
+* No misleading TODOs presented as implemented functionality.
+
+Use clear domain types, reusable components, and maintainable module boundaries.
+
+27. IPHONE TESTING REQUIREMENTS
+
+The owner needs to test the application on an iPhone while away from their Windows PC.
+
+Create a detailed IPHONE_TESTING.md explaining:
+
+1. How to install Expo Go.
+2. How to run the Expo development server.
+3. How to connect an iPhone to the development server.
+4. How to use a tunnel when local network access is unavailable.
+5. How to test guest mode without Supabase.
+6. Which features work in Expo Go.
+7. Which features require an Expo development build.
+8. How to use EAS Build for iOS when appropriate.
+9. What Apple developer account requirements may apply.
+10. How to test from Windows without Xcode.
+
+Do not claim that a GitHub repository alone provides a live Expo Go application.
+
+Do not assume the cloud Codex execution environment automatically exposes a publicly accessible Expo development server.
+
+Clearly distinguish between running the code in a development environment and installing or opening the app on a physical iPhone.
+
+28. DELIVERY REQUIREMENTS
+
+Before finishing:
+
+* Run dependency installation.
+* Run TypeScript validation.
+* Run linting.
+* Run available automated tests.
+* Attempt a compatible Expo export/build validation.
+* Document failures accurately.
+* Review repository changes.
+* Commit implementation changes.
+* Prepare a pull request targeting main when supported.
+
+Update README.md with:
+
+* Product overview.
+* Architecture.
+* Feature inventory.
+* Installation instructions.
+* Local development commands.
+* Environment variables.
+* Database setup.
+* Testing instructions.
+* Known limitations.
+* iPhone testing instructions.
+
+Create IMPLEMENTATION_STATUS.md containing a feature-by-feature status table.
+
+Statuses must be:
+
+* Implemented and tested.
+* Implemented but unverified.
+* Partially implemented.
+* Not implemented.
+* Blocked by external configuration.
+
+Do not claim a feature is tested unless a relevant test actually ran successfully.
+
+29. FINAL REPORT
+
+At completion, provide:
+
+1. Architecture summary.
+2. Files and modules created.
+3. Implemented features.
+4. Incomplete features.
+5. Test results.
+6. TypeScript and lint results.
+7. Build/export results.
+8. Git commit identifier.
+9. Pull request link if created.
+10. Instructions for testing on iPhone.
+11. External credentials or configuration still required.
+12. Highest-priority remaining improvements.
+
+Be precise and transparent.
+
+30. AUTONOMOUS EXECUTION DIRECTIVE
+
+You have sufficient authority to implement the application.
+
+Do not repeatedly ask for approval for ordinary implementation decisions.
+
+Make reasonable architectural choices independently.
+
+Do not spend the entire execution writing plans or specifications.
+
+Create actual source code.
+
+Create actual database migrations.
+
+Create actual screens.
+
+Implement actual interactions.
+
+Run actual tests.
+
+Fix errors discovered during testing.
+
+Continue until the available execution budget is exhausted or the application reaches the strongest functional state achievable.
+
+If execution limits interrupt the build, preserve completed work in commits and provide a precise continuation plan.
+
+START IMPLEMENTING FORGE NOW.

@@ -1,0 +1,140 @@
+# Testing FORGE on an iPhone
+
+## What is available now
+
+The repository contains an Expo SDK 58 application. Dependency installation, automated checks and native JavaScript exports can be run in a development environment. **A GitHub repository alone is not a live Expo Go app.** No public development-server address, signed iOS build, TestFlight release or physical-device test is claimed by this delivery.
+
+The Codex cloud machine can run Metro for internal checks. Its loopback endpoint cannot be opened by your iPhone, and this onboarding interface does not automatically expose a phone-accessible server. Do not try scanning a localhost URL from the phone.
+
+## Expo Go: initial testing without a Mac
+
+1. Install **Expo Go** from the iPhone App Store. Confirm it supports SDK 58. iOS generally offers the current Expo Go release; if your installed release and this SDK differ, use a compatible development build or upgrade the project deliberately. Do not mix React Native/native package versions by hand.
+2. On a reachable development host, install Node.js **24**, Git and the repository. Windows 11 works. Before the feature branch is merged, check out `feat/forge-paths-foundation`.
+3. In `Forge-App`, run:
+
+   ```sh
+   npm ci
+   npx expo start --go
+   ```
+
+4. Put the host and phone on the same Wi-Fi network. Allow Node/Metro through Windows Firewall on **private networks**. Avoid guest-network client isolation. Scan the terminal QR code with the iPhone Camera and open it in Expo Go.
+5. Keep the host, terminal and development server running while testing. A phone cannot load a development bundle from a sleeping or disconnected host.
+
+Forge requires an account (Phase 7.7B): Expo Go connects to the Supabase project in `.env` (README → Supabase configuration). Your first launch has no fabricated workouts or performance numbers.
+
+## When local-network access is unavailable
+
+On a host that permits outbound tunnel access, sign in to Expo once (`npx expo login`), then:
+
+```sh
+npm start -- --tunnel
+```
+
+Expo SDK 58 uses Expo's own tunnel (`*.on.expo.app`); no tunnel package needs installing.
+
+Use the **new tunnel QR code**, not a LAN/localhost QR. Expo may prompt to install its supported tunnel helper. Internet access must permit Expo/tunnel services, and both host and phone must stay online for bundle loading. Tunnel provisioning may fail on restricted networks; inspect its actual error rather than assuming a URL exists.
+
+Tunnel reachability has **not** been verified in the Codex cloud environment. A tunnel URL must be actually created and tested before it can be presented as a phone-accessible app. When you have only the iPhone and no running reachable host, installing this repository does not solve hosting: use an already running permitted remote host, or prepare a signed build with EAS.
+
+## Guest-mode device checklist
+
+Guest mode was retired in Phase 7.7B: sign in first, then use these feature checks. For Forge's own app on the iPhone (FORGE Dev), start with [docs/FORGE_DEV_IPHONE_CHECKLIST.md](docs/FORGE_DEV_IPHONE_CHECKLIST.md).
+
+- Skip optional onboarding, open each of Home, Train, Explore, Progress and Profile.
+- Start an empty workout; search for Barbell Bench Press; add two sets.
+- Enter kg/reps, mark one set complete, inspect rest countdown and skip/extend.
+- Edit RPE/RIR, tempo, warmup/working/drop/failure kind and notes.
+- Reorder/substitute/remove an exercise. Verify only the intended row changes.
+- Background the app and return. Duration should use elapsed timestamps.
+- Force-close and reopen. Resume the same active workout and check saved sets.
+- Pause, wait, resume and finish. Finish should not produce duplicate history.
+- Edit the completed workout and repeat it as a new session.
+- Save a template, schedule it, or adopt a starter program. Start a deload session from the calendar and verify fewer sets.
+- Turn off network access **after the bundle has loaded** and continue logging. Expo Go may need the server again after a full reload; a standalone build is the correct way to validate cold-start offline distribution.
+- Nutrition: Add → + on a saved or recent food (one entry, Undo removes it); tap a food, set 1.5 servings and a meal; Create food from a label (try a comma decimal such as 17,5); edit an entry's servings, meal and day; Copy to today from yesterday; confirm the day's totals. With the keyboard open, the sheet's Add/Save button must stay visible. In a comma-decimal region (Settings → General → Language & Region), confirm the decimal key types "," and the value saves.
+- Nutrition targets: a new profile shows "Not set" in You and no "of 2,000"; saving targets once in You → Nutrition targets shows them against the day.
+- Food library (WP4A.1), in airplane mode after FORGE has loaded: Add shows Common foods on a fresh profile; search "chicken breast", open the baked result, type 150 g (values update as you type), add it, and confirm 242 kcal on the day. Search "egg", choose "1 egg · 50 g", set 2 and add (143 kcal). + on a library food logs 100 g; Undo removes it. Save to my foods once, then find the copy under Saved foods. Reopen a logged library entry: it reads "From USDA FNDDS · FDC … · 1 serving = 150 g". With the keyboard open on a small iPhone, at least one result stays visible and Create food moves to the end of the list. VoiceOver reads each result's name, portion, calories and protein, and the + and Undo labels.
+- Measurements (WP4B): on a fresh profile accept or dismiss "Log your profile weight"; Log measurement → type 81,5 (comma region) → Save; Save & add another for Waist; log a past day from the calendar; Undo; edit an entry without changes (nothing should change) and with a change; delete; switch 1M–All; open Waist from Other measurements; switch units to pounds and confirm lb/in. With the keyboard open, Save stays visible. In Progress → Body, switch series: the headline shows the latest value. VoiceOver reads each history row and the chart value.
+- Recovery (WP4C): with no check-ins, Log check-in → Save straight away (it names what's missing and saves nothing); tap + once (8 h), − twice (7 h 30 m), answer the four scales without the keyboard (≤ 8 taps) → Save → Undo; log again and check Today shows your answers in words with no score, and Today's row reads "Logged today · Sleep …". Log yesterday from the day row (future days can't be picked). Open a check-in and Save without changes (nothing changes), then change one answer. Add another check-in for today and confirm Today says "2 check-ins". Delete with confirmation, then Undo. Switch Trends between Sleep and Soreness and 1M–All. VoiceOver reads each scale button as "2, Mild" and the sleep control as adjustable; with Larger Text every scale stays fully visible and Save stays above the keyboard when typing a note.
+- Goals (WP4D), with pounds selected:
+  1. New goal → Bodyweight. The starting weight shows your latest weigh-in in lb. Type a target with a comma (175,5) and save; the card shows lb only, then Undo.
+  2. New goal → Lift: pick an exercise from the list, see "Your best", set 5 reps and save. If you've already lifted it, the app says so before saving and on the card.
+  3. Create Training volume, Workouts per week, Session length (choose At most) and Daily calories (choose At most). The calorie card says it's based on logged food, and days you didn't log show "Nothing logged".
+  4. With a reached bodyweight goal, tap Mark as achieved, then Undo. Mark it again and leave the screen. Log a new weigh-in: the achievement keeps its date and value.
+  5. Open an older goal, tap Edit, then Save without changes (nothing changes). Try "Use the new measurement".
+  6. Archive and restore a goal; delete one and Undo.
+  7. VoiceOver reads each card with units and dates. With Larger Text the sheet stays usable and Save stays above the keyboard.
+- Secondary screens (WP5), with pounds selected:
+  1. You → Delete all local data and Import backup: the buttons read "Delete everything" and "Replace data" and say it can't be undone. Cancel both. Import a non-FORGE file: "This file isn't a valid FORGE backup. Nothing was changed." About reads "… · guest mode".
+  2. You → Training preferences: the increment shows lb; type 2,5 and save, then reopen (2.5 lb). Use the weekly goal, rep range and rest steppers. Save without changes (nothing changes). Switch to kg: Edit profile shows height in cm.
+  3. Train → Exercise library: open Filters (captioned rows); search nonsense, then Clear search and filters. Open Barbell Bench Press: ‹ back, records and sessions as rows, Add to workout pinned.
+  4. Create custom exercise: Save straight away (each field says what's missing). Choose Main muscle and Equipment from the lists, then save; after a workout with it, it gets load records. Edit it and Save without changes.
+  5. Goals → New goal → Lift: VoiceOver reads picker rows as "Choose …". In a workout, Add exercise still reads "Add …". With the keyboard open, search stays above the list.
+  6. You → Account: title "Account" with ‹ back.
+  7. If you have an older Path: Workout options → Move opens a calendar (past days unavailable).
+  8. History: scroll to "Show earlier"; it continues in order.
+  9. Open `forge://no-such-page` (or any bad link): Page not found → Go to Today.
+- Inspect date ranges.
+- Change to imperial units/light theme/large text and verify labels and layouts.
+- Export a backup to Files, change data, then import with confirmation. Try a malformed file; existing data should remain.
+- Test notification permission denial and enabling. Confirm timers still function in-app.
+- Test VoiceOver, reduced motion and larger text on the actual phone. These checks have not yet been performed.
+
+Do not use irreplaceable training records until this checklist and backup recovery are validated on your device.
+
+## Expo Go versus development builds
+
+| Capability | Intended Expo Go support | Additional validation/build requirement |
+| --- | --- | --- |
+| Guest profiles, SQLite workouts/history/templates/journals | Yes, on matching SDK | Test persistence and force-close on your phone |
+| Reanimated UI, haptics, charts, file import/export | Yes, matching SDK | Device permissions/share sheet behavior unverified |
+| SecureStore cloud sessions | Supported module | Configure Supabase and test restoration on iPhone |
+| Local rest/planned notifications | Local notifications only, where supported | OS permissions/background delivery must be tested |
+| Remote push notifications | Not implemented | Requires development build and backend infrastructure; Android remote push is unavailable in Expo Go |
+| HealthKit, Health Connect, background sync, photo storage, barcode lookup | Not implemented | Native/backend work is still required |
+
+SDK compatibility does not prove device execution. Native bundle exports are not installable IPA files.
+
+## EAS Build for iOS
+
+An Expo account and CLI access on a host are needed to create a cloud build. EAS does not require Xcode on your Windows machine. Apple signing/distribution requirements still apply.
+
+```sh
+npx eas-cli login
+npx eas-cli build:configure
+# For a standalone internally distributed build, using committed eas.json:
+npx eas-cli build --platform ios --profile preview
+```
+
+For FORGE Dev, Forge's own development build (Phase 8), `expo-dev-client` is already installed. Follow [docs/NATIVE_BUILDS.md](docs/NATIVE_BUILDS.md).
+
+**On this Mac, with Xcode** (Phase 8.1): signed by the paid Apple Developer team, with the iPhone connected by cable:
+
+```sh
+npm run dev:ios -- --check               # what the Mac and the iPhone still need
+npm run dev:ios -- --release --no-cloud  # opens without the Mac; no accounts yet
+npm run dev:ios                          # Debug; then npm run start:dev
+```
+
+The first run registers the iPhone with the team. The development profile lasts a year.
+
+**With EAS** (Expo's cloud):
+
+```sh
+npx eas-cli build --platform ios --profile development
+npm run start:dev        # Metro for FORGE Dev: the development project only
+```
+
+`npm start` keeps opening Expo Go (`expo start --go`). FORGE Dev connects only to the development Supabase project ([docs/DEVELOPMENT_ENVIRONMENT.md](docs/DEVELOPMENT_ENVIRONMENT.md)), and refuses to connect if Metro wasn't started with `npm run start:dev`. Set each environment's public Supabase variables in its EAS environment.
+
+A signed **physical-device** iOS preview/development build from EAS needs membership in the Apple Developer Program and device registration for internal/ad hoc distribution; a local Xcode build (`npm run dev:ios`, above) needs the same membership, and registers the iPhone itself. EAS guides credential creation and signing. TestFlight/App Store distribution also requires Apple's developer program and App Store Connect setup. Do not confuse an iOS simulator build with an iPhone install; simulator use normally requires a Mac. Expo Go does not require your own Apple developer membership.
+
+No EAS build or TestFlight upload was run here. Xcode builds were verified on the Mac (Phase 8.1, `docs/NATIVE_BUILDS.md`); the first signed install on the iPhone is still to come. Do not share Apple credentials or private keys in chat or commit them.
+
+## Supabase and password recovery on the phone
+
+Follow README database setup. Put only the public project URL and publishable key in `.env`, restart Metro, and register/login through Profile → Account. The app does not accept service-role credentials.
+
+Configure Auth allowed redirect URLs for the actual account callback (README → Redirect URLs). Forge's own production build uses `forge:///account` and FORGE Dev `forge-dev:///account`, each allowed only in its own project; Expo Go uses its tunnel address (`exps://…/--/account`). The reset-password request generates the current redirect using Expo Linking. Open the recovery email on the phone while the app/server is available, return to the account screen, and set a new password. Email delivery and redirect handling need a real project/device test.
+
+Use two test accounts to verify isolation before trusting cloud data. Switching accounts requires exporting and clearing the local database; this prevents uploading one user's retained records into another account. Cloud synchronization is currently manual. Export a local backup before resolving a cloud conflict or deleting an account.

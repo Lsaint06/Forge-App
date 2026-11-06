@@ -1,0 +1,337 @@
+import React from "react";
+import { render, fireEvent, waitFor } from "@testing-library/react-native";
+import { ProfileForm } from "../../src/components/ProfileForm";
+import { defaults, type Profile } from "../../src/domain/types";
+import { REST_ALERT_INVITE } from "../../src/domain/rest-alerts";
+import { useRepo } from "../../src/state";
+jest.mock("expo-notifications", () => ({
+  cancelAllScheduledNotificationsAsync: async () => {},
+}));
+jest.mock("../../src/notifications", () => ({
+  enableNotifications: async () => true,
+}));
+test("saving the profile preserves a just-enabled notification preference", async () => {
+  let profile: Profile = {
+    ...defaults,
+    onboarded: true,
+    notifications: false,
+    height: 180,
+    weight: 80,
+  };
+  const settings = new Map<string, string>();
+  jest.mocked(useRepo).mockReturnValue({
+    profile: () => profile,
+    saveProfile: (patch: Partial<Profile>) => {
+      profile = { ...profile, ...patch };
+      return profile;
+    },
+    setting: (key: string) => settings.get(key),
+    setSetting: (key: string, value: string) => settings.set(key, value),
+  } as unknown as ReturnType<typeof useRepo>);
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onDone={onDone} />);
+  await fireEvent.press(view.getByText("Enable local notifications"));
+  await waitFor(() => expect(profile.notifications).toBe(true));
+  await fireEvent.press(view.getByText("Save settings"));
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+  expect(profile.notifications).toBe(true);
+  // A choice made here is remembered, so the logger doesn't invite the
+  // lifter to turn on rest alerts again (Phase 8.3C-3).
+  expect(settings.get(REST_ALERT_INVITE)).toBe("settings");
+});
+
+function mockProfile(patch: Partial<Profile> = {}) {
+  let profile: Profile = { ...defaults, ...patch };
+  const saveProfile = jest.fn((patch: Partial<Profile>) => {
+    profile = { ...profile, ...patch };
+    return profile;
+  });
+  const settings = new Map<string, string>();
+  jest.mocked(useRepo).mockReturnValue({
+    profile: () => profile,
+    saveProfile,
+    setting: (key: string) => settings.get(key),
+    setSetting: (key: string, value: string) => settings.set(key, value),
+  } as unknown as ReturnType<typeof useRepo>);
+  return { current: () => profile, saveProfile };
+}
+
+test("weight units update the label and display without changing the stored weight", async () => {
+  const repo = mockProfile({ height: 180, weight: 100 });
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onDone={onDone} />);
+  expect(view.queryByLabelText("Available equipment")).toBeNull();
+  expect(view.queryByLabelText(/workout duration/i)).toBeNull();
+  await fireEvent.press(view.getByText("lb", { exact: true }));
+  expect(
+    view.getByLabelText("Starting weight (lbs, required)").props.value,
+  ).toBe("220.46");
+  await fireEvent.press(view.getByText("kg", { exact: true }));
+  expect(
+    view.getByLabelText("Starting weight (kg, required)").props.value,
+  ).toBe("100");
+  await fireEvent.press(view.getByText("lb", { exact: true }));
+  await fireEvent.changeText(
+    view.getByLabelText("Starting weight (lbs, required)"),
+    "176.3698",
+  );
+  await fireEvent.press(view.getByText("Save settings"));
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+  expect(repo.current().weight).toBeCloseTo(80, 3);
+  expect(repo.current().units).toBe("lb");
+  // The retired duration preference is kept for older backups, not edited.
+  expect(repo.current().duration).toBe(45);
+});
+
+test("pound users enter height in feet and inches; metric records stay intact", async () => {
+  const repo = mockProfile({ height: 180, weight: 75, units: "lb" });
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onDone={onDone} />);
+  expect(view.getByLabelText("Height (feet)").props.value).toBe("5");
+  expect(view.getByLabelText("Height (inches)").props.value).toBe("11");
+  await fireEvent.press(view.getByText("Save settings"));
+  await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+  expect(repo.current().height).toBe(180);
+  await fireEvent.changeText(view.getByLabelText("Height (feet)"), "6");
+  await fireEvent.changeText(view.getByLabelText("Height (inches)"), "2");
+  await fireEvent.press(view.getByText("Save settings"));
+  await waitFor(() => expect(onDone).toHaveBeenCalledTimes(2));
+  expect(repo.current().height).toBeCloseTo(187.96, 5);
+});
+
+test("onboarding asks the training journey questions and saves each choice", async () => {
+  const repo = mockProfile({ height: 180, weight: 80 });
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onboarding onDone={onDone} />);
+  await fireEvent.press(view.getByText("Next", { exact: true }));
+  await waitFor(() => expect(view.getByText(/STEP 2 \/ 4/)).toBeTruthy());
+  expect(
+    view.getByText("Where are you in your training journey?"),
+  ).toBeTruthy();
+  expect(view.getByText("What are you training toward?")).toBeTruthy();
+  expect(view.getByText("Which day would you prefer to rest?")).toBeTruthy();
+  expect(
+    view.getByText("Building my foundation in resistance training."),
+  ).toBeTruthy();
+  // Forge does not preselect an experience level or goal.
+  expect(
+    view.getByLabelText("Beginner").props.accessibilityState.selected,
+  ).toBe(false);
+  await fireEvent.press(view.getByLabelText("Intermediate"));
+  await fireEvent.press(view.getByLabelText("Muscle Building"));
+  await fireEvent.press(view.getByLabelText("Sunday"));
+  expect(repo.current()).toMatchObject({
+    experience: "Intermediate",
+    goal: "Muscle Building",
+    restDay: 6,
+  });
+  await fireEvent.press(view.getByText("Next", { exact: true }));
+  await waitFor(() => expect(view.getByText(/STEP 3 \/ 4/)).toBeTruthy());
+  // Weekly frequency is a settings preference, not a first-time question.
+  expect(view.queryByLabelText(/Weekly workout goal/)).toBeNull();
+  await fireEvent.press(view.getByText("Skip remaining optional setup"));
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+  expect(repo.current()).toMatchObject({
+    onboarded: true,
+    experience: "Intermediate",
+    goal: "Muscle Building",
+    restDay: 6,
+  });
+});
+
+test("settings edit the journey choices and show legacy goals honestly", async () => {
+  const repo = mockProfile({
+    onboarded: true,
+    height: 180,
+    weight: 80,
+    experience: "Advanced",
+    goal: "Build muscle",
+  });
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onDone={onDone} />);
+  expect(
+    view.getByLabelText("Muscle Building").props.accessibilityState.selected,
+  ).toBe(true);
+  expect(view.getByLabelText("Weekly workout goal")).toBeTruthy();
+  await fireEvent.press(view.getByLabelText("Strength"));
+  await fireEvent.press(view.getByLabelText("Wednesday"));
+  await fireEvent.press(view.getByText("Save settings"));
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+  expect(repo.current()).toMatchObject({
+    experience: "Advanced",
+    goal: "Strength",
+    restDay: 2,
+  });
+});
+
+test("required height and weight cannot be bypassed by Next or skipping optional setup", async () => {
+  const repo = mockProfile();
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onboarding onDone={onDone} />);
+  await fireEvent.press(view.getByText("Next", { exact: true }));
+  await waitFor(() =>
+    expect(view.getByText(/Enter a valid height/)).toBeTruthy(),
+  );
+  expect(view.getByText(/STEP 1/)).toBeTruthy();
+  await fireEvent.press(view.getByText("Skip remaining optional setup"));
+  await waitFor(() =>
+    expect(view.getByText("Enter your starting weight.")).toBeTruthy(),
+  );
+  expect(onDone).not.toHaveBeenCalled();
+  expect(repo.current().onboarded).toBe(false);
+  // Metric lifters enter centimetres (storage is centimetres either way).
+  await fireEvent.changeText(
+    view.getByLabelText("Height (cm, required)"),
+    "301",
+  );
+  await fireEvent.changeText(
+    view.getByLabelText("Starting weight (kg, required)"),
+    "75",
+  );
+  await fireEvent.press(view.getByText("Skip remaining optional setup"));
+  expect(onDone).not.toHaveBeenCalled();
+  await fireEvent.changeText(
+    view.getByLabelText("Height (cm, required)"),
+    "177,8",
+  );
+  await fireEvent.press(view.getByText("Skip remaining optional setup"));
+  await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+  expect(repo.current().height).toBeCloseTo(177.8, 3);
+  expect(repo.current().weight).toBe(75);
+});
+
+// ---- Phase 7B WP5 Batch B: profile and preferences editors ------------------
+
+test("the progression increment is typed in the lifter's units and stored in kg", async () => {
+  const repo = mockProfile({
+    height: 180,
+    weight: 80,
+    units: "lb",
+    increment: 2.5,
+  });
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onDone={onDone} />);
+  expect(view.getByLabelText("Progression increment (lb)").props.value).toBe(
+    "5.51",
+  );
+  await fireEvent.changeText(
+    view.getByLabelText("Progression increment (lb)"),
+    "5",
+  );
+  // Switching units re-shows the same stored kilograms.
+  await fireEvent.press(view.getByText("kg", { exact: true }));
+  expect(view.getByLabelText("Progression increment (kg)").props.value).toBe(
+    "2.27",
+  );
+  await fireEvent.press(view.getByText("lb", { exact: true }));
+  expect(view.getByLabelText("Progression increment (lb)").props.value).toBe(
+    "5",
+  );
+  await fireEvent.press(view.getByText("Save settings"));
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+  expect(repo.current().increment).toBeCloseTo(2.267962, 6);
+  expect(repo.current().units).toBe("lb");
+});
+
+test("an unchanged save keeps every stored value exactly", async () => {
+  const before = {
+    height: 181.3,
+    weight: 82.37,
+    units: "lb" as const,
+    increment: 1.25,
+    rest: 95,
+    bodyFat: 0,
+    protein: 151.5,
+  };
+  const repo = mockProfile(before);
+  const snapshot = { ...repo.current() };
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onDone={onDone} />);
+  await fireEvent.press(view.getByText("Save settings"));
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+  expect(repo.current()).toEqual({ ...snapshot, onboarded: true });
+});
+
+test("comma decimals work and errors are plain sentences", async () => {
+  const repo = mockProfile({ height: 180, weight: 80, increment: 2.5 });
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onDone={onDone} />);
+  await fireEvent.changeText(
+    view.getByLabelText("Progression increment (kg)"),
+    "1,25",
+  );
+  await fireEvent.changeText(view.getByLabelText("Protein goal (g)"), "abc");
+  await fireEvent.press(view.getByText("Save settings"));
+  await waitFor(() =>
+    expect(view.getByText("Enter a number from 0 to 2,000.")).toBeTruthy(),
+  );
+  expect(view.queryByText(/expected|Invalid input|Too (big|small)/)).toBeNull();
+  expect(onDone).not.toHaveBeenCalled();
+  await fireEvent.changeText(view.getByLabelText("Protein goal (g)"), "150,5");
+  await fireEvent.press(view.getByText("Save settings"));
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+  expect(repo.current()).toMatchObject({ increment: 1.25, protein: 150.5 });
+});
+
+test("weekly goal, reps and rest use steppers within their limits", async () => {
+  const repo = mockProfile({
+    height: 180,
+    weight: 80,
+    frequency: 7,
+    rest: 90,
+    repMin: 8,
+    repMax: 8,
+  });
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onDone={onDone} />);
+  expect(
+    view.getByLabelText("Default rest").props.accessibilityValue.text,
+  ).toBe("1:30");
+  await fireEvent.press(view.getByLabelText("Increase Default rest"));
+  await fireEvent.press(view.getByLabelText("Increase Weekly workout goal"));
+  // The minimum can't pass the maximum.
+  await fireEvent.press(view.getByLabelText("Increase Minimum target reps"));
+  await fireEvent.press(view.getByLabelText("Increase Maximum target reps"));
+  await fireEvent.press(view.getByText("Save settings"));
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+  expect(repo.current()).toMatchObject({
+    rest: 105,
+    frequency: 7,
+    repMin: 8,
+    repMax: 9,
+  });
+});
+
+test("body fat shows empty for none and stays 0 when left empty", async () => {
+  const repo = mockProfile({ height: 180, weight: 80, bodyFat: 0 });
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onDone={onDone} />);
+  expect(view.getByLabelText("Body fat % (optional)").props.value).toBe("");
+  expect(view.queryByText(/0 to skip/)).toBeNull();
+  await fireEvent.press(view.getByText("Save settings"));
+  await waitFor(() => expect(onDone).toHaveBeenCalled());
+  expect(repo.current().bodyFat).toBe(0);
+});
+
+test("onboarding still saves each valid training value as it is entered", async () => {
+  const repo = mockProfile({
+    height: 180,
+    weight: 80,
+    units: "lb",
+    increment: 2.5,
+  });
+  const onDone = jest.fn();
+  const view = await render(<ProfileForm onboarding onDone={onDone} />);
+  await fireEvent.press(view.getByText("Next", { exact: true }));
+  await waitFor(() => expect(view.getByText(/STEP 2 \/ 4/)).toBeTruthy());
+  await fireEvent.press(view.getByText("Next", { exact: true }));
+  await waitFor(() => expect(view.getByText(/STEP 3 \/ 4/)).toBeTruthy());
+  await fireEvent.changeText(
+    view.getByLabelText("Progression increment (lb)"),
+    "5",
+  );
+  expect(repo.current().increment).toBeCloseTo(2.267962, 6);
+  await fireEvent.press(view.getByLabelText("Increase Default rest"));
+  expect(repo.current().rest).toBe(105);
+  expect(repo.current().onboarded).toBe(false);
+});

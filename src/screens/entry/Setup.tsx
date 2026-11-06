@@ -1,0 +1,422 @@
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  CtaButton,
+  FText,
+  ForgeCard,
+  OutlineButton,
+} from "../../components/reforge";
+import { useColors } from "../../components/ui";
+import { SetupOnboarding } from "../onboarding/Flow";
+import { confirm, useApp, useRepo } from "../../state";
+import { authErrorText, useEntry } from "../../auth/session";
+import { hasLocalData } from "../../data/ownership";
+import { accountHasCloudRecords } from "../../cloud/link";
+import { synchronize, type SyncProgress } from "../../cloud/sync";
+import { transport } from "../../cloud/client";
+import { restoreOutcome } from "../../domain/presentation/account";
+import { plural } from "../../domain/training-display";
+import { EntryBusy, EntryFrame, EntryMessage } from "./EntryFrame";
+import { TextLink } from "./SignIn";
+
+type Check = "checking" | "records" | "none" | "failed";
+
+// First-time setup (Phases 7.7B and 7.7C). A returning athlete on a phone
+// with nothing of its own yet is offered their saved training first (P1):
+// a read-only check, then, only if they choose it, the existing manual
+// synchronization, once. On an empty phone that only downloads. Everyone
+// else sets up: About you, Your training and their Forge Path (Phase 9.2,
+// src/screens/onboarding). Who is being set up is always shown, with a way
+// out for the wrong account (P4).
+export default function Setup() {
+  const { entry, client, signOut: endSession } = useEntry();
+  const r = useRepo();
+  const user = entry.kind === "setup" ? entry.user : undefined;
+  const userId = user?.id;
+  const who = user?.email ?? "this account";
+  const offline = entry.kind === "setup" && entry.offline;
+  // Restore only where there's nothing to protect and nothing to upload.
+  const [check, setCheck] = useState<Check>(() =>
+    client && userId && !hasLocalData(r)
+      ? offline
+        ? "failed"
+        : "checking"
+      : "none",
+  );
+  const [busy, setBusy] = useState<"restore" | "signOut">();
+  const [error, setError] = useState<string>();
+  const [partial, setPartial] = useState<string>();
+  // Restore progress and its result (Phase 7.8C): records restored over
+  // every try, and set once a restore is complete.
+  const [progress, setProgress] = useState<SyncProgress>();
+  const [complete, setComplete] = useState<number>();
+  const restoredSoFar = useRef(0);
+  const running = useRef(false);
+
+  useEffect(() => {
+    if (check !== "checking" || !client || !userId) return;
+    let active = true;
+    accountHasCloudRecords(client, userId).then(
+      (has) => {
+        if (active) setCheck(has ? "records" : "none");
+      },
+      () => {
+        if (active) setCheck("failed");
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [check, client, userId]);
+
+  async function work(
+    kind: "restore" | "signOut",
+    action: () => Promise<void>,
+  ) {
+    if (running.current) return;
+    running.current = true;
+    setBusy(kind);
+    setError(undefined);
+    try {
+      await action();
+    } catch (e) {
+      setError(
+        authErrorText(
+          e,
+          kind === "restore"
+            ? "Forge couldn't restore your training. Try again."
+            : "Forge couldn't sign you out. Try again.",
+        ),
+      );
+    } finally {
+      running.current = false;
+      setBusy(undefined);
+    }
+  }
+
+  const doSignOut = () =>
+    void work("signOut", async () => {
+      if (endSession) return endSession();
+      const { error: e } = await client!.auth.signOut({ scope: "local" });
+      if (e) throw e;
+    });
+  // Nothing entered yet: just sign out (another account can then set the
+  // phone up). Otherwise say what stays behind.
+  const notYou = () =>
+    hasLocalData(r)
+      ? confirm(
+          "Sign out?",
+          `What you've entered so far stays on this phone with ${who}. Another account can't use this phone until it's removed.`,
+          doSignOut,
+          { action: "Sign out", destructive: false },
+        )
+      : doSignOut();
+
+  const restore = () =>
+    void work("restore", async () => {
+      setPartial(undefined);
+      setProgress(undefined);
+      const result = await synchronize(
+        r,
+        transport(client!, userId!),
+        userId!,
+        { onProgress: setProgress },
+      );
+      restoredSoFar.current += result.downloaded;
+      // Counted over every try, so a retry reports the whole restore.
+      const outcome = restoreOutcome({
+        ...result,
+        downloaded: restoredSoFar.current,
+      });
+      if (outcome.kind === "done") {
+        setComplete(restoredSoFar.current);
+        return;
+      }
+      if (outcome.kind === "failed") throw new Error(outcome.text);
+      setPartial(outcome.text);
+    });
+  // Home opens once the restored profile is in; if the account had no
+  // finished profile, setup continues with the training in place.
+  const finish = () => {
+    setCheck("none");
+    useApp.getState().touch();
+  };
+
+  const skip = (unchecked: boolean) =>
+    confirm(
+      unchecked ? "Set up without checking?" : "Set up without restoring?",
+      `If ${who} has training saved in Forge's cloud, it stays there. Synchronizing later in Account & privacy brings it to this phone, and you'll choose which profile to keep.`,
+      () => setCheck("none"),
+      { action: "Set up this phone", destructive: false },
+    );
+
+  const account = (
+    <SetupAccount who={who} disabled={!!busy} onNotYou={notYou} />
+  );
+
+  if (check === "checking")
+    return (
+      <EntryFrame title="Welcome to Forge" eyebrow="Your account">
+        {account}
+        <EntryBusy text="Checking your account…" />
+      </EntryFrame>
+    );
+
+  if (check === "records" && complete !== undefined)
+    return (
+      <EntryFrame
+        title="Your training is back"
+        eyebrow="Your account"
+        footer={<CtaButton title="Continue" onPress={finish} />}
+      >
+        {account}
+        <ForgeCard gap={10} testID="setup-restore-complete">
+          <Outcome icon="checkmark-circle" text="Restore complete" />
+          <FText variant="body">
+            {complete
+              ? `Restored ${plural(complete, "record")} to this phone. Nothing was held back.`
+              : "Everything saved to your account is on this phone."}
+          </FText>
+        </ForgeCard>
+      </EntryFrame>
+    );
+
+  if (check === "records")
+    return (
+      <EntryFrame
+        title="Welcome back"
+        eyebrow="Your account"
+        footer={
+          partial ? (
+            <>
+              <CtaButton title="Continue" disabled={!!busy} onPress={finish} />
+              <OutlineButton
+                title={busy === "restore" ? "Restoring…" : "Try again"}
+                disabled={!!busy}
+                onPress={restore}
+              />
+            </>
+          ) : (
+            <CtaButton
+              title={
+                busy === "restore"
+                  ? "Restoring your training…"
+                  : "Restore my training"
+              }
+              icon="cloud-download-outline"
+              disabled={!!busy}
+              onPress={restore}
+            />
+          )
+        }
+      >
+        {account}
+        <ForgeCard gap={10} testID="setup-restore">
+          {partial ? (
+            <>
+              <Outcome icon="alert-circle-outline" text="Restore incomplete" />
+              <FText variant="body">{partial}</FText>
+            </>
+          ) : (
+            <>
+              <FText variant="body">
+                {`${who} has training saved in Forge's cloud. Restore it to this phone to pick up where you left off.`}
+              </FText>
+              <FText variant="label" tone="secondary">
+                Your workouts, templates, journal and profile come back. Nothing
+                is uploaded, and nothing else changes.
+              </FText>
+            </>
+          )}
+        </ForgeCard>
+        {busy === "restore" && <RestoreProgress progress={progress} />}
+        <EntryMessage text={error} tone="error" />
+        {!partial && (
+          <TextLink
+            label="Set up without restoring"
+            disabled={!!busy}
+            onPress={() => skip(false)}
+          />
+        )}
+      </EntryFrame>
+    );
+
+  if (check === "failed")
+    return (
+      <EntryFrame
+        title="Couldn't check your account"
+        eyebrow="Your account"
+        footer={
+          <>
+            <CtaButton
+              title="Try again"
+              disabled={!!busy}
+              onPress={() => {
+                setError(undefined);
+                setCheck("checking");
+              }}
+            />
+            <OutlineButton
+              title="Set up this phone now"
+              disabled={!!busy}
+              onPress={() => skip(true)}
+            />
+          </>
+        }
+      >
+        {account}
+        <ForgeCard gap={10} testID="setup-check-failed">
+          <FText variant="body">
+            {offline
+              ? `You're offline, so Forge can't look for training saved to ${who}.`
+              : `Forge couldn't reach its account service to look for training saved to ${who}.`}
+          </FText>
+          <FText variant="label" tone="secondary">
+            {
+              "If you've used Forge before, connect and try again to restore it. Otherwise, set up this phone now."
+            }
+          </FText>
+        </ForgeCard>
+        <EntryMessage text={error} tone="error" />
+      </EntryFrame>
+    );
+
+  return (
+    <SetupOnboarding
+      account={userId ? { who, busy: !!busy, onNotYou: notYou } : undefined}
+      error={error}
+    />
+  );
+}
+
+/** Who is being set up, with a way out for the wrong account (P4). */
+function SetupAccount({
+  who,
+  disabled,
+  onNotYou,
+}: {
+  who: string;
+  disabled: boolean;
+  onNotYou: () => void;
+}) {
+  return (
+    <View testID="setup-account" style={{ gap: 2 }}>
+      <FText variant="label" tone="secondary">
+        {`Setting up Forge for ${who}`}
+      </FText>
+      <TextLink
+        label="Not you? Sign out"
+        disabled={disabled}
+        onPress={onNotYou}
+      />
+    </View>
+  );
+}
+
+/** How a restore ended, as an icon and a word (never by colour alone). */
+function Outcome({
+  icon,
+  text,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  text: string;
+}) {
+  const c = useColors();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Ionicons name={icon} size={16} color={c.emberHot} />
+      <FText variant="overline" tone="accent" header>
+        {text}
+      </FText>
+    </View>
+  );
+}
+
+const STEPS = [
+  "Connecting to your account",
+  "Downloading your training",
+  "Restoring to this phone",
+];
+
+/**
+ * Where a restore has got to (Phase 7.8C). Counts appear only when they're
+ * known: the download's total is the cloud's own count, and the records
+ * restored are the ones actually downloaded.
+ */
+function RestoreProgress({ progress }: { progress?: SyncProgress }) {
+  const at =
+    progress?.step === "downloading"
+      ? 1
+      : progress?.step === "applying"
+        ? 2
+        : 0;
+  const detail = (step: number) => {
+    if (step === 1 && progress?.step === "downloading")
+      return progress.total === undefined
+        ? plural(progress.received, "record")
+        : `${progress.received.toLocaleString()} of ${Math.max(progress.total, progress.received).toLocaleString()} records`;
+    if (step === 2 && progress?.step === "applying")
+      return plural(progress.total, "record");
+    return undefined;
+  };
+  return (
+    <View testID="setup-restore-progress" style={{ gap: 12 }}>
+      {STEPS.map((title, i) => (
+        <Step
+          key={title}
+          title={title}
+          detail={detail(i)}
+          state={i < at ? "done" : i === at ? "active" : "waiting"}
+        />
+      ))}
+    </View>
+  );
+}
+
+function Step({
+  title,
+  detail,
+  state,
+}: {
+  title: string;
+  detail?: string;
+  state: "done" | "active" | "waiting";
+}) {
+  const c = useColors();
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${title}: ${
+        state === "done" ? "done" : state === "active" ? "in progress" : "next"
+      }${detail ? `, ${detail}` : ""}`}
+      accessibilityLiveRegion={state === "active" ? "polite" : "none"}
+      style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+    >
+      <View style={{ width: 22, alignItems: "center" }}>
+        {state === "active" ? (
+          <ActivityIndicator color={c.emberHot} />
+        ) : (
+          <Ionicons
+            name={state === "done" ? "checkmark-circle" : "ellipse-outline"}
+            size={20}
+            color={state === "done" ? c.emberHot : c.text3}
+          />
+        )}
+      </View>
+      <View style={{ flexShrink: 1 }}>
+        <FText
+          variant="body"
+          tone={state === "waiting" ? "secondary" : "primary"}
+        >
+          {title}
+        </FText>
+        {!!detail && (
+          <FText variant="label" tone="secondary">
+            {detail}
+          </FText>
+        )}
+      </View>
+    </View>
+  );
+}

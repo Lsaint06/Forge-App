@@ -1,0 +1,12 @@
+{
+  "note": "Phase 7.3F.2 M3.1 research prototype only. Pinned Open Food Facts snapshot; the file itself is cached in .cache/off-research (never committed). OFF replaces the nightly export, so the cached file is the reproducible copy.",
+  "url": "https://static.openfoodfacts.org/data/openfoodfacts-products.jsonl.gz",
+  "file": "openfoodfacts-products.jsonl.gz",
+  "lastModified": "Mon, 26 Oct 2026 05:51:21 GMT",
+  "snapshot": "2026-10-26",
+  "bytes": 13262350813,
+  "sha256": "eebc0c06538756151bba499ca1f46cdd8bd477360201084f770a227f392766ac",
+  "license": "Open Database License (ODbL) 1.0, https://opendatacommons.org/licenses/odbl/1-0/",
+  "contentsLicense": "Database Contents License (DbCL) 1.0, https://opendatacommons.org/licenses/dbcl/1-0/",
+  "attribution": "Contains information from Open Food Facts (https://world.openfoodfacts.org), which is made available here under the Open Database License (ODbL)."
+}
