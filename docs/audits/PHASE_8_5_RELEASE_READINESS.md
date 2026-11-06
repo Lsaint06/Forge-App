@@ -32,7 +32,7 @@ Branch `feat/phase8-5-forge-hardening`. An update of the Phase 8.4 matrix ([comp
 | Version codes | **Ready**; EAS's counter **awaiting external setup** | RELEASE.md §3 |
 | App Bundle | **Awaiting external setup** | EAS build of `preview` (RELEASE.md §8) |
 | Target SDK | **Ready** | API 36, compile 37 (`android-readiness.test.ts`) |
-| Permissions | **Ready**; Maven libraries' **require native verification** | Four in the manifest; shared storage, microphone and alarm-app permissions blocked (tests); V6 |
+| Permissions | **Ready**; Maven libraries' read from a local release build, **unused ones proposed for blocking** | Four in the manifest; shared storage, microphone and alarm-app permissions blocked (tests). The merged list and the proposal: PHASE_8_5_ANDROID_VALIDATION.md §2. V6 still reads the first App Bundle |
 | 16 KB pages | Libraries in `node_modules` **ready**; Maven libraries **require native verification** | ANDROID.md §1, A12 |
 | Upload key | **Awaiting external setup** | EAS-held; creating it needs approval (STORE_SETUP.md §5) |
 | Backups | **Ready** | Sign-in kept out of backups (`app-variants`) |
@@ -40,7 +40,7 @@ Branch `feat/phase8-5-forge-hardening`. An update of the Phase 8.4 matrix ([comp
 | Notifications | **Missing** (decisions) | D-A1 timing, D-A2 visibility (ANDROID.md §4) |
 | Large screens | **Missing** (decision) | D-A3 |
 | Billing | **Awaiting monetization integration** | No approved Play product; Phase 9.3 uses the Test Store only |
-| Everything on screen | **Requires native verification** | No build has run (PHASE_8_5_ANDROID_VALIDATION.md) |
+| Everything on screen | **Emulator-verified** (Android 16, FORGE Dev release build); a phone **requires native verification** | Three defects found and fixed; what still needs a phone: PHASE_8_5_ANDROID_VALIDATION.md §3–§6 |
 
 ## 3. The founder's checklist
 
@@ -50,12 +50,13 @@ Branch `feat/phase8-5-forge-hardening`. An update of the Phase 8.4 matrix ([comp
    - link EAS (STORE_SETUP.md §1–2);
    - Apple credentials through EAS (§3);
    - the Android upload key (§5);
-   - Android: EAS builds, or the tooling on this PC (PHASE_8_5_ANDROID_VALIDATION.md §4).
+   - Android: EAS builds for FORGE Preview and the App Bundle. Emulator tooling is now on this PC (PHASE_8_5_ANDROID_VALIDATION.md §7).
 2. **Apple:** Developer membership; App Store Connect records for FORGE Preview and FORGE (§3); internal testers (§6).
 3. **Google Play:** developer account; the app records; internal testing track and testers (§4, §6).
 4. **Write and host:** the privacy policy and support address (D-P1), and the web account-deletion page.
 5. **Decide:**
-   - D-A1 to D-A5 (Android);
+   - D-A1 to D-A5 (Android), and blocking the unused Android permissions (PHASE_8_5_ANDROID_VALIDATION.md §2);
+   - the emulator's test account: keep or discard (PHASE_8_5_ANDROID_VALIDATION.md §8);
    - D-P2 (crash reporting, PHASE_8_5_DIAGNOSTICS.md);
    - D-P3 and D-P4;
    - P3-1 (placeholder contrast, PHASE_8_5_UI_QA.md).

@@ -86,6 +86,8 @@ The earlier record "behaviour off on Android (window resize)" (Phase 7B WP6) pre
 
 **Recommendation:** emulators on this PC once EAS is linked. Skip local builds while EAS builds Android.
 
+**Installed Nov 6, 2026** (Phase 8.5, founder-approved; no administrator rights or restart): the SDK, an Android 16 emulator and local FORGE Dev builds. What ran and how to rebuild: [PHASE_8_5_ANDROID_VALIDATION.md](audits/PHASE_8_5_ANDROID_VALIDATION.md).
+
 ## 6. Device checks (8.4D)
 
 **The build:** `eas build --profile development-release --platform android`. It makes a FORGE Dev APK with FORGE DEV, a minified release build (RELEASE.md §8, step 4).

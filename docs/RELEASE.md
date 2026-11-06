@@ -405,6 +405,7 @@ The production app's runtime rule (production only) applies from its first build
   - `POST_NOTIFICATIONS` and `RECEIVE_BOOT_COMPLETED`, for rest and reminder alerts, which come back after a restart.
 - **Proposed, not done:** blocking `SYSTEM_ALERT_WINDOW`. The Expo template adds it to release builds, where Forge doesn't use it. It waits for the founder's approval.
 - **Added at the Gradle merge**, so they are visible only in a built bundle: Firebase Messaging, which expo-notifications depends on, and ShortcutBadger, for launcher badges, add their own permissions. **Read the merged list from the first App Bundle (8.4D)** before completing the Data safety form, and propose blocking what Forge doesn't use then.
+  - A local release build (Phase 8.5) already shows the merged list, and the unused permissions proposed for blocking: [PHASE_8_5_ANDROID_VALIDATION.md](audits/PHASE_8_5_ANDROID_VALIDATION.md) §2.
 
 ## 10. Monetization prerequisites (Engineer #2, Phase 9: coordination only)
 

@@ -4,6 +4,8 @@ Branch `feat/phase8-5-forge-hardening`. New coverage in `d057730`: `tests/integr
 
 **Verification level.** Logic tests with `node:sqlite` and the in-memory cloud (`tests/cloud-fixture.ts`), plus the earlier hand-written suites. Faults are injected in software: a failed write or commit stands in for a full disk or a crash; lost requests, lost replies, outages and expired sign-ins stand in for networks. Real power loss, the OS ending FORGE, and full storage on a phone are **not** reproduced here (section 3).
 
+**Later, on the Android emulator (M1):** a set cell could save its typed value over a load applied while it kept focus (D-2, P2, fixed in `53bf269`). See PHASE_8_5_ANDROID_VALIDATION.md §4.
+
 **Result: no data-integrity defect was found.** Each new oracle was mutation-checked: it fails against a deliberately broken copy of the code it guards, namely
 - a non-atomic exercise removal;
 - a set edit that isn't queued;
