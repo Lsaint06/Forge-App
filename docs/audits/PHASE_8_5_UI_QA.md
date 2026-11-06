@@ -1,6 +1,6 @@
 # Phase 8.5 M3: App-wide UI/UX and accessibility quality review
 
-Branch `feat/phase8-5-forge-hardening`. A quality review, not a redesign: one defect fixed, nothing else changed. Out of scope here: Engineer #2's onboarding, paywall, membership and subscription flows.
+Branch `feat/phase8-5-forge-hardening`. A quality review, not a redesign: two small defects fixed (one found while writing M6's incident procedure), nothing else changed. Out of scope here: Engineer #2's onboarding, paywall, membership and subscription flows.
 
 **Verification level.** Automated UI tests (Jest, React test renderer) and code inspection. No screenshots or device rendering: layout isn't computed in these tests, so clipping, overlap, keyboard cover and safe areas can't be seen here (section 4). Nothing below was judged from imagined screenshots.
 
@@ -23,6 +23,7 @@ Branch `feat/phase8-5-forge-hardening`. A quality review, not a redesign: one de
 | —     | P0       | —                         | None found (crash, data loss or blocked essential workflow).                                                                                  | Data integrity was stress-tested separately (M4, `d057730`).                                                                                                                                                                 |
 | —     | P1       | —                         | None found by automated tests or inspection.                                                                                                  | Device checks below.                                                                                                                                                                                                         |
 | P2-1  | P2       | Logger, every set row     | The set number, which opens Set Details, was a 32 pt column with 6 + 4 pt of slop: a 42 × 44 pt target, below Apple's 44 × 44 minimum.         | **Fixed.** The left slop is now 8 pt: 44 pt, within the card's 16 pt padding and the 4 pt gap before the next column, with no visual change. Tests: `workout-reforge.test.tsx` and the sweep both fail with the old value. |
+| P2-2  | P2       | Recovery screen           | After Save a copy, the screen said "import it later from You → Import backup". Import moved to Account & privacy in 7.5D, so the direction led nowhere, at the moment the lifter most needs it. Found writing the incident procedure (M6). | **Fixed** (M6): "You → Account & privacy → Import backup", pinned in `data-safety.test.tsx`. No other stale "You →" direction in the app's text. |
 | P3-1  | P3       | Every text field          | Placeholders use tertiary text: 3.8:1 (dark) and 4.3:1 (light) on the input background, under the 4.5:1 WCAG AA asks for text.                  | **Founder design decision.** Placeholders are hints, not labels: every field has its own spoken label. Secondary text (7.6:1 and 6.5:1) would read clearly but makes hints look like entered values.                      |
 
 ## 3. Already sound (no change)
