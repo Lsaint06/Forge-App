@@ -119,6 +119,13 @@ const resetLinkProblem = (e: unknown) =>
 /** Email links already acted on (one JavaScript runtime). */
 const handledLinks = new Set<string>();
 
+/**
+ * How long a launch waits for the stored sign-in before using it offline.
+ * Without a connection, an expired access token keeps supabase-js retrying
+ * its refresh for about 25 seconds before it answers (Phase 8.5).
+ */
+export const RESTORE_WAIT_MS = 3000;
+
 export type AuthSession = {
   /** undefined while restoring; null when signed out. */
   session: AuthUser | null | undefined;
@@ -155,12 +162,27 @@ export function useAuthSession(client: SupabaseClient | null) {
   useEffect(() => {
     if (!client) return;
     let active = true;
+    // Still restoring after a moment: the stored sign-in is used offline
+    // meanwhile, and the answer, when it comes, settles the session.
+    const waiting = setTimeout(() => {
+      void storedUser().then((offline) => {
+        if (active && offline)
+          setState((s) =>
+            s.session === undefined && !s.offline ? { ...s, offline } : s,
+          );
+      });
+    }, RESTORE_WAIT_MS);
     void client.auth
       .getSession()
       .then(async ({ data, error }) => {
+        clearTimeout(waiting);
         if (!active) return;
         if (data.session) {
-          setState((s) => ({ ...s, session: toUser(data.session!.user) }));
+          setState((s) => ({
+            ...s,
+            session: toUser(data.session!.user),
+            offline: undefined,
+          }));
           return;
         }
         // Offline with an expired access token: the session is still
@@ -172,7 +194,9 @@ export function useAuthSession(client: SupabaseClient | null) {
         if (active) setState((s) => ({ ...s, session: null, offline }));
       })
       .catch(() => {
-        if (active) setState((s) => ({ ...s, session: null }));
+        clearTimeout(waiting);
+        if (active)
+          setState((s) => ({ ...s, session: null, offline: undefined }));
       });
     const { data } = client.auth.onAuthStateChange((event, session) => {
       if (event === "INITIAL_SESSION") return;
@@ -204,6 +228,7 @@ export function useAuthSession(client: SupabaseClient | null) {
     });
     return () => {
       active = false;
+      clearTimeout(waiting);
       data.subscription.unsubscribe();
     };
   }, [client]);

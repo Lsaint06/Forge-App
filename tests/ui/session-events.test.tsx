@@ -1,7 +1,11 @@
 import React from "react";
 import { render, act, waitFor } from "@testing-library/react-native";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { SESSION_ENDED_NOTICE, useAuthSession } from "../../src/auth/session";
+import {
+  RESTORE_WAIT_MS,
+  SESSION_ENDED_NOTICE,
+  useAuthSession,
+} from "../../src/auth/session";
 
 // Phase 7.8E, Stage 4: whether a sign-out was asked for or not, told apart
 // with the real supabase-js client (the version Forge ships), not a mock.
@@ -291,3 +295,52 @@ test("a refresh that fails only for want of a connection ends nothing, even past
   expect(latest!.ended).toBeUndefined();
   await view.unmount();
 });
+
+test("opened without a connection after the token expired: offline use starts after a moment, not after the refresh's retries (Phase 8.5)", async () => {
+  // Signed in earlier; an hour on, its access token has expired.
+  const first = await signedIn();
+  await first.view.unmount();
+  later(3600);
+  // A cold start without a connection. On a phone supabase-js retries the
+  // refresh for about 25 seconds before answering (found on Android); here
+  // the request simply waits until the connection returns.
+  const { fetch: answer } = service();
+  const held: (() => void)[] = [];
+  const { sessionStorage } = jest.requireMock(
+    "../../src/platform/sessionStorage",
+  ) as { sessionStorage: object };
+  const client = createClient(URL_, "public-key", {
+    auth: {
+      storage: sessionStorage as never,
+      persistSession: true,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+    global: {
+      fetch: ((input: unknown, init?: { method?: string }) =>
+        new Promise<Response>((resolve, reject) =>
+          held.push(() => void answer(input, init).then(resolve, reject)),
+        )) as typeof globalThis.fetch,
+    },
+  });
+  const view = await render(
+    <Probe
+      client={client}
+      report={(session) => {
+        latest = session;
+      }}
+    />,
+  );
+  // Still restoring, the stored sign-in is used offline.
+  await waitFor(() => expect(latest?.offline?.id).toBe("user-a"), {
+    timeout: RESTORE_WAIT_MS + 2000,
+  });
+  expect(latest!.session).toBeUndefined();
+  expect(held).toHaveLength(1);
+  // The connection returns: the renewed session replaces offline use.
+  await act(async () => held.shift()!());
+  await waitFor(() => expect(latest?.session?.id).toBe("user-a"));
+  expect(latest!.offline).toBeUndefined();
+  expect(latest!.ended).toBeUndefined();
+  await view.unmount();
+}, 15_000);
