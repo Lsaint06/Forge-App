@@ -58,12 +58,12 @@ export const overloadDecided = (newest: Performance[][]) =>
 export function overload(
   history: Performance[][],
   rule: { min: number; max: number; increment: number },
-) {
+): { weight: number | null; reason: string } {
   const sessions = workingSessions(history);
   const last = sessions[0];
   if (!last)
     return {
-      weight: 0,
+      weight: null,
       reason: "Log working sets to establish a starting load.",
     };
   const weight = Math.max(...last.map((s) => s.weight));

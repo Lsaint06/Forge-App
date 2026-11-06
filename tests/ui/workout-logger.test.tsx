@@ -265,7 +265,7 @@ test("the load suggestion reaches past the newest sessions when they hold no wor
     r.addSet(row.id, { weight: 80, reps: 10 });
     const rule = { min: 8, max: 12, increment: 2.5 };
     expect(overload(r.history(BENCH), rule).weight).toBe(102.5);
-    expect(overload(r.history(BENCH, 3), rule).weight).toBe(0);
+    expect(overload(r.history(BENCH, 3), rule).weight).toBeNull();
     jest.mocked(useRepo).mockReturnValue(r);
     const view = await render(
       <WorkoutExerciseCard row={row} initialExpanded />,
@@ -283,6 +283,41 @@ test("the load suggestion reaches past the newest sessions when they hold no wor
       view.getByRole("button", { name: "Apply suggested load" }),
     );
     expect(r.sets(row.id).map((s) => s.weight)).toEqual([102.5, 102.5]);
+  } finally {
+    db.close();
+  }
+}, 30_000);
+
+test("without logged working sets there is no load to apply, so a typed load is kept (Phase 8.5)", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const SQUAT = "back-squat";
+    const w = r.startWorkout("Freestyle");
+    const row = r.addExercise(w.id, SQUAT);
+    // The lifter typed a planned load before opening Progression.
+    r.addSet(row.id, { weight: 100, reps: 5 });
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(
+      <WorkoutExerciseCard row={row} initialExpanded />,
+    );
+    await chooseMenuItem(
+      view,
+      `Options for ${r.exercise(SQUAT)!.name}`,
+      "Progression",
+      "Progression",
+    );
+    // Previously "Suggested load · 0 kg", whose Apply replaced the 100 kg.
+    expect(view.getByText("No load suggestion yet")).toBeTruthy();
+    expect(
+      view.getByText("Log working sets to establish a starting load."),
+    ).toBeTruthy();
+    expect(view.queryByText("0 kg")).toBeNull();
+    const apply = view.getByRole("button", {
+      name: "Apply suggested load",
+      disabled: true,
+    });
+    await fireEvent.press(apply);
+    expect(r.sets(row.id).map((s) => s.weight)).toEqual([100]);
   } finally {
     db.close();
   }
@@ -417,6 +452,30 @@ test("stepping through cells never rewrites a value, so lb weights cannot drift"
   expect(repo.editSet).toHaveBeenLastCalledWith("s1", {
     weight: expect.closeTo(104.326, 3),
   });
+});
+
+test("a load applied while the lifter is typing replaces the draft, and leaving the cell keeps it (Phase 8.5)", async () => {
+  const repo = gridRepo();
+  const row = (weight: number) => (
+    <SetRow set={{ ...base, weight }} category="strength" showRir />
+  );
+  const view = await render(row(62.5));
+  const weight = () => view.getByLabelText("Set 1 weight (kg)");
+  await fireEvent(weight(), "focus");
+  await fireEvent.changeText(weight(), "70");
+  expect(repo.editSet).toHaveBeenLastCalledWith("s1", { weight: 70 });
+  expect(weight().props.value).toBe("70");
+  // The cell's own save coming back keeps the draft.
+  await view.rerender(row(70));
+  expect(weight().props.value).toBe("70");
+  // Apply suggested load writes 80 while the cell still has focus (an
+  // Android sheet leaves it focused): the cell shows it at once...
+  await view.rerender(row(80));
+  expect(weight().props.value).toBe("80");
+  // ...and leaving the cell doesn't write the old draft back over it.
+  repo.editSet.mockClear();
+  await fireEvent(weight(), "endEditing");
+  expect(repo.editSet).not.toHaveBeenCalled();
 });
 
 test("the set number opens Set Details and shows the set type", async () => {

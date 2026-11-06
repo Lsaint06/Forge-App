@@ -161,6 +161,10 @@ const column = (min: number): ViewStyle => ({
   minWidth: min,
 });
 
+/** Equal values, allowing for the float error of lb ↔ kg round trips. */
+const sameNumber = (a: number | null, b: number | null) =>
+  a == null || b == null ? a === b : Math.abs(a - b) < 1e-6;
+
 /**
  * A compact numeric input. Saves every valid keystroke (like NumberField);
  * invalid entries are kept as a draft, outlined in red and explained to
@@ -168,7 +172,8 @@ const column = (min: number): ViewStyle => ({
  *
  * Only text the lifter changed is saved: focusing a cell (for example while
  * stepping through with Next) never writes the rounded display value back,
- * so lb conversions cannot drift and an applied load is never overwritten.
+ * so lb conversions cannot drift and an applied load is never overwritten,
+ * even one applied while the lifter is typing in the cell.
  */
 function NumberCell({
   label,
@@ -202,6 +207,19 @@ function NumberCell({
   // Whether the text was changed during this focus.
   const [edited, setEdited] = useState(false);
   const [error, setError] = useState("");
+  // What this cell saved during this focus, and the value it last received.
+  // A new value that isn't the cell's own save was set elsewhere (Apply
+  // suggested load): the cell shows it and drops the draft, so leaving the
+  // cell can't write the draft back over it.
+  const [saved, setSaved] = useState<number | null>();
+  const [received, setReceived] = useState(value);
+  if (!sameNumber(received, value)) {
+    setReceived(value);
+    if (edited && (saved === undefined || !sameNumber(saved, value))) {
+      setEdited(false);
+      setError("");
+    }
+  }
   useAnnouncedError(label, error);
   const orderKey = order.join(".");
   useEffect(() => {
@@ -219,6 +237,7 @@ function NumberCell({
       return;
     }
     setError("");
+    setSaved(result.value);
     onSave(result.value);
   }
   return (
@@ -245,6 +264,7 @@ function NumberCell({
         onFocus={() => {
           setDraft(formatNumber(value));
           setEdited(false);
+          setSaved(undefined);
           setFocused(true);
           focus?.focused(focusKey);
         }}
