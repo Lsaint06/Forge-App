@@ -5,7 +5,12 @@ import { useRepo, mutate } from "../state";
 import { BadgePill, ForgeScreen, pairFits } from "../components/reforge";
 import type { MenuAction } from "../components/system";
 import { planStatus } from "../components/PlanRow";
-import { summary, volume, kgToLb } from "../domain/metrics";
+import {
+  kgToLb,
+  trainingStreak,
+  trainingWeek,
+  volume,
+} from "../domain/metrics";
 import { onDay, type Checkin } from "../domain/checkins";
 import { workoutTitle } from "../domain/workout-display";
 import { dayTitle } from "../domain/calendar-dates";
@@ -139,7 +144,12 @@ export default function Home() {
   const next = nextSession(r, today);
   const plan = planStatus(r);
   const context = plan ? planContext(r, today) : undefined;
-  const lifetime = summary(all, (id) => r.workoutSets(id), now);
+  // The streak and this week, as Progress and You show them; Home shows no
+  // lifetime volume, so it reads only this week's sets (Phase 8.5).
+  const lifetime = {
+    streak: trainingStreak(all, now),
+    ...trainingWeek(all, (id) => r.workoutSets(id), now),
+  };
   const last = all.find((w) => w.status === "completed");
   const recovery = onDay(r.journal("recovery") as Checkin[], today)[0];
   const weight = bodyweight(r.journal("measurement"), p);

@@ -273,3 +273,67 @@ test("measurement percentages and recognized bodyweight units reject misleading 
   );
   assert.equal(r.journal("measurement").length, 0);
 });
+test("an exercise's history: finished sessions newest first with every row's sets, in two reads however long (Phase 8.5)", () => {
+  const db = new DatabaseSync(":memory:");
+  let reads = 0;
+  const r = new Repository({
+    exec: (s) => db.exec(s),
+    run: (s, p = []) => {
+      db.prepare(s).run(...p);
+    },
+    all: <T>(s: string, p: (string | number | null)[] = []) => {
+      reads++;
+      return db.prepare(s).all(...p) as T[];
+    },
+  });
+  r.migrate();
+  const BENCH = "barbell-bench-press";
+  const finished = (at: number, build: (workoutId: string) => void) => {
+    const w = r.startWorkout("Session");
+    build(w.id);
+    r.finishWorkout(w.id);
+    db.prepare("UPDATE workouts SET finished_at=? WHERE id=?").run(at, w.id);
+    return w.id;
+  };
+  const done = { weight: 60, reps: 5, completed: true };
+  // Bench twice in one session, around squats: one group, in row order.
+  let rows: string[] = [];
+  const older = finished(1_000, (w) => {
+    const first = r.addExercise(w, BENCH);
+    r.addSet(first.id, done);
+    r.addSet(first.id, { kind: "warmup", weight: 40, reps: 8 });
+    r.addSet(r.addExercise(w, "back-squat").id, done);
+    const second = r.addExercise(w, BENCH);
+    r.addSet(second.id, { weight: 50, reps: 10 });
+    rows = [first.id, second.id];
+  });
+  // Bench added but never given a set: an empty session still counts.
+  const newer = finished(2_000, (w) => {
+    r.addExercise(w, BENCH);
+    r.addSet(r.addExercise(w, "back-squat").id, done);
+  });
+  finished(3_000, (w) => r.addSet(r.addExercise(w, "back-squat").id, done));
+  const expected = [[], [...r.sets(rows[0]!), ...r.sets(rows[1]!)]];
+  assert.deepEqual(r.history(BENCH), expected);
+  assert.deepEqual([...r.exerciseHistory(BENCH).keys()], [newer, older]);
+  assert.deepEqual(r.history(BENCH, 1), [[]]);
+  assert.deepEqual(r.history(BENCH, 5), expected);
+  // Ten more sessions: still two reads; the newest are a prefix of all.
+  for (let i = 0; i < 10; i++)
+    finished(4_000 + i, (w) =>
+      r.addSet(r.addExercise(w, BENCH).id, { ...done, weight: 70 + i }),
+    );
+  reads = 0;
+  const all = r.history(BENCH);
+  assert.equal(reads, 2);
+  assert.equal(all.length, 12);
+  assert.equal(all[0]![0]!.weight, 79);
+  assert.deepEqual(all.slice(-2), expected);
+  reads = 0;
+  assert.deepEqual(r.history(BENCH, 3), all.slice(0, 3));
+  assert.equal(reads, 2);
+  // A session in progress is never history.
+  r.addSet(r.addExercise(r.startWorkout("Live").id, BENCH).id, done);
+  assert.deepEqual(r.history(BENCH), all);
+  db.close();
+});

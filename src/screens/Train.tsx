@@ -7,7 +7,7 @@ import { planStatus } from "../components/PlanRow";
 import { standaloneTemplates } from "../data/paths";
 import { startNextSession } from "../data/today";
 import { libraryPrograms } from "../programs";
-import { summary } from "../domain/metrics";
+import { trainingStreak } from "../domain/metrics";
 import { localDate, type Template } from "../domain/types";
 import { blockIfTraining } from "../startGuard";
 import { templateOrder, trainHero, type PlanNext } from "./train/model";
@@ -36,7 +36,7 @@ export default function Train() {
   const programs = libraryPrograms().length;
   const hero = trainHero(r, today, programs);
   const workouts = r.workouts();
-  const streak = summary(workouts, (id) => r.workoutSets(id)).streak;
+  const streak = trainingStreak(workouts);
   const templates = standaloneTemplates(r);
   const shortcuts = templateOrder(templates, workouts).slice(0, 3);
   function startTemplate(t: Template, fromSheet = false) {

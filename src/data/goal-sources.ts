@@ -27,12 +27,7 @@ export function goalSources(
   });
   const volumes = new Map<string, number>();
   const lifts = new Map<string, LiftSet[]>();
-  const calories = new Map<string, number>();
-  for (const e of r.journal("nutrition")) {
-    const c = Number(e.data.calories) * Number(e.data.quantity);
-    if (!Number.isFinite(c)) continue;
-    calories.set(e.date, (calories.get(e.date) ?? 0) + c);
-  }
+  let calories: Map<string, number> | undefined;
   return {
     today,
     units,
@@ -45,18 +40,19 @@ export function goalSources(
     lifts: (exerciseId) => {
       const cached = lifts.get(exerciseId);
       if (cached) return cached;
+      // This exercise's sets in completed workouts, in two reads, where
+      // reading every workout's rows took one per workout (Phase 8.5).
+      const done = r.exerciseHistory(exerciseId);
       const sets: LiftSet[] = [];
       for (const w of workouts)
-        for (const row of r.workoutExercises(w.id))
-          if (row.exerciseId === exerciseId)
-            for (const s of r.sets(row.id))
-              if (isWorkingSet(s))
-                sets.push({
-                  date: w.date,
-                  time: w.time,
-                  weight: s.weight,
-                  reps: s.reps,
-                });
+        for (const s of done.get(w.id) ?? [])
+          if (isWorkingSet(s))
+            sets.push({
+              date: w.date,
+              time: w.time,
+              weight: s.weight,
+              reps: s.reps,
+            });
       lifts.set(exerciseId, sets);
       return sets;
     },
@@ -64,6 +60,18 @@ export function goalSources(
       const e = r.exercise(exerciseId);
       return e ? { name: e.name, load: loadKind(e) === "load" } : undefined;
     },
-    calories,
+    // Every food entry is read only when a nutrition goal first asks (Phase
+    // 8.5): Home evaluates goals on every render.
+    get calories() {
+      if (!calories) {
+        calories = new Map<string, number>();
+        for (const e of r.journal("nutrition")) {
+          const c = Number(e.data.calories) * Number(e.data.quantity);
+          if (!Number.isFinite(c)) continue;
+          calories.set(e.date, (calories.get(e.date) ?? 0) + c);
+        }
+      }
+      return calories;
+    },
   };
 }

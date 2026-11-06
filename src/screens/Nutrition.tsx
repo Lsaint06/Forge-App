@@ -37,7 +37,7 @@ import { tryLoadFoodLibrary } from "../data/food-catalog";
 import { localDate, type Journal } from "../domain/types";
 import { dayLabel, longDayLabel } from "../domain/training-display";
 import { dayTitle } from "../domain/calendar-dates";
-import { summary } from "../domain/metrics";
+import { trainingStreak } from "../domain/metrics";
 import {
   TARGETS_SAVED,
   defaultMeal,
@@ -435,7 +435,7 @@ export default function Nutrition({ tab = false }: { tab?: boolean }) {
       </ForgeSubScreen>
     );
   const workouts = r.workouts();
-  const training = summary(workouts, (id) => r.workoutSets(id), now).streak;
+  const training = trainingStreak(workouts, now);
   const plan = planStatus(r);
   const context = plan ? planContext(r, today) : undefined;
   return (

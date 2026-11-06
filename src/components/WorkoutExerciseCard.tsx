@@ -18,7 +18,7 @@ import { ExercisePicker } from "./ExercisePicker";
 import { SetGrid, SetRow } from "./SetGrid";
 import { FText, ForgeCard, SquareIconButton } from "./reforge";
 import { forge } from "../theme";
-import { overload } from "../domain/metrics";
+import { overload, overloadDecided } from "../domain/metrics";
 import { targetProgression } from "../domain/progression";
 import {
   targetSummary,
@@ -312,6 +312,13 @@ function NotesRow({ notes, onPress }: { notes: string; onPress?: () => void }) {
 }
 
 /**
+ * The newest sessions of an exercise that the card reads for the previous
+ * values and the load suggestion: the workout being reviewed can be one of
+ * them, and the suggestion reads two with working sets.
+ */
+const NEWEST = 3;
+
+/**
  * One exercise in the logger (Phase 7.2A, after the Train reference): a
  * numbered header with equipment, muscle and the target line; the open card
  * is outlined in ember and holds advice, the set grid, Add set and notes.
@@ -356,14 +363,17 @@ export default function WorkoutExerciseCard({
   const category = exercise?.category ?? "strength";
   const strength = category === "strength";
   // The last completed session of this exercise, excluding this workout.
+  // Only the newest sessions are read (Phase 8.5: every save read each
+  // exercise's whole history).
   const thisWorkout = new Set(
     r.workoutExercises(e.workoutId).map((row) => row.id),
   );
+  const newest = r.history(e.exerciseId, NEWEST);
   const previous = previousBySet(
     sets,
-    r
-      .history(e.exerciseId)
-      .find((group) => !group.some((s) => thisWorkout.has(s.exerciseRowId))),
+    newest.find(
+      (group) => !group.some((s) => thisWorkout.has(s.exerciseRowId)),
+    ),
   );
   const pathWorkout = r
     .journal("schedule")
@@ -389,11 +399,17 @@ export default function WorkoutExerciseCard({
           target,
           p.increment,
         )
-      : overload(r.history(e.exerciseId), {
-          min: p.repMin,
-          max: p.repMax,
-          increment: p.increment,
-        });
+      : overload(
+          // Older sessions only when the newest can't settle it.
+          newest.length < NEWEST || overloadDecided(newest)
+            ? newest
+            : r.history(e.exerciseId),
+          {
+            min: p.repMin,
+            max: p.repMax,
+            increment: p.increment,
+          },
+        );
   // Inline RIR for every program-based workout (curated programs and
   // existing Paths); freestyle keeps RIR in Set Details.
   const showRir = strength && (!!programContext || pathWorkout);

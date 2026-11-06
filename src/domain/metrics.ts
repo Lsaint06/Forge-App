@@ -41,13 +41,25 @@ export function clock(seconds: number) {
     .toString()
     .padStart(2, "0")}`;
 }
+/**
+ * Each session's completed working sets, newest first; sessions without
+ * any are left out.
+ */
+const workingSessions = (history: Performance[][]) =>
+  history
+    .map((h) => h.filter((s) => s.completed && s.kind !== "warmup"))
+    .filter((h) => h.length);
+/**
+ * Whether these newest sessions settle `overload`: it reads only the first
+ * two sessions with completed working sets, so older ones can't change it.
+ */
+export const overloadDecided = (newest: Performance[][]) =>
+  workingSessions(newest).length >= 2;
 export function overload(
   history: Performance[][],
   rule: { min: number; max: number; increment: number },
 ) {
-  const sessions = history
-    .map((h) => h.filter((s) => s.completed && s.kind !== "warmup"))
-    .filter((h) => h.length);
+  const sessions = workingSessions(history);
   const last = sessions[0];
   if (!last)
     return {
@@ -178,20 +190,13 @@ export function records(sets: WorkoutSet[]) {
     volume: volume(done),
   };
 }
-export function summary(
-  workouts: Workout[],
-  getSets: (id: string) => WorkoutSet[],
-  now = Date.now(),
-) {
+/**
+ * Consecutive days with a finished workout, up to today (or yesterday, while
+ * today has none yet). Reads no sets.
+ */
+export function trainingStreak(workouts: Workout[], now = Date.now()) {
   const done = workouts.filter((w) => w.status === "completed");
   const today = localDate(now);
-  const weekStart = new Date(now);
-  weekStart.setHours(0, 0, 0, 0);
-  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
-  const week = done.filter(
-    (w) =>
-      (w.finishedAt ?? 0) >= weekStart.getTime() && (w.finishedAt ?? 0) <= now,
-  );
   const days = new Set(done.map((w) => localDate(w.finishedAt ?? w.startedAt)));
   let streak = 0;
   const day = new Date(now);
@@ -201,13 +206,47 @@ export function summary(
     streak++;
     day.setDate(day.getDate() - 1);
   }
-  const totalVolume = done.reduce((v, w) => v + volume(getSets(w.id)), 0);
+  return streak;
+}
+/** This week's (from Monday) finished workouts; reads only their sets. */
+export function trainingWeek(
+  workouts: Workout[],
+  getSets: (id: string) => Performance[],
+  now = Date.now(),
+) {
+  const weekStart = new Date(now);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+  const week = workouts.filter(
+    (w) =>
+      w.status === "completed" &&
+      (w.finishedAt ?? 0) >= weekStart.getTime() &&
+      (w.finishedAt ?? 0) <= now,
+  );
   return {
-    count: done.length,
     weekly: week.length,
     weeklyVolume: week.reduce((v, w) => v + volume(getSets(w.id)), 0),
+  };
+}
+/**
+ * Lifetime figures. The total volume reads every workout's sets: where only
+ * the streak or this week is shown, `trainingStreak` and `trainingWeek` give
+ * the same figures without it (Phase 8.5).
+ */
+export function summary(
+  workouts: Workout[],
+  getSets: (id: string) => Performance[],
+  now = Date.now(),
+) {
+  const done = workouts.filter((w) => w.status === "completed");
+  const totalVolume = done.reduce((v, w) => v + volume(getSets(w.id)), 0);
+  const { weekly, weeklyVolume } = trainingWeek(done, getSets, now);
+  return {
+    count: done.length,
+    weekly,
+    weeklyVolume,
     totalVolume,
-    streak,
+    streak: trainingStreak(done, now),
     averageMinutes: done.length
       ? done.reduce(
           (v, w) =>

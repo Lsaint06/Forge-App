@@ -27,6 +27,7 @@ import {
   firstSentence,
 } from "../../src/domain/workout-display";
 import { defaults, type WorkoutSet } from "../../src/domain/types";
+import { overload } from "../../src/domain/metrics";
 
 // Phase 2 workout logger: header and dock, responsive set grid with inline
 // RIR, exercise and workout menus, and Set Details.
@@ -231,6 +232,57 @@ test("an earned increase is offered inline and applied only to unfinished workin
     );
     expect(view.getByText(advice.reason)).toBeTruthy();
     expect(view.getByText(program.progression)).toBeTruthy();
+  } finally {
+    db.close();
+  }
+}, 30_000);
+
+test("the load suggestion reaches past the newest sessions when they hold no working sets (Phase 8.5)", async () => {
+  const { r, db } = pathRepository();
+  try {
+    const BENCH = "barbell-bench-press";
+    let at = Date.now() - 30 * 86_400_000;
+    const session = (sets: Partial<WorkoutSet>[]) => {
+      const w = r.startWorkout("Push");
+      const row = r.addExercise(w.id, BENCH);
+      for (const s of sets) r.addSet(row.id, s);
+      r.finishWorkout(w.id);
+      db.prepare("UPDATE workouts SET finished_at=? WHERE id=?").run(
+        (at += 86_400_000),
+        w.id,
+      );
+    };
+    const top = { weight: 100, reps: 12, completed: true };
+    // Two sessions at the top of the rep range, then three of warm-ups:
+    // the card reads the newest three, which can't settle the suggestion.
+    session([top, top]);
+    session([top, top]);
+    for (let i = 0; i < 3; i++)
+      session([{ kind: "warmup", weight: 60, reps: 5, completed: true }]);
+    const w = r.startWorkout("Push");
+    const row = r.addExercise(w.id, BENCH);
+    r.addSet(row.id, { weight: 80, reps: 10 });
+    r.addSet(row.id, { weight: 80, reps: 10 });
+    const rule = { min: 8, max: 12, increment: 2.5 };
+    expect(overload(r.history(BENCH), rule).weight).toBe(102.5);
+    expect(overload(r.history(BENCH, 3), rule).weight).toBe(0);
+    jest.mocked(useRepo).mockReturnValue(r);
+    const view = await render(
+      <WorkoutExerciseCard row={row} initialExpanded />,
+    );
+    // The newest session had warm-ups only: no previous working values.
+    expect(view.queryByLabelText(/^Previous /)).toBeNull();
+    await chooseMenuItem(
+      view,
+      `Options for ${r.exercise(BENCH)!.name}`,
+      "Progression",
+      "Progression",
+    );
+    expect(view.getByText("102.5 kg")).toBeTruthy();
+    await fireEvent.press(
+      view.getByRole("button", { name: "Apply suggested load" }),
+    );
+    expect(r.sets(row.id).map((s) => s.weight)).toEqual([102.5, 102.5]);
   } finally {
     db.close();
   }

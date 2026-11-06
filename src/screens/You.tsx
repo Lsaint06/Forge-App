@@ -12,7 +12,7 @@ import {
   missingTrainingProfile,
   trainingGoal,
 } from "../domain/profile";
-import { summary } from "../domain/metrics";
+import { trainingStreak } from "../domain/metrics";
 import { evaluate, type Goal } from "../domain/goals";
 import { goalSources } from "../data/goal-sources";
 import {
@@ -84,22 +84,21 @@ export default function You() {
   const overview = planOverview(r, today);
   // The repository is mutable; `revision` changes whenever stored data does,
   // so these are worked out once per data change (or new day).
-  // Lifetime figures: the shared summary (workouts completed and the day
-  // streak, as Home, Nutrition and Progress show them) and weeks consistent.
+  // Lifetime figures: workouts completed and the day streak, as Home,
+  // Nutrition and Progress show them, and weeks consistent. No sets are
+  // read: You shows no volume (Phase 8.5).
   const training = useMemo(
     () => {
       const all = r.workouts();
-      const life = summary(all, (id) => r.workoutSets(id));
+      const done = all.filter((w) => w.status === "completed");
       return {
-        count: life.count,
-        streak: life.streak,
+        count: done.length,
+        streak: trainingStreak(all),
         weeks: weeksConsistent(all, today),
-        first: all
-          .filter((w) => w.status === "completed")
-          .reduce<number | undefined>(
-            (t, w) => Math.min(t ?? Infinity, w.finishedAt ?? w.startedAt),
-            undefined,
-          ),
+        first: done.reduce<number | undefined>(
+          (t, w) => Math.min(t ?? Infinity, w.finishedAt ?? w.startedAt),
+          undefined,
+        ),
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

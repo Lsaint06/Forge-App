@@ -603,18 +603,72 @@ export class Repository {
   workoutSets(workoutId: string) {
     return this.workoutExercises(workoutId).flatMap((e) => this.sets(e.id));
   }
-  history(exerciseId: string) {
+  /**
+   * An exercise's sets in completed workouts, newest workout first; with
+   * `limit`, only that many of the newest workouts.
+   */
+  history(exerciseId: string, limit?: number) {
+    return [...this.exerciseHistory(exerciseId, limit).values()];
+  }
+  /**
+   * An exercise's sets in completed workouts, by workout (most recently
+   * finished first), each workout's in its order (exercise row, then set).
+   * With `limit`, only the newest workouts' sets are read. Phase 8.5: sets
+   * are read at once, not one query per session; the logger reads this for
+   * every exercise on every save.
+   */
+  exerciseHistory(exerciseId: string, limit = Infinity) {
     const rows = this.db.all<{ id: string; workoutId: string }>(
       `SELECT e.id,w.id AS workoutId FROM workout_exercises e JOIN workouts w ON w.id=e.workout_id WHERE e.exercise_id=? AND w.status='completed' ORDER BY w.finished_at DESC,e.position`,
       [exerciseId],
     );
+    // Each workout's rows of this exercise, in order of appearance.
+    const groups = new Map<string, string[]>();
+    for (const e of rows) {
+      const ids = groups.get(e.workoutId);
+      if (ids) ids.push(e.id);
+      else if (groups.size < limit) groups.set(e.workoutId, [e.id]);
+    }
+    const sets =
+      limit === Infinity
+        ? this.historySets(exerciseId)
+        : this.rowSets([...groups.values()].flat());
     const history = new Map<string, WorkoutSet[]>();
-    for (const e of rows)
-      history.set(e.workoutId, [
-        ...(history.get(e.workoutId) ?? []),
-        ...this.sets(e.id),
-      ]);
-    return [...history.values()];
+    for (const [workoutId, ids] of groups)
+      history.set(
+        workoutId,
+        ids.flatMap((id) => sets.get(id) ?? []),
+      );
+    return history;
+  }
+  /** The sets of an exercise's rows in completed workouts, by row: one read. */
+  private historySets(exerciseId: string) {
+    return this.setsByRow(
+      `exercise_row_id IN (SELECT e.id FROM workout_exercises e JOIN workouts w ON w.id=e.workout_id WHERE e.exercise_id=? AND w.status='completed')`,
+      [exerciseId],
+    );
+  }
+  /** These exercise rows' sets, by row, each in its order: one read. */
+  private rowSets(rowIds: string[]) {
+    return rowIds.length
+      ? this.setsByRow(
+          `exercise_row_id IN (${rowIds.map(() => "?").join(",")})`,
+          rowIds,
+        )
+      : new Map<string, WorkoutSet[]>();
+  }
+  private setsByRow(where: string, params: string[]) {
+    const byRow = new Map<string, WorkoutSet[]>();
+    for (const s of this.db.all<WorkoutSet>(
+      `${sSelect} WHERE ${where} ORDER BY exercise_row_id,position`,
+      params,
+    )) {
+      const set = { ...s, completed: !!s.completed };
+      const row = byRow.get(s.exerciseRowId);
+      if (row) row.push(set);
+      else byRow.set(s.exerciseRowId, [set]);
+    }
+    return byRow;
   }
   /**
    * Read-only: every set of every completed workout in one query, oldest
@@ -647,6 +701,7 @@ export class Repository {
     const groups = new Map<string, typeof rows>();
     for (const row of rows)
       groups.set(row.workoutId, [...(groups.get(row.workoutId) ?? []), row]);
+    const byRow = this.historySets(exerciseId);
     const history: WorkoutSet[][] = [];
     for (const group of groups.values()) {
       if (
@@ -662,7 +717,7 @@ export class Repository {
       )
         continue;
       const workingGroups = group.map((row) =>
-        this.sets(row.id).filter((set) => set.kind !== "warmup"),
+        (byRow.get(row.id) ?? []).filter((set) => set.kind !== "warmup"),
       );
       if (
         !workingGroups.every(

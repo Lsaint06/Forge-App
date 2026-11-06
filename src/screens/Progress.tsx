@@ -73,6 +73,7 @@ import {
   consistencyInput,
   firstActivity,
   progressModel,
+  setsByWorkout,
   type ExerciseProgress,
   type ProgressModel,
 } from "../data/progress";
@@ -681,8 +682,11 @@ export default function Progress() {
   const { now, today } = homeClock();
   const [range, setRange] = useState<RangeKey>("12w");
   // The repository is mutable; `revision` changes whenever stored data does.
+  // Every completed set is read once per change, for the model and the
+  // lifetime totals (Phase 8.5).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const model = useMemo(() => progressModel(r), [r, revision]);
+  const sets = useMemo(() => r.completedSets(), [r, revision]);
+  const model = useMemo(() => progressModel(r, sets), [r, sets]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const input = useMemo(() => consistencyInput(r, today), [r, revision, today]);
   const workouts = r.workouts();
@@ -690,9 +694,12 @@ export default function Progress() {
   // data change (and per day, for the streak), not on every range tap or
   // render (7.4B, PD-1). Same function, same inputs.
   const lifetime = useMemo(
-    () => summary(r.workouts(), (id) => r.workoutSets(id)),
+    () => {
+      const byWorkout = setsByWorkout(sets);
+      return summary(r.workouts(), (id) => byWorkout.get(id) ?? []);
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [r, revision, today],
+    [r, sets, today],
   );
   // Every milestone, earned or still ahead (thresholds unchanged, 7.4F).
   const milestones = milestoneList(

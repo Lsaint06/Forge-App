@@ -29,8 +29,30 @@ import { mondayOf } from "../domain/progress/range";
 export const workoutDate = (w: Pick<Workout, "finishedAt" | "startedAt">) =>
   localDate(w.finishedAt ?? w.startedAt);
 
-/** Every exercise of every completed workout, oldest first. */
-export function trainingLog(r: Repository): LoggedExercise[] {
+export type CompletedSet = ReturnType<Repository["completedSets"]>[number];
+/**
+ * Completed workouts' sets (`completedSets`) by workout, each in the order
+ * `workoutSets` gives (exercise, then set). Lifetime totals read every
+ * workout; reading each apart cost several queries per workout (Phase 8.5).
+ */
+export function setsByWorkout(sets: CompletedSet[]) {
+  const byWorkout = new Map<string, CompletedSet[]>();
+  for (const s of sets) {
+    const list = byWorkout.get(s.workoutId);
+    if (list) list.push(s);
+    else byWorkout.set(s.workoutId, [s]);
+  }
+  return byWorkout;
+}
+
+/**
+ * Every exercise of every completed workout, oldest first. `sets` is
+ * `completedSets()`, passed when the caller has already read it.
+ */
+export function trainingLog(
+  r: Repository,
+  sets: CompletedSet[] = r.completedSets(),
+): LoggedExercise[] {
   const workouts = new Map(
     r
       .workouts()
@@ -38,7 +60,7 @@ export function trainingLog(r: Repository): LoggedExercise[] {
       .map((w) => [w.id, w]),
   );
   const entries = new Map<string, LoggedExercise>();
-  for (const s of r.completedSets()) {
+  for (const s of sets) {
     const w = workouts.get(s.workoutId);
     if (!w) continue;
     const key = `${s.workoutId}|${s.exerciseId}`;
@@ -82,8 +104,11 @@ export type ProgressModel = {
   ) => ExerciseInfo & { name: string; equipment: string };
 };
 
-export function progressModel(r: Repository): ProgressModel {
-  const log = trainingLog(r);
+export function progressModel(
+  r: Repository,
+  sets: CompletedSet[] = r.completedSets(),
+): ProgressModel {
+  const log = trainingLog(r, sets);
   const cache = new Map<string, Exercise | undefined>();
   const exercise = (id: string) => {
     if (!cache.has(id)) cache.set(id, r.exercise(id));
