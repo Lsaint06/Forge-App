@@ -6,28 +6,18 @@ import { programWorkouts } from "../programs/presentation";
 
 // How the Forge Path reveal (Phase 9.2) presents the program the engine
 // recommended: in layers, each fact once, and in the athlete's words. Every
-// value comes from the authored program or the athlete's own answers;
-// nothing is reworded except the internal codes ("Forge Strength V2
-// (I-S4)") that only Forge's authors need.
+// value comes from the authored program or the athlete's own answers.
+//
+// Before a membership the reveal is a preview (Phase 9.3, founder rule): it
+// shows the path's structure and how it was personalized, never the program
+// itself. Each training day says its focus and how many exercises it holds;
+// no exercise, set, rep, effort or progression appears.
 
 /** "Intermediate Strength · 4 Days" → "Intermediate Strength". */
 export function revealTitle(program: Pick<CuratedProgram, "name">) {
   const family = program.name.split(" · ")[0]?.trim();
   return family || program.name;
 }
-
-const CODE_PREFIX = /^Forge [^:()]+\([A-Z]-[A-Z]\d\):\s*/;
-const CODE_SENTENCE = /^Forge [^.]+ program [A-Z]-[A-Z]\d\.\s*/;
-const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-/** The authored summary without its internal code. */
-export const plainSummary = (program: Pick<CuratedProgram, "summary">) =>
-  capitalize(program.summary.replace(CODE_PREFIX, ""));
-
-/** The authored description without its opening code sentence. */
-export const plainDescription = (
-  program: Pick<CuratedProgram, "description">,
-) => program.description.replace(CODE_SENTENCE, "");
 
 export type FitRow = { label: string; value: string };
 
@@ -103,27 +93,38 @@ export function revealWeek(
   });
 }
 
-/** The authored text, one sentence at a time; nothing reworded. */
-export const sentences = (text: string) =>
-  text
-    .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+export type SessionDay = {
+  /** 0 = Monday … 6 = Sunday. */
+  day: number;
+  /** "Upper A": the session's name, before the emphasis in brackets. */
+  title: string;
+  /** "Chest & Back": the emphasis the name gives, when it gives one. */
+  focus?: string;
+  /** How many exercises the session holds; never which. */
+  exercises: number;
+};
 
-/** What RIR means, for anyone meeting it for the first time. */
-export const RIR_MEANING =
-  "RIR means reps in reserve: how many more good reps you could still do when you end a set. 2–3 RIR stops two or three reps short of failure.";
-
-/** The same, in one line under the phases. */
-export const RIR_SHORT =
-  "RIR is reps in reserve: how many good reps you leave in the tank. Lower is harder.";
+/** "Upper A (Chest & Back)" → "Upper A" and "Chest & Back". */
+export function sessionLabel(name: string): { title: string; focus?: string } {
+  const named = name.trim();
+  const m = named.match(/^(.+?)\s*\(([^()]+)\)$/);
+  return m ? { title: m[1]!, focus: m[2]!.trim() } : { title: named };
+}
 
 /**
- * The progression as the sheet shows it: a short opening sentence as its
- * lead, then the rest one sentence at a time.
+ * The athlete's training days in their first week, around their rest day:
+ * each day's session by its name and focus, and how many exercises it
+ * holds. This is all the preview shows of the program.
  */
-export function progressionParts(text: string) {
-  const all = sentences(text);
-  const lead = all[0] && all[0].length <= 64 ? all[0] : undefined;
-  return { lead, points: lead ? all.slice(1) : all };
+export function revealSessions(
+  program: Pick<CuratedProgram, "weeklyPattern" | "phases">,
+  restDay: number,
+): SessionDay[] {
+  const sessions = program.phases[0]?.sessions ?? [];
+  return revealWeek(program, restDay).flatMap((d) => {
+    const s = d.session === undefined ? undefined : sessions[d.session - 1];
+    return s
+      ? [{ day: d.day, ...sessionLabel(s.name), exercises: s.exercises.length }]
+      : [];
+  });
 }

@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { ForgeEmpty, ForgeSubScreen } from "../../components/reforge";
 import { goBack } from "../../navigation";
 import { Intro } from "./Intro";
-import { OnboardingFlow } from "./Flow";
+import { OnboardingFlow, type MembershipStep } from "./Flow";
 import { PreviewBanner } from "./parts";
 import { usePreviewStore } from "./store";
 
@@ -12,9 +12,16 @@ import { usePreviewStore } from "./store";
 // new athlete's answers are kept in memory and nothing is saved: the
 // profile, the training and the onboarding record are never touched. Opened
 // from Preferences → Development; production bundles show nothing here.
-export default function OnboardingPreview() {
+// With a membership step (Phase 9.3, handed in by the route), Forge Premium
+// follows the reveal, simulated, and the preview ends where setup does: on
+// Home.
+export default function OnboardingPreview({
+  membership,
+}: { membership?: MembershipStep } = {}) {
   const exit = () => goBack("/preferences");
-  const store = usePreviewStore(exit);
+  const store = usePreviewStore(
+    membership ? () => router.navigate("/(tabs)") : exit,
+  );
   const [stage, setStage] = useState<"intro" | "setup">("intro");
   if (!__DEV__)
     return (
@@ -29,6 +36,6 @@ export default function OnboardingPreview() {
   return stage === "intro" ? (
     <Intro banner={banner} onAccount={() => setStage("setup")} />
   ) : (
-    <OnboardingFlow store={store} banner={banner} />
+    <OnboardingFlow store={store} banner={banner} membership={membership} />
   );
 }

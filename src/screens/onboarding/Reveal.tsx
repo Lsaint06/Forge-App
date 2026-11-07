@@ -1,41 +1,30 @@
-import React, { useState } from "react";
+import React from "react";
 import { StyleSheet, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "../../components/ui";
-import { InfoSheet } from "../../components/system";
 import {
   CtaButton,
   FText,
   ForgeCard,
-  ForgeListRow,
   Gradient,
   InfoChip,
   OutlineButton,
-  RowDivider,
   SectionLabel,
 } from "../../components/reforge";
-import { PhaseTimeline, WorkoutRow } from "../../components/programs";
 import { defaults } from "../../domain/types";
 import { restDayNames } from "../../domain/profile";
-import { rangeText } from "../../domain/programs/presentation";
 import type { CuratedProgram } from "../../domain/programs/model";
 import {
   afterReveal,
   revealFor,
-  revealWorkouts,
   type Progress,
 } from "../../domain/onboarding/journey";
 import {
-  RIR_MEANING,
-  RIR_SHORT,
-  plainDescription,
-  plainSummary,
-  progressionParts,
   revealFit,
+  revealSessions,
   revealStats,
   revealTitle,
   revealWeek,
-  sentences,
   type FitRow,
   type RevealDay,
   type RevealStat,
@@ -46,6 +35,7 @@ import type { SetupAccount } from "./account";
 import { StepFrame } from "./frame";
 import { Entrance } from "./motion";
 import type { OnboardingStore } from "./store";
+import { PhaseStrip, SessionDays } from "./week";
 
 /** "4- and 5-day versions", "a 4-day version". */
 function versions(days: number[]) {
@@ -271,8 +261,10 @@ function Hero({
 
 // Step 3 of 3 (Phase 9.2): the Forge Path the real engine recommends for the
 // athlete's answers (`recommendProgram`), in layers: who it's for and why it
-// fits, then the shape of their week and its phases, then every workout
-// with its exercises, sets and reps, and the program's own equipment. Read-
+// fits, then the shape of their week, each training day by its focus and
+// size, its phases, and the program's own equipment. Before a membership it
+// is a preview (Phase 9.3, founder rule): no exercise, set, rep, effort or
+// progression is shown; the program itself comes with Forge Premium. Read-
 // only: no Start, no logging, no link into Forge Paths. Nothing is enrolled;
 // Home keeps it for the athlete to start when they choose.
 export function Reveal({
@@ -282,6 +274,7 @@ export function Reveal({
   banner,
   error,
   onBack,
+  onContinue,
 }: {
   store: OnboardingStore;
   progress: Progress;
@@ -289,9 +282,9 @@ export function Reveal({
   banner?: React.ReactNode;
   error?: string;
   onBack: () => void;
+  /** To the membership step, when there is one (Phase 9.3). */
+  onContinue?: () => void;
 }) {
-  const c = useColors();
-  const [info, setInfo] = useState<"progression" | "about">();
   const reveal = revealFor(store.profile, progress, programLibrary);
   if (!reveal)
     return (
@@ -311,15 +304,9 @@ export function Reveal({
       </StepFrame>
     );
   const { program, reasons, alternatives, restDay } = reveal;
-  const workouts = revealWorkouts(program);
-  const everyPhase = (phases: number[]) =>
-    phases.length === program.phases.length;
-  const uniform = workouts.every((w) => everyPhase(w.phases));
   const name =
     store.profile.name !== defaults.name ? store.profile.name : undefined;
-  const lf = program.lowerFatigue;
-  const progression = progressionParts(program.progression);
-  const next = afterReveal();
+  const next = afterReveal(!!onContinue);
 
   return (
     <StepFrame
@@ -330,7 +317,7 @@ export function Reveal({
       banner={banner}
       error={error}
       footer={
-        next === "enterForge" && (
+        next === "enterForge" ? (
           <>
             <CtaButton
               title="Enter Forge"
@@ -341,6 +328,12 @@ export function Reveal({
               Nothing starts until you choose. Your Forge Path waits on Home.
             </FText>
           </>
+        ) : (
+          <CtaButton
+            title="Continue"
+            icon="arrow-forward"
+            onPress={onContinue!}
+          />
         )
       }
     >
@@ -356,6 +349,10 @@ export function Reveal({
         <SectionLabel title="Your week" />
         <ForgeCard gap={12}>
           <Week days={revealWeek(program, restDay)} />
+          <SessionDays
+            days={revealSessions(program, restDay)}
+            testID="onboarding-sessions"
+          />
           <FText variant="label" tone="secondary">
             {`Your ${program.daysPerWeek} workouts run in order around your rest day on ${restDayNames[restDay]}. They're suggestions: train whenever suits you.`}
           </FText>
@@ -377,52 +374,12 @@ export function Reveal({
                 : "Phases"
             }
           />
-          <PhaseTimeline program={program} />
-          <FText
-            variant="label"
-            tone="secondary"
-            style={{ paddingHorizontal: 2 }}
-          >
-            {RIR_SHORT}
-          </FText>
+          <ForgeCard gap={12}>
+            <PhaseStrip phases={program.phases} />
+          </ForgeCard>
         </Entrance>
       )}
       <Entrance delay={240} style={{ gap: 10 }}>
-        <SectionLabel title="Your workouts" />
-        <ForgeCard padding={0} gap={0}>
-          {workouts.map((w, i) => (
-            <React.Fragment key={`${w.session.id}-${i}`}>
-              {i > 0 && <RowDivider />}
-              <WorkoutRow
-                session={w.session}
-                initiallyOpen={i === 0}
-                detail={
-                  uniform
-                    ? `Day ${w.day}`
-                    : `Day ${w.day} · ${
-                        everyPhase(w.phases)
-                          ? "Every phase"
-                          : w.phases
-                              .map((p) => program.phases[p]!.name)
-                              .join(", ")
-                      }`
-                }
-              />
-            </React.Fragment>
-          ))}
-        </ForgeCard>
-        {!uniform && (
-          <FText
-            variant="label"
-            tone="secondary"
-            style={{ paddingHorizontal: 2 }}
-          >
-            Some workouts change between phases; each version is listed with its
-            phases.
-          </FText>
-        )}
-      </Entrance>
-      <Entrance delay={300} style={{ gap: 10 }}>
         <SectionLabel title="What you'll need" />
         <View
           testID="onboarding-equipment"
@@ -433,83 +390,6 @@ export function Reveal({
           ))}
         </View>
       </Entrance>
-      <Entrance delay={340} style={{ gap: 10 }}>
-        <SectionLabel title="More about it" />
-        <ForgeCard padding={0} gap={0}>
-          <ForgeListRow
-            icon="trending-up-outline"
-            title="How progression works"
-            onPress={() => setInfo("progression")}
-          />
-          <ForgeListRow
-            divider
-            icon="document-text-outline"
-            title="About this program"
-            onPress={() => setInfo("about")}
-          />
-        </ForgeCard>
-      </Entrance>
-      <InfoSheet
-        visible={info === "progression"}
-        onClose={() => setInfo(undefined)}
-        title="How progression works"
-      >
-        <View style={{ gap: forge.spacing.group }}>
-          <View
-            style={{
-              gap: 4,
-              padding: 12,
-              borderRadius: forge.radii.card + 2,
-              borderWidth: forge.border.card,
-              borderColor: c.emberMuted,
-              backgroundColor: c.emberTint,
-            }}
-          >
-            <FText variant="label" weight="700" tone="accent">
-              Effort, measured in RIR
-            </FText>
-            <FText variant="label">{RIR_MEANING}</FText>
-          </View>
-          {progression.lead && (
-            <FText variant="cardTitle" weight="700">
-              {progression.lead}
-            </FText>
-          )}
-          {[
-            ...progression.points,
-            ...(lf && !/lower-fatigue session/i.test(program.progression)
-              ? [
-                  `Whenever fatigue builds up you can choose a lower-fatigue session: about ${Math.round(lf.setReduction * 100)}% fewer working sets at ${rangeText(lf.rir)} RIR, with no load increase.`,
-                ]
-              : []),
-          ].map((s) => (
-            <View key={s} style={{ flexDirection: "row", gap: 10 }}>
-              <View
-                style={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: 3,
-                  marginTop: 8,
-                  backgroundColor: c.emberHot,
-                }}
-              />
-              <FText variant="body" tone="secondary" style={{ flex: 1 }}>
-                {s}
-              </FText>
-            </View>
-          ))}
-        </View>
-      </InfoSheet>
-      <InfoSheet
-        visible={info === "about"}
-        onClose={() => setInfo(undefined)}
-        title={program.name}
-        paragraphs={[
-          plainSummary(program),
-          ...sentences(plainDescription(program)),
-          `Equipment: ${program.equipment.join(", ")}.`,
-        ]}
-      />
     </StepFrame>
   );
 }

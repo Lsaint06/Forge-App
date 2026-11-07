@@ -241,6 +241,20 @@ export default function Preferences() {
             divider
             onPress={() => router.push("/onboarding-preview")}
           />
+          <ForgeListRow
+            icon="flame-outline"
+            title="Preview onboarding with Forge Premium (development only)"
+            description="From the Forge Path reveal to Home. Nothing is sold or saved"
+            divider
+            onPress={() => router.push("/onboarding-preview?premium=1")}
+          />
+          <ForgeListRow
+            icon="diamond-outline"
+            title="Preview Forge Premium (development only)"
+            description="Nothing is sold"
+            divider
+            onPress={() => router.push("/membership-preview")}
+          />
         </Group>
       )}
 

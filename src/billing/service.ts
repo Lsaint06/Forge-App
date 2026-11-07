@@ -167,3 +167,48 @@ export async function signedOut(deps: BillingDeps, userId: string) {
   await deps.provider.reset().catch(() => undefined);
   await deps.cache.forget(userId).catch(() => undefined);
 }
+
+/**
+ * Follows the signed-in account once membership runs: call it with each
+ * account the session reports, undefined once signed out. The account that
+ * left is forgotten on this phone at once. The store's log-out and log-in
+ * take turns in the order the account changed, so they never overlap. Forge's
+ * server is asked after the log-in but outside the turns, so a slow answer
+ * holds nothing up, and an answer that arrives once its account has gone is
+ * not kept. Training data is never touched.
+ */
+export function followAccount(deps: () => BillingDeps | undefined) {
+  let current: string | undefined;
+  let turn: Promise<unknown> = Promise.resolve();
+  const inTurn = (work: () => Promise<unknown>) =>
+    (turn = turn.then(work).catch(() => undefined));
+  return async (userId: string | undefined) => {
+    const previous = current;
+    current = userId;
+    if (userId === previous) return;
+    const d = deps();
+    if (!d) return;
+    const steps: Promise<unknown>[] = [];
+    if (previous) {
+      steps.push(d.cache.forget(previous).catch(() => undefined));
+      steps.push(inTurn(() => d.provider.reset()));
+    }
+    if (userId) {
+      const still = () => current === userId;
+      // Checked as the save is queued, so a later sign-out's forget follows it.
+      const cache: EntitlementCache = {
+        ...d.cache,
+        save: (answer, receivedAt) =>
+          still()
+            ? d.cache.save(answer, receivedAt)
+            : Promise.reject(new Error("That account has signed out")),
+      };
+      steps.push(
+        inTurn(async () => {
+          if (still()) await d.provider.identify(userId);
+        }).then(() => (still() ? verify({ ...d, cache }, userId) : undefined)),
+      );
+    }
+    await Promise.all(steps);
+  };
+}

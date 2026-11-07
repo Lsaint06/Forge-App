@@ -63,6 +63,8 @@ export function AppStack({ entry }: { entry: Entry["kind"] }) {
           <Stack.Screen name="preferences" />
           <Stack.Screen name="design-system" />
           <Stack.Screen name="onboarding-preview" />
+          <Stack.Screen name="membership" />
+          <Stack.Screen name="membership-preview" />
         </Stack.Protected>
         <Stack.Protected guard={setup} redirectTo={to}>
           <Stack.Screen name="onboarding" />

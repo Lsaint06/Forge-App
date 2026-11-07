@@ -11,28 +11,32 @@ import { router } from "expo-router";
 import { pathRepository } from "../path-fixture";
 import { SetupOnboarding } from "../../src/screens/onboarding/Flow";
 import OnboardingPreview from "../../src/screens/onboarding/Preview";
+import { previewMembershipStep } from "../../src/screens/membership/Preview";
 import {
   ARRIVAL_KEY,
   ONBOARDING_KEY,
   readArrival,
   readProgress,
   revealFor,
-  revealWorkouts,
   writeProgress,
 } from "../../src/domain/onboarding/journey";
 import {
-  plainSummary,
   revealFit,
+  revealSessions,
   revealTitle,
 } from "../../src/domain/onboarding/reveal";
 import { entryState } from "../../src/auth/entry";
 import { currentEnrollment } from "../../src/data/programs";
 import { hasLocalData } from "../../src/data/ownership";
-import { programKey, publishedPrograms } from "../../src/domain/programs/model";
-import { prescriptionLine } from "../../src/domain/programs/presentation";
+import {
+  programKey,
+  publishedPrograms,
+  type CuratedProgram,
+} from "../../src/domain/programs/model";
 import { restDayNames } from "../../src/domain/profile";
 import { programLibrary } from "../../src/programs";
 import { kgToLb } from "../../src/domain/metrics";
+import { exercises } from "../../src/data/catalog";
 
 // Phase 9.2: first-time setup after the account, on a real SQLite profile:
 // About you, Your training, then the Forge Path the real engine recommends,
@@ -115,6 +119,35 @@ function dump() {
   );
 }
 
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * The reveal before a membership (founder rule): each training day by its
+ * focus and number of exercises, and not one of the program's exercises,
+ * sets, reps or efforts anywhere on screen.
+ */
+function expectSessionsOnly(view: View, program: CuratedProgram) {
+  const days = within(view.getByTestId("onboarding-sessions"));
+  const sessions = revealSessions(program, 6);
+  expect(sessions).toHaveLength(program.daysPerWeek);
+  for (const d of sessions)
+    expect(
+      days.getByLabelText(
+        `${restDayNames[d.day]}: ${d.title}${d.focus ? `, ${d.focus}` : ""}. ${d.exercises} ${d.exercises === 1 ? "exercise" : "exercises"}.`,
+      ),
+    ).toBeTruthy();
+  const ids = new Set(
+    program.phases.flatMap((p) =>
+      p.sessions.flatMap((s) => s.exercises.map((e) => e.exerciseId)),
+    ),
+  );
+  const names = exercises.filter((e) => ids.has(e.id)).map((e) => e.name);
+  expect(names).toHaveLength(ids.size);
+  expect(
+    view.queryAllByText(new RegExp(names.map(escape).join("|"))),
+  ).toHaveLength(0);
+  expect(view.queryAllByText(/×|\bRIR\b|\breps?\b|\bsets?\b/)).toHaveLength(0);
+}
+
 test("a new athlete sets up, sees the Forge Path the engine recommends, and enters Forge with nothing started", async () => {
   const view = await open();
   title(view, "About you");
@@ -178,18 +211,13 @@ test("a new athlete sets up, sees the Forge Path the engine recommends, and ente
     ),
   ).toBeTruthy();
   expect(view.getByText(/around your rest day on Sunday/)).toBeTruthy();
-  // Third layer: the equipment and the first workout, open.
+  // Third layer: each training day by its focus and size, and the
+  // equipment. Before a membership, never an exercise, set or rep.
+  expectSessionsOnly(view, program);
   for (const item of program.equipment)
     expect(
       within(view.getByTestId("onboarding-equipment")).getByText(item),
     ).toBeTruthy();
-  const first = revealWorkouts(program)[0]!;
-  for (const item of first.session.exercises) {
-    expect(
-      view.getAllByText(r().exercise(item.exerciseId)!.name).length,
-    ).toBeGreaterThan(0);
-    expect(view.getAllByText(prescriptionLine(item)).length).toBeGreaterThan(0);
-  }
 
   await press(view, "Enter Forge");
   expect(r().profile().onboarded).toBe(true);
@@ -430,7 +458,7 @@ test("the reveal is read-only: no start, no logging, no way into Forge Paths bef
   expect(r().active()).toBeUndefined();
 });
 
-test("every one of the 18 published programs is revealed exactly as authored", async () => {
+test("every one of the 18 published programs is revealed by its shape and each day's focus and size, never its exercises", async () => {
   const programs = publishedPrograms(programLibrary);
   expect(programs).toHaveLength(18);
   for (const program of programs) {
@@ -463,27 +491,19 @@ test("every one of the 18 published programs is revealed exactly as authored", a
         `Training days: ${reveal.weekdays.map((d) => restDayNames[d]).join(", ")}. Rest day: Sunday.`,
       ),
     ).toBeTruthy();
-    // Each distinct workout is listed with its day and exercise count.
-    for (const w of revealWorkouts(program)) {
-      const count = `${w.session.exercises.length} ${w.session.exercises.length === 1 ? "exercise" : "exercises"}`;
-      expect(
-        view.getAllByLabelText(`${w.session.name}, ${count}`).length,
-      ).toBeGreaterThan(0);
-    }
-    const first = revealWorkouts(program)[0]!;
-    for (const item of first.session.exercises)
-      expect(view.getAllByText(prescriptionLine(item)).length).toBeGreaterThan(
-        0,
-      );
+    // Each training day by its focus and size; never an exercise.
+    expectSessionsOnly(view, program);
     const equipment = within(view.getByTestId("onboarding-equipment"));
     for (const item of program.equipment)
       expect(equipment.getByText(item)).toBeTruthy();
     if (program.phases.length > 1)
       for (const phase of program.phases)
         expect(view.getAllByText(phase.name).length).toBeGreaterThan(0);
-    // The program's own summary, without its internal code.
-    await press(view, "About this program");
-    expect(view.getByText(plainSummary(program))).toBeTruthy();
+    // No internal code, and nothing more to open about the program.
+    expect(view.queryByText(/\b[A-Z]-[A-Z]\d\b|\bV\d\b/)).toBeNull();
+    expect(
+      view.queryByRole("button", { name: "About this program" }),
+    ).toBeNull();
     await view.unmount();
   }
 });
@@ -520,6 +540,40 @@ test("the development preview walks the whole journey and saves nothing", async 
   expect(dump()).toEqual(before);
   expect(r().db.all("SELECT * FROM settings ORDER BY key")).toEqual(settings);
   expect(r().profile()).toMatchObject({ name: "Founder", onboarded: true });
+});
+
+test("with Forge Premium, the preview goes on past the reveal and ends on Home, still saving nothing", async () => {
+  r().saveProfile({
+    name: "Founder",
+    height: 180,
+    weight: 82,
+    onboarded: true,
+  });
+  const before = dump();
+  const settings = r().db.all("SELECT * FROM settings ORDER BY key");
+  const view = await render(
+    <OnboardingPreview membership={previewMembershipStep} />,
+  );
+  await press(view, "Get started");
+  await press(view, "Skip to your account");
+  await aboutYou(view);
+  await yourTraining(view, {
+    experience: "Beginner",
+    goal: "Strength",
+    days: 3,
+    rest: 6,
+  });
+  await press(view, "See my Forge Path");
+  expect(view.queryByRole("button", { name: "Enter Forge" })).toBeNull();
+  await press(view, "Continue");
+  // Forge Premium, simulated, carrying on from the path just revealed.
+  expect(view.getByTestId("premium-pass")).toBeTruthy();
+  expect(view.getByTestId("onboarding-preview-banner")).toBeTruthy();
+  await press(view, "Not now: continue without membership");
+  expect(router.navigate).toHaveBeenCalledWith("/(tabs)");
+  expect(router.back).not.toHaveBeenCalled();
+  expect(dump()).toEqual(before);
+  expect(r().db.all("SELECT * FROM settings ORDER BY key")).toEqual(settings);
 });
 
 test("after setup, training works as before", async () => {

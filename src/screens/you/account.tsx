@@ -33,6 +33,8 @@ import {
 import { useRepo, confirm } from "../../state";
 import { cloudClient } from "../../cloud/client";
 import { membership } from "../../domain/membership";
+import { membershipEnabled } from "../../billing/runtime";
+import { MembershipStatusCard } from "../membership/StatusCard";
 import { forge } from "../../theme";
 
 // Account & privacy (Phase 7.5D; REFORGE since 7.5G.3): membership, data and
@@ -69,7 +71,16 @@ function inProgress(r: ReturnType<typeof useRepo>) {
 }
 
 /** The membership card, as it was on You: free plan, nothing to buy. */
+/**
+ * You → Account's membership card. While membership is off (every build but
+ * an opted-in development build: Phase 9.3) it is the card it always was;
+ * otherwise the server-verified status.
+ */
 export function MembershipCard() {
+  return membershipEnabled() ? <MembershipStatusCard /> : <FreePlanCard />;
+}
+
+function FreePlanCard() {
   const c = useColors();
   const member = membership();
   return (

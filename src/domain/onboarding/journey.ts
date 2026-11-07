@@ -11,11 +11,9 @@ import {
   programKey,
   publishedPrograms,
   type CuratedProgram,
-  type ProgramSession,
 } from "../programs/model";
 import { recommendProgram } from "../programs/recommend";
 import { trainingWeekdays } from "../programs/schedule";
-import { programWorkouts } from "../programs/presentation";
 
 // First-time setup (Phase 9.2): About you, Your training, then the Forge
 // Path the real engine recommends. What the athlete enters is saved to the
@@ -24,14 +22,15 @@ import { programWorkouts } from "../programs/presentation";
 // program they were shown, so setup resumes exactly after a restart. It is a
 // local setting: never synchronized, never in a backup, cleared once setup is
 // done or when this phone's data is deleted. Nothing here enrolls, purchases
-// or checks a membership.
+// or checks a membership: the membership step after the reveal (Phase 9.3)
+// is only a place to resume, handed in by Setup when it is enabled.
 
 /** The setting that holds where first-time setup is (JSON). */
 export const ONBOARDING_KEY = "onboarding";
 /** Set once this phone has left the brand intro (signed out, fresh phone). */
 export const INTRO_KEY = "onboardingIntro";
 
-export const STAGES = ["about", "training", "reveal"] as const;
+export const STAGES = ["about", "training", "reveal", "membership"] as const;
 export type Stage = (typeof STAGES)[number];
 
 export type Progress = {
@@ -228,37 +227,16 @@ export function revealFor(
   };
 }
 
-export type RevealWorkout = {
-  session: ProgramSession;
-  /** Its place in each training week: sessions run in this order. */
-  day: number;
-  /** The phases (indexes) that use exactly this workout. */
-  phases: number[];
-};
-
 /**
- * Every distinct workout once (`programWorkouts`), with its day of the
- * training week. A workout that changes between phases is listed for each
- * version, with its phases.
+ * What follows the reveal. Without a membership step, setup ends and Forge
+ * opens with nothing started, exactly as in Phase 9.2: every build until the
+ * paywall is approved (Phase 9.3 keeps it behind a development opt-in,
+ * docs/SUBSCRIPTIONS.md). With one, the athlete continues to Forge Premium,
+ * where Forge opens once the membership is verified. After a verified
+ * purchase, the offer to start this Forge Path (decision F14) is Home's card.
  */
-export function revealWorkouts(program: CuratedProgram): RevealWorkout[] {
-  return programWorkouts(program).workouts.map((w) => ({
-    session: w.session,
-    day:
-      program.phases[w.phases[0]!]!.sessions.findIndex(
-        (s) => s.id === w.session.id,
-      ) + 1,
-    phases: w.phases,
-  }));
-}
-
-/**
- * What follows the reveal. Phase 9.2 has no membership step: setup ends and
- * Forge opens, with nothing started. The paywall (Phase 9.3) and, after a
- * verified purchase, the offer to start this Forge Path (decision F14) will
- * come here, once approved.
- */
-export const afterReveal = () => "enterForge" as const;
+export const afterReveal = (membershipStep = false) =>
+  membershipStep ? ("membership" as const) : ("enterForge" as const);
 
 // ---- After setup ---------------------------------------------------------------
 

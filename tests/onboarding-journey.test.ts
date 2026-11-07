@@ -28,7 +28,6 @@ import {
   readProgress,
   resumeStage,
   revealFor,
-  revealWorkouts,
   supportedDays,
   trainingAnswers,
   trainingComplete,
@@ -51,16 +50,19 @@ import {
   LANDING_SPOKEN,
 } from "../src/domain/onboarding/discover";
 import {
-  RIR_MEANING,
-  plainDescription,
-  plainSummary,
-  progressionParts,
   revealFit,
+  revealSessions,
   revealStats,
   revealTitle,
   revealWeek,
-  sentences,
+  sessionLabel,
 } from "../src/domain/onboarding/reveal";
+import {
+  PASS_NOTE,
+  PREMIUM_KEEPS,
+  premiumPath,
+  premiumStory,
+} from "../src/domain/onboarding/premium";
 import { totalSessions } from "../src/domain/programs/enrollment";
 import { trainingWeekdays } from "../src/domain/programs/schedule";
 import { introMark } from "../src/screens/onboarding/handoff";
@@ -313,34 +315,50 @@ test("every answer reveals the published program written for exactly those days 
   );
 });
 
-test("the reveal's workouts are the program as authored: every session, exercise, set and rep", () => {
-  const catalog = new Map(exercises.map((e) => [e.id, e]));
-  for (const program of publishedPrograms(library)) {
-    const workouts = revealWorkouts(program);
-    // Exactly the distinct workouts Forge Paths lists.
-    assert.deepEqual(
-      workouts.map((w) => w.session),
-      programWorkouts(program).workouts.map((w) => w.session),
-    );
-    // Every session of every phase is shown, on its day of the week.
-    program.phases.forEach((phase, p) =>
-      phase.sessions.forEach((session, i) => {
-        const shown = workouts.find(
-          (w) => w.phases.includes(p) && w.session.id === session.id,
+test("before a membership, each training day shows its focus and size only: never an exercise, set or rep (all 18)", () => {
+  const names = new Map(exercises.map((e) => [e.id, e.name.toLowerCase()]));
+  for (const program of publishedPrograms(library))
+    for (let restDay = 0; restDay < 7; restDay++) {
+      const where = `${program.id} rest ${restDay}`;
+      const sessions = revealSessions(program, restDay);
+      const order = trainingWeekdays(program.weeklyPattern, restDay);
+      // One row per training day, Monday to Sunday, never the rest day.
+      assert.deepEqual(
+        sessions.map((s) => s.day),
+        [...order].sort((a, b) => a - b),
+        where,
+      );
+      assert.ok(!sessions.some((s) => s.day === restDay), where);
+      for (const s of sessions) {
+        const session = program.phases[0]!.sessions[order.indexOf(s.day)]!;
+        // Only the authored name, split at its emphasis, and a count.
+        assert.deepEqual(
+          Object.keys(s).sort(),
+          ["day", "exercises", "title", ...(s.focus ? ["focus"] : [])].sort(),
+          where,
         );
-        assert.ok(shown, `${program.id}: ${session.id}`);
-        assert.equal(shown.day, i + 1, `${program.id}: ${session.id}`);
-        assert.deepEqual(shown.session, session);
-      }),
-    );
-    // Each exercise is a real catalogue exercise with its authored dose.
-    for (const w of workouts)
-      for (const item of w.session.exercises) {
-        assert.ok(catalog.get(item.exerciseId)?.name, item.exerciseId);
-        assert.ok(item.sets >= 1 && item.reps.min >= 1);
+        assert.equal(
+          s.focus ? `${s.title} (${s.focus})` : s.title,
+          session.name.trim(),
+          where,
+        );
+        assert.equal(s.exercises, session.exercises.length, where);
+        assert.ok(s.exercises >= 1, where);
+        // None of the session's exercises, and no internal program codes.
+        const shown = `${s.title} ${s.focus ?? ""}`.toLowerCase();
+        for (const item of session.exercises) {
+          const name = names.get(item.exerciseId);
+          assert.ok(name, item.exerciseId);
+          assert.ok(!shown.includes(name), `${where}: ${name}`);
+        }
+        assert.doesNotMatch(shown, /\b[a-z]-[a-z]\d\b|\bv\d\b/, where);
       }
-    assert.ok(program.equipment.length > 0, program.id);
-  }
+    }
+  assert.deepEqual(sessionLabel(" Upper A (Chest & Back) "), {
+    title: "Upper A",
+    focus: "Chest & Back",
+  });
+  assert.deepEqual(sessionLabel("Full Body"), { title: "Full Body" });
 });
 
 test("the version first shown stays while it still fits; otherwise the current one", () => {
@@ -532,20 +550,78 @@ test("the reveal's first layer: the program's family, the athlete's answers, thr
   }
 });
 
-test("internal program codes never reach the reveal; the authored words are kept", () => {
-  for (const program of publishedPrograms(library)) {
-    const summary = plainSummary(program);
-    const description = plainDescription(program);
-    for (const text of [summary, description])
-      assert.doesNotMatch(text, /\b[A-Z]-[A-Z]\d\b|\bV\d\b/, program.id);
-    // Only the code is removed: the rest is the authored text.
-    assert.ok(
-      program.summary.toLowerCase().endsWith(summary.toLowerCase()),
-      program.id,
+test("Forge Premium's pass retells the reveal: the family, its shape, each day's focus and size", () => {
+  for (const program of publishedPrograms(library))
+    for (const restDay of [0, 6]) {
+      const path = premiumPath(program, "  Jordan ", restDay);
+      assert.equal(path.builtFor, "Built for Jordan");
+      assert.equal(path.title, revealTitle(program));
+      assert.equal(path.daysPerWeek, program.daysPerWeek);
+      assert.deepEqual(path.days, revealSessions(program, restDay));
+      const days = `${program.daysPerWeek} days a week`;
+      const rest = `${restDayNames[restDay]} rest`;
+      if (program.durationWeeks !== undefined) {
+        assert.equal(path.weeks, program.durationWeeks);
+        assert.equal(
+          path.meta,
+          `${days} · ${totalSessions(program)} sessions · ${rest}`,
+        );
+      } else {
+        assert.equal(path.weeks, undefined);
+        assert.equal(path.meta, `${days} · ${rest}`);
+      }
+    }
+  // Without a name, the path is still the athlete's own.
+  const [first] = publishedPrograms(library);
+  for (const name of [undefined, "", "   "])
+    assert.equal(premiumPath(first!, name, 6).builtFor, "Built for you");
+  // The pass says where the rest of the program is.
+  assert.match(PASS_NOTE, /exercise, set and rep comes with Forge Premium$/);
+});
+
+test("Forge Premium includes only what Forge does: a title and one plain sentence each", () => {
+  const programs = publishedPrograms(library);
+  const keeps = Object.values(PREMIUM_KEEPS);
+  for (const keep of keeps) {
+    // What a tile can carry: a short title and one sentence.
+    assert.ok(keep.title.length <= 24, keep.title);
+    assert.match(keep.detail, /^[A-Z][^.]*\.$/, keep.title);
+    assert.ok(keep.detail.length <= 80, keep.title);
+    // Nothing Forge doesn't do, and no promises.
+    assert.doesNotMatch(
+      `${keep.title} ${keep.detail}`,
+      /barcode|scan|\bAI\b|artificial|coach|trainer|guarantee|social|friends|wearable|watch/i,
     );
-    assert.ok(program.description.endsWith(description), program.id);
-    assert.ok(summary.length > 20 && description.length > 20, program.id);
   }
+  // The headline in Emergence's style: no closing punctuation, the accent
+  // drawn from its first line, then one plain sentence. Everything Forge
+  // Premium includes, every time.
+  const fixed = programs.find((p) => p.durationWeeks !== undefined)!;
+  const ongoing = programs.find((p) => p.durationWeeks === undefined)!;
+  for (const story of [
+    premiumStory(),
+    ...programs.map((p) => premiumStory(premiumPath(p, "Sam", 6))),
+  ]) {
+    for (const line of story.statement) assert.doesNotMatch(line, /[.,;:!?]$/);
+    assert.ok(story.statement[0].includes(story.accent), story.accent);
+    assert.match(story.support, /^[A-Z].*\.$/);
+    assert.deepEqual(story.nodes, keeps);
+  }
+  // With the athlete's path, the headline is the path's own length.
+  const own = premiumStory(premiumPath(fixed, "Sam", 6));
+  assert.deepEqual(own.statement, [
+    `All ${fixed.durationWeeks} weeks`,
+    "All of Forge",
+  ]);
+  assert.equal(own.accent, `${fixed.durationWeeks} weeks`);
+  assert.deepEqual(premiumStory(premiumPath(ongoing, "Sam", 6)).statement, [
+    "Every week",
+    "All of Forge",
+  ]);
+  assert.deepEqual(premiumStory().statement, [
+    "One membership",
+    "All of Forge",
+  ]);
 });
 
 test("the reveal's week: each session on its day, in order, around the rest day", () => {
@@ -564,23 +640,6 @@ test("the reveal's week: each session on its day, in order, around the rest day"
       assert.equal(week[restDay]!.session, undefined, program.id);
       assert.equal(week.filter((d) => d.rest).length, 1);
     }
-});
-
-test("How progression works: the authored text, one sentence at a time, with RIR explained", () => {
-  for (const program of publishedPrograms(library)) {
-    const { lead, points } = progressionParts(program.progression);
-    // Nothing added, dropped or reworded.
-    assert.equal(
-      [...(lead ? [lead] : []), ...points].join(" "),
-      sentences(program.progression).join(" "),
-    );
-    assert.equal(
-      sentences(program.progression).join(" ").replace(/\s+/g, " "),
-      program.progression.replace(/\s+/g, " ").trim(),
-    );
-    assert.ok(points.length >= 3, program.id);
-  }
-  assert.match(RIR_MEANING, /reps in reserve/);
 });
 
 test("after setup, Home remembers the Forge Path shown, and only a real one", () => {

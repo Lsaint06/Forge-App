@@ -9,6 +9,8 @@ import {
 } from "../../components/reforge";
 import { useColors } from "../../components/ui";
 import { SetupOnboarding } from "../onboarding/Flow";
+import { membershipEnabled } from "../../billing/runtime";
+import { membershipStep } from "../membership/MembershipScreen";
 import { confirm, useApp, useRepo } from "../../state";
 import { authErrorText, useEntry } from "../../auth/session";
 import { hasLocalData } from "../../data/ownership";
@@ -27,8 +29,9 @@ type Check = "checking" | "records" | "none" | "failed";
 // a read-only check, then, only if they choose it, the existing manual
 // synchronization, once. On an empty phone that only downloads. Everyone
 // else sets up: About you, Your training and their Forge Path (Phase 9.2,
-// src/screens/onboarding). Who is being set up is always shown, with a way
-// out for the wrong account (P4).
+// src/screens/onboarding), then Forge Premium where membership is enabled
+// (Phase 9.3: development builds that opt in; src/billing/config.ts). Who is
+// being set up is always shown, with a way out for the wrong account (P4).
 export default function Setup() {
   const { entry, client, signOut: endSession } = useEntry();
   const r = useRepo();
@@ -286,6 +289,9 @@ export default function Setup() {
     <SetupOnboarding
       account={userId ? { who, busy: !!busy, onNotYou: notYou } : undefined}
       error={error}
+      membership={
+        userId && membershipEnabled() ? membershipStep(userId) : undefined
+      }
     />
   );
 }
