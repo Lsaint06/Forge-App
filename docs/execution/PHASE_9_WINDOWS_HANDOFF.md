@@ -1,6 +1,10 @@
 # Phase 9 — Windows handoff (Opus 2)
 
-**Update (2026-11-04):** the founder approved Phase 9.1, the independent local foundation (RevenueCat + Forge Supabase server-verified entitlements; no offline or workout window). It is implemented in the worktree `C:\Users\LStAm\source\repos\Forge-App.worktrees\forge-phase9-new` on this branch, **uncommitted, awaiting the founder's review**: see [`docs/SUBSCRIPTIONS.md`](../SUBSCRIPTIONS.md). Still nothing is wired into the app, no dependency was added, nothing remote was touched, and the entitlement SQL is a draft (`supabase/drafts/`) never applied anywhere.
+**Update (2026-11-07, Phases 9.3 and 9.5):** Phase 9.3 (Forge Premium with RevenueCat, in development builds only) and the Phase 9.5 integration handoff are committed on `feat/phase9-3-revenuecat`, from the Phase 9.2 integration (`d208e4e`), with the founder's authorization: see [`PHASE_9_5_INTEGRATION_HANDOFF.md`](PHASE_9_5_INTEGRATION_HANDOFF.md). That branch supersedes the updates below and their worktree, `forge-phase9-new`.
+
+**Update (2026-11-04, Phase 9.2):** the founder approved Phase 9.2 (onboarding and the Forge Path reveal, no subscription restriction) after reviewing it on his iPhone, and authorized its commit and push to this branch: see [`docs/ONBOARDING.md`](../ONBOARDING.md). It is committed **on its own**. At the founder's instruction, Opus 1's verified `5f07c9b` was integrated earlier as a **staged merge, not committed** (no conflicts; the nine files are identical to `5f07c9b`). It stays staged and uncommitted in the worktree: no merge was authorized with Phase 9.2.
+
+**Update (2026-11-04, Phase 9.1):** the founder approved Phase 9.1, the independent local foundation (RevenueCat + Forge Supabase server-verified entitlements; no offline or workout window). Committed and pushed as `e9d3e59`: see [`docs/SUBSCRIPTIONS.md`](../SUBSCRIPTIONS.md). Still nothing is wired into the app, no dependency was added, nothing remote was touched, and the entitlement SQL is a draft (`supabase/drafts/`) never applied anywhere.
 
 **Status (2026-11-03):** Phase 9.0 (audit and architecture) is complete. **Phase 9.1 implementation is NOT approved.** Nothing in Phase 9 has been implemented: no application code, dependency, database migration, Supabase project, App Store Connect, RevenueCat or Expo setting has been created or changed.
 
@@ -15,7 +19,7 @@
 | Baseline | `c509a69a2e65ee2ea0a2340727e72bdbf0c4a397` — "fix(splash): charcoal native root view, no flash before the REFORGE intro (Phase 8.1)", the founder-verified commit on `feat/forge-paths-foundation` |
 | Phase 9 commits | One: the Phase 9.0 documentation commit that adds this file and the audit, directly on top of `c509a69`. Find it with `git log -1 -- docs/execution/PHASE_9_WINDOWS_HANDOFF.md` |
 | Difference from the baseline | Exactly two new files: `docs/audits/PHASE_9_0_SUBSCRIPTION_AUDIT.md` and this file. No application file differs from `c509a69` |
-| Opus 1 (Phase 8) | Branch `feat/forge-paths-foundation`, at `5f07c9b` when this was written — "fix(dev): honest schema checks on new Supabase projects, FORGE DEV preparation (Phase 8.2)", pushed. **Not merged into the Phase 9 branch.** |
+| Opus 1 (Phase 8) | Branch `feat/forge-paths-foundation`, at `5f07c9b` — "fix(dev): honest schema checks on new Supabase projects, FORGE DEV preparation (Phase 8.2)", pushed. **Integrated into the Phase 9 worktree on 2026-11-04 as a staged, uncommitted merge**, at the founder's instruction (Phase 9.2) |
 | `main` | `16993bd` (initial README). Never push to it |
 | Mac worktree (history) | Phase 9 ran in its own Git worktree (`Forge-App.worktrees/forge-phase9-agent-init-check`) beside Opus 1's checkout; Opus 1's worktree was never modified |
 | CI | `.github/workflows/ci.yml` runs on pushes to `main` and `feat/**` and on pull requests to `main`; it does **not** run on `agents/**` branches |
@@ -27,8 +31,12 @@
 | Stage | Status |
 | --- | --- |
 | 9.0 Audit and architecture | **Complete** — `docs/audits/PHASE_9_0_SUBSCRIPTION_AUDIT.md` |
-| 9.1 Subscription foundation | **Approved 2026-11-04; implemented, uncommitted, awaiting founder review** — `docs/SUBSCRIPTIONS.md`. F3, F4, F5, F7, F10 remain open; F4 and F5 apply as "none" meanwhile |
-| 9.2 – 9.5 | Not started; the order and scope are proposals (section 5) |
+| 9.1 Subscription foundation | **Approved 2026-11-04; committed and pushed (`e9d3e59`)** — `docs/SUBSCRIPTIONS.md`. F3, F4, F5, F7, F10 remain open; F4 and F5 apply as "none" meanwhile |
+| 9.2 Onboarding and Forge Path reveal | **Approved 2026-11-04 (F2, F13, F14, F15); premium redesign founder-approved and committed 2026-11-04.** Stage A (the landing page) redesigned the same day without statistics; the founder chose **Emergence** from three concepts, and its typography was unified and the headline's period removed (the other concepts and the picker deleted) — `docs/ONBOARDING.md`. No paywall or restriction |
+| Android visual testing | **Operational 2026-11-04** — `docs/execution/PHASE_9_VISUAL_TESTING.md`. It found an Android Expo Go guard bug for Opus 1 (section 1 there) |
+| 9.3 Forge Premium: RevenueCat and the paywall | **Implemented and tested, development builds only; the founder approved the V3 paywall. Committed 2026-11-07** — `docs/SUBSCRIPTIONS.md`, `docs/execution/PHASE_9_3_SANDBOX.md`. No real or sandbox purchase yet |
+| 9.4 Entitlement-based access | Not started |
+| 9.5 Verification and integration handoff | **Complete 2026-11-07** — `docs/execution/PHASE_9_5_INTEGRATION_HANDOFF.md` |
 
 Forge today has no paywall, purchase library, entitlement storage or subscription flag. The only premium touchpoints are the "free plan" placeholder `src/domain/membership.ts` and `MembershipCard` (audit section 6.7).
 
@@ -155,7 +163,7 @@ Verified on 2026-11-03; re-check versions before installing anything.
 | X9 | `package.json`, `package-lock.json`, `app.json` | Purchase dependency, CocoaPods/SPM |
 | X10 | FORGE DEV project, test accounts | Sandbox tests |
 | X11 | `README.md`, `IMPLEMENTATION_STATUS.md`, `docs/DEVELOPMENT_ENVIRONMENT.md`, `docs/NATIVE_BUILDS.md` | Subscription documentation; FORGE DEV now exists |
-| X12 | Expo Go on the production `.env` | The founder must never be locked out of his own training |
+| X12 | Expo Go on the production `.env` | The founder must never be locked out of his own training. Android Expo Go is refused today (`docs/execution/PHASE_9_VISUAL_TESTING.md`, section 1) |
 | X13 | `src/screens/entry/Welcome.tsx`, `src/screens/entry/Setup.tsx` | Intro, feature pages and new setup steps |
 
 Phase 9-owned new modules (proposed): `src/billing/*`, `src/screens/onboarding/*`, `src/screens/membership/*`, `src/domain/onboarding/*`, `docs/SUBSCRIPTIONS.md`.

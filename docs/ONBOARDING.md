@@ -2,7 +2,7 @@
 
 **Status (2026-11-04): redesigned (the premium pass), founder-approved after review on his iPhone, and committed.**
 
-- **No paywall, purchase, membership check or subscription restriction exists anywhere.** Setup ends in Forge, with nothing started.
+- **No subscription restriction exists anywhere.** Setup ends in Forge, with nothing started. Phase 9.3 adds a membership step after the reveal only in development builds that opt in ([`docs/SUBSCRIPTIONS.md`](SUBSCRIPTIONS.md#phase-93-forge-premium-in-development-builds)); everywhere else setup ends exactly as described here.
 - **Design decisions:**
   - F2: account before personalization.
   - F13: no equipment question.
@@ -21,7 +21,8 @@
 | — | Restore offer (existing, unchanged) | setup | A returning athlete's saved training first | existing |
 | C | **About you** (step 1 of 3) | setup | Name (optional), units, height and starting weight (required), body fat (optional) | each valid value, to the profile, as typed |
 | D | **Your training** (step 2 of 3) | setup | Four numbered questions: experience, goal, **days a week** (3, 4 or 5), preferred rest day | each answer, to the profile, as chosen |
-| E | **Your Forge Path** (step 3 of 3) | setup | The real recommendation, in layers, read-only; **Enter Forge** | the revealed program's key |
+| E | **Your Forge Path** (step 3 of 3) | setup | The real recommendation, in layers, read-only; **Enter Forge** (**Continue** where the membership step follows) | the revealed program's key |
+| E′ | **Forge Premium** (opted-in development builds only, Phase 9.3) | setup | The reveal continues into it: **ALL 8 WEEKS / ALL OF FORGE**, the athlete's Forge Path as a pass (each training day's focus and size), what the membership includes, then **Your membership**: the plan card (the price, the free week when eligible), the action, **Not now** · **Restore** · **Terms** · **Privacy**. A floating copy of the action waits until the decision is in view. Forge opens once the server confirms the membership, or without one. Back returns to the reveal | the stage (`membership`) |
 | F | Home | ready | A **Your Forge Path** card at the top: the program, its days and length, **View your Forge Path**. Nothing is started | `onboarded: true`, `onboardingArrival` |
 
 <a id="stage-a"></a>**Stage A in detail:**
@@ -142,17 +143,14 @@ Discover's four pages and Stage A's wall use **nine crops of real Forge screens*
 
    The engine's own reasons are what screen readers hear for the match.
 2. **Structure:**
-   - **The week:** Monday to Sunday, each training day numbered in the order its sessions run, the rest day marked with a moon.
-   - **The phases** (multi-phase programs), with a line explaining RIR.
-3. **Detail:**
-   - every distinct workout with its day, exercises, sets, reps and rest (the first one open);
-   - the program's equipment;
-   - **How progression works:** RIR explained first, then the authored progression one sentence at a time, nothing reworded;
-   - **About this program.**
+   - **The week:** Monday to Sunday, each training day numbered in the order its sessions run, the rest day marked with a moon. Under it, each training day by its session, focus and number of exercises ("Mon · Lower A · Squat Strength · 6 exercises").
+   - **The phases** (multi-phase programs) by name, on a bar sized by their weeks.
+3. **What you'll need:** the program's equipment.
 
 **Rules:**
 
-- **No internal codes:** the authored summary and description lose only their code ("Forge Strength V2 (I-S4): …"); every other word is the author's. The day count isn't repeated in the title: it is in the answers.
+- **A preview, not the program** (founder rule, Phase 9.3): the reveal shows each training day's focus and number of exercises, never an exercise, a set, a rep, an effort or the progression. The program itself comes with Forge Premium. This holds in every build, including those without membership, where the program is in Forge Paths after setup.
+- **No internal codes:** session names are shown as authored, split at their emphasis ("Upper A (Chest & Back)" → "Upper A", "Chest & Back"). The day count isn't repeated in the title: it is in the answers.
 - **Read-only:** no Start, no logging, no link into Forge Paths, no tabs. Nothing is enrolled ("Nothing starts until you choose. Your Forge Path waits on Home.").
 - **Stable:** the revealed program's key (`id@version`) is kept, so an app update can't change what the athlete saw; a key that no longer fits the answers is ignored.
 
@@ -174,6 +172,7 @@ Discover's four pages and Stage A's wall use **nine crops of real Forge screens*
   - It is local only: never synchronized, never in a backup.
   - It is cleared when setup finishes or this phone's data is deleted.
   - `resumeStage` never resumes past a step whose answers are missing.
+  - A `membership` stage (Phase 9.3) resumes at the membership step; a build without one resumes it at the reveal, which then ends with **Enter Forge**.
 - **Arrival record** (setting `onboardingArrival`, JSON `{ v, program }`): written as setup finishes, in the same transaction. Local only; cleared when Home's card is closed.
 - **Intro record** (setting `onboardingIntro`): the intro was left; a restart goes straight to the account screen.
 - **No schema change:** all three records use the existing `settings` table. Established athletes never reach setup: entry is decided by `profile.onboarded`, unchanged.
@@ -184,8 +183,13 @@ Discover's four pages and Stage A's wall use **nine crops of real Forge screens*
   - Stage A settles only once the launch intro has faded out (checked frame by frame on the emulator): in 1.3 s the wall rises out of the dark, the brand line settles into its secondary tone and the statement fades in. The brand itself doesn't move.
   - Steps settle in within about half a second (`ENTRANCE_MS` 320 ms).
   - The reveal's layers are staggered up to 340 ms.
+  - Forge Premium's hand-off (E′):
+    - the reveal fades out in 150 ms;
+    - setup's step bar forges into one line in about 0.4 s;
+    - a glint runs along the line once (about 1.1 s in all);
+    - the confirmation's letters cool from molten to steel once, in 1.3 s.
   - Nothing waits for motion, and nothing loops: an endless animation was tried for Stage A and removed. It kept the screen from ever going idle, which blocks UI automation (UIAutomator, Detox) and wastes power.
-- **Reduce Motion:** no movement at all. Stage A's statement and imagery simply appear once the intro has gone (checked on the emulator with Remove animations). Paging between Discover pages also stops animating.
+- **Reduce Motion:** no movement at all. Stage A's statement and imagery simply appear once the intro has gone (checked on the emulator with Remove animations). Paging between Discover pages also stops animating, and Forge Premium simply appears.
 - **Screen readers:**
   - Stage A reads brand, line, statement (a heading), sentence, then the two actions, in that order: everything is in the normal flow. Its imagery is decorative.
   - One Discover page at a time is exposed, and product images are decorative.
@@ -205,6 +209,7 @@ Discover's four pages and Stage A's wall use **nine crops of real Forge screens*
 
 - **Nothing is touched:** the profile, training, settings, onboarding record and arrival record stay as they were. Tests prove it writes nothing.
 - A banner says so; **Exit** (or Enter Forge) closes it.
+- **With Forge Premium:** **Preview onboarding with Forge Premium (development only)** (`/onboarding-preview?premium=1`) continues past the reveal into Forge Premium, simulated, and ends on Home, as setup does. It too saves nothing.
 - **Development builds only** (Expo Go, FORGE Dev); production bundles show "Not in this build".
 
 ## Code
@@ -212,9 +217,10 @@ Discover's four pages and Stage A's wall use **nine crops of real Forge screens*
 | File | Role |
 | --- | --- |
 | [`src/domain/onboarding/journey.ts`](../src/domain/onboarding/journey.ts) | Stages, the onboarding record, About you's rules, supported days, resume, the reveal, the intro rule, `afterReveal`, the arrival record |
-| [`src/domain/onboarding/reveal.ts`](../src/domain/onboarding/reveal.ts) | How the reveal presents a program: its title, the answers it matches, its three numbers, its week, code-free summary and description, progression sentences, RIR |
+| [`src/domain/onboarding/reveal.ts`](../src/domain/onboarding/reveal.ts) | How the reveal presents a program: its title, the answers it matches, its three numbers, its week, and each training day's session, focus and number of exercises (`revealSessions`) |
 | [`src/domain/onboarding/about.ts`](../src/domain/onboarding/about.ts) | Units: typed values ↔ the stored kg and cm |
 | [`src/domain/onboarding/discover.ts`](../src/domain/onboarding/discover.ts) | Discover Forge's words (tests hold their numbers to the libraries); Stage A's statement and sentence (`LANDING`) |
+| [`src/domain/onboarding/premium.ts`](../src/domain/onboarding/premium.ts) | What Forge Premium (E′) says: the revealed Forge Path as the reveal showed it, the headline, and what the membership includes (a title and one sentence each) |
 | [`src/screens/onboarding/`](../src/screens/onboarding/) | See below |
 | `assets/onboarding/*.png` | The product visuals |
 | `app/welcome.tsx`, `app/onboarding-preview.tsx` | Routes |
@@ -224,6 +230,7 @@ Discover's four pages and Stage A's wall use **nine crops of real Forge screens*
 - **Screens and routes:** `Intro` (Stage B, Discover), `Landing` (Stage A), `WelcomeRoute`, `Flow` (`SetupOnboarding`), `About`, `Training`, `Reveal`, `Arrival` (Home's card), `Preview`.
 - **Building blocks:**
   - `frame` (the step frame and numbered questions);
+  - `week` (the training days by focus and size, and the phases: shared by the reveal and Forge Premium's pass);
   - `choices` (option cards, day tiles, the rest-day week, the units switch);
   - `account` (the account chip);
   - `showcase` (product visuals: Discover's pages and Stage A's wall);
@@ -237,7 +244,7 @@ Discover's four pages and Stage A's wall use **nine crops of real Forge screens*
 - `src/screens/Home.tsx`: one line, the arrival card.
 - `src/components/splash/session.ts`: an additive `onIntroFinished(listener)`, notified by `finishIntro()`, so Stage A starts moving only once the intro is gone. The intro itself is unchanged.
 - `src/auth/AppStack.tsx`: one line, `onboarding-preview` in the ready group.
-- `src/screens/Preferences.tsx`: one development-only row.
+- `src/screens/Preferences.tsx`: development-only rows (the onboarding preview, with and without Forge Premium, and Forge Premium's states).
 - `docs/redesign/reforge/ASSETS.md`: the product visuals registered.
 - `tests/ui/setup-restore.test.tsx`: its mock follows the new seam; every assertion is kept, including Not you.
 
@@ -255,11 +262,12 @@ Discover's four pages and Stage A's wall use **nine crops of real Forge screens*
 **`tests/onboarding-journey.test.ts` proves:**
 
 - **Setup:** the record; About you's rules; units; only offered days; resume.
-- **The recommendation:** all 18 programs from their answers and every rest day; every session, exercise and dose; a stable reveal; no step after the reveal but entering Forge.
+- **The recommendation:** all 18 programs from their answers and every rest day; each training day's focus and size only, never an exercise, set or rep (every program and rest day); a stable reveal; no step after the reveal but entering Forge.
 - **The intro:** the intro rule; Stage A's geometry held to the launch intro's own formulas.
 - **Stage A's composition:** on five phones, at four text sizes, with and without the preview's banner. The brand starts at the intro's place and only rises; nothing reaches the actions; the wall shows only where it has room; the brand doesn't move on a phone at ordinary sizes.
 - **Words and visuals:** Discover's numbers (18 programs, 3–5 days, 3,730 foods); Stage A's statements carry no numbers; no unbacked claims anywhere; the product visuals bundled, small and registered.
-- **The reveal:** its first layer for all 18 programs; no internal codes, the authored words kept; the week for every program and rest day; progression kept verbatim.
+- **The reveal:** its first layer for all 18 programs; the week for every program and rest day; session names split at their emphasis, with no internal codes.
+- **Forge Premium's words:** the pass retells the reveal (its family, shape and days) for every Forge Path, with or without a name; the headline and its accent; what the membership includes, with no claim Forge can't back; Emergence's statement style.
 - **The arrival record.**
 
 **`tests/ui/onboarding-flow.test.tsx` proves:**
@@ -267,8 +275,8 @@ Discover's four pages and Stage A's wall use **nine crops of real Forge screens*
 - **The whole setup on real SQLite:** the account chip and its sheet; resume after a restart at every step; Back; days a week.
 - **About you:** its errors, honest placeholders and the pinned issue; pounds, feet and inches.
 - **Your training:** the rest-day week; its action never dimmed.
-- **The reveal:** read-only; all 18 reveals rendered with their code-free summary.
-- **Afterwards:** the preview saves nothing; Home's record is written; training works.
+- **The reveal:** read-only; all 18 reveals rendered by their shape and each training day's focus and size, with none of the program's exercises, sets, reps or efforts on screen.
+- **Afterwards:** the preview saves nothing, also with Forge Premium, which ends on Home; Home's record is written; training works.
 
 **`tests/ui/onboarding-intro.test.tsx` proves:**
 
@@ -289,5 +297,5 @@ Discover's four pages and Stage A's wall use **nine crops of real Forge screens*
 
 ## Next (not started)
 
-- **9.3:** the paywall comes after the reveal (`afterReveal`), with Apple's purchase flow and a server-verified entitlement (the Phase 9.1 foundation, kept on the Phase 9 branch and not part of this build). After a verified purchase, the offer to start the revealed Forge Path through the existing Start sheet (F14).
+- **9.3 (implemented, opted-in development builds only):** Forge Premium after the reveal (`afterReveal(true)` → `membership`), redesigned to the founder's "Reference 3" direction (2026-11-06), with Apple's purchase flow through RevenueCat and the server-verified entitlement ([`docs/SUBSCRIPTIONS.md`](SUBSCRIPTIONS.md#phase-93-forge-premium-in-development-builds)). **Not started:** after a verified purchase, the offer to start the revealed Forge Path through the existing Start sheet (F14).
 - **Design references:** none of the approved REFORGE mockups covers onboarding. This redesign uses the implemented REFORGE components and Forge's own screens. A founder-approved onboarding and paywall reference (F15) would let them be matched exactly.
