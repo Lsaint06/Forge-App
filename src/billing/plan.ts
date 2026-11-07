@@ -23,6 +23,8 @@ export const MEMBERSHIP_PLAN = {
  */
 export type StoreProduct = {
   id: string;
+  /** The subscription's name as the App Store shows it (Phase 9.3). */
+  title?: string;
   priceString: string;
   /** In `currency` units (6.99). */
   price: number;

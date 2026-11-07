@@ -16,7 +16,16 @@ import type { StoreProduct } from "./plan";
 export type IntroEligibility = "eligible" | "ineligible" | "unknown";
 
 export type StoreProblem =
-  "offline" | "unavailable" | "notAllowed" | "productUnavailable" | "unknown";
+  | "offline"
+  | "unavailable"
+  | "notAllowed"
+  | "productUnavailable"
+  /**
+   * This Apple Account's purchase belongs to another Forge account
+   * (RevenueCat's restore behaviour, founder decision F3). Phase 9.3.
+   */
+  | "otherAccount"
+  | "unknown";
 
 export type PurchaseOutcome =
   /** The store finished a transaction: Forge's server decides what it means. */
@@ -47,6 +56,19 @@ export interface PurchaseProvider {
    * a cue to ask the server, never a fact. Returns the unsubscribe.
    */
   onStoreChange(listener: () => void): () => void;
+  /**
+   * The membership the store's current offering sells, or none (Phase 9.3):
+   * its product ID is the founder's (F16) and lives in RevenueCat's offering
+   * rather than in the app. Optional for stores without offerings.
+   */
+  membership?(): Promise<StoreProduct | undefined>;
+  /** The App Store's own subscription management (Phase 9.3). */
+  manage?(): Promise<void>;
+  /**
+   * True when purchases are simulated (RevenueCat's Test Store, which Expo Go
+   * must use): nothing is sold and the server never counts it (Phase 9.3).
+   */
+  readonly simulated?: boolean;
 }
 
 /**

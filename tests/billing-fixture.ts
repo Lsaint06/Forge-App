@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { entitlementCache, type KeyValueStore } from "../src/billing/cache";
 import type { EntitlementResponse } from "../src/billing/entitlement";
 import type { StoreProduct } from "../src/billing/plan";
@@ -350,4 +351,29 @@ export function billing(options: { settles?: boolean; start?: number } = {}) {
     };
   };
   return { server, phone, memory, store, deps, wait, restart };
+}
+
+// ---- Phase 9.3: RevenueCat's webhooks ---------------------------------------
+
+/**
+ * RevenueCat's webhook signature, computed independently (node:crypto):
+ * `t=<unix seconds>,v1=<HMAC-SHA256 hex of "<t>.<raw body>">`.
+ */
+export function signWebhook(body: string, seconds: number, secret: string) {
+  const v1 = createHmac("sha256", secret)
+    .update(`${seconds}.${body}`)
+    .digest("hex");
+  return `t=${seconds},v1=${v1}`;
+}
+
+/** A RevenueCat webhook's body, as it travels. */
+export function rcWebhook(event: Record<string, unknown>) {
+  return JSON.stringify({
+    api_version: "1.0",
+    event: {
+      environment: "PRODUCTION",
+      event_timestamp_ms: T0,
+      ...event,
+    },
+  });
 }
